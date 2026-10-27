@@ -162,6 +162,19 @@ describe('measureStory over an injected page', () => {
   });
 });
 
+describe('measuredToSpec: part ids', () => {
+  it('never gives a nested element the root id: a .root class inside the root becomes root-2', () => {
+    const box = { x: 0, y: 0, width: 80, height: 32 };
+    const node = (tag: string, classes: string[], children: MeasuredNode[] = []): MeasuredNode => ({ tag, kind: 'frame', classes, box, style: {}, tokens: {}, children });
+    const story = { id: 'forms-choicecard--conflict', root: node('label', ['card'], [node('span', ['text'], [node('span', ['description'], [node('span', ['root', 'sm'])])])]) };
+    const spec = measuredToSpec(story);
+    const ids = spec.parts.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.filter((id) => id === 'root')).toHaveLength(1);
+    expect(spec.parts.find((p) => p.id === 'root-2')?.parent).toBe('description');
+  });
+});
+
 describe('splitInstances: stories that render the component many times', () => {
   const n = (tag: string, classes: string[], children: MeasuredNode[] = [], style: Record<string, string> = {}, extra: Partial<MeasuredNode> = {}): MeasuredNode => ({
     tag,

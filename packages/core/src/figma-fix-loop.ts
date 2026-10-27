@@ -162,7 +162,8 @@ export interface GapCaseFor {
 /** The gap case of one component, built the way the plugin pulls it: fixes applied, set rebuilt, the run's verdicts. */
 export function gapCaseFor(input: GapCaseForInput): GapCaseFor {
   const fixed = input.fixes ? applyFixes(input.measured, input.fixes).file : (input.measured as FixedMeasuredSpecsFile);
-  const { specs, shots } = specsFromMeasure(fixed as MeasuredSpecsFile);
+  // Only this component's set: building every set of a large measure is seconds of work the case never reads.
+  const { specs, shots } = specsFromMeasure(fixed as MeasuredSpecsFile, { only: input.component });
   const spec = specs.components.find((c) => lc(c.name) === lc(input.component));
   const fidelity = input.run?.report.components.find((c) => lc(c.component) === lc(input.component));
   const setShots = byName(shots, input.component) ?? {};
@@ -296,10 +297,10 @@ export function tryFigmaFixes(input: TryFixesInput): TryFixesResult {
   const before = gapCaseFor({ component, measured: input.measured, fixes: input.fixes, run: input.run });
   const afterRun = applyFixes(input.measured, file);
   const applied = afterRun.applied.filter((a) => proposedIds.has(a.id));
-  const afterBuilt = specsFromMeasure(afterRun.file as MeasuredSpecsFile);
+  const afterBuilt = specsFromMeasure(afterRun.file as MeasuredSpecsFile, { only: component });
   const afterSpec = afterBuilt.specs.components.find((c) => lc(c.name) === lc(component));
   const hintsA = afterSpec ? afterBuilt.hints[afterSpec.name] : undefined;
-  const hintsB = before.spec ? specsFromMeasure(before.measured as MeasuredSpecsFile).hints[before.spec.name] : undefined;
+  const hintsB = before.spec ? specsFromMeasure(before.measured as MeasuredSpecsFile, { only: before.spec.name }).hints[before.spec.name] : undefined;
   const resolve = measuredResolver(before.measured);
   const built = byName(input.run?.built, component);
   const stories = storiesOfComponent(before.measured, component);

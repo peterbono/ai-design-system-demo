@@ -262,15 +262,26 @@ export function pairParts(staticParts: SpecPart[], measured: Pick<MeasuredSpec, 
     pairs.set(s, m);
     taken.add(m);
   };
-  /** Measured ancestors of a measured part, nearest first. */
+  /**
+   * Measured ancestors of a measured part, nearest first. Stops at a part met twice: a measure taken before root ids
+   * were reserved can hold two parts named "root", and its parent chain then loops.
+   */
   const ancestors = (id: string) => {
     const out: string[] = [];
-    for (let p = mParts.get(id)?.parent; p; p = mParts.get(p)?.parent) out.push(p);
+    const seen = new Set<string>([id]);
+    for (let p = mParts.get(id)?.parent; p && !seen.has(p); p = mParts.get(p)?.parent) {
+      seen.add(p);
+      out.push(p);
+    }
     return out;
   };
   /** The measured counterpart of the nearest paired static ancestor. */
   const pairedAncestor = (p: SpecPart) => {
-    for (let a = p.parent; a; a = sParts.get(a)?.parent) if (pairs.has(a)) return pairs.get(a);
+    const seen = new Set<string>([p.id]);
+    for (let a = p.parent; a && !seen.has(a); a = sParts.get(a)?.parent) {
+      if (pairs.has(a)) return pairs.get(a);
+      seen.add(a);
+    }
     return undefined;
   };
   /** Prefer the candidate under the paired parent, then under the nearest paired ancestor, then the first. */

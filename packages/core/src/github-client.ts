@@ -1054,8 +1054,10 @@ export class GitHubClient {
   async getFileText(path: string, ref?: string): Promise<string | undefined> {
     try {
       const q = ref ? `?ref=${encodeURIComponent(ref)}` : '';
-      const r = await this.request<{ content?: string; encoding?: string; sha: string; type: string }>('GET', `${this.repoPath}/contents/${encodeRef(path)}${q}`);
+      const r = await this.request<{ content?: string; encoding?: string; sha: string; type: string; size?: number }>('GET', `${this.repoPath}/contents/${encodeRef(path)}${q}`);
       if (r.type !== 'file') return undefined;
+      // Over 1 MB the contents API leaves the content out (encoding "none"): read the file with the raw media type.
+      if (r.encoding === 'none' || (!r.content && (r.size ?? 0) > 0)) return await this.request<string>('GET', `${this.repoPath}/contents/${encodeRef(path)}${q}`, undefined, true, { accept: ACCEPT_RAW, text: true });
       if (r.encoding === 'base64' && r.content !== undefined) return base64ToUtf8(r.content);
       return r.content;
     } catch (err) {

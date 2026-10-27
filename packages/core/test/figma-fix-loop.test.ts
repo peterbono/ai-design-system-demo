@@ -188,3 +188,56 @@ describe('sizes of their own, from the boxes', () => {
     expect((hidden.variants.find((v) => v.props.Invalid === 'false') ?? hidden.variants[0]!).values['cds--text-input-label-wrapper']?.height).toBeUndefined();
   });
 });
+
+describe('a measure with a looping part tree (two parts named root, measured before root ids were reserved)', () => {
+  /** The measure plus a story whose inner `.root` element took the root's id: root -> text -> description -> root. */
+  const withLoop = (): MeasuredSpecsFile => {
+    const file = loadWithBoxes();
+    const base = file.stories.find((s) => s.spec && !s.error && s.title.split('/').at(-1) !== 'TextInput')!;
+    const spec = structuredClone(base.spec!);
+    spec.parts = [
+      { id: 'root', name: 'Root', kind: 'frame' },
+      { id: 'text', name: 'Text', kind: 'frame', parent: 'root' },
+      { id: 'description', name: 'Description', kind: 'frame', parent: 'text' },
+      { id: 'root', name: 'Root', kind: 'frame', parent: 'description' },
+      { id: 'title', name: 'Title', kind: 'text', parent: 'text' },
+    ] as typeof spec.parts;
+    return { ...file, stories: [...file.stories, { ...base, id: 'forms-loopcard--conflict', title: 'Forms/LoopCard', name: 'Conflict', spec }] };
+  };
+
+  it('builds every set without looping', () => {
+    const { specs } = specsFromMeasure(withLoop());
+    expect(specs.components.some((c) => c.name === 'TextInput')).toBe(true);
+  });
+
+  it("a gap case builds only its own component's set", () => {
+    const only = specsFromMeasure(withLoop(), { only: 'TextInput' }).specs.components;
+    expect(only.map((c) => c.name)).toEqual(['TextInput']);
+    const all = specsFromMeasure(loadWithBoxes()).specs.components.find((c) => c.name === 'TextInput');
+    expect(only[0]).toEqual(all);
+    const { gap, spec } = gapCaseFor({ component: 'TextInput', measured: withLoop(), run: textInputRun() });
+    expect(spec?.name).toBe('TextInput');
+    expect(gap.variants.length).toBeGreaterThan(0);
+  });
+});
+
+describe('pairParts on a looping measured tree', () => {
+  it('pairs a text whose measured ancestors loop, without looping itself', async () => {
+    const { pairParts } = await import('../src/measured-spec');
+    const staticParts = [
+      { id: 'root', name: 'Root', kind: 'frame' as const },
+      { id: 'body', name: 'Body', kind: 'frame' as const, parent: 'root' },
+      { id: 'label', name: 'Label', kind: 'text' as const, parent: 'body', characters: 'Hi' },
+    ];
+    const measured = {
+      parts: [
+        { id: 'root', name: 'Root', kind: 'frame' as const },
+        { id: 'text', name: 'Text', kind: 'frame' as const, parent: 'root' },
+        { id: 'description', name: 'Description', kind: 'frame' as const, parent: 'text' },
+        { id: 'root', name: 'Root', kind: 'frame' as const, parent: 'description' },
+        { id: 't', name: 'T', kind: 'text' as const, parent: 'description', characters: 'Hi' },
+      ],
+    };
+    expect(pairParts(staticParts, measured).get('label')).toBe('t');
+  });
+});
