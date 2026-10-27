@@ -24,6 +24,16 @@ export async function writeFidelityRun(client: RunClient, run: FigmaFidelityRun,
   return DEFAULT_FIDELITY_RUN_FILE;
 }
 
+/**
+ * Whether the run on screen still has to go to the requests branch before Claude (re)opens: true unless this exact
+ * run (same checkedAt) is the one already written. "Open Claude again" after a new Compare with code must hand Claude
+ * the new run, not the one written for the first ask.
+ */
+export function runNeedsWrite(current: string | undefined, written: string | undefined): boolean {
+  if (!current) return false;
+  return current !== written;
+}
+
 /** What the designer says to their Claude (Claude Desktop or Claude Code with the Bridge MCP server). */
 export const fixPhrase = (component: string) => `Fix ${component} in Figma with Bridge`;
 

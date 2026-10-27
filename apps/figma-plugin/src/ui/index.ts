@@ -8,7 +8,7 @@ import { type Analysis, type PullProposal, type PushBrand, type PushProposal, an
 import { type ChangesMode, GitHubClient, type PullRequest, type PullRequestSummary, changesMode, figmaPushNextLine, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { type FigmaFidelityRun, type GapBuiltVariant, type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
-import { DIFFERS_HANDOFF_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixRequestForDeveloper, referencesRequestForDeveloper, writeFidelityRun } from '../sync/fix-with-claude';
+import { DIFFERS_HANDOFF_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixRequestForDeveloper, referencesRequestForDeveloper, runNeedsWrite, writeFidelityRun } from '../sync/fix-with-claude';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
@@ -2595,14 +2595,7 @@ async function fixWithClaude(p: PullState, component: string, connected = !!stat
   f.fix = { component, status: 'writing' };
   render();
   try {
-    const run: FigmaFidelityRun = {
-      version: 1,
-      report: f.outcome.report,
-      ...(f.built ? { built: f.built } : {}),
-      figmaRenders: Object.fromEntries(f.outcome.items.filter((it) => it.result.status === 'differs').map((it) => [it.name, Object.fromEntries(it.result.variants.map((v) => [v.key, it.nodeId]))])),
-      ...(p.measure?.measuredAt ? { measuredAt: p.measure.measuredAt } : {}),
-    };
-    await writeFidelityRun(getClient(), run, state.init!.settings.branch);
+    await writeCurrentRun(p);
     const open = claudeUrl(component);
     // Copied either way: the prefilled message is there, and the clipboard has it if the box comes up empty.
     await copyText(askText(component));
@@ -2613,6 +2606,45 @@ async function fixWithClaude(p: PullState, component: string, connected = !!stat
     f.fix = { component, status: 'error', error: inlineError(err) ?? 'Bridge could not save the request. Check your connection, then try again.' };
   }
   render();
+}
+
+/** The checkedAt of the Compare with code run last written to the requests branch from this plugin session. */
+let writtenRunAt: string | undefined;
+
+/**
+ * Writes the run on screen to figma-fidelity.json, unless that exact run is already there. Both "Ask Claude to fix it"
+ * and "Open Claude again" go through here, so Claude always reads the comparison the designer is looking at.
+ */
+async function writeCurrentRun(p: PullState): Promise<void> {
+  const f = p.fidelity;
+  if (!f || f.outcome?.kind !== 'done') return;
+  const at = f.outcome.report.checkedAt;
+  if (!runNeedsWrite(at, writtenRunAt)) return;
+  const run: FigmaFidelityRun = {
+    version: 1,
+    report: f.outcome.report,
+    ...(f.built ? { built: f.built } : {}),
+    figmaRenders: Object.fromEntries(f.outcome.items.filter((it) => it.result.status === 'differs').map((it) => [it.name, Object.fromEntries(it.result.variants.map((v) => [v.key, it.nodeId]))])),
+    ...(p.measure?.measuredAt ? { measuredAt: p.measure.measuredAt } : {}),
+  };
+  await writeFidelityRun(getClient(), run, state.init!.settings.branch);
+  writtenRunAt = at;
+}
+
+/** "Open Claude again": hands Claude the comparison on screen first when it is newer than the one written, then reopens. */
+async function reopenClaude(component: string): Promise<void> {
+  const p = state.pull;
+  if (p) {
+    try {
+      await writeCurrentRun(p);
+    } catch (err) {
+      if (p.fidelity) p.fidelity.fix = { component, status: 'error', error: inlineError(err) ?? 'Bridge could not save the request. Check your connection, then try again.' };
+      render();
+      return;
+    }
+  }
+  void copyText(askText(component));
+  void request('open-url', { url: claudeUrl(component).url });
 }
 
 /** Bridge is in the team's Claude (someone said so once): kept with the file, the first-time sentence goes. */
@@ -2752,7 +2784,7 @@ function claudePanel(component: string): Child {
         ]
       : null,
     head.kind === 'waiting' || head.kind === 'quiet'
-      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `reopen-claude-${component}`, onClick: () => { void copyText(askText(component)); void request('open-url', { url: claudeUrl(component).url }); } }, icon('external'), 'Open Claude again'))
+      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `reopen-claude-${component}`, onClick: () => void reopenClaude(component) }, icon('external'), 'Open Claude again'))
       : null,
     head.kind === 'stopped' || head.kind === 'quiet'
       ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `stop-copy-${component}`, onClick: () => void copyText(developer).then((ok) => { if (ok) state.expanded.add(`copied-${component}`); render(); }) }, icon(state.expanded.has(`copied-${component}`) ? 'check' : 'copy'), state.expanded.has(`copied-${component}`) ? 'Copied' : 'Copy for your developer'))

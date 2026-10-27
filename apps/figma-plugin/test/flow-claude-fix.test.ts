@@ -68,4 +68,20 @@ test('Ask Claude to fix it: connect once, the request copied, waiting, working w
   await p.until(() => p.document.querySelector('[data-claude="waiting"] [data-head]')?.textContent === 'Waiting for Claude', 25000);
   assert.ok([...p.document.querySelectorAll('[data-claude="waiting"] button')].some((b) => b.textContent?.includes('Open Claude again')));
   assert.ok(!p.text().includes('Ask Claude to fix it'), 'not asked twice');
+
+  // Open Claude again with the same comparison on screen: Claude reopens, the check is not written twice.
+  const puts = () => p.calls.filter((c) => c === 'PUT /repos/acme/acme-design-system/contents/figma-fidelity.json').length;
+  const before = puts();
+  opened.length = 0;
+  await p.click('Open Claude again');
+  await p.until(() => opened.length > 0);
+  assert.equal(puts(), before, 'same run: nothing written');
+
+  // A new Compare with code, then Open Claude again: the new comparison goes to Claude first, not the one from the ask.
+  await p.click('Compare again');
+  await p.until(() => /differ/.test(p.headline()) && !!p.document.querySelector('[data-claude="waiting"]'), 15000);
+  opened.length = 0;
+  await p.click('Open Claude again');
+  await p.until(() => opened.length > 0);
+  assert.equal(puts(), before + 1, 'the newer run is written before Claude reopens');
 });

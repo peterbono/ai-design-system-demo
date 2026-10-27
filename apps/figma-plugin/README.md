@@ -28,6 +28,10 @@ the pull request a Push opened (PR #4). Components are in [Storybook](https://br
    `bridge-figma-plugin/manifest.json`.
 3. Run it from **Plugins > Development > Bridge**.
 
+To update it, unzip the new zip over the same `bridge-figma-plugin` folder, replacing its files: nothing to import
+again. Importing the new folder as well leaves two dev entries with the same id and no way to tell which one runs; if
+that happened, remove the older one in **Plugins > Development > Manage plugins in development** (Remove local version).
+
 From source instead: `npm install`, then `npm run plugin:build` from the repo root (writes `apps/figma-plugin/dist/`),
 and import `apps/figma-plugin/manifest.json`.
 
