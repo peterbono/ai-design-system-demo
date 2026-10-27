@@ -4,7 +4,7 @@ An MCP server that connects your own Claude (Claude Code, Claude Desktop or any 
 design system repo. Claude can read your DTCG tokens, components and docs, run your contrast gate, and
 propose token changes as reviewable branches and pull requests. It never writes to `main`.
 
-Free and open source (MIT). Local, no backend, no account: it reads files on your disk, or a GitHub repo
+Free and source available (FSL-1.1-MIT, each version becomes MIT after two years). Local, no backend, no account: it reads files on your disk, or a GitHub repo
 with your own token.
 
 ## Run it

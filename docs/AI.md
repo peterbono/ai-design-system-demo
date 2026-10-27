@@ -5,7 +5,7 @@ tokens resolved in every brand, theme and density, the contrast gate, components
 docs, the design language and the agent rules. Claude can then build UI with real tokens and propose token
 changes as pull requests that your design and tech owners review.
 
-- **Free and open source** (MIT). No account, no backend, no hosted service.
+- **Free and source available** (FSL-1.1-MIT, see LICENSING.md). No account, no backend, no hosted service.
 - **Bring your own**: your repo, your Claude, your GitHub token (optional).
 - **Repo-agnostic**: point it at any DTCG token repo. `bridge.config.json` says where things are; without it
   Bridge detects them.
@@ -665,7 +665,7 @@ bridge audit ../my-app/src --allowlist known.json  # leave known file:line viola
 ## How it compares
 
 Tokens Studio offers AI and MCP features as part of its hosted platform. Bridge covers the same loop
-(read tokens, check, propose, review) as a free, local, open source tool on top of the files you already
+(read tokens, check, propose, review) as a free, local, source-available tool on top of the files you already
 have, with your own Claude and your own GitHub token.
 
 ## Status

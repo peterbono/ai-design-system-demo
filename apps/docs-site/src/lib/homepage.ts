@@ -52,5 +52,5 @@ export const FAQ: { id: string; question: string; answer: string }[] = [
     question: 'Does it work with our existing design system?',
     answer: 'Bridge reads a design system that lives in code on GitHub, with tokens in the W3C standard format. A developer sets it up with one command: npx @bridge-ds/cli init.',
   },
-  { id: 'open-source', question: 'Is Bridge open source?', answer: 'Yes. MIT licensed and free. The code is on GitHub and contributions are welcome.' },
+  { id: 'open-source', question: 'Is Bridge open source?', answer: 'Its code is public on GitHub, and it is free to use. Components and tokens are MIT. Studio, the Figma plugin, the connector and the tools are fair source (FSL-1.1-MIT): you can read, audit, change and run them inside your company, but not resell them as a competing product. Each version becomes MIT two years after its release.' },
 ];

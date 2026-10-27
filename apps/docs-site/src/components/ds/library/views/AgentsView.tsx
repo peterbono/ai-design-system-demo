@@ -61,7 +61,7 @@ export default function AgentsView({ data }: { data: LibraryData }) {
 
       <ul className="cx-facts" aria-label="At a glance">
         <li>
-          <Icon icon={siteIcon('check')} size="sm" className="icon" /> Free and open source, MIT
+          <Icon icon={siteIcon('check')} size="sm" className="icon" /> Free, source available
         </li>
         <li>
           <Icon icon={siteIcon('check')} size="sm" className="icon" /> Local: no account, no backend

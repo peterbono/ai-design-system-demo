@@ -3,7 +3,7 @@
   "version": "0.3.13",
   "type": "module",
   "description": "Bridge visual impact analysis: screenshots the stories and app screens a design system change touches, at the base and head refs, and pixel-diffs them into before/after/diff images and a JSON manifest.",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "author": "Florian Gouloubi",
   "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/visual#readme",
   "repository": {
