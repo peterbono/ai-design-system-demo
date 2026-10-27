@@ -1,5 +1,5 @@
 ---
-// /about/: why Bridge exists, that it is open source, and who made it. Ported from the owner's validated test page.
+// /about/: why Bridge exists, its license, and who made it. Ported from the owner's validated test page.
 import '../styles/homepage.css';
 import '../styles/about.css';
 import Landing from '../layouts/Landing.astro';
@@ -15,7 +15,7 @@ const projects = [
 ];
 ---
 
-<Landing title="About Bridge" description="Bridge is the missing step between an AI exploration and your design system. Open source, MIT, made by Florian Gouloubi.">
+<Landing title="About Bridge" description="Bridge is the missing step between an AI exploration and your design system. Source available, made by Florian Gouloubi.">
   <div class="hp ab">
     <div class="ab-col">
       <div class="ab-draw"><AboutDrawing /></div>
@@ -32,8 +32,8 @@ const projects = [
       </section>
 
       <section class="ab-sec" aria-labelledby="oss">
-        <h2 id="oss" class="ab-h2">Open source and free</h2>
-        <p>Bridge is MIT licensed and free to use. It is built in the open on GitHub and meant to grow with the design systems community. Issues, ideas and contributions are welcome.</p>
+        <h2 id="oss" class="ab-h2">Source available and free</h2>
+        <p>Bridge is free to use and built in the open on GitHub. Components and tokens are MIT. Studio, the Figma plugin, the connector and the tools are fair source (FSL-1.1-MIT): anyone can read, audit, change and run them inside their company, but not resell them as a competing product. Each version becomes MIT two years after its release. Issues and ideas are welcome.</p>
         <p><Link variant="standalone" className="ab-link" href={GITHUB_URL}>Bridge on GitHub<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></Link></p>
       </section>
 

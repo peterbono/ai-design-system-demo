@@ -87,7 +87,7 @@ The Customer's design system is not held by Bridge: it stays in the Customer's G
 
 ## 11. Audits
 
-Bridge makes available to the Customer the information necessary to demonstrate compliance with this DPA. Bridge's source code is public under the MIT license, and the security page links each statement to the code that does it. Bridge allows and contributes to audits, including inspections, by the Customer or an auditor it mandates, with at least 30 days' notice, during business hours, at the Customer's cost, no more than once a year except after a personal data breach or at the request of a supervisory authority.
+Bridge makes available to the Customer the information necessary to demonstrate compliance with this DPA. Bridge's source code is public (Functional Source License FSL-1.1-MIT; components and tokens under MIT), and the security page links each statement to the code that does it. Bridge allows and contributes to audits, including inspections, by the Customer or an auditor it mandates, with at least 30 days' notice, during business hours, at the Customer's cost, no more than once a year except after a personal data breach or at the request of a supervisory authority.
 
 Bridge holds no certification at the date of this template (no SOC 2, no ISO 27001, no penetration test report).
 
@@ -133,7 +133,7 @@ As described on the security page, at the date of this template:
 - **Logging.** No analytics or tracking script. Bridge's functions log nothing about people; the hosting platform keeps its own request logs.
 - **Backups.** Daily, to a private Vercel Blob store, 30 kept. Sign-in codes and AI connector tokens are left out.
 - **Deletion.** A person can delete their account at once; it ends their sessions and AI connections. Unused AI connections end after 90 days.
-- **Transparency.** Public source code (MIT) and automated tests that check the security page against the code.
+- **Transparency.** Public source code (FSL-1.1-MIT; components and tokens MIT) and automated tests that check the security page against the code.
 - **Reporting.** Security problems are reported privately through GitHub's security advisory form for the repository.
 
 Known limits, stated on the security page: no certification or outside audit, no single sign-on, no encryption with customer keys, one server secret from which several purpose-specific keys are derived, no audit log of Bridge's own actions beyond GitHub's history.

@@ -1,6 +1,6 @@
 # Bridge
 
-**Bridge is a free, open-source design system as code.** Tokens and components live in this repository and are
+**Bridge is a free, source-available design system as code.** Tokens and components live in this repository and are
 the source of truth. Figma, your AI assistant and your product teams all read from it and propose changes back
 to it as pull requests that people review.
 

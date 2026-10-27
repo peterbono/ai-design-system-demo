@@ -3,7 +3,7 @@
   "version": "0.13.0",
   "type": "module",
   "description": "bridge CLI: set up Bridge in a design system repo, check tokens in CI, search and diff tokens, propose changes, start the MCP server.",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "author": "Florian Gouloubi",
   "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/cli#readme",
   "repository": {

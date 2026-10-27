@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Back-office demo on the Bridge design system: the react-admin e-commerce demo migrated from MUI to Bridge components, keeping the headless ra-core.",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

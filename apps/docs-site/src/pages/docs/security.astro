@@ -269,7 +269,7 @@ const STORED = [
     </ul>
     <DevDetail id="ai-dev" client:visible>
       <ul>
-        <li>Connector: <Link href={src('apps/docs-site/api/mcp/index.ts')}><code>api/mcp/index.ts</code></Link> runs the open-source MCP server (<Link href={src('packages/mcp/src/server.ts')}><code>packages/mcp/src/server.ts</code></Link>, every tool listed there except <code>bridge_merge_branch</code>, which it neither lists nor runs) with the person’s GitHub App user token, renewed on the server. Push access checked at sign-in (<code>permissions.push</code> or <code>admin</code>).</li>
+        <li>Connector: <Link href={src('apps/docs-site/api/mcp/index.ts')}><code>api/mcp/index.ts</code></Link> runs the MCP server (<Link href={src('packages/mcp/src/server.ts')}><code>packages/mcp/src/server.ts</code></Link>, every tool listed there except <code>bridge_merge_branch</code>, which it neither lists nor runs) with the person’s GitHub App user token, renewed on the server. Push access checked at sign-in (<code>permissions.push</code> or <code>admin</code>).</li>
         <li>No AI key in the plugin, tested: <Link href={src('apps/figma-plugin/test/push-drafts.test.ts')}><code>apps/figma-plugin/test/push-drafts.test.ts</code></Link>.</li>
         <li>Browser-only key for docs drafting: <Link href={src('apps/docs-site/src/scripts/docs-ai.ts')}><code>src/scripts/docs-ai.ts</code></Link>.</li>
       </ul>
@@ -322,7 +322,7 @@ const STORED = [
 
   <section aria-labelledby="audit">
     <h2 id="audit">Audit the code, report a problem</h2>
-    <p>All of Bridge is open source under the MIT license, in one public repository: the site, its functions, the connector, the Figma plugin, the CLI and the MCP server. Your team can read every line above, run the tests (<code>npm test</code>) and run its own copy.</p>
+    <p>All of Bridge is public in one repository: the site, its functions, the connector, the Figma plugin, the CLI and the MCP server are under the Functional Source License (FSL-1.1-MIT, each version becomes MIT after two years), and the components and tokens are MIT. Your team can read every line above, run the tests (<code>npm test</code>) and run its own copy.</p>
     <p>Found a security problem? Report it privately through <Link href={SECURITY_ADVISORY_URL}>GitHub’s security advisory form</Link> for the repository. Please do not put the details in a public issue. There is no dedicated security email.</p>
     <DevDetail id="audit-dev" client:visible>
       <ul>

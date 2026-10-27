@@ -42,7 +42,7 @@ Privacy
 - Your GitHub token (a fine-grained token limited to one repository) is stored only in this plugin's client storage on your computer. It is not saved in the Figma file and is never shown again.
 - DS Bridge only contacts api.github.com. No analytics, no server of ours, nothing else.
 
-Free and open source (MIT). Docs, source and issues: https://github.com/peterbono/ai-design-system-demo
+Free and source available (FSL-1.1-MIT). Docs, source and issues: https://github.com/peterbono/ai-design-system-demo
 See it live: https://bridge.floriangouloubi.com
 ```
 

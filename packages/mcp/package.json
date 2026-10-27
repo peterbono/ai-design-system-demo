@@ -3,7 +3,7 @@
   "version": "0.9.0",
   "type": "module",
   "description": "Bridge MCP server: lets Claude (Claude Code, Claude Desktop or any MCP client) read, check and propose changes to a DTCG design system repo through pull requests.",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "author": "Florian Gouloubi",
   "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/mcp#readme",
   "repository": {

@@ -132,7 +132,7 @@ export const SHORT: CompareRow[] = [
     feature: 'Open source',
     detail: '',
     cells: [
-      y('MIT.'),
+      p('Fair source', 'Components and tokens are MIT. Studio, the plugin, the connector and the tools are public under FSL-1.1-MIT; each version becomes MIT after two years.'),
       p('Plugin only', 'The Figma plugin is MIT; the platform is not.'),
       p('Exporters only', 'The code exporters are MIT; the platform is not.'),
       y('MIT.'),
