@@ -308,3 +308,19 @@ test('hasBranch asks the matching refs: a missing branch is an empty list, never
   assert.equal(await client.hasBranch('main'), true);
   assert.ok(calls.every((c) => c.url.includes('/git/matching-refs/heads/')));
 });
+
+test('getFileText reads a file over 1 MB with the raw media type (the contents API leaves its content out)', async () => {
+  const big = '{"components":[]}'.padEnd(1_200_000, ' ');
+  const accepts: string[] = [];
+  const fetchImpl: FetchLike = async (url, init) => {
+    const accept = (init?.headers ?? {})['Accept'] ?? (init?.headers ?? {})['accept'] ?? '';
+    accepts.push(accept);
+    if (!url.includes('/contents/packages/react/component-specs.json')) return { ok: false, status: 404, json: async () => ({}), text: async () => '' };
+    if (accept.includes('raw')) return { ok: true, status: 200, json: async () => JSON.parse(big), text: async () => big };
+    const meta = { type: 'file', encoding: 'none', content: '', size: big.length, sha: 's1' };
+    return { ok: true, status: 200, json: async () => meta, text: async () => JSON.stringify(meta) };
+  };
+  const gh = new GitHubClient('o/r', 't', fetchImpl);
+  assert.equal(await gh.getFileText('packages/react/component-specs.json', 'main'), big);
+  assert.equal(accepts.filter((a) => a.includes('raw')).length, 1);
+});

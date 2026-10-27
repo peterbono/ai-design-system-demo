@@ -512,13 +512,20 @@ function drawnAxes(axes: SpecAxis[], variants: SpecVariant[]): { axes: SpecAxis[
 /** Every set the measure can give, by component (the last segment of a story's title: "Figma variants/Radio" is Radio). */
 export function specsFromMeasure(
   file: MeasuredSpecsFile | FixedMeasuredSpecsFile,
-  opts: { known?: ((path: string) => boolean) | undefined } = {},
+  opts: {
+    known?: ((path: string) => boolean) | undefined;
+    /** One set only (its name, compared like the fix tools compare it): what one component's gap case needs. */
+    only?: string | undefined;
+  } = {},
 ): { specs: ComponentSpecsFile; report: MeasuredOnlyReport; shots: MeasuredShots; hints: Record<string, FigmaHints> } {
   const known = opts.known ?? (() => true);
+  const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const only = opts.only === undefined ? undefined : key(opts.only);
   const groups = new Map<string, MeasuredSpecsStory[]>();
   for (const s of file.stories) {
     if (s.error || !s.spec) continue;
     const name = setNameOf(s.title);
+    if (only !== undefined && key(name) !== only) continue;
     groups.set(name, [...(groups.get(name) ?? []), s]);
   }
   const argTypesOf = (name: string) => Object.assign({}, ...(file.components ?? []).filter((c) => setNameOf(c.title) === name).map((c) => c.argTypes));

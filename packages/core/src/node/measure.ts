@@ -756,7 +756,12 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
   if (!m.root) return out;
   const used = new Set<string>();
   const idFor = (n: MeasuredNode, isRoot: boolean, inherited?: string) => {
-    if (isRoot) return 'root';
+    // The root's id is reserved: a nested element with a .root class (a radio's dot, a card's inner root) gets root-2,
+    // never a second "root" that would make the part tree loop.
+    if (isRoot) {
+      used.add('root');
+      return 'root';
+    }
     const cls = (n.classes ?? []).map(localClassName).find((c) => /^[A-Za-z]/.test(c) && c.length < 40 && !isUtilityClass(c));
     // Without a class that names it: its tag, numbered in order (the same structure gives the same ids in every variant).
     let base = cls ?? (n.pseudo ? `${inherited ?? 'root'}-${n.pseudo}` : n.kind === 'text' ? (inherited ? `${inherited}-text` : 'text') : n.kind === 'icon' ? 'icon' : n.tag);
