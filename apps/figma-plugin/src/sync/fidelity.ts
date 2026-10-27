@@ -10,6 +10,7 @@ import {
   FIGMA_REFERENCES_MANIFEST,
   buildFidelityReport,
   compareImages,
+  sizeGap,
   summarizeComponent,
   type CompareOptions,
   type FidelityComponentResult,
@@ -18,6 +19,7 @@ import {
   type FigmaReferenceManifest,
   type GitHubClient,
   type RgbaImage,
+  type Size,
 } from '@bridge-ds/core';
 import type { GeneratedSet } from './component-pull';
 
@@ -155,9 +157,15 @@ export function fidelityHeadline(f: { running?: string | undefined; error?: stri
   return notChecked ? 'Nothing could be compared' : 'Nothing to compare yet';
 }
 
-/** One designer sentence for a set that differs (the pixel figures stay one click away, under its variants). */
-export const differsSentence = (r: { differing: number; checked: number }) =>
-  r.checked > 1 ? `Looks different from the code in ${r.differing} of ${r.checked} variants.` : 'Looks different from the code.';
+/**
+ * One designer sentence for a set that differs (the pixel figures stay one click away, under its variants). A size
+ * difference is said outright: a small pixel score would hide a set drawn twice as tall.
+ */
+export const differsSentence = (r: { differing: number; checked: number; worst?: { size?: { figma: Size; code: Size } | undefined } | undefined }) => {
+  const head = r.checked > 1 ? `Looks different from the code in ${r.differing} of ${r.checked} variants` : 'Looks different from the code';
+  const gap = r.worst?.size ? sizeGap(r.worst.size) : undefined;
+  return gap ? `${head}: ${gap}.` : `${head}.`;
+};
 
 export function fidelitySummary(r: FidelityReport): string {
   const { matches, differs, notChecked } = r.summary;

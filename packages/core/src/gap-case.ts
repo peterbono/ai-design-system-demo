@@ -5,7 +5,7 @@
 // re-checks against the shot, a person approves. Pure and browser safe: the plugin UI, the CLI and the docs site run it.
 
 import { variantKeyOf, type ComponentSpec, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
-import type { FidelityComponentResult, FidelityVariantResult, Size } from './fidelity';
+import { sizeGap, type FidelityComponentResult, type FidelityVariantResult, type Size } from './fidelity';
 import { compareSpecToMeasured, pairParts, withoutAddedWrappers, type MeasuredBox, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory, type MeasuredState } from './measured-spec';
 
 export const GAP_CASE_VERSION = 1;
@@ -502,6 +502,9 @@ function gapSummary(component: string, variants: GapVariant[], checked: number, 
   if (!variants.length) return checked ? `${component} matches the code on ${checked} variant${checked === 1 ? '' : 's'}.` : `${component} has no variant to compare.`;
   const first = variants.flatMap((v) => v.differences)[0];
   const head = `${component} differs from the code on ${variants.length} of ${checked} variant${checked === 1 ? '' : 's'}`;
+  // The images differ in size and no measured value says why: the size is what the designer sees first.
+  const sized = variants.map((v) => (v.size ? sizeGap(v.size) : undefined)).find(Boolean);
+  if (!first && sized) return `${head}: ${sized}.`;
   if (!first) return variants.some((v) => (v.percent ?? 0) > UNMEASURED_PERCENT) ? `${head}: Bridge doesn't measure what differs here yet (the measured values agree, the images do not).` : `${head}: the measure agrees, compare the images.`;
   const more = variants.reduce((n, v) => n + v.differences.length, 0) - 1;
   return `${head}. ${first.text}${more > 0 ? `, and ${more} more` : ''}.`;

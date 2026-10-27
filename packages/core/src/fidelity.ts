@@ -239,11 +239,29 @@ export function buildFidelityReport(input: {
 const fmtPercent = (p: number) => (p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${Math.round(p * 10) / 10}%` : p > 0 ? 'under 1%' : '0%');
 const fmtSize = (s: Size) => `${s.width}x${s.height}`;
 
-/** One variant's verdict: "Matches the code" or "Differs from the code: 12% of pixels, size 120x40 vs 118x40". */
+/**
+ * A size difference past the tolerance, in designer words: "height 89 in Figma vs 48 in code". It says more than the
+ * share of pixels when the two images do not have the same size (a 1% pixel score can hide a set twice as tall).
+ */
+export function sizeGap(s: { figma: Size; code: Size }, tolerance: number = FIDELITY_DEFAULTS.sizeTolerance): string | undefined {
+  const r = (n: number) => Math.round(n);
+  const parts: string[] = [];
+  if (Math.abs(s.figma.width - s.code.width) > tolerance) parts.push(`width ${r(s.figma.width)} in Figma vs ${r(s.code.width)} in code`);
+  if (Math.abs(s.figma.height - s.code.height) > tolerance) parts.push(`height ${r(s.figma.height)} in Figma vs ${r(s.code.height)} in code`);
+  return parts.length ? parts.join(', ') : undefined;
+}
+
+/**
+ * One variant's verdict: "Matches the code", "Differs from the code: 12% of pixels", or the size first when the size
+ * differs: "Differs from the code: height 89 in Figma vs 48 in code, 1.4% of pixels".
+ */
 export function fidelityVerdict(v: Pick<FidelityVariantResult, 'status' | 'percent' | 'size' | 'reason'>): string {
   if (v.status === 'skipped') return `Not compared: ${v.reason ?? 'no image of the code'}`;
   if (v.status === 'matches') return 'Matches the code';
-  const parts = [`${fmtPercent(v.percent ?? 0)} of pixels`];
+  const pixels = `${fmtPercent(v.percent ?? 0)} of pixels`;
+  const gap = v.size ? sizeGap(v.size) : undefined;
+  if (gap) return `Differs from the code: ${gap}, ${pixels}`;
+  const parts = [pixels];
   if (v.size && !sameSize(v.size)) parts.push(`size ${fmtSize(v.size.figma)} vs ${fmtSize(v.size.code)}`);
   return `Differs from the code: ${parts.join(', ')}`;
 }
