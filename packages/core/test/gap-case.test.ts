@@ -201,4 +201,9 @@ describe('gap case: values that agree on a variant the shot says differs', () =>
     expect(gap.variants[0]!.unexplained).toMatch(/^The measured values agree with what Figma drew/);
     expect(gap.summary).toBe('Toggle differs from the code on 1 of 1 variant: the measure agrees, compare the images.');
   });
+
+  it('images of another size: the summary says the size, not the pixel score', () => {
+    const gap = buildGapCase({ component: 'Toggle', measured: f, spec, fidelity: fidelity('Toggle', { width: 74, height: 89 }, { width: 74, height: 48 }, 1.37) });
+    expect(gap.summary).toBe('Toggle differs from the code on 1 of 1 variant. Height 89 in Figma vs 48 in code.');
+  });
 });

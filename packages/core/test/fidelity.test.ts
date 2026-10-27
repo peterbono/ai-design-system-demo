@@ -11,6 +11,7 @@ import {
   referenceImagePath,
   summarizeComponent,
   type RgbaImage,
+  sizeGap,
 } from '../src';
 
 // Synthetic images: a white canvas with filled rectangles and one-pixel lines.
@@ -118,8 +119,18 @@ describe('verdicts and report', () => {
   it('words a variant like a designer reads it', () => {
     expect(fidelityVerdict({ status: 'matches', percent: 0.4, size: { figma: size(40, 20), code: size(40, 20) } })).toBe('Matches the code');
     expect(fidelityVerdict({ status: 'differs', percent: 12.3, size: { figma: size(120, 40), code: size(118, 40) } })).toBe(
-      'Differs from the code: 12% of pixels, size 120x40 vs 118x40',
+      'Differs from the code: width 120 in Figma vs 118 in code, 12% of pixels',
     );
+    // Within the size tolerance: the pixel share leads, the exact sizes follow.
+    expect(fidelityVerdict({ status: 'differs', percent: 5, size: { figma: size(120, 41), code: size(120, 40) } })).toBe(
+      'Differs from the code: 5% of pixels, size 120x41 vs 120x40',
+    );
+    // A set drawn twice as tall: the size says it, not a small pixel score.
+    expect(fidelityVerdict({ status: 'differs', percent: 1.37, size: { figma: size(375, 89), code: size(375, 48) } })).toBe(
+      'Differs from the code: height 89 in Figma vs 48 in code, 1.4% of pixels',
+    );
+    expect(sizeGap({ figma: size(320, 89), code: size(86, 48) })).toBe('width 320 in Figma vs 86 in code, height 89 in Figma vs 48 in code');
+    expect(sizeGap({ figma: size(90, 40), code: size(89, 40) })).toBeUndefined();
     expect(fidelityVerdict({ status: 'differs', percent: 4.26, size: { figma: size(40, 20), code: size(40, 20) } })).toBe('Differs from the code: 4.3% of pixels');
     expect(fidelityVerdict({ status: 'skipped', reason: 'the Loading state has no code equivalent to render' })).toBe(
       'Not compared: the Loading state has no code equivalent to render',
@@ -133,7 +144,7 @@ describe('verdicts and report', () => {
       { key: 'Padding=default', status: 'differs', percent: 14, size: { figma: size(320, 139), code: size(320, 150) } },
     ]);
     expect(c).toMatchObject({ status: 'differs', checked: 2, differing: 1, skipped: 1, worst: { key: 'Padding=default', percent: 14 } });
-    expect(fidelityComponentLine(c)).toBe('Differs from the code: 14% of pixels, size 320x139 vs 320x150 (1 of 2 variants)');
+    expect(fidelityComponentLine(c)).toBe('Differs from the code: height 139 in Figma vs 150 in code, 14% of pixels (1 of 2 variants)');
     const ok = summarizeComponent('Tag', [{ key: 'Size=sm', status: 'matches', percent: 0, size: { figma: size(40, 20), code: size(40, 20) } }]);
     expect(fidelityComponentLine(ok)).toBe('Matches the code');
     const none = summarizeComponent('X', [{ key: 'a', status: 'skipped', reason: 'no image of the code yet' }]);

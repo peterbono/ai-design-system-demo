@@ -648,7 +648,8 @@ function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child, edge
   );
 }
 
-function rowList(key: string, rows: HTMLElement[], limit = PAGE): HTMLElement {
+/** `noun` names what the list holds when the screen counts something else nearby ("Show all 57 compared"). */
+function rowList(key: string, rows: HTMLElement[], limit = PAGE, noun?: string): HTMLElement {
   const all = state.expanded.has(key);
   const shown = all ? rows : rows.slice(0, limit);
   return h(
@@ -656,7 +657,7 @@ function rowList(key: string, rows: HTMLElement[], limit = PAGE): HTMLElement {
     null,
     h('ul', { class: 'rows' }, shown),
     rows.length > shown.length
-      ? h('button', { class: 'btn ghost more', onClick: () => { state.expanded.add(key); render(); } }, `Show all ${rows.length}`)
+      ? h('button', { class: 'btn ghost more', onClick: () => { state.expanded.add(key); render(); } }, `Show all ${rows.length}${noun ? ` ${noun}` : ''}`)
       : null,
   );
 }
@@ -2921,7 +2922,8 @@ function fidelityGroup(p: PullState): Child {
     // For developers triaging the differences: every component and variant as JSON, without the images.
     const report = outcome.report;
     content = [
-      rowList('fidelity', rows, 10),
+      // The headline counts every set, not compared ones too: the list names what it holds.
+      rowList('fidelity', rows, 10, 'compared'),
       notCompared.length
         ? h(
             'details',
