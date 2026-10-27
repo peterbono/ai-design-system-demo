@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "fixes": [
+    {
+      "by": "claude",
+      "component": "Button",
+      "id": "button-sm-primary-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "Figma hugs the label at 75 px where the code renders the small button at 72 px.",
+      "where": {
+        "args": {
+          "size": "sm",
+          "variant": "primary"
+        }
+      },
+      "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "Button",
+      "id": "button-sm-secondary-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "Figma hugs the label at 75 px where the code renders the small button at 72 px.",
+      "where": {
+        "args": {
+          "size": "sm",
+          "variant": "secondary"
+        }
+      },
+      "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "Button",
+      "id": "button-sm-ghost-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "Figma hugs the label at 75 px where the code renders the small button at 72 px.",
+      "where": {
+        "args": {
+          "size": "sm",
+          "variant": "ghost"
+        }
+      },
+      "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "Button",
+      "id": "button-sm-danger-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "Figma hugs the label at 75 px where the code renders the small button at 72 px.",
+      "where": {
+        "args": {
+          "size": "sm",
+          "variant": "danger"
+        }
+      },
+      "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "Button",
+      "id": "button-sm-inverse-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "Figma hugs the label at 75 px where the code renders the small button at 72 px.",
+      "where": {
+        "args": {
+          "size": "sm",
+          "variant": "inverse"
+        }
+      },
+      "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "Button",
+      "id": "button-link-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "Figma hugs the link label at 45 px where the code renders it at 46 px.",
+      "where": {
+        "args": {
+          "variant": "link"
+        }
+      },
+      "width": "fixed"
+    }
+  ]
+}
