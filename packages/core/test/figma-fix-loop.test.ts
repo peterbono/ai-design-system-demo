@@ -133,6 +133,18 @@ describe('tryFigmaFixes (values referee)', () => {
     expect(after.variants.map((v) => v.props)).toContainEqual({ Error: 'Off' });
   });
 
+  it('a variant the rebuilt set does not have says the referee compared nothing, not 0 of 0', () => {
+    // What a reviewer met on #598: every differing variant came back gone, and the summary read as a measurement.
+    const run = textInputRun();
+    const c = run.report.components.find((x) => x.component === 'TextInput')!;
+    c.variants = c.variants.map((v) => (v.key === 'Invalid=false' ? { ...v, key: 'Invalid=false, Size=sm' } : v));
+    c.worst = { ...c.worst!, key: 'Invalid=false, Size=sm' };
+    const r = tryFigmaFixes({ component: 'TextInput', measured: load(), run, proposed: [labelFixed] });
+    expect(r.variants).toEqual([expect.objectContaining({ key: 'Invalid=false, Size=sm', verdict: 'gone', differences: [] })]);
+    expect(r.summary).toBe('The values referee compared nothing: the differing variant is not in the rebuilt set. Pull this branch in the DS Bridge Figma plugin and run Check fidelity to see what the fixes do.');
+    expect(r.summary).not.toMatch(/0 of 0/);
+  });
+
   it('a proposed fix with the id of one in the repo replaces it', () => {
     const existing: FigmaFixesFile = { version: 1, fixes: [{ ...labelFixed, height: 20 } as never] };
     const merged = mergeFigmaFixes(existing, [labelFixed as never]);
@@ -175,6 +187,40 @@ describe('prompt, reply and pull request body', () => {
     expect(body).toContain('resolved (-12 px, now 0 px, estimated)');
     expect(body).toContain('run Check fidelity before approving');
     expect(body).not.toMatch(/\u2014/);
+  });
+
+  it('a long before and after leads with the values, explains itself first, and folds the variants away', () => {
+    const measured = load();
+    const run = textInputRun();
+    const { gap } = gapCaseFor({ component: 'TextInput', measured, run });
+    const tried = tryFigmaFixes({ component: 'TextInput', measured, run, proposed: [labelFixed] });
+    const many = { ...tried, variants: Array.from({ length: 9 }, (_, i) => ({ ...tried.variants[0]!, key: `Invalid=false, N=${i}` })) };
+    const body = figmaFixesPrBody({ component: 'TextInput', summary: 'TextInput keeps its label row height.', gap, tried: many, fixes: tried.file!.fixes, tool: 'Bridge MCP' });
+    expect(body).toContain('- root height, 9 variants: 72 in Figma against 84 in code, now 80: closer');
+    expect(body).toContain('<summary>Variant by variant (9)</summary>');
+    expect(body.indexOf('9 variants: 72 in Figma')).toBeLessThan(body.indexOf('<details>'));
+  });
+
+  it('variants the rebuilt set does not have say so, with the caveat before the evidence', () => {
+    // #598: 32 variants read "gone" under a "0 of 0 differences resolved" summary, and the sentence that explained
+    // the section came after all 32 lines.
+    const measured = load();
+    const run = textInputRun();
+    const { gap } = gapCaseFor({ component: 'TextInput', measured, run });
+    const tried = tryFigmaFixes({ component: 'TextInput', measured, run, proposed: [labelFixed] });
+    const gone = {
+      ...tried,
+      verdict: 'same' as const,
+      summary: 'The values referee compared nothing: none of the 32 differing variants is in the rebuilt set.',
+      variants: Array.from({ length: 32 }, (_, i) => ({ key: `Size=sm, State=Default, Variant=v${i}`, verdict: 'gone' as const, differences: [], regressions: [] })),
+    };
+    const body = figmaFixesPrBody({ component: 'TextInput', summary: 'TextInput keeps its label row height.', gap, tried: gone, fixes: tried.file!.fixes, tool: 'Bridge MCP' });
+    expect(body).toContain('- Size=sm, State=Default, Variant=v0: not in the rebuilt set');
+    expect(body).not.toContain(': gone');
+    const caveat = body.indexOf("The values referee can't judge layout");
+    expect(caveat).toBeGreaterThan(-1);
+    expect(caveat).toBeLessThan(body.indexOf('<details>'));
+    expect(caveat).toBeLessThan(body.indexOf('Variant=v0'));
   });
 });
 
