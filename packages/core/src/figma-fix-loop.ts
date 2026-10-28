@@ -10,7 +10,7 @@
 // team's own: the prompt and the reply parser serve the loop runners (figma-fix-run.ts: `bridge fix --with-claude`, and
 // Bridge's server with the key a team admin connected), never a key of Bridge's.
 
-import { variantKeyOf, type ComponentSpec, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
+import { matchVariant, variantKeyOf, type ComponentSpec, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
 import type { FidelityComponentResult, FidelityReport } from './fidelity';
 import { applyFixes, describePartFix, validateFigmaFixes, type AppliedFix, type FigmaHints, type FigmaFix, type FigmaFixesFile, type FixedMeasuredSpecsFile, FIGMA_FIXES_VERSION } from './figma-fixes';
 import { buildGapCase, measuredResolver, storiesOfComponent, storyForVariant, variantDifferences, type GapBuiltVariant, type GapCase, type GapDifference } from './gap-case';
@@ -307,17 +307,18 @@ export function tryFigmaFixes(input: TryFixesInput): TryFixesResult {
 
   const variants: TriedVariant[] = [];
   for (const gv of before.gap.variants) {
-    const vb = before.spec?.variants.find((v) => variantKeyOf(v.props) === gv.key);
+    // The run's key may carry fewer axes than the set (only those that vary between its shots): matchVariant.
+    const vb = matchVariant(before.spec, gv.props);
     // An axis fix renames a property or its values: the same variant under its new name.
-    const want = before.spec ? renamedProps(gv.props, before.spec, afterSpec, hintsB, hintsA) : gv.props;
-    const va = afterSpec?.variants.find((v) => variantKeyOf(v.props) === gv.key) ?? afterSpec?.variants.find((v) => sameProps(v.props, want));
+    const want = before.spec ? renamedProps(vb?.props ?? gv.props, before.spec, afterSpec, hintsB, hintsA) : gv.props;
+    const va = matchVariant(afterSpec, gv.props) ?? matchVariant(afterSpec, want);
     if (!va || !afterSpec) {
       variants.push({ key: gv.key, ...(gv.story ? { story: gv.story.id } : {}), verdict: 'gone', differences: [], regressions: [] });
       continue;
     }
     const differences = gv.differences.map((d) => tryDifference(d, before.spec, vb, afterSpec, va, built?.[gv.key], resolve));
     let regressions: GapDifference[] = [];
-    const story = before.spec ? storyForVariant(before.spec, gv.props, stories, before.shots[gv.key]) : undefined;
+    const story = before.spec ? storyForVariant(before.spec, gv.props, stories, before.shots[gv.key] ?? (vb ? before.shots[variantKeyOf(vb.props)] : undefined)) : undefined;
     const m = story ? (story.instances?.[0] ?? story.spec) : undefined;
     if (m && before.spec && vb) {
       const key = (d: GapDifference) => `${d.part}|${d.property}`;
@@ -344,8 +345,6 @@ export function tryFigmaFixes(input: TryFixesInput): TryFixesResult {
     file,
   };
 }
-
-const sameProps = (a: Record<string, string>, b: Record<string, string>) => Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([k, v]) => b[k] === v);
 
 /** A variant's props as the set names them after the fixes: axes renamed and values mapped (figma-fixes.json axis fixes). */
 function renamedProps(props: Record<string, string>, specB: ComponentSpec, specA: ComponentSpec | undefined, hintsB: FigmaHints | undefined, hintsA: FigmaHints | undefined): Record<string, string> {

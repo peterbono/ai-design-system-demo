@@ -4,7 +4,7 @@
 // plugin reads back from the layers) say why. Claude reads a gap case to propose a fix (figma-fixes.json), Bridge
 // re-checks against the shot, a person approves. Pure and browser safe: the plugin UI, the CLI and the docs site run it.
 
-import { variantKeyOf, type ComponentSpec, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
+import { matchVariant, variantKeyOf, type ComponentSpec, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
 import { sizeGap, type FidelityComponentResult, type FidelityVariantResult, type Size } from './fidelity';
 import { compareSpecToMeasured, pairParts, withoutAddedWrappers, type MeasuredBox, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory, type MeasuredState } from './measured-spec';
 
@@ -417,13 +417,18 @@ export function buildGapCase(input: GapCaseInput): GapCase {
   const checkedVariants: { key: string; props: Record<string, string>; result?: FidelityVariantResult | undefined; variant?: SpecVariant | undefined }[] = [];
   const specVariant = new Map((spec?.variants ?? []).map((v) => [variantKeyOf(v.props), v]));
   if (input.fidelity) {
-    for (const r of input.fidelity.variants) if (r.status !== 'skipped') checkedVariants.push({ key: r.key, props: specVariant.get(r.key)?.props ?? propsOfKey(r.key), result: r, variant: specVariant.get(r.key) });
+    // The run's key carries only the axes that vary between its shots: the set may have more (matchVariant).
+    for (const r of input.fidelity.variants) {
+      if (r.status === 'skipped') continue;
+      const variant = matchVariant(spec, propsOfKey(r.key));
+      checkedVariants.push({ key: r.key, props: variant?.props ?? propsOfKey(r.key), result: r, variant });
+    }
   } else for (const [key, v] of specVariant) checkedVariants.push({ key, props: v.props, variant: v });
 
   const variants: GapVariant[] = [];
   for (const cv of checkedVariants) {
     if (cv.result && cv.result.status !== 'differs') continue;
-    const shot = input.shots?.[cv.key];
+    const shot = input.shots?.[cv.key] ?? (cv.variant ? input.shots?.[variantKeyOf(cv.variant.props)] : undefined);
     const story = spec ? storyForVariant(spec, cv.props, stories, shot) : shot ? stories.find((s) => s.shot?.file === shot.file) : undefined;
     const gv: GapVariant = {
       key: cv.key,

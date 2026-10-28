@@ -10,6 +10,7 @@ import {
   figmaGaps,
   fixPrompt,
   gapCaseFor,
+  matchVariant,
   mergeFigmaFixes,
   parseFidelityRun,
   parseFixReply,
@@ -21,6 +22,7 @@ import {
   type FigmaFidelityRun,
   type FigmaFixesFile,
   type MeasuredSpecsFile,
+  type SpecAxis,
 } from '../src';
 
 const loadWithBoxes = (): MeasuredSpecsFile => parseMeasuredSpecsFile(readFileSync(join(__dirname, 'fixtures/gap/carbon-measured.json'), 'utf8'));
@@ -145,6 +147,26 @@ describe('tryFigmaFixes (values referee)', () => {
     expect(r.summary).not.toMatch(/0 of 0/);
   });
 
+  it('a run key with fewer axes than the rebuilt set still finds its variant, not gone (#605)', () => {
+    // The run's key carries only the axes that vary between its shots. Here none vary for the differing shot, so its
+    // key is "Default" while the set has an Invalid axis: the variant at the axis default is the one the shot drew.
+    const run = textInputRun();
+    const c = run.report.components.find((x) => x.component === 'TextInput')!;
+    c.variants = c.variants.filter((v) => v.key === 'Invalid=false').map((v) => ({ ...v, key: 'Default' }));
+    c.worst = { ...c.worst!, key: 'Default' };
+    // What the plugin read back from the layers is keyed the same way as the run.
+    run.built = { TextInput: { Default: run.built!.TextInput!['Invalid=false']! } };
+    const { gap } = gapCaseFor({ component: 'TextInput', measured: load(), run });
+    expect(gap.variants[0]).toMatchObject({ key: 'Default', props: { Invalid: 'false' } });
+    const r = tryFigmaFixes({ component: 'TextInput', measured: load(), run, proposed: [labelFixed] });
+    expect(r.variants[0]).toMatchObject({ key: 'Default', verdict: 'closer' });
+    expect(r.variants[0]!.differences.find((x) => x.property === 'height')).toMatchObject({ before: 72, after: 80, result: 'closer' });
+    // The regressions check runs too: it needs the variant before the fixes.
+    const red = { id: 'textinput-red', kind: 'part', component: 'TextInput', part: 'cds--text-input', set: { fill: 'cds.support.error' }, reason: 'A wrong guess on the field fill.' };
+    const worse = tryFigmaFixes({ component: 'TextInput', measured: load(), run, proposed: [red] });
+    expect(worse.variants[0]!.regressions.map((x) => x.property)).toContain('fill');
+  });
+
   it('a proposed fix with the id of one in the repo replaces it', () => {
     const existing: FigmaFixesFile = { version: 1, fixes: [{ ...labelFixed, height: 20 } as never] };
     const merged = mergeFigmaFixes(existing, [labelFixed as never]);
@@ -153,6 +175,39 @@ describe('tryFigmaFixes (values referee)', () => {
     const r = tryFigmaFixes({ component: 'TextInput', measured: load(), fixes: existing, run: textInputRun(), proposed: [labelFixed] });
     expect(r.status).toBe('checked');
     expect(r.file!.fixes).toHaveLength(1);
+  });
+});
+
+describe('matchVariant (a report key against the set)', () => {
+  // The rebuilt Button set of #605: five axes, while the run's keys carry the three that vary between the shots.
+  const axes: SpecAxis[] = [
+    { name: 'Variant', prop: 'variant', values: ['primary', 'secondary'], default: 'primary' },
+    { name: 'Size', prop: 'size', values: ['sm', 'md'], default: 'md' },
+    { name: 'State', values: ['Default', 'Hover'], default: 'Default' },
+    { name: 'Loading', prop: 'loading', values: ['false', 'true'], default: 'false' },
+    { name: 'Full width', prop: 'fullWidth', values: ['false', 'true'], default: 'false' },
+  ];
+  const variants = ['false', 'true'].flatMap((Loading) => ['false', 'true'].map((fw) => ({ props: { Loading, 'Full width': fw, Variant: 'primary', Size: 'sm', State: 'Default' } })));
+  const set = { axes, variants };
+  const wanted = { Size: 'sm', State: 'Default', Variant: 'primary' };
+
+  it('a three-axis key finds the five-axis variant whose other axes sit at their default', () => {
+    expect(matchVariant(set, wanted)?.props).toEqual({ Loading: 'false', 'Full width': 'false', Variant: 'primary', Size: 'sm', State: 'Default' });
+  });
+
+  it('the exact key wins, and a key with an axis the set lacks finds nothing', () => {
+    const full = { Loading: 'true', 'Full width': 'false', Variant: 'primary', Size: 'sm', State: 'Default' };
+    expect(matchVariant(set, full)).toBe(variants.find((v) => v.props.Loading === 'true' && v.props['Full width'] === 'false'));
+    expect(matchVariant(set, { ...wanted, Tone: 'loud' })).toBeUndefined();
+    expect(matchVariant(set, { ...wanted, Size: 'lg' })).toBeUndefined();
+  });
+
+  it('keeps nothing when the defaults do not settle it: no guess', () => {
+    // No variant has both extra axes at their default: three candidates, none preferred.
+    const noDefault = { axes, variants: variants.filter((v) => !(v.props.Loading === 'false' && v.props['Full width'] === 'false')) };
+    expect(matchVariant(noDefault, wanted)).toBeUndefined();
+    // Without axes, "false" counts as the default.
+    expect(matchVariant({ variants }, wanted)?.props).toMatchObject({ Loading: 'false', 'Full width': 'false' });
   });
 });
 
