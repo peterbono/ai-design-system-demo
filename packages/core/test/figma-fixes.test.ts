@@ -9,10 +9,12 @@ import {
   FigmaFixesError,
   parseFigmaFixes,
   parseMeasuredSpecsFile,
+  specsFromMeasure,
   validateFigmaFixes,
   type FigmaFix,
   type MeasuredSpecsFile,
 } from '../src';
+import { buttonMeasure } from './button-label-fixture';
 
 const load = (): MeasuredSpecsFile => parseMeasuredSpecsFile(readFileSync(join(__dirname, 'fixtures/gap/carbon-measured.json'), 'utf8'));
 const base = { reason: 'Carbon draws it this way in every theme.' };
@@ -171,5 +173,48 @@ describe('applyFixes on Carbon measures', () => {
     expect(twice.applied.find((a) => a.id === 'pill')!.result).toBe('already');
     expect(toggleDefault(twice.file).spec!.values['cds--toggle-switch']!.cornerRadius).toBe(12);
     expect(twice.file.figmaFixes!.applied.filter((a) => a.id === 'pill')).toHaveLength(1);
+  });
+});
+
+describe('width fixed takes each story its own size (#607)', () => {
+  const smWidth = { id: 'button-sm-width', kind: 'part', component: 'Button', part: 'root', where: { args: { size: 'sm' } }, width: 'fixed', reason: 'Figma hugs the label at 75 px where the code renders 72.' } as FigmaFix;
+  const sm = (f: MeasuredSpecsFile) => f.stories.find((s) => s.overrides?.size === 'sm')!;
+  const md = (f: MeasuredSpecsFile) => f.stories.find((s) => !s.overrides)!;
+
+  it('does not pin a width that only hugs the story label: the small button is not drawn 120.84 px wide', () => {
+    const r = applyFixes(buttonMeasure(), [smWidth]);
+    expect(r.applied[0]).toMatchObject({ id: 'button-sm-width', result: 'skipped', stories: 0 });
+    expect(r.applied[0]!.detail).toContain('root width not fixed on 1 story');
+    expect(r.applied[0]!.detail).toContain("that story's words");
+    expect(r.applied[0]!.detail).toContain('actions-button--primary (variant=primary, size=sm) 120.84 px');
+    expect(sm(r.file).spec!.sized?.root?.width).toBeUndefined();
+    expect((sm(r.file) as { fixes?: string[] }).fixes).toBeUndefined();
+    expect(appliedFixLines(r.applied)[0]).toMatch(/^skipped {2}button-sm-width/);
+    // What the pull draws: the root still hugs, in every size.
+    const set = specsFromMeasure(r.file).specs.components.find((c) => c.name === 'Button')!;
+    for (const v of set.variants) expect(v.values.root?.width).toBeUndefined();
+  });
+
+  it('pins every story to its own measured width, never the width of another story', () => {
+    const r = applyFixes(buttonMeasure({ own: true }), [{ ...smWidth, where: undefined }]);
+    expect(r.applied[0]).toMatchObject({ result: 'applied', stories: 2 });
+    expect(sm(r.file).spec!.sized?.root?.width).toBe(150);
+    expect(md(r.file).spec!.sized?.root?.width).toBe(160);
+    const set = specsFromMeasure(r.file).specs.components.find((c) => c.name === 'Button')!;
+    expect(Object.fromEntries(set.variants.map((v) => [v.props.Size, v.values.root?.width]))).toEqual({ md: 160, sm: 150 });
+  });
+
+  it('a fix that does more than the width still lays the rest on, and says which width it left', () => {
+    const r = applyFixes(buttonMeasure(), [{ ...smWidth, set: { cornerRadius: 'full' } } as FigmaFix]);
+    expect(r.applied[0]).toMatchObject({ result: 'applied', stories: 1 });
+    expect(r.applied[0]!.detail).toContain('root width not fixed on 1 story');
+    expect(sm(r.file).spec!.values.root!.cornerRadius).toBe(16);
+    expect(sm(r.file).spec!.sized?.root?.width).toBeUndefined();
+  });
+
+  it('a height that hugs a label is still the story own height: only widths carry the words', () => {
+    const r = applyFixes(buttonMeasure(), [{ ...smWidth, width: undefined, height: 'fixed' } as FigmaFix]);
+    expect(r.applied[0]).toMatchObject({ result: 'applied', stories: 1 });
+    expect(sm(r.file).spec!.sized?.root?.height).toBe(32);
   });
 });

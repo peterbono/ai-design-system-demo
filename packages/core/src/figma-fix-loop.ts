@@ -184,7 +184,7 @@ export function gapCaseFor(input: GapCaseForInput): GapCaseFor {
 
 export const FIX_SCHEMA_SUMMARY = `figma-fixes.json fixes (version ${FIGMA_FIXES_VERSION}). Each fix is one JSON object:
 - Every fix: "id" (lower case, digits, dashes, unique), "kind", "component" (the Figma set, e.g. "TextInput"), "reason" (one plain sentence, no em dash), optional "by": "claude", optional "where": { "args": { "<arg>": value }, "state": "rest" | "hover" | "active" | "focus-visible" | "disabled" } (absent: every variant).
-- kind "part": "part" is a part id from the gap case ("root", "cds--text-input-label-wrapper") or ".class". At least one of: "set" { field: token path | px number | null (colors only) | "full" (cornerRadius only) }, "width" / "height": "fixed" (the measured size) | px number | "hug" | "fill", "direction": "HORIZONTAL" | "VERTICAL", "align": { "primary": MIN|CENTER|MAX|SPACE_BETWEEN, "counter": MIN|CENTER|MAX|STRETCH }, "overlay": true | false | { "top": 3, "left": 3 }, "hide": true (alone; never the root). Fields: fill, stroke, strokeWeight, strokeTopWeight, strokeRightWeight, strokeBottomWeight, strokeLeftWeight, cornerRadius, paddingTop, paddingRight, paddingBottom, paddingLeft, itemSpacing, counterAxisSpacing, width, height, minWidth, minHeight, opacity, textFill, fontFamily, fontSize, fontWeight, lineHeight, letterSpacing, textDecoration.
+- kind "part": "part" is a part id from the gap case ("root", "cds--text-input-label-wrapper") or ".class". At least one of: "set" { field: token path | px number | null (colors only) | "full" (cornerRadius only) }, "width" / "height": "fixed" (each story's own measured size; a width that only hugs text in code is skipped, since it is the story's words) | px number | "hug" | "fill", "direction": "HORIZONTAL" | "VERTICAL", "align": { "primary": MIN|CENTER|MAX|SPACE_BETWEEN, "counter": MIN|CENTER|MAX|STRETCH }, "overlay": true | false | { "top": 3, "left": 3 }, "hide": true (alone; never the root). Fields: fill, stroke, strokeWeight, strokeTopWeight, strokeRightWeight, strokeBottomWeight, strokeLeftWeight, cornerRadius, paddingTop, paddingRight, paddingBottom, paddingLeft, itemSpacing, counterAxisSpacing, width, height, minWidth, minHeight, opacity, textFill, fontFamily, fontSize, fontWeight, lineHeight, letterSpacing, textDecoration.
 - kind "axis": "action" "map" ("arg", "property" and/or "values" { code value: Figma value }), "ignore" ("arg"), or "prune" ("where" names the variants to drop).
 - kind "story": "where" names the variant, "use": { "story": "<story id>", "args"?, "state"? } is the measured render to draw it from.
 - kind "status": "status": "differs" | "cant-check" with the reason; never "matches" (only the shots say a component matches). Without "status": a note.
@@ -331,7 +331,7 @@ export function tryFigmaFixes(input: TryFixesInput): TryFixesResult {
   const all = variants.flatMap((v) => v.differences);
   const regressions = variants.reduce((n, v) => n + v.regressions.length, 0);
   const verdict = verdictOf(all, variants.flatMap((v) => v.regressions));
-  const notFound = applied.filter((a) => a.result === 'not-found');
+  const notFound = applied.filter((a) => a.result === 'not-found' || a.result === 'skipped');
   return {
     status: 'checked',
     component,
@@ -503,7 +503,11 @@ function sizeShift(field: 'height' | 'width', specB: ComponentSpec, vb: SpecVari
 
 function trySummary(component: string, gap: GapCase, diffs: TriedDifference[], regressions: number, verdict: FixVerdict, notFound: AppliedFix[], proposed: FigmaFix[], gone: number): string {
   if (!gap.variants.length) return `${component} has no differing variant in the gap case: nothing for these fixes to move (the values referee needs a Check fidelity report or a difference in the measure).`;
-  const absent = notFound.length ? ` ${notFound.map((a) => a.id).join(', ')} found nothing in the measure.` : '';
+  const missing = notFound.filter((a) => a.result === 'not-found');
+  const skipped = notFound.filter((a) => a.result === 'skipped');
+  const absent =
+    (missing.length ? ` ${missing.map((a) => a.id).join(', ')} found nothing in the measure.` : '') +
+    (skipped.length ? ` ${skipped.map((a) => a.id).join(', ')} laid nothing on: the measure has no size of the part's own to fix it at (see the detail).` : '');
   // No difference to compare and variants missing from the rebuilt set: the referee judged nothing, and saying
   // "0 of 0 differences resolved" would read as a measurement.
   if (!diffs.length && gone) {

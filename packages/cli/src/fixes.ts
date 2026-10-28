@@ -32,7 +32,7 @@ Usage:
       the fixes that find nothing (the code or the measure moved). Exit 1 when the file is not valid.
   bridge fixes apply --in measured-specs.json --out <file> [--fixes ${DEFAULT_FIGMA_FIXES_FILE}] [--json]
       Writes the measure with the fixes laid on, the input the Figma pull reads, and prints one line per
-      fix (applied, not found, already applied). The input file is not changed.
+      fix (applied, skipped, not found, already applied). The input file is not changed.
 
 See docs/FIGMA-FIXES.md for each kind, with examples. A fix is reviewed like any change, and the story
 shot decides: run Check fidelity in the plugin after the pull.`;

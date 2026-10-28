@@ -103,7 +103,7 @@ function valuesOf(
  * around a 16 px icon, a 24 px label row around a 16 px label) keeps that size, as its CSS gives it, when the measure
  * did not say so. `own`: the axes its parent does not size (not stretched across, not grown along).
  */
-function boxSized(spec: MeasuredSpec, partId: string, own: { width: boolean; height: boolean }): { width?: number; height?: number } {
+export function boxSized(spec: MeasuredSpec, partId: string, own: { width: boolean; height: boolean }): { width?: number; height?: number } {
   const box = spec.boxes?.[partId];
   const kids = spec.parts.filter((c) => c.parent === partId && !c.pin && !c.cover && !c.overlay).map((c) => spec.boxes?.[c.id]).filter((b): b is NonNullable<typeof b> => !!b);
   if (!box || !kids.length) return {};
