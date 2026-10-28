@@ -14,6 +14,7 @@
 import { COLOR_FIELDS, SPEC_FIELDS, type SpecField, type SpecLayout, type SpecPart, type SpecValue } from './component-spec';
 import type { MeasuredArgType, MeasuredSpec, MeasuredSpecsComponent, MeasuredSpecsFile, MeasuredSpecsStory } from './measured-spec';
 import { storyState, type GapState } from './gap-case';
+import { boxSized } from './measured-only';
 
 export const FIGMA_FIXES_VERSION = 1;
 /** Where the fixes live in the team's repo when nothing else is said. */
@@ -285,8 +286,12 @@ export interface AppliedFix {
   id: string;
   kind: FigmaFix['kind'];
   component: string;
-  /** applied: it changed what the pull draws. not-found: nothing matched (the code or the measure moved: re-check it). already: the input had it. */
-  result: 'applied' | 'not-found' | 'already';
+  /**
+   * applied: it changed what the pull draws. not-found: nothing matched (the code or the measure moved: re-check it).
+   * skipped: it matched, but the measure has no size of the part's own to pin there (the detail says why). already:
+   * the input had it.
+   */
+  result: 'applied' | 'not-found' | 'skipped' | 'already';
   /** Story entries it changed. */
   stories: number;
   /** Plain words: what it did, or what it did not find. */
@@ -326,10 +331,47 @@ function partsNamed(spec: MeasuredSpec, sel: string): SpecPart[] {
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
-/** One part fix on one measured spec. Returns whether anything matched. */
-function patchSpec(spec: MeasuredSpec, fix: PartFix): boolean {
+/** Why a `fixed` size was not laid on one part of one story: the measure has no size of the part's own there. */
+export interface SkippedSize {
+  part: string;
+  side: 'width' | 'height';
+  why: 'words' | 'fills' | 'unmeasured';
+  /** The measured px it did not pin (words, fills). */
+  measured?: number | undefined;
+}
+
+/** The part has text, at any depth: what a hugging width is made of. */
+function wordsIn(spec: MeasuredSpec, id: string): boolean {
+  const kids = spec.parts.filter((p) => p.parent === id);
+  return kids.some((k) => (k.kind === 'text' && !!k.characters?.trim()) || wordsIn(spec, k.id));
+}
+
+/**
+ * The size `fixed` pins a part to in one story, read from that story's own render, or why there is none. Skipped:
+ * a root that fills its container's width (the measured px are the container's), and a width that only hugs its text
+ * (no CSS width, the box no wider than its content plus padding): that width is the story's words, and the Figma
+ * variant draws its own label, so every variant would get the story's width (a small "Publish tokens" button is
+ * 120.84 px; the set's small button is 72). Skipped sizes are reported, never borrowed from another story.
+ */
+function ownSize(spec: MeasuredSpec, part: SpecPart, side: 'width' | 'height'): number | SkippedSize {
+  const id = part.id;
+  const box = spec.boxes[id];
+  const value = spec.values[id]?.[side];
+  const measured = typeof value === 'number' ? value : box?.[side];
+  const skip = (why: SkippedSize['why']): SkippedSize => ({ part: id, side, why, ...(measured !== undefined && why !== 'unmeasured' ? { measured } : {}) });
+  if (!part.parent && side === 'width' && part.fill) return skip('fills');
+  const css = spec.sized?.[id]?.[side];
+  if (typeof css === 'number') return css;
+  if (side === 'width' && box && wordsIn(spec, id) && boxSized(spec, id, { width: true, height: true }).width === undefined) return skip('words');
+  return measured ?? skip('unmeasured');
+}
+
+/** One part fix on one measured spec: whether a part matched, and the sizes it could not pin. */
+function patchSpec(spec: MeasuredSpec, fix: PartFix): { hit: boolean; skipped: SkippedSize[] } {
+  const skipped: SkippedSize[] = [];
   const targets = partsNamed(spec, fix.part);
-  if (!targets.length) return false;
+  if (!targets.length) return { hit: false, skipped };
+  let laid = false;
   for (const part of targets) {
     const id = part.id;
     const box = spec.boxes[id];
@@ -339,31 +381,38 @@ function patchSpec(spec: MeasuredSpec, fix: PartFix): boolean {
       for (const p of spec.parts) if (p.parent && gone.has(p.parent)) gone.add(p.id);
       spec.parts = spec.parts.filter((p) => !gone.has(p.id));
       for (const map of [spec.values, spec.raw, spec.tokens, spec.boxes, spec.sized ?? {}, spec.spacers ?? {}, spec.vectors ?? {}] as Record<string, unknown>[]) for (const g of gone) delete map[g];
+      laid = true;
       continue;
     }
     const values = (spec.values[id] ??= {});
     for (const [field, value] of Object.entries(fix.set ?? {}) as [SpecField, SpecValue | 'full'][]) {
       values[field] = value === 'full' ? (box ? Math.min(box.width, box.height) / 2 : 9999) : value;
+      laid = true;
     }
     for (const side of ['width', 'height'] as const) {
       const how = fix[side];
       if (how === undefined) continue;
       const flowsAlong = parent?.layout?.direction === (side === 'width' ? 'HORIZONTAL' : 'VERTICAL');
-      if (how === 'hug') {
+      // fixed: the size this story's own render gives the part, or why it has none.
+      const px = how === 'fixed' ? ownSize(spec, part, side) : how;
+      if (typeof px === 'object') {
+        skipped.push(px);
+        continue;
+      }
+      laid = true;
+      if (px === 'hug') {
         delete values[side];
         if (spec.sized?.[id]) delete spec.sized[id]![side];
         if (part.stretch) delete part.stretch[side];
         if (flowsAlong) delete part.grow;
         if (!part.parent && side === 'width') delete part.fill;
-      } else if (how === 'fill') {
+      } else if (px === 'fill') {
         if (spec.sized?.[id]) delete spec.sized[id]![side];
         if (!part.parent) {
           if (side === 'width') part.fill = true;
         } else if (flowsAlong) part.grow = true;
         else part.stretch = { ...(part.stretch ?? {}), [side]: true };
       } else {
-        const px = how === 'fixed' ? (typeof values[side] === 'number' ? (values[side] as number) : box?.[side]) : how;
-        if (px === undefined) continue;
         values[side] = px;
         spec.sized = { ...(spec.sized ?? {}), [id]: { ...(spec.sized?.[id] ?? {}), [side]: px } };
         if (part.stretch) delete part.stretch[side];
@@ -372,19 +421,21 @@ function patchSpec(spec: MeasuredSpec, fix: PartFix): boolean {
       }
     }
     if (fix.direction || fix.align) {
+      laid = true;
       part.layout = { direction: 'HORIZONTAL', primary: 'MIN', counter: 'MIN', ...(part.layout ?? {}) };
       if (fix.direction) part.layout.direction = fix.direction;
       if (fix.align?.primary) part.layout.primary = fix.align.primary;
       if (fix.align?.counter) part.layout.counter = fix.align.counter;
     }
     if (fix.overlay !== undefined) {
+      laid = true;
       delete part.cover;
       delete part.pin;
       if (fix.overlay === true) part.cover = true;
       else if (fix.overlay !== false) part.pin = { ...fix.overlay };
     }
   }
-  return true;
+  return { hit: laid, skipped };
 }
 
 /**
@@ -422,15 +473,25 @@ export function applyFixes(measured: MeasuredSpecsFile | FixedMeasuredSpecsFile,
 
     if (fix.kind === 'part') {
       let n = 0;
+      let matched = false;
+      const unpinned: { story: FixedStory; skip: SkippedSize }[] = [];
       for (const s of scoped()) {
         let hit = false;
-        for (const spec of [s.spec, ...(s.instances ?? [])]) if (spec && patchSpec(spec, fix)) hit = true;
+        for (const spec of [s.spec, ...(s.instances ?? [])]) {
+          if (!spec) continue;
+          const r = patchSpec(spec, fix);
+          if (r.hit) hit = true;
+          if (r.hit || r.skipped.length) matched = true;
+          for (const skip of r.skipped) unpinned.push({ story: s, skip });
+        }
         if (hit) {
           n++;
           mark(s, fix.id);
         }
       }
-      if (n) record('applied', n, `${describePartFix(fix)} on ${n} stor${n === 1 ? 'y' : 'ies'}`);
+      const skippedWords = unpinned.length ? skippedSizeWords(unpinned) : '';
+      if (n) record('applied', n, `${describePartFix(fix)} on ${n} stor${n === 1 ? 'y' : 'ies'}${skippedWords ? `; ${skippedWords}` : ''}`);
+      else if (matched) record('skipped', 0, `nothing laid on: ${skippedWords}`);
       else record('not-found', 0, `no part ${fix.part} in the ${scoped().length ? 'stories it names' : 'variants where names'}`);
     } else if (fix.kind === 'axis') {
       const h = hints(fix.component);
@@ -523,6 +584,34 @@ export function applyFixes(measured: MeasuredSpecsFile | FixedMeasuredSpecsFile,
   return { file, applied };
 }
 
+const variantWords = (s: MeasuredSpecsStory) => {
+  const p = propsOf(s);
+  const args = Object.keys(s.overrides ?? {}).filter((k) => k !== 'disabled').map((k) => `${k}=${String(p[k])}`);
+  const state = storyState(s);
+  return `${s.id}${args.length || state !== 'rest' ? ` (${[...args, ...(state !== 'rest' ? [state] : [])].join(', ')})` : ''}`;
+};
+
+/** The sizes a `fixed` did not pin, grouped by reason, with the stories: "width not fixed on 4 stories, ...". */
+function skippedSizeWords(list: { story: MeasuredSpecsStory; skip: SkippedSize }[]): string {
+  const why: Record<SkippedSize['why'], string> = {
+    words: 'it hugs its text in code, so the measured px is that story\'s words, not a width of its own',
+    fills: 'it fills its container in code, so the measured px is the container\'s',
+    unmeasured: 'the measure has no size for it in that story',
+  };
+  const groups = new Map<string, { story: MeasuredSpecsStory; skip: SkippedSize }[]>();
+  for (const x of list) {
+    const k = `${x.skip.part}|${x.skip.side}|${x.skip.why}`;
+    groups.set(k, [...(groups.get(k) ?? []), x]);
+  }
+  return [...groups.values()]
+    .map((g) => {
+      const { part, side, why: w } = g[0]!.skip;
+      const stories = [...new Set(g.map((x) => `${variantWords(x.story)}${x.skip.measured !== undefined ? ` ${Math.round(x.skip.measured * 100) / 100} px` : ''}`))];
+      return `${part} ${side} not fixed on ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} (${why[w]}):${stories.join(', ')}`;
+    })
+    .join('; ');
+}
+
 function whereWords(w: FixWhere): string {
   const args = Object.entries(w.args ?? {}).map(([k, v]) => `${k}=${String(v)}`);
   if (w.state) args.push(`state=${w.state}`);
@@ -545,5 +634,5 @@ export function describePartFix(f: PartFix): string {
 
 /** One line per fix result, for the CLI and the plugin's pull report. */
 export function appliedFixLines(applied: AppliedFix[]): string[] {
-  return applied.map((a) => `${a.result === 'applied' ? 'applied' : a.result === 'already' ? 'already applied' : 'not found'}  ${a.id} (${a.component}, ${a.kind}): ${a.detail}`);
+  return applied.map((a) => `${a.result === 'applied' ? 'applied' : a.result === 'already' ? 'already applied' : a.result === 'skipped' ? 'skipped' : 'not found'}  ${a.id} (${a.component}, ${a.kind}): ${a.detail}`);
 }

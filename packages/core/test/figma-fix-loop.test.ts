@@ -24,6 +24,7 @@ import {
   type MeasuredSpecsFile,
   type SpecAxis,
 } from '../src';
+import { buttonMeasure, buttonRun } from './button-label-fixture';
 
 const loadWithBoxes = (): MeasuredSpecsFile => parseMeasuredSpecsFile(readFileSync(join(__dirname, 'fixtures/gap/carbon-measured.json'), 'utf8'));
 /**
@@ -165,6 +166,20 @@ describe('tryFigmaFixes (values referee)', () => {
     const red = { id: 'textinput-red', kind: 'part', component: 'TextInput', part: 'cds--text-input', set: { fill: 'cds.support.error' }, reason: 'A wrong guess on the field fill.' };
     const worse = tryFigmaFixes({ component: 'TextInput', measured: load(), run, proposed: [red] });
     expect(worse.variants[0]!.regressions.map((x) => x.property)).toContain('fill');
+  });
+
+  it('a width fixed from a story that hugs its own label is not judged worse: it lays nothing on (#607)', () => {
+    // #598 pinned the small Button to the measured 120.84 px of its "Publish tokens" story, where the code renders the
+    // set's small button at 72: 24 differences worse. The width is the story's words, so the fix skips it and says so.
+    const smWidth = { id: 'button-sm-width', kind: 'part', component: 'Button', part: 'root', where: { args: { size: 'sm' } }, width: 'fixed', reason: 'Figma hugs the label at 75 px where the code renders 72.' };
+    const r = tryFigmaFixes({ component: 'Button', measured: buttonMeasure(), run: buttonRun(), proposed: [smWidth] });
+    expect(r.status).toBe('checked');
+    expect(r.applied[0]).toMatchObject({ id: 'button-sm-width', result: 'skipped' });
+    const width = r.variants.find((v) => v.key === 'Size=sm')!.differences.find((d) => d.property === 'width')!;
+    expect(width).toMatchObject({ expected: 72, before: 75, after: 75, result: 'same' });
+    expect(r.verdict).toBe('same');
+    expect(r.summary).toContain('button-sm-width laid nothing on');
+    expect(r.summary).not.toMatch(/worse/);
   });
 
   it('a proposed fix with the id of one in the repo replaces it', () => {
