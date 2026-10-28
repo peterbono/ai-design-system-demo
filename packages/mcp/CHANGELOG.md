@@ -1,5 +1,34 @@
 # @bridge-ds/mcp
 
+## 0.10.0
+
+### Minor Changes
+
+- 1186ebf: `handleHttp(ctx, request, body?)`: one stateless Streamable HTTP request to the Bridge MCP server, for hosting it as a remote MCP server (the Bridge connector teams add to their own Claude).
+- acff80f: Fix with Claude: the loop as steps in core (`startFixLoop`, `fixLoopRound`, `fixLoopOutcome`) and the change for review (`figmaFixesProposal`, `figmaFixesBranchStem`, `DEFAULT_MEASURED_SPECS_FILE`, `FIGMA_FIXES_LABEL`), shared by the CLI (`bridge fix --with-claude`), the MCP server (`bridge_propose_figma_fixes`, `figmaFixes.loadFixFiles` now exported) and Bridge's server, which runs the loop with a team's connected Claude one round per request. Same behavior for the CLI and the MCP tools.
+- 40b45ea: The measure has one agreed place: `measured-specs.json` (and `measured-shots/`) in the repo, else on the `bridge-requests` branch, where the automatic measure publishes it next to the plugin's `figma-fidelity.json`. Core: `findMeasure`, `MEASURE_BRANCH`, `measureFromWords`, `measureDir`, and the missing-measure words (`MEASURE_MISSING_TEXT`, `measureSetupSteps`, `MeasureMissingError`). The Claude fix tools (`bridge_figma_gaps`, `bridge_get_gap_case`, `bridge_try_figma_fix`, `bridge_propose_figma_fixes`, `bridge gaps`, `bridge fix`) read the measure there too; with none, `bridge_figma_gaps` answers `status: "no-measure"` with the designer sentence and the steps, never a raw error. The Figma plugin's measured spec sources and "Ask Claude to fix it" read it there (shots from the same branch), so a team on static specs gets the Claude button once it is measured; without a measure the row says "Bridge hasn't measured your components yet. A developer turns it on once: Set up automatic measure." and the copied request says how.
+- 8a83d88: The owner override covers suggestions. An owner `governance.override` allows, whom nobody else can review, approves their own suggestion as owner with a written reason: core `overrideSuggestionOnGitHub`, `composeSuggestionOverrideComment`, `parseSuggestionOverrideComment`, `suggestionOverrideProblem` and `suggestionOverrideOf`, and `summarizeSuggestionApprovals` counts it as every missing approval on its version (`SuggestionGovernance.override`). `bridge review <n> --override --message "..."` and `bridge_review_suggestion` with event `override` do it; `bridge suggestions show` and `bridge_get_suggestion` say "Approved with the owner override by @login".
+- 6842370: Tier 1 publish by leads. New `governance.leadsPublishTier1` in `bridge.config.json` (absent counts as on): team admins and the reviewers of the matching domain publish a Tier 1 change without review, and Bridge merges it once the checks pass. Core adds the `tier1-publish` module (`canPublishTier1`, `tier1Domain`, `tier1PublishOf`, `publishedWithoutReview`, `tier1PublishSentence`) and `branchVerdict` reads `tier1Published` as on its way until a check fails. `bridge settings` and the MCP settings and roles say who may publish small changes; `bridge branch status` and `bridge_branch_status` say "Published by <name> without review (Tier 1)."
+
+### Patch Changes
+
+- 42c7c8f: License: FSL-1.1-MIT (each version becomes MIT after two years). See LICENSING.md.
+- 537952e: Explain the one 400 that opens every Claude session on the hosted connector: Claude probes the stateless MCP 2026-07-28 revision first and falls back to initialize when Bridge (2025-11-25 and earlier) answers 400 without a modern error, as the spec's era detection says. A test replays the handshake (probe 400, initialize 200, initialized 202, tools/list 200).
+- b447dc4: The Bridge connector shows as Bridge with the Bridge mark: the MCP server's initialize answer carries `title: "Bridge"`, `websiteUrl` and `icons` (MCP 2025-11-25 Implementation, PNG 192 and 512 plus the SVG), and the site serves `favicon.ico` (16, 32, 48), `apple-touch-icon.png`, `icon-192.png`, `icon-512.png` and a `site.webmanifest` named Bridge, linked from every page head.
+- 163315e: Hardening: deleting a Bridge account ends its connections in Claude and deletes the GitHub tokens Bridge kept sealed for them; the Figma plugin hand-off keeps the GitHub token sealed while it waits, bound to its own link; the hosted connector never merges (`bridge_merge_branch` is neither listed nor run there, a person merges from Studio or GitHub). `createServer` and `handleHttp` take `{ exclude }` to leave tools out; the local CLI and MCP server keep every tool.
+- Updated dependencies [17f2849]
+- Updated dependencies [acff80f]
+- Updated dependencies [009a5ee]
+- Updated dependencies [579f4a2]
+- Updated dependencies [42c7c8f]
+- Updated dependencies [00cdee5]
+- Updated dependencies [40b45ea]
+- Updated dependencies [8a83d88]
+- Updated dependencies [8cef447]
+- Updated dependencies [6842370]
+  - @bridge-ds/core@0.20.0
+  - @bridge-ds/visual@0.3.14
+
 ## 0.9.0
 
 ### Minor Changes

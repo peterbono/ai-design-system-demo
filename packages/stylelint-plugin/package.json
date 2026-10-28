@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/stylelint-plugin",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "type": "module",
   "description": "Stylelint rule bridge/use-tokens: no raw colors, lengths, radii, shadows, durations or z-index in product CSS where a design token exists. Autofixes exact matches. Reads the tokens through @bridge-ds/core and bridge.config.json.",
   "license": "MIT",
@@ -56,6 +56,6 @@
     "stylelint": "16.26.1"
   },
   "dependencies": {
-    "@bridge-ds/core": "^0.19.0"
+    "@bridge-ds/core": "^0.20.0"
   }
 }

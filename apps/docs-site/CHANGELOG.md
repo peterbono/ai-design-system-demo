@@ -1,5 +1,29 @@
 # @bridge-ds/docs-site
 
+## 0.22.0
+
+### Minor Changes
+
+- d13ef5d: Sign in with Bridge in the Figma plugin. Designers connect with the Bridge account they already use: the plugin opens Studio with a one-time code (`/studio/connect-figma/`), they pick their team, and the plugin receives the team's repository and the GitHub sign-in Studio holds, with no token to paste and no secret on screen. The new `POST /api/plugin-link` keeps codes in Redis for 5 minutes, single use, and checks with GitHub that the sign-in can open the chosen team's repository. When the sign-in expires, the plugin says "Sign in again". A pasted token stays available under "For developers: connect with a token".
+
+### Patch Changes
+
+- 537952e: Explain the one 400 that opens every Claude session on the hosted connector: Claude probes the stateless MCP 2026-07-28 revision first and falls back to initialize when Bridge (2025-11-25 and earlier) answers 400 without a modern error, as the spec's era detection says. A test replays the handshake (probe 400, initialize 200, initialized 202, tools/list 200).
+- b447dc4: The Bridge connector shows as Bridge with the Bridge mark: the MCP server's initialize answer carries `title: "Bridge"`, `websiteUrl` and `icons` (MCP 2025-11-25 Implementation, PNG 192 and 512 plus the SVG), and the site serves `favicon.ico` (16, 32, 48), `apple-touch-icon.png`, `icon-192.png`, `icon-512.png` and a `site.webmanifest` named Bridge, linked from every page head.
+- 163315e: Hardening: deleting a Bridge account ends its connections in Claude and deletes the GitHub tokens Bridge kept sealed for them; the Figma plugin hand-off keeps the GitHub token sealed while it waits, bound to its own link; the hosted connector never merges (`bridge_merge_branch` is neither listed nor run there, a person merges from Studio or GitHub). `createServer` and `handleHttp` take `{ exclude }` to leave tools out; the local CLI and MCP server keep every tool.
+- ff3aea1: Ship: Bridge checks who asks and where a change comes from before it ships a push from Figma by itself. The author, with write access, records the push right after the plugin opens it (`POST /api/ship` with `mark: "figma"`), and Bridge ships it only while the head is the one it recorded, from a branch of the repository itself, with no change requested. Anything else follows the design approval rule. The plugin records each push before it asks Bridge to ship it.
+- Updated dependencies [17f2849]
+- Updated dependencies [acff80f]
+- Updated dependencies [009a5ee]
+- Updated dependencies [579f4a2]
+- Updated dependencies [00cdee5]
+- Updated dependencies [40b45ea]
+- Updated dependencies [8a83d88]
+- Updated dependencies [8cef447]
+- Updated dependencies [6842370]
+  - @bridge-ds/core@0.20.0
+  - @bridge-ds/react@1.8.1
+
 ## 0.21.0
 
 ### Minor Changes

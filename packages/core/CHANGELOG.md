@@ -1,5 +1,35 @@
 # @bridge-ds/core
 
+## 0.20.0
+
+### Minor Changes
+
+- 17f2849: The automatic measure: `measureWorkflowYaml` and `measureWorkflowOptionsFromConfig` (core) generate `.github/workflows/bridge-measure.yml`, which measures a team's Storybook each time it changes (after each deploy of a deployed Storybook, or on pushes that change it with Storybook built in the run, plus a weekly fallback) with `bridge specs --measure --variants --tokens --shots --check` in headless Chrome, and publishes `measured-specs.json` and `measured-shots/` to the `bridge-requests` branch only when the measure changed, with the run's `GITHUB_TOKEN` only. New `bridge measure setup` writes it from `bridge.config.json`, and `bridge init` offers it. Studio, Settings, Claude shows the measure of the components and, for developers, Set up automatic measure (a pull request that adds the workflow, or the file to commit from GitHub when the app cannot write workflows); new docs page /docs/automatic-measure/ and docs/MEASURE.md; templates/bridge-measure.yml for teams.
+- acff80f: Fix with Claude: the loop as steps in core (`startFixLoop`, `fixLoopRound`, `fixLoopOutcome`) and the change for review (`figmaFixesProposal`, `figmaFixesBranchStem`, `DEFAULT_MEASURED_SPECS_FILE`, `FIGMA_FIXES_LABEL`), shared by the CLI (`bridge fix --with-claude`), the MCP server (`bridge_propose_figma_fixes`, `figmaFixes.loadFixFiles` now exported) and Bridge's server, which runs the loop with a team's connected Claude one round per request. Same behavior for the CLI and the MCP tools.
+- 40b45ea: The measure has one agreed place: `measured-specs.json` (and `measured-shots/`) in the repo, else on the `bridge-requests` branch, where the automatic measure publishes it next to the plugin's `figma-fidelity.json`. Core: `findMeasure`, `MEASURE_BRANCH`, `measureFromWords`, `measureDir`, and the missing-measure words (`MEASURE_MISSING_TEXT`, `measureSetupSteps`, `MeasureMissingError`). The Claude fix tools (`bridge_figma_gaps`, `bridge_get_gap_case`, `bridge_try_figma_fix`, `bridge_propose_figma_fixes`, `bridge gaps`, `bridge fix`) read the measure there too; with none, `bridge_figma_gaps` answers `status: "no-measure"` with the designer sentence and the steps, never a raw error. The Figma plugin's measured spec sources and "Ask Claude to fix it" read it there (shots from the same branch), so a team on static specs gets the Claude button once it is measured; without a measure the row says "Bridge hasn't measured your components yet. A developer turns it on once: Set up automatic measure." and the copied request says how.
+- 8a83d88: The owner override covers suggestions. An owner `governance.override` allows, whom nobody else can review, approves their own suggestion as owner with a written reason: core `overrideSuggestionOnGitHub`, `composeSuggestionOverrideComment`, `parseSuggestionOverrideComment`, `suggestionOverrideProblem` and `suggestionOverrideOf`, and `summarizeSuggestionApprovals` counts it as every missing approval on its version (`SuggestionGovernance.override`). `bridge review <n> --override --message "..."` and `bridge_review_suggestion` with event `override` do it; `bridge suggestions show` and `bridge_get_suggestion` say "Approved with the owner override by @login".
+- 6842370: Tier 1 publish by leads. New `governance.leadsPublishTier1` in `bridge.config.json` (absent counts as on): team admins and the reviewers of the matching domain publish a Tier 1 change without review, and Bridge merges it once the checks pass. Core adds the `tier1-publish` module (`canPublishTier1`, `tier1Domain`, `tier1PublishOf`, `publishedWithoutReview`, `tier1PublishSentence`) and `branchVerdict` reads `tier1Published` as on its way until a check fails. `bridge settings` and the MCP settings and roles say who may publish small changes; `bridge branch status` and `bridge_branch_status` say "Published by <name> without review (Tier 1)."
+
+### Patch Changes
+
+- 009a5ee: Compare with code: popup examples with HTML elements (a list, a paragraph) are compared instead of skipped, a tooltip is rendered with its trigger instead of failing, a size difference is said first ("height 89 in Figma vs 48 in code") instead of a small pixel score, and the list says "Show all 57 compared" next to a headline that counts every set.
+- 579f4a2: The before and after section of a `figma-fixes.json` pull request no longer contradicts itself. When no difference
+  could be measured because the differing variants are not in the rebuilt set, the values referee says so ("The values
+  referee compared nothing: none of the 32 differing variants is in the rebuilt set") instead of reading as a
+  measurement ("0 of 0 differences resolved"), and the normal summary counts those variants too. The layout caveat now
+  comes before the evidence it explains, a variant the rebuilt set does not have reads "not in the rebuilt set" rather
+  than "gone", and above eight variants the body leads with one line per kind of difference and its values, then folds
+  the variant by variant list into a `<details>`.
+- 00cdee5: Fix with Claude: a component's gap case no longer hangs. A measure could give a nested `.root` element the root's own id, which made its part tree loop, and pairing parts then never ended; the measure now reserves `root`, pairing stops at a part met twice, and a gap case builds only its own component's set. Files over 1 MB (component-specs.json) are read with the raw media type, so Figma coverage finds them.
+- 8cef447: The plugin speaks in designer words, with one count per list:
+  - **After connecting:** the plugin lands on Pull, "Get your design system", says "Connected to …" once, and offers "Check for updates".
+  - **Components:** one count and one noun ("62 components to add") instead of "47 of 47 … (62 sets …)". Up-to-date lists become counts. Drafted-with-Claude, layout helpers and motion notes go under For developers.
+  - **Pull results:** "1 edited token" instead of "1 edited", and one sentence for what a pull built ("1 component updated on the Components page."). The theme layout moves under For developers.
+  - **Edits already sent:** Pull lists them as "in review", with "See it in Studio", not "Send them from Push".
+  - **Connecting from Pull or Push:** the action reads "Connect your design system" instead of "Open Settings".
+  - **Push:** the steps no longer say "synced variables", "build request" or "Token values ship".
+  - **Core:** a warning that existed before the edit reads "Already in the design system" instead of "Already on main". Icon library parts ("lucide") read "icon" in gap sentences.
+
 ## 0.19.0
 
 ### Minor Changes
