@@ -1,5 +1,87 @@
 # @bridge-ds/figma-plugin
 
+## 0.8.0
+
+### Minor Changes
+
+- 40b45ea: The measure has one agreed place: `measured-specs.json` (and `measured-shots/`) in the repo, else on the `bridge-requests` branch, where the automatic measure publishes it next to the plugin's `figma-fidelity.json`. Core: `findMeasure`, `MEASURE_BRANCH`, `measureFromWords`, `measureDir`, and the missing-measure words (`MEASURE_MISSING_TEXT`, `measureSetupSteps`, `MeasureMissingError`). The Claude fix tools (`bridge_figma_gaps`, `bridge_get_gap_case`, `bridge_try_figma_fix`, `bridge_propose_figma_fixes`, `bridge gaps`, `bridge fix`) read the measure there too; with none, `bridge_figma_gaps` answers `status: "no-measure"` with the designer sentence and the steps, never a raw error. The Figma plugin's measured spec sources and "Ask Claude to fix it" read it there (shots from the same branch), so a team on static specs gets the Claude button once it is measured; without a measure the row says "Bridge hasn't measured your components yet. A developer turns it on once: Set up automatic measure." and the copied request says how.
+- 221c85a: Claude runs in the team's own Claude account, with Bridge as a connector. The plugin has no API-key path anywhere.
+  - **Removed:** the "Draft with Claude" API-key route, the Anthropic key field and model picker in Settings, `api.anthropic.com` from the manifest, and the server-run wiring to `/api/claude`. "Draft with Claude" uses only the designer's own Claude.
+  - **Ask Claude to fix it** copies the request ("Fix IconButton in Figma with Bridge") and opens Claude to paste it in. The first time in a file, one sentence says to add Bridge to the team's Claude once, with "How to connect" (Studio Settings, Claude). "Copy for your developer" stays as the fallback.
+  - **The row follows Claude:**
+    - "Waiting for Claude", with "Open Claude again";
+    - "Claude is working on IconButton · 4 min, round 2 of up to 3", with Claude's real steps folded below, newest last (a pulse on the current one, a check on finished ones, static with reduced motion);
+    - "Claude's fix is ready", with "See Claude's fix" and the Check for updates line;
+    - or "Claude stopped: …" / "Claude went quiet", with "Copy for your developer".
+  - **Where the row gets its information:** steps come from the Bridge site. Without them, the plugin watches GitHub for the draft pull request on `bridge/figma-fixes-<component>` labelled `figma-fixes`. It looks gently while the plugin is open and resumes when it opens again.
+- 75d41f6: "Ask Claude to fix it" runs Claude for the team when the designer signed in with Bridge.
+  - **Start:** the plugin starts the run on Bridge (`POST /api/claude`, using the Studio sign-in token).
+  - **While it runs:** the row shows "Claude is on it" and the round. The plugin keeps asking while it is open, one request at a time after `retryAfter`.
+  - **When it ends:** "Claude's fix is ready" lists what the fix does, offers "See Claude's fix" (the review in Studio) and says that Check for updates brings it in once approved. A run without a fix shows Bridge's sentence only.
+  - **On open:** reopening the plugin picks up the team's runs still moving, and the ready ones show under "Claude's fixes".
+  - **Refusals:** when Claude is not connected for the team, or the hourly limit is reached, Bridge's sentence shows with "Copy for your developer". A pasted token keeps the copy path.
+- d13ef5d: Sign in with Bridge in the Figma plugin. Designers connect with the Bridge account they already use: the plugin opens Studio with a one-time code (`/studio/connect-figma/`), they pick their team, and the plugin receives the team's repository and the GitHub sign-in Studio holds, with no token to paste and no secret on screen. The new `POST /api/plugin-link` keeps codes in Redis for 5 minutes, single use, and checks with GitHub that the sign-in can open the chosen team's repository. When the sign-in expires, the plugin says "Sign in again". A pasted token stays available under "For developers: connect with a token".
+- f5bb271: The update preview shows the real "After" before you apply. For a component changed in code, the review shows its default variant twice:
+
+  - **"Before: in Figma now":** the Figma render of the variant.
+  - **"After: in code":** the code's own image of the incoming version, from the measured story shots or the published code images, only when they are of that version.
+  - **"After: drawn by Bridge":** for teams without code images. Bridge draws the incoming version itself, off-canvas, with the same builder as a pull, one component at a time as its row comes into view. It exports the drawing and removes every temporary node, even on an error, so the file is never left modified. A drawing that takes more than 8 seconds falls back to the list of what changes.
+
+  A quiet line says "Figma gets as close to this as Bridge can draw it." "Enlarge" stays.
+
+### Patch Changes
+
+- 009a5ee: Compare with code: popup examples with HTML elements (a list, a paragraph) are compared instead of skipped, a tooltip is rendered with its trigger instead of failing, a size difference is said first ("height 89 in Figma vs 48 in code") instead of a small pixel score, and the list says "Show all 57 compared" next to a headline that counts every set.
+- cf72de6: "Ask Claude to fix it" now opens Claude with the request already written (`claude.ai/new?q=…`). The designer presses send there. The request is also copied, and one line says to paste it if the message comes up empty. The progress row follows the fix-session contract exactly: "Claude went quiet" comes from the server's `quiet` flag on a working session, never as "Claude stopped: …". The elapsed time and round come from the session itself, and the plugin reads it every 10 seconds while the plugin is open.
+- 95f0035: Contrast problems are said in one place. The "Fix before sending" callout holds one line for all failing pairs, with the pairs themselves folded inside it ("See the 13 color pairs"). The red chips under the variable and the separate Contrast table are gone. Two actions sit under the line: "Show the edit", which scrolls to the variable that causes it, and "Leave it out of this send", which unchecks that edit so the rest can go.
+- 5886f5f: Check fidelity leads the screen. While it runs, its progress row sits right under the headline ("Comparing with the code") and "Check again" is hidden. Once it is done, the headline is its result ("1 component differs from the code", "Figma matches the code", "Can't compare yet") instead of "Up to date", and the comparison sits above the component lists. A set that differs without a known cause reads "Looks different from the code in 2 of 6 variants." instead of pixel figures. After a first pull that built components, "Check fidelity" is the primary action. The stray mark next to "Getting the request ready" is gone.
+- f3979a0: The plugin loads again: the network access reasoning is under the 1000 characters Figma accepts.
+- 8aca546: The Pull start screen has one job per block.
+  - **Getting updates:** keeps one action, "Check for updates". For a file pulled before, "How it works" folds into a one-line "How updates work". First-timers keep it open.
+  - **Compare with code** (was "Check fidelity") is its own block below. It explains itself in one sentence ("Do the components in this file still look like the code? Bridge compares each one with how it renders in code."), shows the last result ("8 differ, 24 match · compared today at 14:50"), and has one button: "Compare with code", "Compare again" or "See the differences". It does not show before a first pull.
+  - **Footer:** never two competing buttons. After a first pull that built components, the footer holds only "Compare with code".
+  - **Docs:** the plugin README, FIGMA-FIXES.md and the Studio plugin docs use the new name.
+- 5833d14: Send for review ends on "Sent for review" with "See it in Studio". Before, when Bridge could not ship a token change by itself, the headline turned into "Waiting for a developer" a few seconds after a successful send. Now the ship status stays on the token's own row, in calm words ("a developer adds it to the library"), and never replaces the headline. New flow tests run the real plugin UI in jsdom, with stand-ins for Figma and GitHub.
+- 67ddf1f: After adding variable edits to a change already in review, the send result says what happens next by the push-from-Figma rule (token values ship once the checks pass; a rename or removal waits for a developer OK) instead of asking for a design owner and a tech owner.
+- 43086a4: Settings, once connected, is one card: the design system by its name and how this computer is connected, with a few actions.
+  - **Signed in with Bridge:** "Connected with Bridge as <name>", with Open in Studio, Switch design system (reopens the team pick in Studio) and Sign out.
+  - **A token pasted before Sign in with Bridge existed:** the same card, with one primary action, "Sign in with Bridge" ("Connect through your team's Bridge account. No token to manage."). Signing in replaces the old token on this computer.
+  - **For developers:** the repository field, the branch, the token card and Replace token move under For developers, read-only, with "Edit the connection" for developers. A token a developer chose to paste is marked as their choice and not nudged.
+- 682ece5: A failed settings save changes nothing. The design system that is connected, its Pull and Push results (a finished Check fidelity included), and the header stay as they were. Settings no longer shows "Connected" above the error. The error gives the cause and the fix under the field it is about, for example "Bridge can't find acme/missing. Check the name, or ask an admin of the design system to give you access." Missing branch, folder and token problems get the same treatment.
+- eba6151: Plugin typography and dark theme:
+  - **Type:** three sizes per screen (17 headline, 12 body, 11 small). The What / In Figma / From code and Contrast tables use the body type instead of oversized monospace. Token names break at their dots, never inside a word.
+  - **Window size:** the window fits a short result instead of leaving a large empty area (between Figma's 400 minimum and the 640 default).
+  - **Dark theme:** help under fields uses the secondary text color. "Fails" chips get their own ground on the blocker panel. Renders sit in a neutral, theme-aware frame instead of a bright white box.
+  - **Update preview:** before an update, "After" lists what will change instead of an empty box. "Enlarge" shows before and after at the panel's width.
+- 12d0b66: Push says what blocks a send in designer words, one line per kind of problem. For example, "107 color pairs are too low in contrast on their backgrounds. Pick a stronger color, or uncheck the edit." replaces 107 lines that named token pairs and contrast.checks.json. The callout shows up to 3 lines, then "Show all". The exact messages are under For developers. The headline and the bar count kinds of problems, and a row shows at most 3 failing contrast pairs.
+- 5ae36ba: The designer no longer chooses how Claude drafts. "Draft with Claude" is one button: it uses the API key when a developer saved one, and the designer's own Claude plan otherwise. The "With an API key" menu option is gone. In Settings, the Claude card says in one sentence whether drafting is ready. The setup (the MCP config for Claude Code and the Claude app, the Anthropic API key and the model) now sits under "For developers: set up Claude".
+- f949c65: You can now reach Check fidelity without going through the Pull preview. It is the secondary action at the end of a pull that built components, and on the Pull start screen of a file pulled before. Bridge reads the design system quietly, runs the comparison and scrolls to it. A component that differs always gets a designer action. "Ask Claude to fix it" shows when the stories are measured; otherwise the row offers "Copy for your developer", with each differing variant and the JSON. When the code images are missing, the screen offers "Copy for your developer" with the workflow to run, instead of a sentence with nothing to do.
+- 9c1f0d3: Check fidelity: "Fix with Claude" becomes one button, "Ask Claude to fix it". The designer sees one sentence and "Copy for your developer"; the MCP phrase and the CLI command with an API key travel only in the copied request. A set that differs shows the reason in one sentence instead of pixel figures when Bridge knows it. The next step no longer says "Pull its branch": once the fix is approved, Check for updates brings it in.
+- da6db61: Four moments when a designer finishes something meaningful: the welcome on first open, the first pull ("Your design system is in Figma", where the bridge builds itself plank by plank), a send for review, and Check fidelity when every component matches (the Bridge mark lands next to "All N match the code"). Each moment is a Field Guide drawing from the brand that assembles once, in 900 ms, with opacity and transform only. Text and actions are usable from the first frame and the layout does not move. Nothing plays while a pull or a check runs, nothing plays on a screen that shows an error, and reduced motion shows the finished drawing.
+- bef3d8c: Offline is calm. When there is no network, the plugin shows one neutral sentence, "You're offline. Bridge will try again when you're back.", with no details and one "Try again". The bar's action waits, and what failed runs again by itself once the connection is back. The design system keeps one name: its config name is saved with the file, so the tab bar no longer changes from the repository name to the config name after a scan. The repeated "Token values ship once the checks pass" line on Push is gone.
+- e5b500e: First open and first pull are easier to follow. Settings no longer opens with the optional Claude setup: it appears once the design system is connected. The GitHub token card says in one sentence what the token is for and who can give one, and folds the permission list under "Creating the token yourself?". The first pull reads "Bring your design system into this file", with the variable and component counts and "Nothing is written until you apply". Its 62 component rows are folded like the variables. "For developers" moves to the end of the screen. When the first pull is done, the screen says "Your design system is in Figma" and what to do next, and no longer says "0 updated".
+- 337b73d: Push uses the settled verbs: "Send for review" (was "Send to the library"), "Sent for review", and "Add to this change". When something blocks the send, the headline says so ("1 problem to fix before sending") and the problem sits right under it, instead of "ready to send" above a problem at the bottom. Contrast pairs that still pass fold into one line; a row shows only the pairs its edit breaks. The direct-mode "two approvals" line, which contradicted "token values ship once the checks pass", is gone.
+- 8cef447: The plugin speaks in designer words, with one count per list:
+  - **After connecting:** the plugin lands on Pull, "Get your design system", says "Connected to …" once, and offers "Check for updates".
+  - **Components:** one count and one noun ("62 components to add") instead of "47 of 47 … (62 sets …)". Up-to-date lists become counts. Drafted-with-Claude, layout helpers and motion notes go under For developers.
+  - **Pull results:** "1 edited token" instead of "1 edited", and one sentence for what a pull built ("1 component updated on the Components page."). The theme layout moves under For developers.
+  - **Edits already sent:** Pull lists them as "in review", with "See it in Studio", not "Send them from Push".
+  - **Connecting from Pull or Push:** the action reads "Connect your design system" instead of "Open Settings".
+  - **Push:** the steps no longer say "synced variables", "build request" or "Token values ship".
+  - **Core:** a warning that existed before the edit reads "Already in the design system" instead of "Already on main". Icon library parts ("lucide") read "icon" in gap sentences.
+- 692014c: Open Claude again hands Claude the comparison on screen: when a newer Compare with code ran since the ask, it is written first, so Claude never resumes from an older run. The docs say how to update the plugin without a second copy in Figma.
+- ff3aea1: Ship: Bridge checks who asks and where a change comes from before it ships a push from Figma by itself. The author, with write access, records the push right after the plugin opens it (`POST /api/ship` with `mark: "figma"`), and Bridge ships it only while the head is the one it recorded, from a branch of the repository itself, with no change requested. Anything else follows the design approval rule. The plugin records each push before it asks Bridge to ship it.
+- Updated dependencies [17f2849]
+- Updated dependencies [acff80f]
+- Updated dependencies [009a5ee]
+- Updated dependencies [579f4a2]
+- Updated dependencies [00cdee5]
+- Updated dependencies [40b45ea]
+- Updated dependencies [8a83d88]
+- Updated dependencies [8cef447]
+- Updated dependencies [6842370]
+  - @bridge-ds/core@0.20.0
+
 ## 0.7.0
 
 ### Minor Changes

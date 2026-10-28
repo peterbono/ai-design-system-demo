@@ -1,5 +1,21 @@
 # @bridge-ds/visual
 
+## 0.3.14
+
+### Patch Changes
+
+- 42c7c8f: License: FSL-1.1-MIT (each version becomes MIT after two years). See LICENSING.md.
+- Updated dependencies [17f2849]
+- Updated dependencies [acff80f]
+- Updated dependencies [009a5ee]
+- Updated dependencies [579f4a2]
+- Updated dependencies [00cdee5]
+- Updated dependencies [40b45ea]
+- Updated dependencies [8a83d88]
+- Updated dependencies [8cef447]
+- Updated dependencies [6842370]
+  - @bridge-ds/core@0.20.0
+
 ## 0.3.13
 
 ### Patch Changes

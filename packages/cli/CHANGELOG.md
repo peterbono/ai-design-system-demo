@@ -1,5 +1,30 @@
 # @bridge-ds/cli
 
+## 0.14.0
+
+### Minor Changes
+
+- 17f2849: The automatic measure: `measureWorkflowYaml` and `measureWorkflowOptionsFromConfig` (core) generate `.github/workflows/bridge-measure.yml`, which measures a team's Storybook each time it changes (after each deploy of a deployed Storybook, or on pushes that change it with Storybook built in the run, plus a weekly fallback) with `bridge specs --measure --variants --tokens --shots --check` in headless Chrome, and publishes `measured-specs.json` and `measured-shots/` to the `bridge-requests` branch only when the measure changed, with the run's `GITHUB_TOKEN` only. New `bridge measure setup` writes it from `bridge.config.json`, and `bridge init` offers it. Studio, Settings, Claude shows the measure of the components and, for developers, Set up automatic measure (a pull request that adds the workflow, or the file to commit from GitHub when the app cannot write workflows); new docs page /docs/automatic-measure/ and docs/MEASURE.md; templates/bridge-measure.yml for teams.
+- 8a83d88: The owner override covers suggestions. An owner `governance.override` allows, whom nobody else can review, approves their own suggestion as owner with a written reason: core `overrideSuggestionOnGitHub`, `composeSuggestionOverrideComment`, `parseSuggestionOverrideComment`, `suggestionOverrideProblem` and `suggestionOverrideOf`, and `summarizeSuggestionApprovals` counts it as every missing approval on its version (`SuggestionGovernance.override`). `bridge review <n> --override --message "..."` and `bridge_review_suggestion` with event `override` do it; `bridge suggestions show` and `bridge_get_suggestion` say "Approved with the owner override by @login".
+- 6842370: Tier 1 publish by leads. New `governance.leadsPublishTier1` in `bridge.config.json` (absent counts as on): team admins and the reviewers of the matching domain publish a Tier 1 change without review, and Bridge merges it once the checks pass. Core adds the `tier1-publish` module (`canPublishTier1`, `tier1Domain`, `tier1PublishOf`, `publishedWithoutReview`, `tier1PublishSentence`) and `branchVerdict` reads `tier1Published` as on its way until a check fails. `bridge settings` and the MCP settings and roles say who may publish small changes; `bridge branch status` and `bridge_branch_status` say "Published by <name> without review (Tier 1)."
+
+### Patch Changes
+
+- acff80f: Fix with Claude: the loop as steps in core (`startFixLoop`, `fixLoopRound`, `fixLoopOutcome`) and the change for review (`figmaFixesProposal`, `figmaFixesBranchStem`, `DEFAULT_MEASURED_SPECS_FILE`, `FIGMA_FIXES_LABEL`), shared by the CLI (`bridge fix --with-claude`), the MCP server (`bridge_propose_figma_fixes`, `figmaFixes.loadFixFiles` now exported) and Bridge's server, which runs the loop with a team's connected Claude one round per request. Same behavior for the CLI and the MCP tools.
+- 42c7c8f: License: FSL-1.1-MIT (each version becomes MIT after two years). See LICENSING.md.
+- 40b45ea: The measure has one agreed place: `measured-specs.json` (and `measured-shots/`) in the repo, else on the `bridge-requests` branch, where the automatic measure publishes it next to the plugin's `figma-fidelity.json`. Core: `findMeasure`, `MEASURE_BRANCH`, `measureFromWords`, `measureDir`, and the missing-measure words (`MEASURE_MISSING_TEXT`, `measureSetupSteps`, `MeasureMissingError`). The Claude fix tools (`bridge_figma_gaps`, `bridge_get_gap_case`, `bridge_try_figma_fix`, `bridge_propose_figma_fixes`, `bridge gaps`, `bridge fix`) read the measure there too; with none, `bridge_figma_gaps` answers `status: "no-measure"` with the designer sentence and the steps, never a raw error. The Figma plugin's measured spec sources and "Ask Claude to fix it" read it there (shots from the same branch), so a team on static specs gets the Claude button once it is measured; without a measure the row says "Bridge hasn't measured your components yet. A developer turns it on once: Set up automatic measure." and the copied request says how.
+- Updated dependencies [1186ebf]
+- Updated dependencies [acff80f]
+- Updated dependencies [42c7c8f]
+- Updated dependencies [537952e]
+- Updated dependencies [40b45ea]
+- Updated dependencies [b447dc4]
+- Updated dependencies [8a83d88]
+- Updated dependencies [163315e]
+- Updated dependencies [6842370]
+  - @bridge-ds/mcp@0.10.0
+  - @bridge-ds/visual@0.3.14
+
 ## 0.13.0
 
 ### Minor Changes
