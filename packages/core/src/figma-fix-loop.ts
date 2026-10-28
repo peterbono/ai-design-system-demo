@@ -339,7 +339,7 @@ export function tryFigmaFixes(input: TryFixesInput): TryFixesResult {
     verdict,
     referee: 'values',
     variants,
-    summary: trySummary(component, before.gap, all, regressions, verdict, notFound, proposed),
+    summary: trySummary(component, before.gap, all, regressions, verdict, notFound, proposed, variants.filter((v) => v.verdict === 'gone').length),
     detail: tryDetail(variants, applied),
     file,
   };
@@ -502,17 +502,24 @@ function sizeShift(field: 'height' | 'width', specB: ComponentSpec, vb: SpecVari
   return unknown ? undefined : round(shift);
 }
 
-function trySummary(component: string, gap: GapCase, diffs: TriedDifference[], regressions: number, verdict: FixVerdict, notFound: AppliedFix[], proposed: FigmaFix[]): string {
+function trySummary(component: string, gap: GapCase, diffs: TriedDifference[], regressions: number, verdict: FixVerdict, notFound: AppliedFix[], proposed: FigmaFix[], gone: number): string {
   if (!gap.variants.length) return `${component} has no differing variant in the gap case: nothing for these fixes to move (the values referee needs a Check fidelity report or a difference in the measure).`;
+  const absent = notFound.length ? ` ${notFound.map((a) => a.id).join(', ')} found nothing in the measure.` : '';
+  // No difference to compare and variants missing from the rebuilt set: the referee judged nothing, and saying
+  // "0 of 0 differences resolved" would read as a measurement.
+  if (!diffs.length && gone) {
+    const n = gap.variants.length;
+    const which = gone < n ? `${gone} of the ${n} differing variants are not` : n === 1 ? 'the differing variant is not' : `none of the ${n} differing variants is`;
+    return `The values referee compared nothing: ${which} in the rebuilt set.${absent} Pull this branch in the DS Bridge Figma plugin and run Check fidelity to see what the fixes do.`;
+  }
   const resolved = diffs.filter((d) => d.result === 'resolved').length;
   const closer = diffs.filter((d) => d.result === 'closer').length;
   const worse = diffs.filter((d) => d.result === 'worse').length;
-  const bits = [`${resolved} of ${diffs.length} difference${diffs.length === 1 ? '' : 's'} resolved`, ...(closer ? [`${closer} closer`] : []), ...(worse ? [`${worse} worse`] : []), ...(regressions ? [`${regressions} new`] : [])];
+  const bits = [`${resolved} of ${diffs.length} difference${diffs.length === 1 ? '' : 's'} resolved`, ...(closer ? [`${closer} closer`] : []), ...(worse ? [`${worse} worse`] : []), ...(regressions ? [`${regressions} new`] : []), ...(gone ? [`${gone} not in the rebuilt set`] : [])];
   const word = verdict === 'closer' ? 'Closer to the code' : verdict === 'worse' ? 'Further from the code' : 'No closer to the code';
   const statusOnly = proposed.length > 0 && proposed.every((f) => f.kind === 'status' || (f.kind === 'axis' && f.action === 'map'));
-  const missing = notFound.length ? ` ${notFound.map((a) => a.id).join(', ')} found nothing in the measure.` : '';
   const note = statusOnly && verdict === 'same' ? ' These fixes change how the set is named or labelled, not what it draws.' : '';
-  return `${word} on the measured values: ${bits.join(', ')}.${missing}${note} The pixel check runs in the plugin after the next pull.`;
+  return `${word} on the measured values: ${bits.join(', ')}.${absent}${note} The pixel check runs in the plugin after the next pull.`;
 }
 
 function tryDetail(variants: TriedVariant[], applied: AppliedFix[]): string {
@@ -546,6 +553,44 @@ export function touchesLayout(f: FigmaFix): boolean {
   return f.kind === 'part' && (f.width !== undefined || f.height !== undefined || f.direction !== undefined || f.align !== undefined || f.overlay !== undefined);
 }
 
+/** How many variants the body lists in full before it folds them away. */
+const VARIANTS_INLINE = 8;
+
+const valueWords = (v: unknown) => (v === null ? 'none' : v === undefined ? 'unknown' : typeof v === 'string' ? v : JSON.stringify(v));
+
+/** One line per kind of difference, with its values: what a reviewer needs before the variant by variant list. */
+function triedHighlights(variants: TriedVariant[]): string[] {
+  const groups = new Map<string, { n: number; d: TriedDifference }>();
+  for (const v of variants) {
+    for (const d of v.differences) {
+      const key = [d.part, d.property, valueWords(d.before), valueWords(d.expected), valueWords(d.after), d.result].join('|');
+      const seen = groups.get(key);
+      if (seen) seen.n += 1;
+      else groups.set(key, { n: 1, d });
+    }
+  }
+  return [...groups.values()].map(
+    ({ n, d }) =>
+      `- ${d.part} ${d.property}, ${n === 1 ? '1 variant' : `${n} variants`}: ${valueWords(d.before)} in Figma against ${valueWords(d.expected)} in code, now ${valueWords(d.after)}: ${d.result}`,
+  );
+}
+
+/**
+ * The before and after evidence. A long list reads as noise, so above VARIANTS_INLINE variants it leads with one line
+ * per kind of difference and folds the variants away. "gone" says what the referee knows: the variant was not found in
+ * the rebuilt set, whether a fix dropped it or the set no longer names it the same way.
+ */
+function triedEvidence(variants: TriedVariant[]): string[] {
+  const lines = variants.flatMap((v) => [
+    `- ${v.key}: ${v.verdict === 'gone' ? 'not in the rebuilt set' : v.verdict}`,
+    ...v.differences.map((d) => `  - ${d.text}: ${d.result}${d.deltaBefore !== undefined ? ` (${d.deltaBefore} px, now ${d.deltaAfter ?? '?'} px${d.estimated ? ', estimated' : ''})` : ''}`),
+    ...v.regressions.map((r) => `  - new difference: ${r.text}`),
+  ]);
+  if (variants.length <= VARIANTS_INLINE) return [...lines, ''];
+  const highlights = triedHighlights(variants);
+  return [...(highlights.length ? [...highlights, ''] : []), '<details>', `<summary>Variant by variant (${variants.length})</summary>`, '', ...lines, '', '</details>', ''];
+}
+
 /** The pull request body of a figma-fixes.json change: the gap, each fix with its reason, before and after. */
 export function figmaFixesPrBody(input: { component: string; summary: string; gap: GapCase; tried: TryFixesResult; fixes: FigmaFix[]; tool: string }): string {
   const { tried } = input;
@@ -573,15 +618,11 @@ export function figmaFixesPrBody(input: { component: string; summary: string; ga
     '',
     tried.summary,
     '',
-    ...tried.variants.flatMap((v) => [
-      `- ${v.key}: ${v.verdict}`,
-      ...v.differences.map((d) => `  - ${d.text}: ${d.result}${d.deltaBefore !== undefined ? ` (${d.deltaBefore} px, now ${d.deltaAfter ?? '?'} px${d.estimated ? ', estimated' : ''})` : ''}`),
-      ...v.regressions.map((r) => `  - new difference: ${r.text}`),
-    ]),
-    '',
+    // The caveat is the reader's key to the section, so it comes before the evidence, not after it.
     ...(tried.verdict === 'same' && input.fixes.some(touchesLayout)
       ? ["These fixes size, place or lay out parts. The values referee can't judge layout, so it says same: Check fidelity decides.", '']
       : []),
+    ...triedEvidence(tried.variants),
     'The values referee compares the rebuilt set with what the code renders. The story shot is the final referee: pull this branch in the DS Bridge Figma plugin and run Check fidelity before approving. A fix stays only when the variant moved closer to its shot.',
     '',
     `Drafted by Claude through ${input.tool}. figma-fixes.json only: no component, token or plugin change.`,
