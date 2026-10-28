@@ -535,6 +535,31 @@ export const variantKeyOf = (props: Record<string, string>) =>
     .map((k) => `${k}=${props[k]}`)
     .join(', ') || 'Default';
 
+/**
+ * The set's variant a report key names. A Check fidelity key carries only the axes that vary between the shots
+ * ("Size=sm, State=Default, Variant=primary"), while the set may have more ("Loading", "Full width"). The exact key
+ * wins; otherwise the variants whose props hold every axis and value asked, and among several the one whose other axes
+ * sit at their default (the axis default, else "false" or "Default"). Undefined when none, or when that still leaves
+ * more than one: a guess would compare the wrong variant.
+ */
+export function matchVariant<V extends { props: Record<string, string> }>(spec: { axes?: SpecAxis[] | undefined; variants: V[] } | undefined, props: Record<string, string>): V | undefined {
+  if (!spec) return undefined;
+  const key = variantKeyOf(props);
+  const exact = spec.variants.find((v) => variantKeyOf(v.props) === key);
+  if (exact) return exact;
+  const asked = Object.entries(props);
+  const fits = spec.variants.filter((v) => Object.keys(v.props).length > asked.length && asked.every(([k, val]) => v.props[k] === val));
+  if (fits.length <= 1) return fits[0];
+  const atDefault = (name: string, value: string) => {
+    const axis = spec.axes?.find((a) => a.name === name);
+    if (axis) return value === axis.default;
+    const v = value.toLowerCase();
+    return v === 'false' || v === 'default';
+  };
+  const best = fits.filter((v) => Object.entries(v.props).every(([k, val]) => k in props || atDefault(k, val)));
+  return best.length === 1 ? best[0] : undefined;
+}
+
 /** What a set's description says about reduced motion: tokens set every duration to 0 under prefers-reduced-motion. */
 export const REDUCED_MOTION_NOTE = 'In code, reduced motion turns this off.';
 
