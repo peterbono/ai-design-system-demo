@@ -230,7 +230,8 @@ const onboarding = {
       const signedIn = Boolean(v) || (!known && Boolean(getToken()));
       const d = data;
       const demo = exploring();
-      if (launcherSlot) launcherSlot.hidden = demo || !stat.launcher;
+      // A member of this team is already in their Bridge: the launcher is for visitors opening their own team.
+      if (launcherSlot) launcherSlot.hidden = demo || !stat.launcher || (signedIn && Boolean(currentAccess()?.write));
       if (demo) {
         root = paintDemoHome(
           el,
