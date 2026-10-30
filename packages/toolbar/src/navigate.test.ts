@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isFlipKey } from './session';
-import { changeCount, elsewhereLine, isEscape, isTyping, positionLabel, readingOrder, stepAnnouncement, stepTo } from './navigate';
+import { changeCount, elsewhereLine, isEscape, isTyping, positionLabel, readingOrder, stepAnnouncement, stepTo, tipSide } from './navigate';
 
 const key = (k: string, target: unknown = null, mods: Partial<{ altKey: boolean; ctrlKey: boolean; metaKey: boolean }> = {}) => ({ key: k, altKey: false, ctrlKey: false, metaKey: false, target, ...mods });
 
@@ -38,11 +38,12 @@ describe('stepping through the changes of a screen', () => {
     expect(stepTo(5, 1, 3)).toBe(0);
   });
 
-  it('counts in plain words', () => {
-    expect(changeCount(1)).toBe('1 change');
-    expect(changeCount(3)).toBe('3 changes');
-    expect(positionLabel(1, 3)).toBe('2 of 3');
-    expect(stepAnnouncement(1, 3, 'Save bar (Save changes)')).toBe('Change 2 of 3: Save bar (Save changes)');
+  it('counts changed elements, never "changes" (the bar already says "This change")', () => {
+    expect(changeCount(1)).toBe('1 changed');
+    expect(changeCount(13)).toBe('13 changed');
+    expect(positionLabel(1, 13)).toBe('2 / 13 changed');
+    expect(stepAnnouncement(1, 13, 'Avatar')).toBe('Changed element 2 of 13: Avatar');
+    for (const text of [changeCount(1), changeCount(13), positionLabel(0, 1), stepAnnouncement(0, 1, 'Avatar')]) expect(text).not.toMatch(/\bchanges?\b/i);
   });
 
   it('says where the change shows when nothing changes here', () => {
@@ -82,5 +83,30 @@ describe('shortcuts never fire while typing', () => {
     expect(isEscape(key('Escape', combobox))).toBe(false);
     expect(isEscape(key('Escape', button, { metaKey: true }))).toBe(false);
     expect(isEscape(key('Enter', button))).toBe(false);
+  });
+});
+
+describe('where the before and after tooltip goes', () => {
+  const view = { width: 1280, height: 800 };
+  const bar = { left: 360, top: 740, right: 1264, bottom: 784 };
+  const box = (left: number, top: number, size = 32) => ({ left, top, right: left + size, bottom: top + size });
+
+  it('goes below the element when there is room above the bar, so the title above stays readable', () => {
+    expect(tipSide(box(945, 380), view, bar)).toBe('bottom');
+  });
+
+  it('goes beside the element when the bar leaves no room below', () => {
+    expect(tipSide(box(300, 660), view, bar)).toBe('right');
+    expect(tipSide(box(1200, 660), view, bar)).toBe('left');
+  });
+
+  it('goes above only when nothing else fits', () => {
+    expect(tipSide({ left: 0, top: 600, right: 1280, bottom: 720 }, view, bar)).toBe('top');
+  });
+
+  it('uses the viewport bottom without a bar', () => {
+    expect(tipSide(box(10, 700), view, null)).toBe('bottom');
+    expect(tipSide(box(10, 720), view, null)).toBe('right');
+    expect(tipSide(box(10, 760), view, null)).toBe('top');
   });
 });

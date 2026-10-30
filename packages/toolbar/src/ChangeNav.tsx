@@ -6,7 +6,7 @@ import { PIN_CLASS } from './pin';
 import styles from './BridgeToolbar.module.css';
 
 export interface ChangeNavProps {
-  /** "Show what changed", "3 changes", "Change 2 of 3", "No changes here". */
+  /** "Show what changed", "13 changed", "2 / 13 changed", "Nothing changed here". */
   countText: string;
   /** The count's tooltip: what changed and the C shortcut. */
   tip: string;
@@ -16,7 +16,7 @@ export interface ChangeNavProps {
   /** Changes to step through, null while outlines are off or measuring. */
   total: number | null;
   isolate: boolean;
-  /** Said to screen readers on each step: "Change 2 of 3: Save bar". */
+  /** Said to screen readers on each step: "Changed element 2 of 13: Save bar". */
   announce: string;
   onToggle: () => void;
   onStep: (delta: 1 | -1) => void;
@@ -25,7 +25,7 @@ export interface ChangeNavProps {
 
 export function ChangeNav({ countText, tip, outlinesOn, disabled, total, isolate, announce, onToggle, onStep, onIsolate }: ChangeNavProps) {
   return (
-    <div className={styles.nav} role="group" aria-label="Changes on this screen">
+    <div className={styles.nav} role="group" aria-label="What changed on this screen">
       <Tooltip className={PIN_CLASS} content={tip}>
         <Button variant="secondary" size="md" iconStart={ScanSearch} pressed={outlinesOn} aria-keyshortcuts="C" disabled={disabled} onClick={onToggle} className={styles.countButton}>
           {countText}
@@ -33,15 +33,15 @@ export function ChangeNav({ countText, tip, outlinesOn, disabled, total, isolate
       </Tooltip>
       {total ? (
         <>
-          <ButtonGroup appearance="attached" aria-label="Step through the changes" className={styles.steps}>
-            <Tooltip className={PIN_CLASS} content="Previous change">
-              <IconButton icon={ChevronLeft} variant="secondary" size="md" label="Previous change" onClick={() => onStep(-1)} />
+          <ButtonGroup appearance="attached" aria-label="Step through the changed elements" className={styles.steps}>
+            <Tooltip className={PIN_CLASS} content="Previous changed element">
+              <IconButton icon={ChevronLeft} variant="secondary" size="md" label="Previous changed element" onClick={() => onStep(-1)} />
             </Tooltip>
-            <Tooltip className={PIN_CLASS} content="Next change">
-              <IconButton icon={ChevronRight} variant="secondary" size="md" label="Next change" onClick={() => onStep(1)} />
+            <Tooltip className={PIN_CLASS} content="Next changed element">
+              <IconButton icon={ChevronRight} variant="secondary" size="md" label="Next changed element" onClick={() => onStep(1)} />
             </Tooltip>
           </ButtonGroup>
-          <Tooltip className={PIN_CLASS} content={isolate ? 'Show the whole page again. Press Esc.' : 'Dim everything but the changes. Esc turns it off.'}>
+          <Tooltip className={PIN_CLASS} content={isolate ? 'Show the whole page again. Press Esc.' : 'Dim everything but the changed elements. Esc turns it off.'}>
             <Button variant="secondary" size="md" pressed={isolate} aria-keyshortcuts={isolate ? 'Escape' : undefined} onClick={() => onIsolate(!isolate)}>
               Isolate
             </Button>

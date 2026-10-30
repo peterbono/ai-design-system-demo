@@ -8,11 +8,11 @@ import { ChangeNav, type ChangeNavProps } from './ChangeNav';
 
 const setup = (over: Partial<ChangeNavProps> = {}) => {
   const props: ChangeNavProps = {
-    countText: '3 changes',
-    tip: '1 token changed: Page canvas, on 3 surfaces. Press C to hide the outlines.',
+    countText: '13 changed',
+    tip: '1 token changed: Avatar bg, on 13 surfaces. Press C to hide the outlines.',
     outlinesOn: true,
     disabled: false,
-    total: 3,
+    total: 13,
     isolate: false,
     announce: '',
     onToggle: vi.fn(),
@@ -31,20 +31,20 @@ const setup = (over: Partial<ChangeNavProps> = {}) => {
 describe('ChangeNav', () => {
   it('shows the count as the outlines toggle, with Previous, Next and Isolate', () => {
     setup();
-    const count = screen.getByRole('button', { name: '3 changes' });
+    const count = screen.getByRole('button', { name: '13 changed' });
     expect(count).toHaveAttribute('aria-pressed', 'true');
     expect(count).toHaveAttribute('aria-keyshortcuts', 'C');
-    expect(screen.getByRole('button', { name: 'Previous change' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Next change' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous changed element' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next changed element' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Isolate' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('group', { name: 'Changes on this screen' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'What changed on this screen' })).toBeInTheDocument();
   });
 
   it('steps, toggles and isolates from the keyboard', async () => {
     const user = userEvent.setup();
     const { props } = setup();
     await user.tab();
-    expect(screen.getByRole('button', { name: '3 changes' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: '13 changed' })).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(props.onToggle).toHaveBeenCalledTimes(1);
     await user.tab();
@@ -61,13 +61,13 @@ describe('ChangeNav', () => {
   it('hides stepping and Isolate while outlines are off or nothing changed here', () => {
     setup({ outlinesOn: false, total: null, countText: 'Show what changed' });
     expect(screen.getByRole('button', { name: 'Show what changed' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.queryByRole('button', { name: 'Next change' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next changed element' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Isolate' })).toBeNull();
   });
 
   it('announces each step and says Esc turns Isolate off', () => {
-    setup({ isolate: true, announce: 'Change 2 of 3: Save bar', countText: 'Change 2 of 3' });
-    expect(screen.getByRole('status')).toHaveTextContent('Change 2 of 3: Save bar');
+    setup({ isolate: true, announce: 'Changed element 2 of 13: Avatar', countText: '2 / 13 changed' });
+    expect(screen.getByRole('status')).toHaveTextContent('Changed element 2 of 13: Avatar');
     expect(screen.getByRole('button', { name: 'Isolate' })).toHaveAttribute('aria-keyshortcuts', 'Escape');
     expect(screen.getByRole('button', { name: 'Isolate' })).toHaveAttribute('aria-pressed', 'true');
   });
