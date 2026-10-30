@@ -66,7 +66,7 @@ test('the repo config keeps the same grouping although the library has a path', 
   const products = realConfig().products;
   assert.deepEqual(
     products.map((p) => p.key),
-    ['admin', 'library'],
+    ['admin', 'shop', 'library'],
   );
   const of = (files: string[] | null) => productOfBranch(products, { files }).key;
   assert.equal(of(['packages/react/src/Badge.tsx', 'apps/admin/src/App.tsx']), 'admin');
@@ -143,8 +143,8 @@ test('config: products default, custom list, errors and toConfigJson', () => {
   assert.throws(() => loadConfig({ products: [{ key: 'x' }] }), (err: unknown) => err instanceof ConfigError && err.problems.some((m) => m.includes('"products[0].name"')));
   assert.throws(() => loadConfig({ products: 'admin' }), ConfigError);
 
-  // The repo config lists both products explicitly (with a preview and a library path), so it is written out.
-  assert.equal((toConfigJson(realConfig()).products as ProductConfig[]).length, 2);
+  // The repo config lists its products explicitly (with previews, a library path and the shop repo), so it is written out.
+  assert.equal((toConfigJson(realConfig()).products as ProductConfig[]).length, 3);
 });
 
 test('productMarks: a label and a body line for a non-default product, nothing for the default', () => {
