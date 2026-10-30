@@ -125,7 +125,7 @@ export function explorationSlugFromBranch(ref: string): string | null {
 /**
  * Which exploration a person or a tool means, wherever it lives. In the design system repository: its number ("12",
  * "#12") or its name ("pill-buttons", "explore/pill-buttons"). In a product's own repository, the product key or the
- * repository goes first: "shop#12", "peterbono/bridge-demo-shop#12", "shop:checkout-flow", or the pull request link.
+ * repository goes first: "admin-app#12", "peterbono/bridge-product-admin#12", "admin-app:checkout-flow", or the pull request link.
  */
 export interface ExplorationRef {
   /** A product key ("shop"), when the reference names one. */
