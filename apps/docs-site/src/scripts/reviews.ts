@@ -1158,7 +1158,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     experimental: explored?.experimental ?? null,
     previews: resolveBranchPreviews(BRANCHES.apps ?? {}, { branch: pull.head.ref, pr: pull.number, sha: pull.head.sha }, { comments, statuses: x.statuses })
       // A template URL may point at nothing (Vercel skipped or shortened it): only the ones Vercel reported open.
-      .map((v) => ({ label: previewName(v.app, v.label), url: v.url && v.source !== 'template' ? safeUrl(v.url) || null : null, state: v.state })),
+      .map((v) => ({ label: previewName(v.app, v.label), url: v.url && v.source !== 'template' && !v.skipped ? safeUrl(v.url) || null : null, state: v.state })),
     tryUrl: previewBase ? safeUrl(tryInProductUrl(previewBase, pull.number, null)) || null : null,
   });
   // The technical side of product work, folded for everyone: what a designer never needs to read first.

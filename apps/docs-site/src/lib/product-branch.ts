@@ -8,8 +8,10 @@ import {
   LINK_STATUS_TONE,
   nearestQuestion,
   parseNeededBy,
+  previewUrl,
   productOfBranch,
   suggestNearestComment,
+  type BranchPreview,
   type LibraryLink,
   type LibraryPreviewKey,
   type LinkedLibraryBranch,
@@ -17,6 +19,7 @@ import {
   type MissingPiece,
   type NeededBy,
   type PiecesRecord,
+  type PreviewApps,
   type ProductConfig,
 } from '@bridge-ds/core';
 import { studioHref } from './team-path';
@@ -134,6 +137,54 @@ export function developerLines(input: { number: number; branch: string; links: P
     { label: 'With Claude', value: `bridge_missing_pieces { pr: ${input.product ? `"${ref}"` : ref}, record: true }` },
   ];
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// "Try it in the product": never a canceled or skipped deployment.
+
+/** Next to the button when the branch has no build of its own: the product as it is today opens instead. */
+export const TRY_TODAY_NOTE = 'Same as the product today. Your preview appears after the first change.';
+export const TRY_BUILDING_NOTE = 'Preview is building';
+export const TRY_UNAVAILABLE_NOTE = 'Preview not available yet';
+
+export interface TryInProductView {
+  /** Where the button goes; null: the button is disabled. */
+  url: string | null;
+  /** One short line next to the button, or null. */
+  note: string | null;
+  /** branch: its own build. today: the product today. building, failed: no link yet. unknown: nothing reported. */
+  state: 'branch' | 'today' | 'building' | 'failed' | 'unknown';
+}
+
+/** True when the branch only changed Bridge notes (.bridge/, the exploration note): nothing the product is built from. */
+export const notesOnly = (files: readonly string[] | null | undefined): boolean => Boolean(files?.length) && files!.every((f) => f.startsWith('.bridge/'));
+
+/**
+ * The product as it is today: its production URL (bridge.config.json previews.production, by product key), else its
+ * preview pattern on the default branch. Null when neither is set up.
+ */
+export function productTodayUrl(product: Pick<ProductConfig, 'key' | 'preview'>, ctx: { production?: PreviewApps | null; defaultBranch?: string | null } = {}): string | null {
+  const ref = { branch: ctx.defaultBranch || 'main' };
+  return previewUrl(ctx.production?.[product.key as keyof PreviewApps], ref) ?? previewUrl(product.preview, ref);
+}
+
+/**
+ * What "Try it in the product" opens. A branch Vercel skipped (Ignored Build Step) or that only changed notes has no
+ * build of its own, and its link opens "Deployment was cancelled": the product today opens instead, with a note.
+ * While its build runs: disabled, "Preview is building". A failed build: "Preview not available yet" (the details stay
+ * in For developers). Only a URL Vercel reported, never a template (Vercel shortens long aliases).
+ */
+export function tryInProductView(preview: BranchPreview | null | undefined, ctx: { tryUrl: (url: string) => string | null; todayUrl: string | null; files?: readonly string[] | null }): TryInProductView {
+  const reported = preview?.url && preview.source !== 'template' ? preview.url : null;
+  const ownReady = Boolean(reported && preview!.state !== 'failed' && preview!.state !== 'building' && !preview!.skipped);
+  if (preview?.skipped || (notesOnly(ctx.files) && !ownReady)) return { url: ctx.todayUrl, note: ctx.todayUrl ? TRY_TODAY_NOTE : 'Your preview appears after the first change.', state: 'today' };
+  if (preview?.state === 'failed') return { url: null, note: TRY_UNAVAILABLE_NOTE, state: 'failed' };
+  if (preview?.state === 'building') return { url: null, note: TRY_BUILDING_NOTE, state: 'building' };
+  const url = reported ? ctx.tryUrl(reported) : null;
+  return url ? { url, note: null, state: 'branch' } : { url: null, note: null, state: 'unknown' };
+}
+
+/** The developer line for a preview that did not build (designers only read "Preview not available yet"). */
+export const failedPreviewLine = (preview: Pick<BranchPreview, 'label'>): { label: string; value: string } => ({ label: 'Product preview', value: `The latest ${preview.label} build failed on Vercel: see its status on the pull request` });
 
 /** The sentence to say to Claude when the branch was never checked. */
 export const ASK_CLAUDE = 'Ask Claude: "Check what my feature adds that the library does not have."';

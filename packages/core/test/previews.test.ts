@@ -121,6 +121,7 @@ import { fileURLToPath } from 'node:url';
 import { GitHubClient, type FetchLike } from '../src/github-client';
 import { appForProject, findVercelComment, isVercelComment, parseVercelComment, previewLinksOf, previewsSettled, projectOfLabel, resolveBranchPreviews } from '../src/previews';
 import { branchPreviewUrls } from '../src/previews-github';
+import { productPreview } from '../src/try-in-product';
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`./fixtures/previews/${name}`, import.meta.url)), 'utf8');
 const PR64 = {
@@ -202,7 +203,10 @@ test('the Vercel comment and statuses give the real #64 URLs and their state', (
     ],
   );
   assert.equal(previewsSettled(previews), true);
-  assert.deepEqual(previewLinksOf(previews).map((l) => l.label), ['Docs', 'Storybook', 'Admin demo']);
+  // #64 only added its note file: Vercel's Ignored Build Step canceled all three builds, so none is a link.
+  assert.deepEqual(previews.map((p) => p.skipped), [true, true, true]);
+  assert.deepEqual(previewLinksOf(previews), []);
+  assert.deepEqual(previewLinksOf(previews.map(({ skipped: _, ...p }) => p)).map((l) => l.label), ['Docs', 'Storybook', 'Admin demo']);
   // Inspector links (vercel.com/...) in statuses are never taken for a preview URL.
   const onlyStatuses = resolveBranchPreviews(realApps(), { branch: PR64.branch }, { statuses: PR64.statuses });
   assert.deepEqual(onlyStatuses.map((p) => p.url), [REAL.docs, null, null]);
@@ -258,4 +262,23 @@ test('branchPreviewUrls reads the pull request, its comments, statuses and deplo
   const bySha = await branchPreviewUrls(gh, PR64.sha, realConfig());
   assert.deepEqual(bySha.map((p) => [p.url, p.state]), [[null, 'ready'], [null, 'ready'], [null, 'ready']]);
   assert.deepEqual(await branchPreviewUrls(gh, 64, { previews: { apps: {} } }), []);
+});
+
+// Exploration #611: only its note file changed, so Vercel's Ignored Build Step canceled every build. The statuses
+// say success, the comment names a branch alias, and that alias opens "Deployment was cancelled".
+test('a build Vercel skipped (Ignored Build Step) is marked skipped and never offered as a link', () => {
+  const vercel = `[vc]: #x:${btoa(JSON.stringify({ projects: [{ name: 'bridge-admin', previewUrl: 'bridge-admin-git-explore-explore-new-a658e0-peterbonos-projects.vercel.app', nextCommitStatus: 'IGNORED' }] }))}\nThe latest updates on your projects.`;
+  const statuses = [{ context: 'Vercel – bridge-admin', state: 'success', description: 'Canceled by Ignored Build Step', target_url: 'https://vercel.com/peterbonos-projects/bridge-admin/8qZck' }];
+  const ctx = { branch: 'explore/explore-new-design-pr-being-built', pr: 611 };
+  const admin = resolveBranchPreviews(realApps(), ctx, { comments: [{ body: vercel }], statuses }).find((p) => p.app === 'admin')!;
+  assert.equal(admin.skipped, true);
+  assert.equal(admin.url, 'https://bridge-admin-git-explore-explore-new-a658e0-peterbonos-projects.vercel.app/');
+  assert.deepEqual(previewLinksOf([admin]), []);
+  // The comment alone says so too; a newer status that built wins over it.
+  assert.equal(resolveBranchPreviews(realApps(), ctx, { comments: [{ body: vercel }] }).find((p) => p.app === 'admin')!.skipped, true);
+  const builtStatuses = [{ ...statuses[0]!, description: 'Deployment has completed' }];
+  const built = resolveBranchPreviews(realApps(), ctx, { comments: [{ body: vercel }], statuses: builtStatuses }).find((p) => p.app === 'admin')!;
+  assert.equal(built.skipped, undefined);
+  assert.equal(productPreview(realApps(), { ...ctx, sha: 'abc' }, { comments: [{ body: vercel }], statuses }), null);
+  assert.equal(productPreview(realApps(), { ...ctx, sha: 'abc' }, { comments: [{ body: vercel }], statuses: builtStatuses }), 'https://bridge-admin-git-explore-explore-new-a658e0-peterbonos-projects.vercel.app/');
 });

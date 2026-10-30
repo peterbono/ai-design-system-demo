@@ -24,6 +24,7 @@ import {
   tryInProductUrl,
   useLibraryPreviewOnGitHub,
   writeTokenProposalOnGitHub,
+  type BranchPreview,
   type BranchPreviewSources,
   type ChangesMode,
   type LibraryTokenWrite,
@@ -31,7 +32,7 @@ import {
   type ProductBranchView,
   type ProductConfig,
 } from '@bridge-ds/core';
-import { ASK_CLAUDE, developerLines, pieceRows, productCrumbs, whyItShows, type PieceActionKind, type PieceRowView } from '../lib/product-branch';
+import { ASK_CLAUDE, developerLines, failedPreviewLine, pieceRows, productCrumbs, productTodayUrl, tryInProductView, whyItShows, type PieceActionKind, type PieceRowView } from '../lib/product-branch';
 import { ARCHIVED_LINE, explorationKey, explorationPreviews, explorationStateLine, productPreviews, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { productClient, productRepoByKey } from './product-repos';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -98,7 +99,7 @@ async function previewSources(r: ExplorationRow): Promise<BranchPreviewSources |
   try {
     const [comments, statuses] = await Promise.all([
       ghGet<{ body?: string | null }[]>(`${RR}/issues/${r.number}/comments?per_page=100`).then((f) => f.data),
-      ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${RR}/commits/${r.headSha}/status`).then((f) => f.data.statuses).catch(() => []),
+      ghGet<{ statuses: { context: string; state: string; description?: string | null; target_url?: string | null }[] }>(`${RR}/commits/${r.headSha}/status`).then((f) => f.data.statuses).catch(() => []),
     ]);
     return { comments, statuses };
   } catch {
@@ -106,14 +107,38 @@ async function previewSources(r: ExplorationRow): Promise<BranchPreviewSources |
   }
 }
 
-/** The admin preview GitHub reported for the branch, opened with the Bridge toolbar. Only a reported URL, never a template. */
-export function tryUrlOf(r: ExplorationRow, sources: BranchPreviewSources | null): string | null {
+/** The product's preview of the branch, as GitHub reported it (null while unread). */
+function productPreviewOf(r: ExplorationRow, sources: BranchPreviewSources | null): BranchPreview | null {
   if (!sources) return null;
   const own = productRepoByKey(r.product);
-  const admin = own ? productPreviews(r, own.product, sources)[0] : explorationPreviews(r, CFG.apps, sources).find((p) => p.app === 'admin');
-  if (!admin?.url || admin.source === 'template' || admin.state === 'failed') return null;
-  // The URL comes from a comment or a status on the branch: React 18 renders a javascript: href as is.
-  return safeUrl(tryInProductUrl(admin.url, r.number, null)) || null;
+  return (own ? productPreviews(r, own.product, sources)[0] : explorationPreviews(r, CFG.apps, sources).find((p) => p.app === 'admin')) ?? null;
+}
+
+/** The preview opened with the Bridge toolbar. The URL comes from a comment or a status: React 18 renders a javascript: href as is. */
+const withToolbar = (r: ExplorationRow) => (url: string) => safeUrl(tryInProductUrl(url, r.number, null)) || null;
+
+/**
+ * The branch's own build, opened with the Bridge toolbar: only a reported URL, never a template, never a build that
+ * failed or that Vercel skipped (its link opens a canceled deployment).
+ */
+export function tryUrlOf(r: ExplorationRow, sources: BranchPreviewSources | null): string | null {
+  const v = tryInProductView(productPreviewOf(r, sources), { tryUrl: withToolbar(r), todayUrl: null });
+  return v.state === 'branch' ? v.url : null;
+}
+
+/** The files the branch changed, read once per commit (null when GitHub cannot be read). */
+const filesBy = new Map<string, Promise<string[] | null>>();
+function changedFiles(r: ExplorationRow): Promise<string[] | null> {
+  const own = productRepoByKey(r.product);
+  const k = `${explorationKey(r)}@${r.headSha}`;
+  let files = filesBy.get(k);
+  if (!files) {
+    files = ghGet<{ filename: string }[]>(`${own ? `/repos/${own.repo}` : R}/pulls/${r.number}/files?per_page=100`)
+      .then((f) => f.data.map((x) => x.filename))
+      .catch(() => null);
+    filesBy.set(k, files);
+  }
+  return files;
 }
 
 function repaint(d: HTMLElement, patch: Partial<ProductBranchProps>) {
@@ -129,9 +154,9 @@ async function paintVisual(d: HTMLElement, r: ExplorationRow) {
   // The visual impact workflow runs in the design system repository only: the product preview is the comparison.
   if (r.product) return repaint(d, { visual: 'none' });
   try {
-    const files = (await ghGet<{ filename: string }[]>(`${R}/pulls/${r.number}/files?per_page=100`)).data;
+    const files = await changedFiles(r);
     if (current?.n !== explorationKey(r)) return;
-    if (!touchesVisuals(files.map((f) => f.filename))) return repaint(d, { visual: 'none' });
+    if (!files || !touchesVisuals(files)) return repaint(d, { visual: 'none' });
     const v = await loadVisualImpact(document.createElement('div'), { owner: CFG.owner, repo: CFG.repo, pr: r.number, sha: r.headSha, actionsUrl: `https://github.com/${CFG.owner}/${CFG.repo}/actions/workflows/visual-impact.yml` }, slot);
     if (current?.n !== explorationKey(r)) return;
     if (v.error || !v.changed || !v.top) return repaint(d, { visual: 'none' });
@@ -214,12 +239,14 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       checked: Boolean(read.view.record),
       sentence,
       why: whyItShows(rows),
-      developer: developerLines({ number: r.number, branch: r.branch, links: read.view.record?.links ?? [], ...(own ? { product: own.product.key, repo: own.repo } : {}) }),
+      developer: [...developerLines({ number: r.number, branch: r.branch, links: read.view.record?.links ?? [], ...(own ? { product: own.product.key, repo: own.repo } : {}) }), ...devPreview],
     });
   };
   // Done exploring: the dialog lists the pieces still without a library side, the ticked ones go to the DS lead as
   // requests with the product preview, and the branch goes to the developers. Nothing closes.
   let reported: BranchPreviewSources | null = null;
+  // A preview that did not build: designers read "Preview not available yet", developers read why.
+  let devPreview: { label: string; value: string }[] = [];
   const done = (focus: HTMLElement | null) =>
     askDoneExploring(r, pull.body, {
       client: () => gh,
@@ -247,8 +274,10 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       title: r.name,
       sentence: productBranchSentence(record, { viewer: currentViewer()?.login ?? null }),
       tryUrl: null,
+      tryNote: null,
       rows: record ? null : [],
       checked: Boolean(record),
+      exploring: r.status === 'active',
       why: null,
       visual: 'loading',
       product: product.name,
@@ -274,9 +303,16 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
   };
   d.innerHTML = '';
   mod.paintProductBranch(d, current.props);
-  void previewSources(r).then((s) => {
+  // "Try it in the product" never opens a canceled deployment: a branch Vercel skipped, or that only changed notes,
+  // opens the product as it is today; a build in progress or a failed one is said next to the button.
+  const today = productTodayUrl(product, { production: own ? null : CFG.production, defaultBranch: own ? (pull.base?.ref ?? 'main') : CFG.defaultBranch });
+  void Promise.all([previewSources(r), changedFiles(r)]).then(([s, files]) => {
     reported = s;
-    if (current?.n === key) repaint(d, { tryUrl: tryUrlOf(r, s) });
+    if (current?.n !== key) return;
+    const preview = productPreviewOf(r, s);
+    const v = tryInProductView(preview, { tryUrl: withToolbar(r), todayUrl: today ? safeUrl(today) || null : null, files });
+    devPreview = v.state === 'failed' && preview ? [failedPreviewLine(preview)] : [];
+    repaint(d, { tryUrl: v.url, tryNote: v.note, ...(devPreview.length ? { developer: [...current.props.developer, ...devPreview] } : {}) });
   });
   void paintVisual(d, r);
   if (record) void refresh();

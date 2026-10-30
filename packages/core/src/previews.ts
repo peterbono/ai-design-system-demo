@@ -249,6 +249,11 @@ export interface BranchPreview {
   url: string | null;
   state: PreviewState;
   source: PreviewUrlSource | null;
+  /**
+   * Vercel skipped the latest build (its Ignored Build Step: nothing the app is built from changed on the branch), so
+   * the branch has no build of its own and its link opens a canceled deployment. Set only when true.
+   */
+  skipped?: true;
 }
 
 /** A GitHub deployment with its latest status, as `GitHubClient.listDeployments` returns it. */
@@ -263,6 +268,8 @@ export interface CommitStatusLike {
   context: string;
   state: string;
   target_url?: string | null | undefined;
+  /** "Canceled by Ignored Build Step" when Vercel skipped the build. */
+  description?: string | null | undefined;
 }
 
 /** One project of the Vercel bot comment. */
@@ -355,7 +362,7 @@ const STATE_OF: Record<string, PreviewState> = {
   inactive: 'ready',
   deployed: 'ready',
   ready: 'ready',
-  ignored: 'ready', // Vercel skipped the build (nothing changed for this app): the branch alias serves the last one.
+  ignored: 'ready', // Vercel skipped the build: nothing to wait for. BranchPreview.skipped says the branch has no build of its own.
   pending: 'building',
   queued: 'building',
   in_progress: 'building',
@@ -367,6 +374,8 @@ const STATE_OF: Record<string, PreviewState> = {
   canceled: 'failed',
 };
 const stateOf = (s: string | null | undefined): PreviewState => STATE_OF[(s ?? '').toLowerCase()] ?? 'unknown';
+/** A Vercel commit status for a build its Ignored Build Step canceled (state success, nothing built). */
+const IGNORED_BUILD = /ignored build step/i;
 const isInspectorUrl = (u: string) => /^https:\/\/(?:www\.)?vercel\.com\//i.test(u);
 
 export interface BranchPreviewSources {
@@ -385,12 +394,14 @@ export interface BranchPreviewSources {
  * The state comes from the freshest signal: commit status, then deployment, then the comment.
  */
 export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, sources: BranchPreviewSources = {}): BranchPreview[] {
-  type Seen = { url?: string; urlSource?: PreviewUrlSource; state?: PreviewState; stateRank?: number };
+  type Seen = { url?: string; urlSource?: PreviewUrlSource; state?: PreviewState; stateRank?: number; skipped?: boolean; skipRank?: number };
   const seen = new Map<keyof PreviewApps, Seen>();
   const at = (app: keyof PreviewApps) => seen.get(app) ?? (seen.set(app, {}), seen.get(app)!);
-  const offer = (app: keyof PreviewApps | null, url: string | null, urlSource: PreviewUrlSource, state: PreviewState, stateRank: number) => {
+  const offer = (app: keyof PreviewApps | null, url: string | null, urlSource: PreviewUrlSource, state: PreviewState, stateRank: number, skipped?: boolean) => {
     if (!app) return;
     const s = at(app);
+    // Whether the latest build was skipped: the freshest source that says anything decides.
+    if (skipped !== undefined && (s.skipRank === undefined || stateRank < s.skipRank)) Object.assign(s, { skipped, skipRank: stateRank });
     if (url && !s.url) Object.assign(s, { url, urlSource });
     if (state !== 'unknown' && (s.stateRank === undefined || stateRank < s.stateRank)) Object.assign(s, { state, stateRank });
   };
@@ -403,7 +414,7 @@ export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, so
     const project = projectOfLabel(st.context);
     if (!project) continue;
     const url = httpsUrl(st.target_url);
-    offer(appForProject(project, apps), url && !isInspectorUrl(url) ? url : null, 'status', stateOf(st.state), 0);
+    offer(appForProject(project, apps), url && !isInspectorUrl(url) ? url : null, 'status', stateOf(st.state), 0, IGNORED_BUILD.test(st.description ?? ''));
   }
   // 2. Deployments (Preview – <project>): their URL beats the status's.
   for (const d of sources.deployments ?? []) {
@@ -417,7 +428,7 @@ export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, so
     if (state !== 'unknown' && (s.stateRank === undefined || 1 < s.stateRank)) Object.assign(s, { state, stateRank: 1 });
   }
   // 3. The Vercel bot comment.
-  for (const p of parseVercelComment(findVercelComment(sources.comments ?? [])?.body) ?? []) offer(appForProject(p.name, apps), p.previewUrl, 'vercel-comment', stateOf(p.status), 2);
+  for (const p of parseVercelComment(findVercelComment(sources.comments ?? [])?.body) ?? []) offer(appForProject(p.name, apps), p.previewUrl, 'vercel-comment', stateOf(p.status), 2, p.status ? p.status.toUpperCase() === 'IGNORED' : undefined);
 
   const out: BranchPreview[] = [];
   for (const app of Object.keys(PREVIEW_APP_LABELS) as (keyof PreviewApps)[]) {
@@ -426,14 +437,14 @@ export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, so
     // 4. The template, only when Vercel would not have shortened it (previewUrl returns null over 63 characters).
     const url = s.url ?? previewUrl(apps[app], ctx);
     const source: PreviewUrlSource | null = s.url ? s.urlSource! : url ? 'template' : null;
-    out.push({ app, label: PREVIEW_APP_LABELS[app], url, state: s.state ?? 'unknown', source });
+    out.push({ app, label: PREVIEW_APP_LABELS[app], url, state: s.state ?? 'unknown', source, ...(s.skipped ? { skipped: true as const } : {}) });
   }
   return out;
 }
 
-/** The previews that have a URL, as links (`{ app, label, url }`), in the stable app order. */
+/** The previews that have a URL, as links (`{ app, label, url }`), in the stable app order. A skipped build has none. */
 export const previewLinksOf = (previews: BranchPreview[]): { app: keyof PreviewApps; label: string; url: string }[] =>
-  previews.filter((p): p is BranchPreview & { url: string } => !!p.url).map((p) => ({ app: p.app, label: p.label, url: p.url }));
+  previews.filter((p): p is BranchPreview & { url: string } => !!p.url && !p.skipped).map((p) => ({ app: p.app, label: p.label, url: p.url }));
 
 /**
  * True when every configured app has a finished build: ready with its URL, or failed (a build Vercel refused, such as

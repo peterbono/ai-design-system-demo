@@ -605,7 +605,7 @@ async function repaintDetail(target: Pick<ExplorationRow, 'number' | 'product'>,
 function reportedPreview(r: ExplorationRow): string | null {
   const s = sourcesBy.get(explorationKey(r));
   if (!s) return null;
-  return previewsOf(r, s).find((p) => p.url && p.source !== 'template' && p.state !== 'failed')?.url ?? null;
+  return previewsOf(r, s).find((p) => p.url && p.source !== 'template' && p.state !== 'failed' && !p.skipped)?.url ?? null;
 }
 
 async function archive(btn: HTMLButtonElement) {

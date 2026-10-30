@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, libraryPreviewState, linkStatus, withNeededBy, type LinkedLibraryBranch, type MissingPiece, type PiecesRecord } from '@bridge-ds/core';
-import { ASK_CLAUDE, childLine, developerLines, isProductBranch, libraryHref, nestLinked, pieceRows, productContextOf, productCrumbs, statusLine, whyItShows } from './product-branch';
+import { ASK_CLAUDE, childLine, developerLines, failedPreviewLine, isProductBranch, libraryHref, nestLinked, notesOnly, pieceRows, productContextOf, productCrumbs, productTodayUrl, statusLine, TRY_BUILDING_NOTE, TRY_TODAY_NOTE, TRY_UNAVAILABLE_NOTE, tryInProductView, whyItShows } from './product-branch';
 
 const piece = (over: Partial<MissingPiece> = {}): MissingPiece => ({
   id: 'badge-overdue-tone',
@@ -161,5 +161,41 @@ describe('nestLinked', () => {
     ]);
     expect(out.map((g) => g.key)).toEqual(['admin']);
     expect(childLine('Claude AI')).toBe('Library change it needs · Claude AI');
+  });
+});
+
+describe('"Try it in the product" never opens a canceled deployment', () => {
+  const alias = 'https://bridge-admin-git-explore-explore-new-a658e0-peterbonos-projects.vercel.app/';
+  const today = 'https://bridge-demo.example.com';
+  const ctx = { tryUrl: (u: string) => `${u}?bridge=611`, todayUrl: today };
+  const admin = (over: Record<string, unknown> = {}) => ({ app: 'admin' as const, label: 'Admin demo', url: alias, state: 'ready' as const, source: 'vercel-comment' as const, ...over });
+
+  it('a build Vercel skipped (#611: only the note changed) opens the product today, with a note', () => {
+    expect(tryInProductView(admin({ skipped: true }), ctx)).toEqual({ url: today, note: TRY_TODAY_NOTE, state: 'today' });
+    // Before Vercel says anything, a branch that only changed notes says the same.
+    expect(tryInProductView(null, { ...ctx, files: ['.bridge/explorations/explore-new-design-pr-being-built.md'] })).toEqual({ url: today, note: TRY_TODAY_NOTE, state: 'today' });
+    expect(tryInProductView(admin({ state: 'building', source: 'status' }), { ...ctx, files: ['.bridge/explorations/x.md'] }).state).toBe('today');
+    // No production URL set up: still never the canceled link.
+    expect(tryInProductView(admin({ skipped: true }), { ...ctx, todayUrl: null })).toEqual({ url: null, note: 'Your preview appears after the first change.', state: 'today' });
+  });
+
+  it('its own build opens with the toolbar; building and failed builds say so, with no link', () => {
+    expect(tryInProductView(admin(), ctx)).toEqual({ url: `${alias}?bridge=611`, note: null, state: 'branch' });
+    expect(tryInProductView(admin(), { ...ctx, files: ['apps/admin/src/App.tsx'] }).state).toBe('branch');
+    expect(tryInProductView(admin({ state: 'building' }), ctx)).toEqual({ url: null, note: TRY_BUILDING_NOTE, state: 'building' });
+    expect(tryInProductView(admin({ state: 'failed' }), ctx)).toEqual({ url: null, note: TRY_UNAVAILABLE_NOTE, state: 'failed' });
+    // A template is never trusted (Vercel shortens long aliases); nothing reported yet: no note.
+    expect(tryInProductView(admin({ source: 'template' }), ctx)).toEqual({ url: null, note: null, state: 'unknown' });
+    expect(tryInProductView(null, ctx)).toEqual({ url: null, note: null, state: 'unknown' });
+    expect(failedPreviewLine({ label: 'Admin demo' }).value).toMatch(/failed on Vercel/);
+  });
+
+  it('the product today: its production URL, else its preview pattern on the default branch', () => {
+    expect(productTodayUrl({ key: 'admin', preview: 'https://bridge-admin-git-{branch}-acme.vercel.app' }, { production: { admin: today }, defaultBranch: 'main' })).toBe(`${today}/`);
+    expect(productTodayUrl({ key: 'shop', preview: 'https://shop-git-{branch}-acme.vercel.app' }, { defaultBranch: 'trunk' })).toBe('https://shop-git-trunk-acme.vercel.app/');
+    expect(productTodayUrl({ key: 'shop' })).toBeNull();
+    expect(notesOnly(['.bridge/explorations/a.md'])).toBe(true);
+    expect(notesOnly(['.bridge/explorations/a.md', 'apps/admin/x.tsx'])).toBe(false);
+    expect(notesOnly([])).toBe(false);
   });
 });

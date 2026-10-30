@@ -11,11 +11,14 @@ export interface ProductScreen {
   theme: string;
 }
 
-/** The admin preview of a change, or null when GitHub reports none (or the build failed, or it comes from a fork). */
+/**
+ * The admin preview of a change, or null when GitHub reports none (or the build failed or was skipped, or it comes
+ * from a fork). A skipped build (Vercel's Ignored Build Step) has no deployment: its link opens a canceled page.
+ */
 export function productPreview(apps: PreviewApps, ctx: { branch: string; pr: number; sha: string; fromFork?: boolean }, sources: BranchPreviewSources): string | null {
   if (!apps.admin || ctx.fromFork) return null;
   const admin = resolveBranchPreviews(apps, { branch: ctx.branch, pr: ctx.pr, sha: ctx.sha }, sources).find((p) => p.app === 'admin');
-  if (!admin?.url || admin.source === 'template' || admin.state === 'failed') return null;
+  if (!admin?.url || admin.source === 'template' || admin.state === 'failed' || admin.skipped) return null;
   return admin.url;
 }
 
