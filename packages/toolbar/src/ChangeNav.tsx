@@ -1,5 +1,6 @@
 // The changes of this screen, in the bar: the count (it also turns the outlines on and off), Previous and Next, and
-// Isolate. Shown for token changes only; Previous, Next and Isolate only once there is a change to step through.
+// Isolate. Shown for token changes, and for the areas a code change marks (markers.ts) on This change; Previous, Next
+// and Isolate only once there is a change to step through.
 import { Button, ButtonGroup, IconButton, Tooltip, VisuallyHidden } from '@bridge-ds/react';
 import { ChevronLeft, ChevronRight, ScanSearch } from 'lucide-react';
 import { PIN_CLASS } from './pin';

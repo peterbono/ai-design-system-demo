@@ -24,6 +24,7 @@ import {
   explorationProblems,
   explorationRules,
   explorationStartMessage,
+  CHANGE_MARKER_RULE,
   productRepoAccess,
   productRepoOf,
   explorationSlug,
@@ -163,7 +164,7 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
     ctx,
     `Token edits: bridge_propose_token_change with "branch": "${branch}". Requests: bridge_create_request with "exploration": "${branch}", then bridge_get_request with "branch": "${branch}".`,
     `Token edits: \`bridge propose --branch ${branch} ...\`. Requests: \`bridge request create --exploration ${branch} ...\`, then \`bridge request implement <n> --branch ${branch}\`.`,
-  )} It is never merged as is: say it is done exploring (\`bridge explore done ${slug}\`) to hand it to developers; it stays open.`;
+  )} ${CHANGE_MARKER_RULE} It is never merged as is: say it is done exploring (\`bridge explore done ${slug}\`) to hand it to developers; it stays open.`;
   if (gh && ctx.canWriteRemote) {
     const r = await startExplorationOnGitHub(gh, e, { ...s, labels: marks.labels });
     return {
@@ -236,7 +237,7 @@ async function startInProductRepo(ctx: BridgeContext, x: { e: Exploration; produ
     pr: r.pr,
     url: r.url,
     commit: r.commit,
-    next: `It lives in ${repo}: in a checkout of ${product.name}, \`git fetch origin && git switch ${branch}\`, then run ${product.name} as usual and build the screens with the library components. The library comes from npm as on main; to try a library change that is not released yet, install its snapshot (\`npm i @bridge-ds/react@<snapshot>\`, the command is on that library branch). Changes the library needs go to ${x.library} (${say(ctx, 'bridge_propose_token_change or bridge_create_request', '`bridge propose` or `bridge request create`')}), never on this branch.`,
+    next: `It lives in ${repo}: in a checkout of ${product.name}, \`git fetch origin && git switch ${branch}\`, then run ${product.name} as usual and build the screens with the library components. ${CHANGE_MARKER_RULE} The library comes from npm as on main; to try a library change that is not released yet, install its snapshot (\`npm i @bridge-ds/react@<snapshot>\`, the command is on that library branch). Changes the library needs go to ${x.library} (${say(ctx, 'bridge_propose_token_change or bridge_create_request', '`bridge propose` or `bridge request create`')}), never on this branch.`,
   };
 }
 
@@ -454,8 +455,8 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
     ? [await productPreviewOnGitHub(gh, at.product, { number: p.number, branch: p.headRef, sha: p.headSha }).catch(() => null)].filter((x) => x !== null)
     : await branchPreviewUrls(gh, p.number, config, { branch: p.headRef, sha: p.headSha }).catch(() => []);
   const keepWorking = at.repo
-    ? `Keep working on ${p.headRef} in a checkout of ${at.repo}: build the screens with the library components (bridge_get_component, bridge_search_tokens), commit and push there. What the library lacks goes to the DS lead in ${ds.fullName} with ${say(ctx, `bridge_missing_pieces { pr: "${ref}" }`, `\`bridge pieces ${ref} --record\``)} then Done exploring, never on this branch.`
-    : `Keep working on ${p.headRef}: ${say(ctx, `write tools take "branch": "${p.headRef}"`, `\`bridge propose --branch ${p.headRef}\``)}. Build screens with the library components (bridge_search_tokens, bridge_get_token).`;
+    ? `Keep working on ${p.headRef} in a checkout of ${at.repo}: build the screens with the library components (bridge_get_component, bridge_search_tokens), commit and push there. ${CHANGE_MARKER_RULE} What the library lacks goes to the DS lead in ${ds.fullName} with ${say(ctx, `bridge_missing_pieces { pr: "${ref}" }`, `\`bridge pieces ${ref} --record\``)} then Done exploring, never on this branch.`
+    : `Keep working on ${p.headRef}: ${say(ctx, `write tools take "branch": "${p.headRef}"`, `\`bridge propose --branch ${p.headRef}\``)}. Build screens with the library components (bridge_search_tokens, bridge_get_token). ${CHANGE_MARKER_RULE}`;
   return {
     ref,
     number: p.number,

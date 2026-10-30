@@ -31,6 +31,7 @@ describe('explorations on GitHub', () => {
     expect(r.install).toMatchObject({ state: 'building', command: null });
     expect(JSON.stringify(r)).not.toContain('pkg.pr.new');
     expect(r.next).toContain('"branch": "explore/pill-buttons"');
+    expect(r.next).toContain('data-bridge-change="<short plain label>"');
     expect(gh.pulls[0]).toMatchObject({ draft: true, base: { ref: 'main' }, title: 'Exploration: Pill buttons' });
     expect(gh.pulls[0]!.labels.map((l: any) => l.name)).toEqual(['exploration']);
     expect(gh.fileAt('explore/pill-buttons', '.bridge/explorations/pill-buttons.md')).toContain('Do rounder buttons');

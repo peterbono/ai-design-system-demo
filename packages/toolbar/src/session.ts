@@ -39,6 +39,8 @@ export const PARAM = 'bridge';
 export const RETURN_PARAM = 'bridge-return';
 /** Scroll position carried across a Before/After navigation. */
 export const SCROLL_PARAM = 'bridge-scroll';
+/** How many areas a code change marks on the screen, carried from This change to Live product (markers.ts). */
+export const MARKS_PARAM = 'bridge-marks';
 export const SESSION_KEY = 'bridge-admin:change';
 export const RETURN_KEY = 'bridge-admin:return';
 export const DOCK_KEY = 'bridge-admin:toolbar-dock';
@@ -246,14 +248,17 @@ export function changedScreens(shots: ManifestShot[] | null | undefined): Screen
  * The same page on another deployment (code changes: production for Before, the preview for After), with the
  * change, the way back and the scroll position in the query. The hash route (ra-core) is kept.
  */
-export function sameScreenOn(target: string, here: { search: string; hash: string }, extra: { change: number; returnTo?: string | null; scroll?: number }): string {
+export function sameScreenOn(target: string, here: { search: string; hash: string }, extra: { change: number; returnTo?: string | null; scroll?: number; marks?: number | null }): string {
   const url = new URL(target);
   const params = new URLSearchParams(here.search);
   params.delete(RETURN_PARAM);
   params.delete(SCROLL_PARAM);
+  params.delete(MARKS_PARAM);
   params.set(PARAM, String(extra.change));
   if (extra.returnTo) params.set(RETURN_PARAM, extra.returnTo);
   if (extra.scroll && extra.scroll > 0) params.set(SCROLL_PARAM, String(Math.round(extra.scroll)));
+  // The areas a code change marks on this screen: Live product says how many wait on This change.
+  if (typeof extra.marks === 'number' && extra.marks >= 0) params.set(MARKS_PARAM, String(extra.marks));
   url.pathname = '/';
   url.search = params.toString();
   url.hash = here.hash;

@@ -193,6 +193,14 @@ import { BridgeToolbar } from '@bridge-ds/toolbar';
 It reads the product's repository, `production` and `preview` from this repository's `bridge.config.json` when Studio
 opens the page, and renders nothing otherwise. `bridge connect` prints these lines in a React product.
 
+**Mark what changed.** The toolbar cannot measure a code change against production (another origin), so an
+exploration marks each new or changed area of the UI with `data-bridge-change="<short plain label>"` on its outermost
+element, for example `data-bridge-change="Orders waiting to ship alert"`. On This change the toolbar outlines those
+areas, counts them ("1 changed") and steps through them, Isolate included; on Live product it says how many wait on
+This change. Bridge asks Claude for these markers in the MCP server's instructions, in the start and continue
+answers and in the section `bridge connect` writes into the product's CLAUDE.md. A change without markers says so in
+the toolbar.
+
 **Connect the product repository once.** Inside a checkout of it, run:
 
 ```sh
