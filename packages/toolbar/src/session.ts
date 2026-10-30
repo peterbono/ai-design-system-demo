@@ -30,6 +30,8 @@ export interface BridgeBuild {
   /** The product's key (products[].key) and the design system repository ("owner/name"), for the way back to Studio. */
   product?: string;
   ds?: string;
+  /** Bridge's origin for GitHub reads (its read proxy); default production Bridge, null to read GitHub directly. */
+  proxy?: string | null;
 }
 
 export const PARAM = 'bridge';

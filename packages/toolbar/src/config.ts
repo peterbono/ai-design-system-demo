@@ -1,6 +1,8 @@
 // Where a product's toolbar gets its facts when it is mounted with only the design system repository and its product
-// key: the design system's bridge.config.json, read once per session from GitHub (public repositories, no account).
-// Pure part (buildFromConfig) is tested; loadBuild adds the read and the session cache.
+// key: the design system's bridge.config.json, read once per session through Bridge's read proxy (GitHub directly when
+// Bridge refuses; public repositories, no account). Pure part (buildFromConfig) is tested; loadBuild adds the read and
+// the session cache.
+import { DEFAULT_PROXY, githubReads, type Reads } from './reads';
 import type { BridgeBuild } from './session';
 
 interface ConfigLike {
@@ -16,6 +18,8 @@ export interface BuildOverrides {
   production?: string | null;
   preview?: string | null;
   deployEnv?: string | null;
+  /** Bridge's origin for reads (default production Bridge), null to read GitHub directly. */
+  proxy?: string | null;
 }
 
 const REPO = /^[\w.-]+\/[\w.-]+$/;
@@ -39,6 +43,7 @@ export function buildFromConfig(raw: unknown, ds: string, product: string, overr
     production: pick(overrides.production, entry.production ?? config.previews?.production?.[product]),
     preview: pick(overrides.preview, entry.preview ?? config.previews?.apps?.[product]),
     deployEnv: overrides.deployEnv ?? null,
+    ...(overrides.proxy !== undefined ? { proxy: overrides.proxy } : {}),
     defaultBranch: config.repo?.defaultBranch ?? 'main',
     tokensRoot: config.tokens?.root ?? 'packages/tokens/src',
     product,
@@ -49,7 +54,7 @@ export function buildFromConfig(raw: unknown, ds: string, product: string, overr
 const cacheKey = (ds: string) => `bridge-toolbar:config:v1:${ds}`;
 
 /** Reads the design system's bridge.config.json (its default branch), kept for the session. */
-export async function loadBuild(ds: string, product: string, overrides: BuildOverrides = {}): Promise<BridgeBuild> {
+export async function loadBuild(ds: string, product: string, overrides: BuildOverrides = {}, gh?: Reads): Promise<BridgeBuild> {
   let config: unknown = null;
   try {
     const cached = window.sessionStorage.getItem(cacheKey(ds));
@@ -59,9 +64,12 @@ export async function loadBuild(ds: string, product: string, overrides: BuildOve
   }
   if (!config) {
     if (!REPO.test(ds)) throw new Error(`"${ds}" is not a GitHub repository (owner/name).`);
-    const r = await fetch(`https://raw.githubusercontent.com/${ds}/HEAD/bridge.config.json`);
-    if (!r.ok) throw new Error(`Could not read bridge.config.json from ${ds} (GitHub answered ${r.status}).`);
-    config = await r.json();
+    const [owner, name] = ds.split('/') as [string, string];
+    const reads = gh ?? githubReads({ team: ds, proxy: overrides.proxy === undefined ? DEFAULT_PROXY : overrides.proxy });
+    const text = await reads.file(owner, name, null, 'bridge.config.json').catch((e: Error) => {
+      throw new Error(`Could not read bridge.config.json from ${ds} (${e.message})`);
+    });
+    config = JSON.parse(text);
     try {
       window.sessionStorage.setItem(cacheKey(ds), JSON.stringify(config));
     } catch {

@@ -2,5 +2,6 @@
 export { BridgeToolbar, type BridgeToolbarProps } from './BridgeToolbar';
 export { useDocumentScope, type ToolbarScope, type ToolbarShop } from './scope';
 export { buildFromConfig, type BuildOverrides } from './config';
+export { DEFAULT_PROXY } from './reads';
 export type { BridgeBuild } from './session';
 export type { TogetherBase } from './together';

@@ -37,6 +37,10 @@
 //                                                        body and Link header come back as they are
 // Every request other than GET must carry `X-Bridge-Contribute: 1` and, when the browser sends an Origin, come from a
 // page of this site (CSRF).
+// A GET from a page of another origin (the Bridge toolbar in a product) reads gh= or blobs= of a public demo team as a
+// visitor (every cookie ignored), and gets Access-Control-Allow-Origin (no credentials) only when the team's
+// bridge.config.json names that origin or it is a local dev server (api/_lib/team-read.ts originAllowed); anything
+// else from another origin answers 403 origin without CORS headers.
 //
 // The proxy policy (anything else answers 403 { error: 'not-allowed' }). Only paths under /repos/<the session's repo>:
 //   GET    the read allow-list of api/_lib/team-read.ts (READ_RULES), with a read-only token
@@ -116,7 +120,7 @@ import { redisRest, type Redis } from '../_lib/redis.js';
 import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { accountTeamsKey } from '../_lib/members.js';
-import { isPublicRepo, productReadAllowed, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
+import { corsHeaders, isPublicRepo, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
 
@@ -280,6 +284,11 @@ interface Ctx {
   random: (n: number) => Uint8Array;
   svc: Services;
   env: ContribEnv;
+  /**
+   * A read from a page of another origin (the Bridge toolbar in a product): its Origin. It reads as a visitor (no
+   * cookie counts) and gets CORS headers once `ok` (the team's config names that origin).
+   */
+  cross?: { origin: string; ok: boolean };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -448,6 +457,7 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
 // ---------------------------------------------------------------------------------------------------------------
 // The proxy
 
+const CROSS_ORIGIN = 'Bridge reads this design system only for the pages and products its bridge.config.json names.';
 const notAllowed = () => new HttpError(403, 'not-allowed', NOT_ALLOWED);
 
 const RAW_PATH = /^\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*$/;
@@ -914,6 +924,8 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
  * nobody we know.
  */
 async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx): Promise<Reader | null> {
+  // A page of another origin reads as a visitor of a public demo team, whatever cookie the browser sent.
+  if (ctx.cross) return PUBLIC_TEAMS.includes(full.toLowerCase()) && (await isPublicRepo(rctx, ...(full.split('/') as [string, string]))) ? { kind: 'guest' } : null;
   // A member reads on their own budget (api/_lib/team-read.ts budgetOf), not their address's.
   const m = await sessionMember(ctx, req, full);
   if (m) return { kind: 'member', email: m.email };
@@ -956,8 +968,15 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
   const target = any;
   const shas = blobs !== null && !logins && !changes ? parseBlobList(blobs) : null;
   if (target && !readAllowed(target.rest, { kind: product ? 'guest' : 'member' })) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
+  if (ctx.cross) {
+    // Another origin: only a public demo team, and only from an origin its bridge.config.json names.
+    if (!PUBLIC_TEAMS.includes(full.toLowerCase())) return json(401, { error: 'signin', message: SIGNIN });
+    if (!originAllowed(ctx.cross.origin, (await teamReadConfigOf(rctx, owner, repo)).origins)) throw new HttpError(403, 'origin', CROSS_ORIGIN);
+    ctx.cross.ok = true;
+  }
   const reader = await readerOf(ctx, req, full, rctx);
   if (!reader) {
+    if (ctx.cross) return json(401, { error: 'signin', message: SIGNIN });
     // A team cookie that no longer holds is cleared, as for any other call.
     const stale = readCookie(req, cookieName(full)) !== null;
     return json(401, { error: 'signin', message: SIGNIN }, stale ? { 'Set-Cookie': clearSession(full) } : {});
@@ -1043,6 +1062,15 @@ async function membersOf(ctx: Ctx, req: Request, full: string, m: EmailMember | 
 // The handler
 
 export async function handleContribute(req: Request, env: ContribEnv, deps: ContribDeps): Promise<Response> {
+  // A GET from a page of another origin (the Bridge toolbar in a product): a read of gh= or blobs= only.
+  const origin = req.headers.get('origin');
+  const cross = req.method.toUpperCase() === 'GET' && origin !== null && !sameOriginWhenPresent(req) ? { origin, ok: false } : null;
+  const res = await contribute(req, env, deps, cross);
+  if (cross?.ok) for (const [k, v] of Object.entries(corsHeaders(cross.origin))) res.headers.set(k, v);
+  return res;
+}
+
+async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cross: Ctx['cross'] | null): Promise<Response> {
   try {
     const method = req.method.toUpperCase();
     if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return json(405, { error: 'method', message: 'Use GET, POST, PUT, PATCH or DELETE.' }, { Allow: 'GET, POST, PUT, PATCH, DELETE' });
@@ -1053,6 +1081,8 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
     const blobs = params.get('blobs');
     const users = params.get('users');
     const changes = params.get('changes');
+    // Another origin reads one thing: gh= or blobs=, nothing else (no member facts, no people, no change status).
+    if (cross && ((gh === null) === (blobs === null) || users !== null || changes !== null)) throw new HttpError(403, 'origin', CROSS_ORIGIN);
 
     if (method === 'GET' && gh === null && blobs === null && users === null && changes === null) {
       const repoArg = params.get('repo');
@@ -1075,7 +1105,7 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
     }
 
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
-    const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
+    const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env, ...(cross ? { cross } : {}) };
     if (gh !== null || ((blobs !== null || users !== null || changes !== null) && method === 'GET')) return await onProxy(req, ctx, params);
     if (method !== 'POST') return fail(400, 'bad_request', 'Say which GitHub call, with gh.');
     return await onAction(req, ctx);

@@ -83,19 +83,21 @@ function remember(key: string, value: string) {
 
 /** The toolbar once a change is asked for: its facts from the build, else from the design system's config. */
 export default function ToolbarRoot(props: BridgeToolbarProps) {
-  const { build: given, ds, product, studio, production, preview, deployEnv } = props;
+  const { ds, product, studio, production, preview, deployEnv, proxy } = props;
+  // The proxy prop wins over the one a build carries (default: production Bridge, reads.ts).
+  const given = useMemo(() => (props.build && proxy !== undefined ? { ...props.build, proxy } : props.build), [props.build, proxy]);
   const [build, setBuild] = useState<BridgeBuild | null>(given ?? null);
   useEffect(() => {
     if (given || !ds || !product) return;
     let live = true;
-    loadBuild(ds, product, { studio, production, preview, deployEnv }).then(
+    loadBuild(ds, product, { studio, production, preview, deployEnv, ...(proxy !== undefined ? { proxy } : {}) }).then(
       (b) => live && setBuild(b),
       (err: Error) => console.warn(`Bridge toolbar: ${err.message}`),
     );
     return () => {
       live = false;
     };
-  }, [given, ds, product, studio, production, preview, deployEnv]);
+  }, [given, ds, product, studio, production, preview, deployEnv, proxy]);
   if (!build) return null;
   return <Decide build={build} useScope={props.scope ?? useDocumentScope} shops={props.shops ?? []} together={props.together ?? null} />;
 }
