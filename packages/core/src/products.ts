@@ -113,6 +113,18 @@ export function productForPlace(
   return { product: defaultProduct(products), how: 'default' };
 }
 
+/**
+ * The repository an exploration for this product is created in: the product's own repository when the team connected
+ * one (`repo`, other than the design system repository), so developers check the branch out in their own
+ * environment and get the library from npm. Null otherwise (a product folder of the design system repository, the
+ * library itself, the demo workspace): the exploration then lives in the design system repository.
+ */
+export function productRepoOf(p: ProductConfig | null | undefined, designSystemRepo: string | null | undefined): string | null {
+  const repo = p?.repo?.trim();
+  if (!repo || !REPO.test(repo)) return null;
+  return repo.toLowerCase() === (designSystemRepo ?? '').trim().toLowerCase() ? null : repo;
+}
+
 const KEY = /^[a-z0-9][a-z0-9-]*$/;
 const REPO = /^[\w.-]+\/[\w.-]+$/;
 const FIELDS = ['key', 'name', 'repo', 'path', 'preview', 'framework', 'default'];

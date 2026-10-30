@@ -20,6 +20,7 @@ import {
   type Exploration,
   type ExplorationSource,
   type ExplorationStatus,
+  type ExplorationPrContext,
   type ExplorationTryIt,
   type PromotionPlan,
 } from './explorations';
@@ -39,7 +40,13 @@ export interface ExplorationSettings {
   requests?: { number: number; title: string }[] | undefined;
   /** More labels for the draft pull request, such as the product ones (productMarks). */
   labels?: string[] | undefined;
+  /** Started in a product's own repository (productRepoOf): what its draft pull request body says instead of the library's. */
+  inProduct?: ExplorationPrContext['inProduct'];
 }
+
+/** The first commit message of an exploration branch: the purpose only when one was given. */
+export const explorationStartMessage = (e: Pick<Exploration, 'name' | 'purpose'>): string =>
+  [`chore(explore): start ${e.name.trim()}`, ...(e.purpose?.trim() ? [e.purpose.trim()] : []), 'Exploration: never merged as is. Promote it to review or close it.'].join('\n\n');
 
 export interface ExplorationSummary {
   number: number;
@@ -122,10 +129,10 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
   const commit = await x.commitToNewBranch({
     base: s.base,
     branch,
-    message: `chore(explore): start ${full.name.trim()}\n\n${full.purpose.trim()}\n\nExploration: never merged as is. Promote it to review or close it.`,
+    message: explorationStartMessage(full),
     files: [{ path: explorationNotePath(slug), content: explorationNote(full) }],
   });
-  const ctx = { owner: gh.owner, repo: gh.name, packages: s.packages, apps: s.apps, ...(s.requests?.length ? { requests: s.requests } : {}) };
+  const ctx = { owner: gh.owner, repo: gh.name, packages: s.packages, apps: s.apps, ...(s.requests?.length ? { requests: s.requests } : {}), ...(s.inProduct ? { inProduct: s.inProduct } : {}) };
   const title = full.jira ? `${full.jira.trim().toUpperCase()} ${explorationPrTitle(full)}` : explorationPrTitle(full);
   const pr = await x.createPullRequest({ title, head: branch, base: s.base, body: explorationPrBody(full, ctx), draft: true });
   await x.addLabels(pr.number, [EXPLORATION_LABEL, ...(s.labels ?? [])]);
@@ -140,6 +147,25 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
     tryIt: { state: 'building' },
     previews: previewLinks(s.apps, { branch, pr: pr.number, sha: commit.sha }),
   };
+}
+
+/** Whether Bridge can open an exploration in a product's own repository with this token, and from which branch. */
+export type ProductRepoAccess = { ok: true; base: string } | { ok: false; reason: 'not-connected' | 'read-only' };
+
+/**
+ * One read of a product's own repository before an exploration starts there: its default branch when the token may
+ * push to it; `not-connected` when GitHub hides it (Bridge is not installed on it, or the token does not reach it);
+ * `read-only` when the person may only read it. A rejected token or a GitHub outage still throws.
+ */
+export async function productRepoAccess(gh: GitHubClient): Promise<ProductRepoAccess> {
+  try {
+    const r = await gh.getRepo();
+    if (r.permissions && r.permissions.push === false) return { ok: false, reason: 'read-only' };
+    return { ok: true, base: r.defaultBranch };
+  } catch (err) {
+    if (err instanceof GitHubError && (err.status === 404 || (err.status === 403 && err.auth !== 'rejected' && !err.resetsAt))) return { ok: false, reason: 'not-connected' };
+    throw err;
+  }
 }
 
 /**

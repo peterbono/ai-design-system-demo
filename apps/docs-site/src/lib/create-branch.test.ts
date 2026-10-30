@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, productMarks, productOfBranch, type ProductConfig } from '@bridge-ds/core';
-import { claudePrompt, featureHref, featureName, featureProblems, featureProducts, firstStep, initialProduct, productParam } from './create-branch';
+import { askAdmin, claudePrompt, featureHref, featureName, featureProblems, featureProducts, featureRepo, firstStep, initialProduct, productParam, productRepoBlockedLine } from './create-branch';
 
 const THREE: ProductConfig[] = [
   { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
@@ -66,5 +66,26 @@ describe('create branch, product first', () => {
   it('labels a feature so the Branches page groups it under its product (core rule)', () => {
     const labels = productMarks(THREE, THREE[1]!).labels;
     expect(productOfBranch(THREE, { files: null, labels: ['exploration', ...labels] }).key).toBe('shop');
+  });
+});
+
+describe('where a feature starts', () => {
+  it('in the product repository when the team connected one, else the design system repository', () => {
+    expect(featureRepo(THREE[1]!, 'acme/ds')).toBe('acme/shop');
+    // The Admin demo lives in the design system repository: the exploration stays there.
+    expect(featureRepo(THREE[0]!, 'acme/ds')).toBeNull();
+    expect(featureRepo({ key: 'ds', name: 'Docs', repo: 'acme/ds' }, 'acme/ds')).toBeNull();
+  });
+
+  it('says plainly when Bridge cannot reach the product, with the admin action and no technical words', () => {
+    const line = productRepoBlockedLine('Shop', 'not-connected');
+    expect(line).toBe('Bridge is not connected to Shop yet. Ask an admin to connect it, or start it in the library for now.');
+    expect(productRepoBlockedLine('Shop', 'read-only')).toMatch(/^You can look at Shop but not start work in it yet\./);
+    for (const l of [line, productRepoBlockedLine('Shop', 'read-only')]) expect(l).not.toMatch(/token|repository|GitHub|404|403|\u2014/);
+    const ask = askAdmin('Shop', 'acme/shop', 'not-connected', 'https://github.com/apps/bridge/installations/new');
+    expect(ask.label).toBe('Ask an admin to connect Shop');
+    expect(ask.message).toContain('Install Bridge on github.com/acme/shop (https://github.com/apps/bridge/installations/new, pick shop)');
+    expect(askAdmin('Shop', 'acme/shop', 'read-only', 'x').label).toBe('Ask an admin for access');
+    expect(ask.message).not.toMatch(/\u2014/);
   });
 });

@@ -240,7 +240,8 @@ test("Claude's request title per component names the issue; components without o
 test('explorations: start one from Push, list the running ones with previews and the snapshot install', async () => {
   const { gh, client } = await edited();
   assert.deepEqual(await runningExplorations(client, undefined, 'main'), []);
-  assert.deepEqual(newExplorationProblems('', ''), ['Name the exploration, for example "Denser data tables".', 'Say what you want to learn, in one sentence.']);
+  assert.deepEqual(newExplorationProblems('', ''), ['Name the exploration, for example "Denser data tables".']);
+  assert.deepEqual(newExplorationProblems('Pill buttons', ''), []);
   const config = { previews: { packages: ['@bridge-ds/tokens', '@bridge-ds/react'], apps: { docs: 'https://docs-git-{branch}.example.app' } } } as unknown as Parameters<typeof startExploration>[1];
   const started = await startExploration(client, config, 'main', { name: 'Pill buttons', purpose: 'Do rounder buttons feel friendlier?' });
   assert.equal(started.branch, 'explore/pill-buttons');

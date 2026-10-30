@@ -5,7 +5,10 @@
 //   Step 2 of 2, a feature: what it is (one sentence), in which product (DS Select, preselected from ?product= or when
 //   there is one), a Jira ticket on demand. "Start with Claude AI" starts it the way the CLI and MCP server do for a
 //   product (the core exploration start with the product label from productMarks), then says what to tell Claude
-//   and opens the branch.
+//   and opens the branch. A product with its own repository (bridge.config.json products[].repo) gets the branch
+//   there, so developers keep their environment and the library comes from npm. When Bridge cannot reach that
+//   repository, nothing starts: one warning in designer words, "Ask an admin to connect <product>" (copies a
+//   message) and, only if the person picks it, "Start in the library instead".
 //   Step 2 of 2, the library: Adjust the look (Studio Tokens), Add a variant or option (the component, then its
 //   Components drawer on that intent), New component (Explorations with the start form open). Report it: the
 //   component, then its drawer on "Something looks wrong". Same addresses as before (lib/overview-board).
@@ -13,7 +16,7 @@
 // when the first need is the primary, hidden signed out (Connect GitHub takes its place).
 import { VOCAB } from '../../../lib/vocabulary';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Plus } from 'lucide-react';
+import { Check, Copy, Plus } from 'lucide-react';
 import { parseJiraKey, productMarks, productsOf, type ProductConfig } from '@bridge-ds/core';
 import {
   Alert,
@@ -30,8 +33,24 @@ import {
 } from '@bridge-ds/react';
 import { CHANGE_INTENTS, type ChangeIntent } from '../../../lib/change-intent';
 import { startChangeHref } from '../../../lib/overview-board';
-import { claudePrompt, featureHref, featureName, featureProblems, featureProducts, firstStep, initialProduct, KIND_CHOICES, productParam, type WorkKind } from '../../../lib/create-branch';
+import {
+  askAdmin,
+  claudePrompt,
+  featureHref,
+  featureName,
+  featureProblems,
+  featureProducts,
+  featureRepo,
+  firstStep,
+  initialProduct,
+  KIND_CHOICES,
+  productParam,
+  productRepoBlockedLine,
+  type WorkKind,
+} from '../../../lib/create-branch';
+import { installUrl } from '../../../lib/access-view';
 import { siteConfig } from '../../../scripts/repo-context';
+import { useCopy } from './TeamLink';
 
 export interface StartChangeProps {
   components: { name: string; slug: string; family?: string }[];
@@ -109,6 +128,9 @@ export default function StartChange({ components, appearance = 'menu', explorati
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The product's own repository is out of Bridge's reach: the admin action, and the library fallback on request.
+  const [blocked, setBlocked] = useState<{ product: string; repo: string; reason: 'not-connected' | 'read-only' } | null>(null);
+  const { copied, said, copy } = useCopy(3000);
   const [done, setDone] = useState<{ prompt: string; href: string; name: string; product: string } | null>(null);
   const sentenceRef = useRef<HTMLInputElement>(null);
   const jiraRef = useRef<HTMLInputElement>(null);
@@ -140,6 +162,7 @@ export default function StartChange({ components, appearance = 'menu', explorati
     setTried(false);
     setBusy(false);
     setError(null);
+    setBlocked(null);
     setDone(null);
   };
 
@@ -161,7 +184,8 @@ export default function StartChange({ components, appearance = 'menu', explorati
   const problems = featureProblems({ product, sentence, jira }, choices);
   const shown = tried ? problems : {};
 
-  async function startFeature() {
+  /** `inLibrary`: the person chose the fallback, the design system repository, after the product one was out of reach. */
+  async function startFeature(inLibrary = false) {
     setTried(true);
     setError(null);
     if (Object.keys(problems).length) {
@@ -178,16 +202,23 @@ export default function StartChange({ components, appearance = 'menu', explorati
     }
     setBusy(true);
     try {
-      const { explorationsConfig, startLinkedExploration } = await import('../../../scripts/exploration-start');
+      const { explorationsConfig, startInProductRepo, startLinkedExploration } = await import('../../../scripts/exploration-start');
       const key = parseJiraKey(jira);
       const author = session.currentViewer()?.login;
       const name = featureName(sentence);
-      const { started } = await startLinkedExploration(
-        explorationsConfig(),
-        { name, purpose: sentence.trim(), useCase: 'terminal', ...(author ? { author } : {}), ...(key ? { jira: key } : {}) },
-        null,
-        productMarks(products, p).labels,
-      );
+      const cfg = explorationsConfig();
+      const e = { name, purpose: sentence.trim(), useCase: 'terminal' as const, ...(author ? { author } : {}), ...(key ? { jira: key } : {}) };
+      const labels = productMarks(products, p).labels;
+      const repo = inLibrary ? null : featureRepo(p, `${cfg.owner}/${cfg.repo}`);
+      const r = repo
+        ? await startInProductRepo(repo, e, labels, { name: p.name, library: `${cfg.owner}/${cfg.repo}`, ...(p.preview ? { preview: p.preview } : {}) })
+        : await startLinkedExploration(cfg, e, null, labels);
+      if ('blocked' in r) {
+        setBlocked({ product: p.name, repo: repo!, reason: r.blocked });
+        return;
+      }
+      setBlocked(null);
+      const { started } = r;
       setDone({ prompt: claudePrompt({ sentence, product: p, number: started.pr }), href: featureHref(started.pr), name, product: p.name });
       setStep('done');
     } catch (err) {
@@ -294,6 +325,30 @@ export default function StartChange({ components, appearance = 'menu', explorati
             </Button>
           </span>
         )}
+        {blocked && !error && (
+          <Alert
+            tone="warning"
+            actions={
+              <>
+                <Button
+                  variant="secondary"
+                  iconStart={copied ? Check : Copy}
+                  onClick={() => void copy(askAdmin(blocked.product, blocked.repo, blocked.reason, installUrl()).message, 'Message copied. Paste it to an admin.')}
+                >
+                  {copied ? 'Message copied' : askAdmin(blocked.product, blocked.repo, blocked.reason, installUrl()).label}
+                </Button>
+                <Button variant="link" disabled={busy} onClick={() => void startFeature(true)}>
+                  Start in the library instead
+                </Button>
+              </>
+            }
+          >
+            {productRepoBlockedLine(blocked.product, blocked.reason)}
+          </Alert>
+        )}
+        <span className="sr-only" role="status" aria-live="polite">
+          {said}
+        </span>
         {error && <Alert tone="danger">{error}</Alert>}
       </form>
     );

@@ -2,7 +2,15 @@
 // and the Components drawer ("Change this component", Add a variant or option): the core helpers the MCP server and
 // the CLI run (startExplorationOnGitHub, linkRequestToExplorationOnGitHub), with the viewer's own token. The page
 // embeds its preview settings as #bridge-branches. In suggest mode nothing starts: an exploration is a branch.
-import { EXPLORATION_PREFIX, linkRequestToExplorationOnGitHub, startExplorationOnGitHub, type ExplorationUseCase, type StartedExploration } from '@bridge-ds/core';
+import {
+  EXPLORATION_PREFIX,
+  linkRequestToExplorationOnGitHub,
+  productRepoAccess,
+  startExplorationOnGitHub,
+  type ExplorationSettings,
+  type ExplorationUseCase,
+  type StartedExploration,
+} from '@bridge-ds/core';
 import type { ExplorationsConfig } from '../lib/explorations-view';
 import { getToken, readRepo, studioClient } from './github-session';
 import { SuggestOnlyError, changesModeOnPage } from './changes-mode';
@@ -39,6 +47,8 @@ export async function startLinkedExploration(
   request?: { number: number; title: string } | null,
   /** More labels for it: the product ones (productMarks from @bridge-ds/core), as the CLI and MCP server write. */
   labels: string[] = [],
+  /** Started in a product's own repository: what its pull request body says (startInProductRepo passes it). */
+  inProduct?: ExplorationSettings['inProduct'],
 ): Promise<LinkedStart> {
   // An exploration is a branch: a repository in suggest mode gets none from Bridge, before any GitHub call.
   if (changesModeOnPage() === 'suggest') throw new SuggestOnlyError('start explorations', EXPLORATION_SUGGEST_INSTEAD);
@@ -46,7 +56,7 @@ export async function startLinkedExploration(
   const started = await startExplorationOnGitHub(
     gh,
     { name: e.name, purpose: e.purpose, source: 'studio', ...(e.useCase ? { useCase: e.useCase } : {}), ...(e.author ? { author: e.author } : {}), ...(e.jira ? { jira: e.jira } : {}) },
-    { base: cfg.defaultBranch, packages: cfg.packages, apps: cfg.apps, ...(request ? { requests: [request] } : {}), ...(labels.length ? { labels } : {}) },
+    { base: cfg.defaultBranch, packages: cfg.packages, apps: cfg.apps, ...(request ? { requests: [request] } : {}), ...(labels.length ? { labels } : {}), ...(inProduct ? { inProduct } : {}) },
   );
   if (!request) return { started };
   try {
@@ -55,4 +65,26 @@ export async function startLinkedExploration(
   } catch (err) {
     return { started, link: { error: (err as Error).message } };
   }
+}
+
+/** Bridge cannot open branches in the product's own repository: not connected (or out of the token's reach), or read only. */
+export interface ProductRepoBlocked {
+  blocked: 'not-connected' | 'read-only';
+}
+
+/**
+ * Starts a product feature in the product's own repository (productRepoOf from @bridge-ds/core), with the viewer's
+ * token: one read for its default branch and the right to push, then the same start as in the library repository.
+ * When Bridge cannot reach it, nothing is written and the dialog asks an admin to connect it instead.
+ */
+export async function startInProductRepo(
+  repo: string,
+  e: { name: string; purpose: string; useCase?: ExplorationUseCase; author?: string; jira?: string },
+  labels: string[],
+  inProduct: NonNullable<ExplorationSettings['inProduct']>,
+): Promise<LinkedStart | ProductRepoBlocked> {
+  const [owner, name] = repo.split('/') as [string, string];
+  const access = await productRepoAccess(studioClient(repo, getToken() ?? ''));
+  if (!access.ok) return { blocked: access.reason };
+  return startLinkedExploration({ owner, repo: name, defaultBranch: access.base, apps: {}, packages: [] }, e, null, labels, inProduct);
 }

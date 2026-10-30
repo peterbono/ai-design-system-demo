@@ -198,7 +198,7 @@ const shellQuote = (s: string) => `"${s.trim().replace(/(["\\$`])/g, '\\$1')}"`;
 
 /** The same thing from a terminal: `bridge explore start "Pill buttons" --purpose "..."`. */
 export function startCommand(f: Pick<StartForm, 'name' | 'purpose'>): string {
-  return `bridge explore start ${shellQuote(f.name || 'Pill buttons')} --purpose ${shellQuote(f.purpose || 'What you want to learn')}`;
+  return `bridge explore start ${shellQuote(f.name || 'Pill buttons')}${f.purpose.trim() ? ` --purpose ${shellQuote(f.purpose)}` : ''}`;
 }
 
 /** What Claude runs to implement a request on this exploration. */

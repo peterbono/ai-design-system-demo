@@ -19,6 +19,9 @@ import {
   explorationPrTitle,
   explorationProblems,
   explorationRules,
+  explorationStartMessage,
+  productRepoAccess,
+  productRepoOf,
   explorationSlug,
   explorationTestBuildOnGitHub,
   findExplorationOnGitHub,
@@ -34,6 +37,7 @@ import {
   type ExplorationTryIt,
   type ExplorationUseCase,
   type GitHubClient,
+  type ProductConfig,
 } from '@bridge-ds/core';
 import { branchExists, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
 import { BridgeContext } from './context.js';
@@ -61,7 +65,8 @@ export function toExplorationBranch(ref: string): string {
 
 export interface StartExplorationInput {
   name: string;
-  purpose: string;
+  /** What the designer wants to learn. Optional: nobody is asked for a brief; Claude passes their first sentence when it has one. */
+  purpose?: string | undefined;
   useCase?: string | undefined;
   experimental?: string[] | undefined;
   author?: string | undefined;
@@ -70,7 +75,24 @@ export interface StartExplorationInput {
   agent?: string | undefined;
   /** The product it is tried in (key or name, bridge.config.json "products"). Default: the product of the current folder or repo. */
   product?: string | undefined;
+  /**
+   * Where the branch is created. `product` (the default): in the product's own repository when the team connected one
+   * (bridge.config.json products[].repo), else in the design system repository. `library`: always in the design system
+   * repository, the fallback when the person chooses it because Bridge cannot reach the product repository.
+   */
+  where?: 'product' | 'library' | undefined;
   dryRun?: boolean | undefined;
+}
+
+/** What Claude says when Bridge cannot reach a product's own repository: the admin action first, the fallback on request. */
+export function productRepoBlocked(ctx: BridgeContext, product: string, repo: string, reason: 'not-connected' | 'read-only' | 'no-token'): string {
+  const why =
+    reason === 'read-only'
+      ? `You can read ${repo} but not create branches there.`
+      : reason === 'no-token'
+        ? `Starting it in ${repo} needs a GitHub token that reaches it (${addToken(ctx)}).`
+        : `Bridge is not connected to ${repo} yet, or this token does not reach it.`;
+  return `${product} explorations are created in its own repository (${repo}). ${why} Ask an admin to connect ${product} to Bridge (install the Bridge GitHub App on ${repo}, or give the token access to it). Or, only if the person chooses it, start it in the design system repository for now (${say(ctx, 'where: "library"', '--in-library')}).`;
 }
 
 /**
@@ -79,7 +101,7 @@ export interface StartExplorationInput {
  * nothing pushed, and the commands to push it and open the draft pull request.
  */
 export async function startExploration(ctx: BridgeContext, a: StartExplorationInput) {
-  const problems = explorationProblems({ name: a.name, purpose: a.purpose });
+  const problems = explorationProblems({ name: a.name, purpose: a.purpose ?? '' });
   if (problems.length) throw new Error(problems.join(' '));
   if (a.useCase && !USE_CASES.has(a.useCase)) throw new Error(`Unknown use case "${a.useCase}". Use one of: ${[...USE_CASES].join(', ')}.`);
   const { config } = await ctx.config();
@@ -88,7 +110,7 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
   const branch = `${EXPLORATION_PREFIX}${slug}`;
   const e: Exploration = {
     name: a.name.trim(),
-    purpose: a.purpose.trim(),
+    purpose: (a.purpose ?? '').trim(),
     slug,
     ...(a.useCase ? { useCase: a.useCase as ExplorationUseCase } : {}),
     ...(a.experimental?.length ? { experimental: a.experimental } : {}),
@@ -100,9 +122,15 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
   const gh = await ctx.github().catch(() => null);
   const product = await resolveProduct(ctx, a.product);
   const marks = productMarks(productsOf(config), product);
+  const dsRepo = gh?.fullName ?? (config.repo ? `${config.repo.owner}/${config.repo.name}` : null);
+  // A product with its own repository: the exploration is created there, the library comes as the npm package.
+  const productRepo = a.where === 'library' ? null : productRepoOf(product, dsRepo);
+  if (productRepo) return startInProductRepo(ctx, { e, product, repo: productRepo, library: dsRepo ?? 'the design system repository', labels: marks.labels, dryRun: a.dryRun });
   const preview = {
     branch,
     product: product.name,
+    repo: dsRepo,
+    inProductRepo: false,
     slug,
     base: s.base,
     title: explorationPrTitle(e),
@@ -136,7 +164,7 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
     const res = await commitToNewLocalBranch(ctx.root!, {
       base,
       branch,
-      message: `chore(explore): start ${e.name}\n\n${e.purpose}\n\nExploration: never merged as is. Promote it to review or close it.`,
+      message: explorationStartMessage(e),
       files: [preview.note],
       protectedBranches,
       branchPrefix: EXPLORATION_PREFIX,
@@ -149,6 +177,47 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
     };
   }
   throw new Error(`Starting an exploration needs a GitHub token (contents and pull requests: write), or a local git repo: ${addToken(ctx)}. Without them Bridge is read-only. ${say(ctx, 'Use dryRun', 'Add --dry-run')} to preview it.`);
+}
+
+/**
+ * An exploration for a product that has its own repository: the branch and the draft pull request there, so developers
+ * check it out in their own environment. The library arrives as the npm package (a library branch's snapshot when
+ * they try unreleased library changes). Without access, a plain error naming the admin action and the fallback.
+ */
+async function startInProductRepo(ctx: BridgeContext, x: { e: Exploration; product: ProductConfig; repo: string; library: string; labels: string[]; dryRun?: boolean | undefined }) {
+  const { e, product, repo } = x;
+  const slug = e.slug!;
+  const branch = `${EXPLORATION_PREFIX}${slug}`;
+  const inProduct = { name: product.name, library: x.library, ...(product.preview ? { preview: product.preview } : {}) };
+  const [owner, name] = repo.split('/') as [string, string];
+  const pgh = ctx.githubFor(repo, { protectedBranches: ['main', 'master'], branchPrefix: EXPLORATION_PREFIX });
+  const access = ctx.canWriteRemote ? await productRepoAccess(pgh) : null;
+  const base = access?.ok ? access.base : 'main';
+  const preview = {
+    branch,
+    product: product.name,
+    repo,
+    inProductRepo: true,
+    slug,
+    base,
+    title: explorationPrTitle(e),
+    label: EXPLORATION_LABEL,
+    note: { path: explorationNotePath(slug), content: explorationNote(e) },
+    prBody: explorationPrBody(e, { owner, repo: name, packages: [], apps: {}, inProduct }),
+  };
+  if (x.dryRun) return { status: 'dry-run' as const, ...preview, ...(access && !access.ok ? { blocked: productRepoBlocked(ctx, product.name, repo, access.reason) } : {}) };
+  if (!access) throw new Error(productRepoBlocked(ctx, product.name, repo, 'no-token'));
+  if (!access.ok) throw new Error(productRepoBlocked(ctx, product.name, repo, access.reason));
+  const client = ctx.githubFor(repo, { protectedBranches: [...new Set(['main', 'master', base])], branchPrefix: EXPLORATION_PREFIX });
+  const r = await startExplorationOnGitHub(client, e, { base, packages: [], apps: {}, labels: x.labels, inProduct });
+  return {
+    status: 'started' as const,
+    ...preview,
+    pr: r.pr,
+    url: r.url,
+    commit: r.commit,
+    next: `It lives in ${repo}: in a checkout of ${product.name}, \`git fetch origin && git switch ${branch}\`, then run ${product.name} as usual and build the screens with the library components. The library comes from npm as on main; to try a library change that is not released yet, install its snapshot (\`npm i @bridge-ds/react@<snapshot>\`, the command is on that library branch). Changes the library needs go to ${x.library} (${say(ctx, 'bridge_propose_token_change or bridge_create_request', '`bridge propose` or `bridge request create`')}), never on this branch.`,
+  };
 }
 
 /**
