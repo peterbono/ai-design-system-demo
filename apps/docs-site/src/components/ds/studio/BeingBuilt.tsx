@@ -5,6 +5,10 @@
 //     The whole row opens the detail in place (?request=N, ?pull=N); no row buttons.
 //   - The detail: what was sent (summary, before and after, props needed, the Figma link), the status line, and a
 //     "For developers" fold with the GitHub and Jira links and "Copy brief for Claude".
+//   - Claude's fixes (the fix sessions of the team's Claude) are rows of the same list, with the same tags and filters:
+//     "Button" then "Claude's fix from Figma, asked by Dana" and where it stands, from its pull request when the list
+//     read it (lib/claude-connector fixRows). Such a row opens Claude's fix in Studio; while Claude works, the page reads
+//     the sessions again every 10 seconds (paused while the tab is hidden).
 //   - Nothing sent yet: what a build request is, where it comes from, who picks it up.
 // Read only: developers split and track the work in GitHub or Jira. Repo content goes in as React text only, links
 // through safeUrl.
@@ -48,6 +52,7 @@ import {
   detailQuery,
   filterCounts,
   jiraLink,
+  mergeRows,
   pageSentence,
   propLine,
   rowLine,
@@ -56,7 +61,13 @@ import {
   timelineSteps,
   viewTitle,
 } from "../../../lib/building-view";
-import { loadBuildData, type BuildData } from "../../../scripts/building-data";
+import type { FixRow } from "../../../lib/claude-connector";
+import { studioHref } from "../../../lib/team-path";
+import {
+  loadBuildData,
+  readFixes,
+  type BuildData,
+} from "../../../scripts/building-data";
 
 const TONE = {
   warning: "warning",
@@ -68,6 +79,9 @@ const TONE = {
 const avatar = (login: string) =>
   `https://github.com/${encodeURIComponent(login)}.png?size=64`;
 const external = { target: "_blank", rel: "noopener noreferrer" } as const;
+const POLL_MS = 10_000;
+type Row = BuildRequestView | FixRow;
+const isFix = (v: Row): v is FixRow => "fix" in v;
 
 function Builders({
   v,
@@ -106,7 +120,7 @@ function Rows({
   now,
   onOpen,
 }: {
-  views: BuildRequestView[];
+  views: Row[];
   data: BuildData;
   now: number;
   onOpen: (v: BuildRequestView) => void;
@@ -114,6 +128,20 @@ function Rows({
   return (
     <ul className="sh-rows bb-rows" aria-label="Build requests">
       {views.map((v) => {
+        // Claude's fix: the row opens it in Studio (its review), like the home opens a branch.
+        if (isFix(v))
+          return (
+            <BranchRow
+              key={v.id}
+              thumb={{ kind: "icon", icon: "component" }}
+              who={<Builders v={v} data={data} />}
+              title={v.component}
+              href={studioHref(v.fix.href)}
+              line={v.fix.line}
+              pill={statusTag(v)}
+              className={v.stale ? "bb-stale" : undefined}
+            />
+          );
         const href = detailQuery(v);
         const click = (e: MouseEvent<HTMLAnchorElement>) => {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
@@ -403,6 +431,26 @@ export default function BeingBuilt() {
   );
   const now = useMemo(() => Date.now(), [data]);
 
+  // While Claude works on a fix, its row follows each step: the sessions are read again (never GitHub).
+  const working = Boolean(data?.fixes?.some((f) => f.fix.working));
+  useEffect(() => {
+    if (!data || !working) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        setData({ ...data });
+        return;
+      }
+      readFixes(data)
+        .then((fixes) => live && setData({ ...data, fixes }))
+        .catch(() => {});
+    }, POLL_MS);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [data, working]);
+
   useEffect(() => {
     let live = true;
     loadBuildData()
@@ -443,17 +491,21 @@ export default function BeingBuilt() {
     : null;
   if (current)
     return <Detail v={current} data={data} onBack={() => go(null)} />;
-  if (!data.views.length) return <Empty />;
+  const rows = mergeRows(data.views, data.fixes ?? []);
+  if (!rows.length) return <Empty />;
 
-  const counts = filterCounts(data.views, now);
-  const shown = data.views.filter((v) => matchesBuildFilter(v, filter, now));
+  const counts = filterCounts(rows, now);
+  const shown = rows.filter((v) => matchesBuildFilter(v, filter, now));
   return (
     <div className="bb">
       <section className="zone bb-open" aria-live="polite">
-        <p className="t-body bb-sentence">{pageSentence(data.views)}</p>
+        <p className="t-body bb-sentence">{pageSentence(rows)}</p>
         <p className="t-ui t-muted bb-rule">
           Changes from Figma or from Components that need code. Developers pick them up in GitHub
           or Jira; each one reads Shipped once it is in the library.
+          {data.fixes?.length
+            ? " Claude's fixes from Figma are here too: someone on your team reviews each one."
+            : ""}
         </p>
         {data.sample && (
           <p className="t-ui t-muted">

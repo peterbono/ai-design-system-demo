@@ -1,9 +1,12 @@
 // Studio: Bridge inside the team's Claude (the hosted MCP connector, api/mcp). Settings, Claude (how to add it, who
-// connected it: components/ds/studio/ClaudeConnector.tsx) and Being built, Claude's fixes (the fix sessions:
-// components/ds/studio/ClaudeFixes.tsx). Words and small rules; pure, so tests read them.
+// connected it: components/ds/studio/ClaudeConnector.tsx) and Being built, where each fix session is one more row of
+// the one list (fixRows below, read by scripts/building-data.ts). Words and small rules; pure, so tests read them.
 //
 // True copy (settled rule "Claude copy must be true"): the team's own Claude does the work through Bridge; Claude
 // opens its fix for review; someone on the team approves it; the steps are real tool calls, never a percentage.
+import { BUILD_STATUS_LABEL, type BuildRequestView, type BuildStatus } from '@bridge-ds/core';
+import type { RestPull } from './building-view';
+import { daysSince } from './home-model';
 
 export const CONNECTOR_WORDS = {
   title: 'Claude',
@@ -79,13 +82,6 @@ export interface Session {
   steps: SessionStep[];
 }
 
-export const FIXES_WORDS = {
-  title: "Claude's fixes",
-  intro: "What your team's Claude does on components that differ in Figma, step by step. Someone on your team reviews each fix.",
-  see: "See Claude's fix",
-  steps: 'Steps',
-} as const;
-
 const STATES: readonly SessionState[] = ['waiting', 'working', 'ready', 'stopped'];
 
 /** A session as the server sent it, or null. Review paths are Studio paths only. */
@@ -102,16 +98,6 @@ export function parseSession(v: unknown): Session | null {
   return { component: s.component, state: s.state as SessionState, startedAt: typeof s.startedAt === 'string' ? s.startedAt : null, updatedAt: typeof s.updatedAt === 'string' ? s.updatedAt : null, elapsed: typeof s.elapsed === 'number' ? s.elapsed : 0, steps };
 }
 
-/** The one tag: where it stands. */
-export function sessionTag(s: Pick<Session, 'state' | 'steps'>): { label: string; tone: 'info' | 'success' | 'neutral' | 'warning' } {
-  // Went quiet: the server keeps it working and adds a last step that says so (no step for 10 minutes).
-  if (s.state === 'working' && s.steps.at(-1)?.kind === 'quiet') return { label: 'Went quiet', tone: 'warning' };
-  if (s.state === 'working') return { label: 'Claude is working', tone: 'info' };
-  if (s.state === 'ready') return { label: 'Ready for review', tone: 'success' };
-  if (s.state === 'stopped') return { label: 'Stopped', tone: 'neutral' };
-  return { label: 'Waiting', tone: 'neutral' };
-}
-
 /** "4 min", "1 h 5 min", "under a minute": how long it has run (no percentage: rounds vary). */
 export function elapsedLabel(seconds: number): string {
   if (seconds < 60) return 'under a minute';
@@ -120,12 +106,118 @@ export function elapsedLabel(seconds: number): string {
   return `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
 }
 
-/** The row's line: the last step, how long, who. */
-export function sessionLine(s: Session): string {
-  const last = s.steps.at(-1);
-  const who = last?.by ? ` Asked by ${s.steps[0]?.by || last.by}.` : '';
-  return `${last?.text ?? 'Nothing yet'}. ${s.state === 'working' ? 'For' : 'Took'} ${elapsedLabel(s.elapsed)}.${who}`;
-}
-
 /** The review of the fix, when it opened one. */
 export const reviewOf = (s: Session) => [...s.steps].reverse().find((x) => x.review)?.review ?? null;
+
+// --- Being built: one row per fix session ---------------------------------------------------------------------------
+//
+// A fix session is one more row of the Being built list (one queue, settled 2026-10-23), with the list's tag words.
+// Where it stands comes from its pull request when the list read it (merged: Shipped, on its merge date; closed without
+// merging: Not planned; open: In review), else from the session (working: In progress; stopped without a pull request:
+// Not planned). The row opens Claude's fix in Studio (its review), never GitHub; while Claude works, the line is the
+// last real step, never a percentage.
+
+export interface FixRow extends BuildRequestView {
+  fix: {
+    /** The Studio path the row opens: the review of Claude's fix, else the component. */
+    href: string;
+    /** Line 2: what it is, who asked, then where it stands. */
+    line: string;
+    /** Claude is still on it: the page reads the sessions again. */
+    working: boolean;
+  };
+}
+
+export const FIX_ROW_TITLE = "Claude's fix from Figma";
+
+const componentSlug = (name: string) =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+/** A GitHub login Bridge can look a name up for; a name the server wrote ("Priya Shah") stays as written. */
+export const isLoginLike = (by: string) => /^[a-z0-9][a-z0-9-]{0,38}$/i.test(by.trim());
+
+const ago = (verb: string, iso: string, now: number) => {
+  const d = daysSince(iso, now);
+  return d === 0 ? `${verb} today` : `${verb} ${d} ${d === 1 ? 'day' : 'days'} ago`;
+};
+
+type PullState = Pick<RestPull, 'number' | 'state' | 'merged_at' | 'updated_at'>;
+
+/** The rows of the team's fix sessions, reconciled with the pull requests the list already read (no read per row). */
+export function fixRows(sessions: readonly Session[], pulls: readonly PullState[], now: number, nameOf: (login: string) => string = (l) => l): FixRow[] {
+  return sessions.map((s) => {
+    const review = reviewOf(s);
+    const prNumber = review ? Number(/pr=(\d+)/.exec(review)?.[1]) || null : null;
+    const pull = prNumber ? pulls.find((p) => Number(p.number) === prNumber) : undefined;
+    const last = s.steps.at(-1);
+    const quiet = s.state === 'working' && last?.kind === 'quiet';
+    let status: BuildStatus;
+    let closedAt: string | null = null;
+    if (pull?.merged_at) status = 'shipped';
+    else if (pull && pull.state === 'closed') {
+      status = 'not-planned';
+      closedAt = pull.updated_at ?? s.updatedAt;
+    } else if (pull || (review && s.state !== 'working')) status = 'in-review';
+    else if (s.state === 'working') status = 'in-progress';
+    else if (s.state === 'stopped') {
+      status = 'not-planned';
+      closedAt = s.updatedAt;
+    } else status = 'requested';
+    const shippedAt = status === 'shipped' ? (pull?.merged_at ?? null) : null;
+    const createdAt = s.startedAt ?? s.updatedAt ?? new Date(now).toISOString();
+    const asker = s.steps[0]?.by || last?.by || '';
+    const who = asker ? nameOf(asker) : '';
+    const stopped = (last?.text ?? 'Claude stopped').replace(/\.$/, '');
+    const where: Record<BuildStatus, string> = {
+      requested: 'Not started yet',
+      'picked-up': 'Claude is on it',
+      'in-progress': quiet ? `Claude went quiet after ${elapsedLabel(s.elapsed)}` : `${last?.text ?? 'Claude started'}, for ${elapsedLabel(s.elapsed)}`,
+      'in-review': `Ready for your team to review, took ${elapsedLabel(s.elapsed)}`,
+      shipped: shippedAt ? ago('Shipped', shippedAt, now) : 'In the library',
+      'not-planned': pull ? 'Your team closed it without keeping it' : stopped,
+    };
+    const sentence: Record<BuildStatus, string> = {
+      requested: 'Not started yet.',
+      'picked-up': 'Claude is on it.',
+      'in-progress': quiet ? 'Claude went quiet.' : 'Claude is fixing it.',
+      'in-review': "Claude's fix is ready. Someone on your team reviews it before it ships.",
+      shipped: 'In the library. Figma is closer to the code.',
+      'not-planned': `${where['not-planned']}.`,
+    };
+    const timeline: BuildRequestView['timeline'] = [{ status: 'requested', at: createdAt, ...(asker ? { who: asker } : {}) }];
+    if (status === 'shipped') timeline.push({ status: 'shipped', ...(shippedAt ? { at: shippedAt } : {}) });
+    if (status === 'not-planned') timeline.push({ status: 'not-planned', ...(closedAt ? { at: closedAt } : {}) });
+    const slug = componentSlug(s.component);
+    return {
+      id: `fix-${slug}`,
+      kind: 'pull',
+      number: prNumber ?? 0,
+      url: '',
+      component: s.component,
+      title: FIX_ROW_TITLE,
+      requestKind: null,
+      status,
+      label: BUILD_STATUS_LABEL[status],
+      sentence: sentence[status],
+      builders: ['claude'],
+      requestedBy: asker || null,
+      createdAt,
+      ageDays: daysSince(createdAt, now),
+      stale: quiet,
+      shippedAt,
+      pull: prNumber ? { number: prNumber, state: pull?.merged_at ? 'merged' : (pull?.state ?? 'open') } : null,
+      jira: null,
+      figmaUrl: null,
+      timeline,
+      fix: {
+        href: review ?? `components/?c=${encodeURIComponent(slug)}`,
+        line: `${FIX_ROW_TITLE}${who ? `, asked by ${who}` : ''} · ${where[status]}`,
+        working: s.state === 'working',
+      },
+    };
+  });
+}

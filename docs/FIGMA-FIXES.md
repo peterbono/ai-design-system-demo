@@ -301,10 +301,13 @@ kept 7 days after its last step (`apps/docs-site/api/_lib/fix-sessions.ts`):
 | `bridge_propose_figma_fixes`, refused by the referee | Bridge did not open it: the reason (still working) |
 | nothing for 10 minutes while working | Claude went quiet (`quiet: true`, the state stays working: a new step resumes it) |
 
-There is no percentage: rounds vary, so a session is its steps and the time since it started. In Studio, Being built
-opens with "Claude's fixes": one row per session (the last step, how long, who asked, one tag: Claude is working, Ready
-for review, Stopped, Went quiet), its steps folded under the row, and See Claude's fix opening the review in Studio. The
-page reads the sessions again every 10 seconds while one works. Settings, Claude gives the connector address, says who
+There is no percentage: rounds vary, so a session is its steps and the time since it started. In Studio, each session
+is one row of the Being built list (one queue, no section of its own), with the list's tags and filters: the component,
+then "Claude's fix from Figma, asked by <name>" and where it stands. Where it stands comes from its pull request when the
+list read it (open: In review; merged: Shipped, counted in Shipped this week by its merge date; closed without merging:
+Not planned), else from the session (working: In progress with the last step, or Claude went quiet; stopped: Not
+planned with Claude's reason). The row opens Claude's fix in Studio, never GitHub. The page reads the sessions again
+every 10 seconds while one works. Settings, Claude gives the connector address, says who
 connected Bridge in Claude and when it was last used, and lets the person who connected it (or a team admin) remove it.
 Deleting a Bridge account ends its connections too, with the GitHub tokens Bridge kept sealed for them.
 

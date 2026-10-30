@@ -4,15 +4,14 @@
 // writes to them. The list, its filters and the detail in place (?request=N, ?pull=N) are one island
 // (components/ds/studio/BeingBuilt), reading through scripts/building-data.ts. Rules: lib/building-view.ts and
 // docs/BUILD-REQUESTS.md. Team shell: pages/team-shell/building.astro.
-// Above them, Claude's fixes (components/ds/studio/ClaudeFixes): the fix sessions of the team's Claude through the Bridge
-// connector, step by step, only when there is any (docs/FIGMA-FIXES.md "Work in progress").
+// Claude's fixes (the fix sessions of the team's Claude through the Bridge connector, docs/FIGMA-FIXES.md "Work in
+// progress") are rows of the same list, not a section of their own.
 import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
 import '../../styles/building.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import BeingBuilt from '../../components/ds/studio/BeingBuilt';
-import ClaudeFixes from '../../components/ds/studio/ClaudeFixes';
 import { lastUpdated } from '../../lib/repo';
 
 const sources = ['docs/BUILD-REQUESTS.md', 'docs/REQUESTS.md'];
@@ -26,6 +25,5 @@ const sources = ['docs/BUILD-REQUESTS.md', 'docs/REQUESTS.md'];
   wide
 >
   <StudioHeader title="Being built" />
-  <ClaudeFixes client:only="react" />
   <BeingBuilt client:only="react" />
 </Layout>

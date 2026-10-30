@@ -155,6 +155,19 @@ export function detailFromQuery(search: string): { kind: 'issue' | 'pull'; numbe
   return null;
 }
 
+const ROW_ORDER: Record<BuildStatus, number> = { requested: 0, 'picked-up': 1, 'in-progress': 2, 'in-review': 3, shipped: 4, 'not-planned': 5 };
+
+/**
+ * One list: the build requests and the rows of Claude's fixes (lib/claude-connector fixRows), in the order core gives
+ * build requests (what waits longest first, then work in flight, then shipped, newest first). A fix whose pull request
+ * already reads as a build request is not listed twice.
+ */
+export function mergeRows<V extends BuildRequestView>(views: readonly BuildRequestView[], fixes: readonly V[]): (BuildRequestView | V)[] {
+  const pulls = new Set(views.filter((v) => v.kind === 'pull').map((v) => v.number));
+  const own = fixes.filter((f) => !f.pull || !pulls.has(f.pull.number));
+  return [...views, ...own].sort((a, b) => ROW_ORDER[a.status] - ROW_ORDER[b.status] || (a.status === 'shipped' ? String(b.shippedAt).localeCompare(String(a.shippedAt)) : a.createdAt.localeCompare(b.createdAt)));
+}
+
 /** The counts on the filters: "In progress 3". */
 export function filterCounts(views: readonly BuildRequestView[], now: number): Record<BuildFilter, number> {
   const out = { all: 0, waiting: 0, 'in-progress': 0, 'shipped-this-week': 0 } as Record<BuildFilter, number>;
