@@ -6,7 +6,9 @@
     "paths": {
       "@bridge-ds/react": ["../../packages/react/src/index.ts"],
       "@bridge-ds/tokens": ["../../packages/tokens/dist/tokens.ts"],
-      "@bridge-ds/core": ["../../packages/core/src/index.ts"]
+      "@bridge-ds/core": ["../../packages/core/src/index.ts"],
+      "@bridge-ds/toolbar": ["../../packages/toolbar/src/index.ts"],
+      "@bridge-ds/toolbar/together": ["../../packages/toolbar/src/together.ts"]
     }
   },
   "include": ["src"],

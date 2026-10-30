@@ -18,6 +18,10 @@ import {
 } from '@bridge-ds/core';
 import { roleOfToken, stepOfToken, type TokenChange } from './session';
 
+// The toolbar reaches the combination through this one lazy module, so a product's main bundle never carries
+// @bridge-ds/core: the edits of a change and the picks from Studio come from here too.
+export { changeEdits, decodePicks } from '@bridge-ds/core';
+
 export interface TogetherBase {
   /** Token files of the latest library, relative to the tokens root. */
   latest: Record<string, string>;

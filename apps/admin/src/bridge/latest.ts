@@ -1,11 +1,8 @@
 // The latest library as this build has it: the token files and the config the admin's own tokens.css was built from
 // (the Live product side). Loaded only when changes are tried together, as one lazy chunk.
-import { changeEdits, decodePicks, layoutOptions, loadConfig } from '@bridge-ds/core';
+import { layoutOptions, loadConfig } from '@bridge-ds/core';
+import { togetherBase, type TogetherBase } from '@bridge-ds/toolbar/together';
 import configText from '../../../../bridge.config.json?raw';
-import { together, togetherBase, togetherPairs, type TogetherBase } from './together';
-
-// The toolbar reaches the combination through this one lazy module, so the main bundle never carries @bridge-ds/core.
-export { changeEdits, decodePicks, together, togetherPairs };
 
 const files = import.meta.glob<string>('../../../../packages/tokens/src/**/*.tokens.json', { query: '?raw', import: 'default', eager: true });
 

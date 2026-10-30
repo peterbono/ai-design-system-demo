@@ -53,8 +53,8 @@ const build = {
   owner: 'peterbono',
   repo: 'ai-design-system-demo',
   studio: 'https://bridge.floriangouloubi.com',
-  productionAdmin: 'https://bridge-demo.floriangouloubi.com',
-  adminTemplate: TEMPLATE,
+  production: 'https://bridge-demo.floriangouloubi.com',
+  preview: TEMPLATE,
   deployEnv: null,
 };
 
@@ -140,7 +140,7 @@ describe('links', () => {
 
   it('opens the same screen on the other deployment, with the change, the way back and the scroll', () => {
     const here = { search: '?bridge=101&tenant=harbor&theme=dark&bridge-scroll=10', hash: '#/orders/12' };
-    const before = sameScreenOn(build.productionAdmin, here, { change: 101, returnTo: 'https://bridge-admin-git-a-peterbonos-projects.vercel.app', scroll: 420.4 });
+    const before = sameScreenOn(build.production, here, { change: 101, returnTo: 'https://bridge-admin-git-a-peterbonos-projects.vercel.app', scroll: 420.4 });
     const u = new URL(before);
     expect(u.origin).toBe('https://bridge-demo.floriangouloubi.com');
     expect(u.hash).toBe('#/orders/12');
