@@ -452,3 +452,13 @@ export function takeItLines(branch: string): { branch: string; commands: [string
 
 /** Archived, in one line next to its action. */
 export const ARCHIVED_LINE = 'Archived: hidden from the lists, its preview still works.';
+
+/**
+ * What an exploration's page says when it cannot read it. A product's own repository that is private is not read for
+ * people who are signed out (Bridge's proxy reads only public product repositories for visitors), so they are told to
+ * sign in instead of being left with "cannot be read".
+ */
+export function unreadableExplorationLine(n: number, where: string, opts: { product: boolean; signedOut: boolean }): string {
+  const line = `#${n} is not an exploration in ${where}, or it cannot be read right now.`;
+  return opts.product && opts.signedOut ? `${line} Signed out, Bridge only shows explorations of public products: sign in to see it.` : line;
+}
