@@ -5,11 +5,16 @@
 //   component: "Badge: overdue tone";
 // - a component from another UI library with no library equivalent is a new component;
 // - any other value is a token the library lacks: "New color #C2410C", beside the closest token.
+// - a library component restyled from outside with tokens only (a rule on a class it carries, often with a state
+//   selector such as [aria-pressed]) is a piece too, named from the state: "IconButton: restyled when pressed". It is a
+//   look or a state the component lacks, even though no value is hand-picked. Layout around it (margin, position, gap)
+//   is not.
 // Values that equal a token, and components the library already has, are fixes (use the library), not pieces.
 // Pure: file texts in, pieces out. Uses the audit, so the TypeScript compiler (syntax only).
 import type { LayeredTokenSet } from '../layered';
 import { pieceId, proposedTokenPath, tokenLabel, type MissingPiece, type PieceAspect, type PieceNearest, type PieceValue } from '../prod-branch';
 import type { DesignSystemIndex } from './ds-index';
+import { blankComments, lineCol, scanCssText } from './css';
 import { auditFile, isAuditable } from './report';
 import type { ComponentFinding, StyleFinding, TokenSuggestion } from './types';
 
@@ -139,6 +144,131 @@ interface Hit {
   finding: StyleFinding;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Restyles: a library component's look changed from outside with tokens only
+
+/** Properties that change how a component looks (its own paint, shape, type and size), not where it sits. */
+const LOOK = /^(color|fill|stroke(-width)?|background(-[\w-]+)?|border(-[\w-]+)?|outline(-[\w-]+)?|box-shadow|font(-[\w-]+)?|line-height|letter-spacing|text-(decoration|transform|shadow)(-[\w-]+)?|(min-|max-)?(width|height|inline-size|block-size)|padding(-[\w-]+)?|opacity|filter|--[\w-]+)$/;
+
+const STYLE_CATEGORY: [RegExp, string][] = [
+  [/radius/, 'radius'],
+  [/^border(-[\w-]+)?-width$|^stroke-width$/, 'border-width'],
+  [/^(color|fill|stroke)$|color$|^background|^border|^outline/, 'color'],
+  [/^padding/, 'spacing'],
+  [/width|height|-size$/, 'size'],
+  [/^font-size$/, 'font-size'],
+  [/^font-weight$/, 'font-weight'],
+  [/^line-height$/, 'line-height'],
+  [/shadow/, 'shadow'],
+];
+const styleCategory = (property: string) => STYLE_CATEGORY.find(([re]) => re.test(property))?.[1] ?? 'style';
+
+/** State selectors in plain words: [aria-pressed='true'] and [data-pressed] read "pressed". */
+const STATE_WORDS: [RegExp, string][] = [
+  [/^(aria|data)-pressed$/, 'pressed'],
+  [/^(aria|data)-selected$/, 'selected'],
+  [/^(aria|data)-checked$|^checked$/, 'checked'],
+  [/^aria-expanded$|^data-(open|popup-open|panel-open)$|^open$/, 'open'],
+  [/^(aria|data)-disabled$|^disabled$/, 'disabled'],
+  [/^(aria|data)-invalid$|^invalid$|^user-invalid$/, 'invalid'],
+  [/^(aria|data)-current$/, 'current'],
+  [/^data-loading$|^aria-busy$/, 'loading'],
+  [/^data-highlighted$/, 'highlighted'],
+  [/^hover$|^data-hover(ed)?$/, 'hovered'],
+  [/^focus(-visible|-within)?$|^data-focus(ed|-visible)?$/, 'focused'],
+  [/^active$|^data-active$/, 'active'],
+];
+
+/** The state a compound selector names: `[aria-pressed='true']:hover` gives "pressed and hovered". */
+export function selectorState(compound: string): string | undefined {
+  const words: string[] = [];
+  const add = (w: string) => (words.includes(w) ? undefined : words.push(w));
+  for (const m of compound.matchAll(/\[\s*([\w-]+)\s*(?:[~|^$*]?=\s*(['"]?)([^'"\]]*)\2)?\s*\]/g)) {
+    const name = m[1]!.toLowerCase();
+    const value = m[3]?.toLowerCase();
+    if (name === 'class' || name === 'id' || name === 'href' || name === 'type' || name === 'role') continue;
+    if (name === 'data-state' && value) {
+      add(value);
+      continue;
+    }
+    const word = STATE_WORDS.find(([re]) => re.test(name))?.[1] ?? (name.startsWith('data-') || name.startsWith('aria-') ? name.replace(/^(data|aria)-/, '').replace(/-/g, ' ') : undefined);
+    if (word) add(value === 'false' ? `not ${word}` : word);
+  }
+  for (const m of compound.matchAll(/:([\w-]+)/g)) {
+    const word = STATE_WORDS.find(([re]) => re.test(m[1]!.toLowerCase()))?.[1];
+    if (word) add(word);
+  }
+  return words.length ? words.join(' and ') : undefined;
+}
+
+/** A selector split into its compound parts: `.a[x] > svg` gives [".a[x]", "svg"]. */
+export function selectorCompounds(selector: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let depth = 0;
+  for (const c of selector) {
+    if (c === '[' || c === '(') depth++;
+    else if (c === ']' || c === ')') depth--;
+    if (depth === 0 && /[\s>+~]/.test(c)) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+const splitTop = (selector: string): string[] => {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = '';
+  for (const c of selector) {
+    if (c === '(' || c === '[') depth++;
+    else if (c === ')' || c === ']') depth--;
+    if (c === ',' && depth === 0) {
+      out.push(cur);
+      cur = '';
+    } else cur += c;
+  }
+  out.push(cur);
+  return out.map((x) => x.trim()).filter(Boolean);
+};
+
+/** The part a descendant compound names: `svg` is the icon, `.label` the label. */
+function partOf(compound: string | undefined): string | undefined {
+  if (!compound) return undefined;
+  const tag = /^([a-z][\w-]*)/i.exec(compound)?.[1]?.toLowerCase();
+  if (tag && ['svg', 'path', 'use', 'g', 'circle', 'img'].includes(tag)) return 'icon';
+  const cls = /\.([A-Za-z_][\w-]*)/.exec(compound)?.[1];
+  if (cls) return nameFromClass(cls);
+  return tag;
+}
+
+interface Restyle {
+  component: string;
+  state?: string | undefined;
+  name: string;
+  selector: string;
+  values: PieceValue[];
+  hits: { file: string; line: number }[];
+}
+
+/** Lines of `after` the branch added (a line that was there before is not the branch's doing), counted so repeats stay fair. */
+function branchLines(before: string | null, after: string): Set<number> {
+  const bag = lineBag(before);
+  const out = new Set<number>();
+  lines(after).forEach((l, i) => {
+    const k = l.trim();
+    if (!k) return;
+    const n = bag.get(k) ?? 0;
+    if (n > 0) bag.set(k, n - 1);
+    else out.add(i + 1);
+  });
+  return out;
+}
+
 /**
  * The pieces a product branch adds that the library lacks. `files` are the changed files (only auditable ones are
  * read; pass the product's files). `set` lets token pieces name the token files of the closest token (light and dark).
@@ -151,13 +281,47 @@ export function missingPieces(input: { files: BranchFile[]; ds: DesignSystemInde
   const tokens = new Map<string, { category: string; value: string; name: string | null; hits: Hit[] }>();
   const foreign = new Map<string, { finding: ComponentFinding; hits: { file: string; line: number }[] }>();
   // Classes of CSS modules: which DS component uses each one, read from every changed file at its head.
+  // A plain class name counts too (className="product-wishlist", in a template or a clsx call), as long as the
+  // opening tag of a library component carries it.
+  const classUseCache = new Map<string, { component: string; text: string | null } | null>();
   const classUse = (cls: string): { component: string; text: string | null } | null => {
-    const re = new RegExp(`<([A-Z][\\w.]*)\\b[^<]*?styles(?:\\.${cls}\\b|\\[['"]${cls}['"]\\])`);
+    if (classUseCache.has(cls)) return classUseCache.get(cls)!;
+    const c = cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`<([A-Z][\\w.]*)\\b[^<]*?(?:styles(?:\\.${c}\\b|\\[['"]${c}['"]\\])|className=(?:"[^"]*?|'[^']*?|\\{[^}]*?["'\`\\s])(?<![\\w-])${c}(?![\\w-]))`, 'g');
+    let found: { component: string; text: string | null } | null = null;
     for (const f of files) {
-      const m = re.exec(f.after!);
-      if (m && ds.components.has(m[1]!.split('.')[0]!)) return { component: m[1]!.split('.')[0]!, text: childText(f.after!, m.index) };
+      for (const m of f.after!.matchAll(re)) {
+        const root = m[1]!.split('.')[0]!;
+        if (ds.components.has(root)) {
+          found = { component: root, text: childText(f.after!, m.index!) };
+          break;
+        }
+      }
+      if (found) break;
     }
-    return null;
+    classUseCache.set(cls, found);
+    return found;
+  };
+  const restyles = new Map<string, Restyle>();
+  const addRestyle = (r: Omit<Restyle, 'values' | 'hits'>, value: PieceValue, at: { file: string; line: number }) => {
+    const key = `${r.component}|${r.state ?? ''}|${r.state ? '' : r.name}`;
+    const e = restyles.get(key) ?? { ...r, values: [], hits: [] };
+    if (!e.values.some((v) => v.property === value.property && v.part === value.part && v.value === value.value)) e.values.push(value);
+    if (!e.hits.some((h) => h.file === at.file && h.line === at.line)) e.hits.push(at);
+    restyles.set(key, e);
+  };
+  /** The library component a compound selector targets: a class it carries, or its own name as a class. */
+  const targetOf = (compound: string): { component: string; cls: string | null } | null => {
+    for (const m of [...compound.matchAll(/\.([A-Za-z_][\w-]*)/g)].reverse()) {
+      const cls = m[1]!;
+      const own = [...ds.components].find((n) => n.toLowerCase() === cls.toLowerCase());
+      if (own) return { component: own, cls: null };
+      const use = classUse(cls);
+      if (use) return { component: use.component, cls };
+    }
+    const attr = /\[\s*class\s*[*^$~|]?=\s*['"]?([\w-]+)/.exec(compound)?.[1];
+    const own = attr ? [...ds.components].find((n) => n.toLowerCase() === attr.toLowerCase()) : undefined;
+    return own ? { component: own, cls: null } : null;
   };
 
   for (const f of files) {
@@ -228,6 +392,85 @@ export function missingPieces(input: { files: BranchFile[]; ds: DesignSystemInde
       t.hits.push(hit);
       tokens.set(key, t);
     }
+    // Restyles: declarations the branch added that the audit did not flag (tokens, keywords), on a rule that targets a
+    // library component, changing its look.
+    const flagged = new Set(report.findings.map((x) => x.line));
+    const fresh = branchLines(f.before, after);
+    const posOf = lineCol(after);
+    if (css) {
+      const clean = blankComments(after, report.lang !== 'css');
+      for (const d of scanCssText(after, report.lang as 'css' | 'scss' | 'less').decls) {
+        const property = d.property.toLowerCase();
+        const { line } = posOf(d.valueStart);
+        if (!LOOK.test(property) || flagged.has(line) || !fresh.has(line)) continue;
+        const open = clean.lastIndexOf('{', d.valueStart);
+        if (open < 0) continue;
+        const prev = Math.max(clean.lastIndexOf('}', open - 1), clean.lastIndexOf(';', open - 1), clean.lastIndexOf('{', open - 1));
+        const selector = clean.slice(prev + 1, open).trim().replace(/\s+/g, ' ');
+        if (!selector || selector.startsWith('@')) continue;
+        for (const sel of splitTop(selector)) {
+          const parts = selectorCompounds(sel);
+          let at = -1;
+          let target: ReturnType<typeof targetOf> = null;
+          for (let i = parts.length - 1; i >= 0 && !target; i--) {
+            target = targetOf(parts[i]!);
+            if (target) at = i;
+          }
+          if (!target) continue;
+          const state = selectorState(parts[at]!);
+          const part = at < parts.length - 1 ? partOf(parts[parts.length - 1]) : undefined;
+          const name = target.cls ? nameFromClass(target.cls, target.component) : 'restyled';
+          addRestyle({ component: target.component, state, name, selector: sel }, { category: styleCategory(property), property, value: d.value.trim(), ...(part ? { part } : {}) }, { file: f.path, line });
+          break;
+        }
+      }
+    } else {
+      // An inline style on a library component: style={{ color: 'var(--...)' }}, or style={saved ? {...} : undefined}
+      // next to pressed={saved} (that state names it).
+      for (const m of after.matchAll(/<([A-Z][\w.]*)\b/g)) {
+        const root = m[1]!.split('.')[0]!;
+        if (!ds.components.has(root)) continue;
+        const tagStart = m.index!;
+        let end = -1;
+        let depth = 0;
+        for (let j = tagStart + 1; j < after.length; j++) {
+          const c = after[j];
+          if (c === '{') depth++;
+          else if (c === '}') depth--;
+          else if (c === '>' && depth <= 0 && after[j - 1] !== '=') {
+            end = j;
+            break;
+          }
+        }
+        if (end < 0) continue;
+        const tag = after.slice(tagStart, end);
+        const st = /\bstyle=\{/.exec(tag);
+        if (!st) continue;
+        let d2 = 0;
+        let close = -1;
+        for (let j = st.index + st[0].length - 1; j < tag.length; j++) {
+          if (tag[j] === '{') d2++;
+          else if (tag[j] === '}' && --d2 === 0) {
+            close = j;
+            break;
+          }
+        }
+        if (close < 0) continue;
+        const expr = tag.slice(st.index + st[0].length, close);
+        const cond = /^\s*!?\s*([\w.]+)\s*(?:\?|&&)/.exec(expr)?.[1];
+        const prop = cond ? new RegExp(`\\b(pressed|selected|checked|open|disabled|active|invalid|loading)=\\{\\s*${cond.replace(/\./g, '\\.')}\\s*\\}`).exec(tag)?.[1] : undefined;
+        const state = prop;
+        const cls = /className=\{?["'`]?([\w-]+)/.exec(tag)?.[1];
+        const name = childText(after, tagStart)?.toLowerCase() ?? (cls ? nameFromClass(cls, root) : 'restyled');
+        for (const kv of expr.matchAll(/(?:^|[{,\s])(['"]?)([A-Za-z-]+)\1\s*:\s*(['"`])([^'"`]*)\3/g)) {
+          const property = kv[2]!.replace(/[A-Z]/g, (ch) => `-${ch.toLowerCase()}`);
+          const off = tagStart + st.index + st[0].length + kv.index!;
+          const { line } = posOf(off + kv[0].length - 1);
+          if (!LOOK.test(property) || flagged.has(line) || !fresh.has(line)) continue;
+          addRestyle({ component: root, state, name, selector: `${root} style` }, { category: styleCategory(property), property, value: kv[4]!.trim() }, { file: f.path, line });
+        }
+      }
+    }
     for (const c of report.components) {
       if (!isNew(c.line)) continue;
       if (c.suggestion) {
@@ -264,6 +507,22 @@ export function missingPieces(input: { files: BranchFile[]; ds: DesignSystemInde
       values,
       ...(nearest ? { nearest } : {}),
       where: where(v.hits),
+    });
+  }
+  for (const r of restyles.values()) {
+    const shown = r.values.map((x) => `${x.part ? `${x.part} ` : ''}${x.property ?? x.category} ${x.value}`).join(', ');
+    const title = r.state ? `${r.component}: restyled when ${r.state}` : `${r.component}: ${r.name === 'restyled' ? 'restyled' : `${r.name} restyle`}`;
+    pieces.push({
+      id: pieceId([r.component, r.state ? `${r.state} restyle` : r.name === 'restyled' ? 'restyle' : `${r.name} restyle`]),
+      kind: 'variant',
+      title,
+      summary: `${r.component} restyled from outside the library${r.state ? ` when ${r.state}` : ''}, tokens only (${shown}). The library ${r.component} has no ${r.state ? 'look for this state' : 'such variant'} yet.`,
+      name: r.state ?? r.name,
+      component: r.component,
+      aspect: r.state ? 'state' : aspectOf(r.values),
+      values: r.values,
+      where: where(r.hits),
+      restyle: { ...(r.state ? { state: r.state } : {}), selector: r.selector },
     });
   }
   for (const [name, e] of foreign) {

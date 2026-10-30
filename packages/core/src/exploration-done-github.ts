@@ -8,10 +8,12 @@
 import {
   EXPLORATION_PREFIX,
   doneExploringPlan,
+  explorationStartingPoint,
   explorationStatus,
   parseExplorationBody,
   withDoneExploring,
   type DoneExploringPlan,
+  type ExplorationChecks,
   type ExplorationStatus,
 } from './explorations';
 import { findExplorationOnGitHub } from './explorations-github';
@@ -52,6 +54,10 @@ export interface DoneExploring {
   pieces: ProposedPieces;
   /** The two commands a developer runs to take it. */
   take: [string, string];
+  /** The branch checks at the head developers start from, when GitHub said; null when it could not be read. */
+  checks: ExplorationChecks | null;
+  /** What developers read next to the commands, true to those checks. */
+  note: string;
   /** Steps that did not go through, with what to do on GitHub instead. */
   warnings: string[];
 }
@@ -72,7 +78,9 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   const files = fresh ? await gh.listPullRequestFiles(p.number) : [];
   const plan = fresh ? doneExploringPlan({ body: p.body, branch: p.headRef, files: files.map((f) => ({ path: f.filename, status: f.status })), date: input.date }) : null;
   const take = plan?.take ?? (['git fetch origin', `git checkout ${p.headRef}`] as [string, string]);
-  const out: DoneExploring = { number: p.number, url: p.url, branch: p.headRef, status: fresh ? 'ready' : status, handedOff: fresh, plan, pieces: { proposed: [], already: [], unknown: [], warnings: [] }, take, warnings: [] };
+  // The checks of the head the developers start from, so the note says truthfully whether anything ran or passed.
+  const checks: ExplorationChecks | null = p.headSha ? await Promise.resolve(p.headSha).then((sha) => gh.getChecks(sha)).then((c) => c.state, () => null) : null;
+  const out: DoneExploring = { number: p.number, url: p.url, branch: p.headRef, status: fresh ? 'ready' : status, handedOff: fresh, plan, pieces: { proposed: [], already: [], unknown: [], warnings: [] }, take, checks, note: explorationStartingPoint(checks), warnings: [] };
   const products = input.products ?? [];
   const ask = { pieces: input.pieces ?? [], products, previewUrl: input.previewUrl, openedBy: input.openedBy, agent: input.agent, source: input.source, library: input.library };
   if (input.dryRun) {
@@ -101,6 +109,6 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   // The pieces wrote their links into the body: read it again before the developer section goes in.
   const latest = await gh.getPullRequest(p.number).catch(() => p);
   const doneAt = parseExplorationBody(plan.body)?.doneAt ?? (input.date ?? new Date()).toISOString();
-  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneSha }) });
+  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneSha, checks }) });
   return out;
 }

@@ -10,7 +10,6 @@ import {
   archiveExplorationOnGitHub,
   baseBranchOf,
   doneExploringOnGitHub,
-  EXPLORATION_STARTING_POINT,
   parsePiecesRecord,
   productsOf,
   closeExplorationOnGitHub,
@@ -374,7 +373,9 @@ export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces
     alreadySent: r.pieces.already,
     ...(r.pieces.unknown.length ? { unknownPieces: r.pieces.unknown } : {}),
     notProposed: unsent,
-    forDevelopers: { take: r.take, note: EXPLORATION_STARTING_POINT },
+    // Whether the exploration was checked against the library (bridge pieces --record) before saying it.
+    checked: Boolean(record),
+    forDevelopers: { take: r.take, note: r.note },
     warnings: r.warnings,
     next: [
       record ? (unsent.length ? `${unsent.length} piece${unsent.length === 1 ? ' was' : 's were'} not sent to the DS lead: pass their ids in pieces to send them later.` : '') : `The exploration was not checked against the library: ${say(ctx, `bridge_missing_pieces { pr: "${explorationRefLabel({ number: r.number, product: at.product?.key, repo: at.repo })}", record: true }`, `\`bridge pieces ${explorationRefLabel({ number: r.number, product: at.product?.key, repo: at.repo })} --record\``)} finds the pieces to propose.`,

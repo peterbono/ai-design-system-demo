@@ -50,6 +50,8 @@ import {
   withPiecesRecord,
   type MissingPiece,
 } from '../src/index';
+import { EXPLORATION_STARTING_POINT, explorationStartingPoint } from '../src/explorations';
+import { libraryBranchPlan, withNeededBy } from '../src/prod-branch';
 
 const BADGE: MissingPiece = {
   id: 'badge-overdue-tone',
@@ -114,11 +116,75 @@ describe('done exploring: status, plan and body', () => {
     const v = pieceRequest(BADGE, ref, { previewUrl: 'https://admin-git-explore-billing.vercel.app/', source: 'studio', requestedBy: 'ann' });
     expect(v.request).toMatchObject({ component: 'Badge', kind: 'new-variant', title: 'Badge: overdue tone', source: 'studio', requestedBy: 'ann' });
     expect(v.request.summary).toContain("in the exploration's preview: https://admin-git-explore-billing.vercel.app/");
-    expect(v.request.summary).toContain('danger');
-    expect(v.neededBy).toMatchObject({ pr: 12, piece: 'badge-overdue-tone', nearest: 'danger' });
+    expect(v.neededBy).toMatchObject({ pr: 12, piece: 'badge-overdue-tone', nearest: 'danger', nearestValue: '#fff4f4' });
     const t = pieceRequest(TOKEN, ref);
     expect(t.request).toMatchObject({ component: 'Tokens', kind: 'other', title: 'Add color.feedback.overdue.text', changes: [{ field: 'color.feedback.overdue.text', after: '#c2410c' }] });
     expect(t.request.summary).toContain('https://github.com/acme/ds/pull/12');
+  });
+});
+
+describe('done exploring: request wording and the developer note', () => {
+  const ref = { pr: 1, title: 'Wishlist button on product cards', branch: 'explore/wishlist', url: 'https://github.com/acme/shop/pull/1', productKey: 'shop', productName: 'Demo shop', author: 'ann', repo: 'acme/shop' };
+  // The piece behind acme/ds#623: a hand-picked colour on IconButton, near the danger icon colour.
+  const WISHLIST: MissingPiece = {
+    id: 'iconbutton-wishlist-tone',
+    kind: 'variant',
+    title: 'IconButton: wishlist tone',
+    summary: 'IconButton restyled by hand (color #E11D48). The closest in the library is danger.',
+    name: 'wishlist',
+    component: 'IconButton',
+    aspect: 'tone',
+    values: [{ category: 'color', property: 'color', value: '#E11D48' }],
+    nearest: { token: 'color.feedback.danger.icon', cssVar: '--color-feedback-danger-icon', value: '#c3184c', level: 'medium', label: 'danger' },
+    where: [],
+  };
+
+  it('says the closest library value once and leaves out an empty "Now" column', () => {
+    const { request, neededBy } = pieceRequest(WISHLIST, ref, { source: 'cli', requestedBy: 'ann' });
+    const body = withNeededBy(composeRequestIssue(request).body, neededBy);
+    const readable = body.replace(/<!--[\s\S]*?-->/g, '');
+    expect(readable.match(/closest/gi)).toHaveLength(1);
+    expect(readable).toContain('The closest the library has today is danger (`color.feedback.danger.icon`, #c3184c).');
+    expect(readable).toContain('| What | Requested |');
+    expect(readable).toContain('| color | #E11D48 |');
+    expect(readable).not.toContain('| Now |');
+    // A request that knows what is there today keeps the column.
+    expect(composeRequestIssue({ ...request, changes: [{ field: 'radius', before: 'control', after: 'pill' }] }).body).toContain('| What | Now | Requested |');
+  });
+
+  it('a token-only restyle asks for the state on its component, with the part it lands on', () => {
+    const restyle: MissingPiece = {
+      id: 'iconbutton-pressed-restyle',
+      kind: 'variant',
+      title: 'IconButton: restyled when pressed',
+      summary: 'IconButton restyled from outside the library when pressed, with tokens only (icon fill currentColor).',
+      name: 'pressed',
+      component: 'IconButton',
+      aspect: 'state',
+      values: [{ category: 'color', property: 'fill', value: 'currentColor', part: 'icon' }],
+      where: [],
+      restyle: { state: 'pressed', selector: ".product-wishlist[aria-pressed='true'] svg" },
+    };
+    const { request } = pieceRequest(restyle, ref);
+    expect(request).toMatchObject({ component: 'IconButton', kind: 'new-variant', title: 'IconButton: restyled when pressed', changes: [{ field: 'fill (icon)', after: 'currentColor' }] });
+    const plan = libraryBranchPlan(restyle, ref);
+    if (plan.kind !== 'exploration') throw new Error(plan.kind);
+    expect(plan.exploration.purpose).toContain('a look when pressed on IconButton (fill (icon) currentColor)');
+    expect(plan.brief).toMatch(/restyles IconButton from outside with tokens/);
+    expect(plan.brief).not.toMatch(/writes it by hand/);
+  });
+
+  it('the developer note follows the branch checks and never claims untested code when checks pass', () => {
+    expect(explorationStartingPoint('success')).toMatch(/^A starting point: its checks pass, but nobody has reviewed/);
+    expect(explorationStartingPoint('success')).not.toMatch(/not ready to ship|not reviewed or tested/);
+    expect(explorationStartingPoint('failure')).toMatch(/some checks fail/);
+    expect(explorationStartingPoint('none')).toMatch(/no checks ran/);
+    expect(explorationStartingPoint('pending')).toMatch(/still running/);
+    expect(explorationStartingPoint()).toBe(EXPLORATION_STARTING_POINT);
+    expect(EXPLORATION_STARTING_POINT).not.toMatch(/tested/);
+    for (const c of ['success', 'failure', 'pending', 'none'] as const) expect(explorationStartingPoint(c)).not.toMatch(/\u2014/);
+    const body = withDoneExploring('## Exploration: Wishlist', { branch: 'explore/wishlist', doneAt: '2026-10-30T09:00:00Z', checks: 'success' });
+    expect(body).toContain('its checks pass');
   });
 });
 
@@ -137,6 +203,7 @@ describe('done exploring and archive on GitHub', () => {
     const r = await doneExploringOnGitHub(c, 1, { pieces: ['badge-overdue-tone', 'nope'], previewUrl: 'https://admin-preview.vercel.app/', openedBy: 'ann', source: 'studio' });
     expect(r).toMatchObject({ number: 1, status: 'ready', handedOff: true, warnings: [], take: ['git fetch origin', 'git checkout explore/billing-screen'] });
     expect(r.pieces.unknown).toEqual(['nope']);
+    expect(r.note).toBe(explorationStartingPoint(r.checks));
     expect(gh.issues).toHaveLength(1);
     expect(gh.issues[0].labels.map((l: any) => l.name)).toEqual(expect.arrayContaining(['component-change', 'needed-by-product']));
     expect(gh.issues[0].body).toContain('https://admin-preview.vercel.app/');

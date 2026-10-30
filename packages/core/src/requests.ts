@@ -81,9 +81,13 @@ export function requestIssueTitle(r: Pick<ComponentChangeRequest, 'component' | 
 
 /** The GitHub issue for a request: readable Markdown, the labels tools filter on, and a hidden JSON block. */
 export function composeRequestIssue(r: ComponentChangeRequest, opts: { labels?: string[]; assignees?: string[]; componentUrl?: string } = {}): RequestIssue {
-  const rows = r.changes.length
-    ? ['| What | Now | Requested |', '| --- | --- | --- |', ...r.changes.map((c) => `| ${cell(c.field)} | ${cell(c.before ?? '')} | ${cell(c.after ?? '')} |`)]
-    : [];
+  // "Now" only when something says what it is today: a piece from a product branch only knows what is requested.
+  const now = r.changes.some((c) => c.before?.trim());
+  const rows = !r.changes.length
+    ? []
+    : now
+      ? ['| What | Now | Requested |', '| --- | --- | --- |', ...r.changes.map((c) => `| ${cell(c.field)} | ${cell(c.before ?? '')} | ${cell(c.after ?? '')} |`)]
+      : ['| What | Requested |', '| --- | --- |', ...r.changes.map((c) => `| ${cell(c.field)} | ${cell(c.after ?? '')} |`)];
   const figma = r.figma?.url ? `[${r.figma.nodeName ?? 'Open in Figma'}](${r.figma.url})` : r.figma?.nodeName ? r.figma.nodeName : '';
   const body = [
     r.kind === 'new-component' ? `## New component request: ${r.component}` : `## ${kindLabel(r.kind)} request for ${r.component}`,

@@ -125,7 +125,7 @@ describe('bridge request', () => {
     expect(await runRequest(args(...create, '--use-gh-auth'), dir, c.io)).toBe(0);
     expect(c.out()).toContain(`Created request #100: https://github.com/${OWNER}/${NAME}/issues/100`);
     expect(gh.issues[0]!.labels.map((l: any) => l.name)).toEqual(['component-change', 'request: new-variant', 'source: cli']);
-    expect(gh.issues[0]!.body).toContain('| variant |  | danger-ghost |');
+    expect(gh.issues[0]!.body).toContain('| variant | danger-ghost |');
   });
 
   it('parseChange', () => {
