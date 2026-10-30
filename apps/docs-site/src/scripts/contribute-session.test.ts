@@ -233,6 +233,27 @@ describe('reads through Bridge', () => {
     expect(calls.length).toBe(n);
   });
 
+  it("a visitor reads a demo team's product repository through the team, and the app missing there leaves the team's reads on", async () => {
+    const shop = 'https://api.github.com/repos/peterbono/bridge-demo-shop/pulls?state=open';
+    answer = () => json(409, { error: 'product_missing', message: 'x' });
+    expect(await publicTeamRead('peterbono/bridge-demo-ds', shop, '', ['peterbono/bridge-demo-shop'])).toBeNull();
+    expect(calls[0]!.url).toBe(`/api/contribute?repo=peterbono%2Fbridge-demo-ds&gh=${encodeURIComponent('/repos/peterbono/bridge-demo-shop/pulls?state=open')}`);
+    answer = () => json(200, [{ number: 2 }]);
+    const r = await publicTeamRead('peterbono/bridge-demo-ds', 'https://api.github.com/repos/peterbono/bridge-demo-ds/pulls', '');
+    expect(await r!.json()).toEqual([{ number: 2 }]);
+  });
+
+  it("an email member reads a product repository through the team's proxy and never writes there through it", async () => {
+    signIn();
+    answer = () => json(200, [{ number: 3 }]);
+    const r = await contributeFetch('acme/ds', 'https://api.github.com/repos/acme/shop/pulls', { headers: {} }, ['acme/shop']);
+    expect(await r.json()).toEqual([{ number: 3 }]);
+    expect(calls.some((c) => c.url === `/api/contribute?repo=acme%2Fds&gh=${encodeURIComponent('/repos/acme/shop/pulls')}`)).toBe(true);
+    answer = () => json(401, { message: 'Requires authentication' });
+    await contributeFetch('acme/ds', 'https://api.github.com/repos/acme/shop/issues/1/labels', { method: 'POST', headers: {}, body: '{}' }, ['acme/shop']);
+    expect(calls.at(-1)!.url).toBe('https://api.github.com/repos/acme/shop/issues/1/labels');
+  });
+
   it("a guest's read of a demo team in Studio goes through Bridge, and GitHub's limit elsewhere never says to add a token", async () => {
     resetGuestActivity();
     history.replaceState(null, '', '/studio/peterbono/bridge-demo-ds/');

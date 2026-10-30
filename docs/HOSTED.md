@@ -542,6 +542,14 @@ instead of one request per file.
   `rules/branches`, `check-runs/<n>`, `actions/jobs/<n>`, `actions/runs/<n>`; `collaborators` for members only.
   Anything else (hooks, keys, secrets, invitations, environments, traffic, settings, another repository, `/user`,
   GraphQL) answers 403 `not-allowed` without calling GitHub.
+- **Product repositories**: a path under a product repository the team's `bridge.config.json` lists
+  (`products[].repo`, read on the default branch with the team's read token and kept 5 minutes in
+  `bridge:read:products:<team>`) is read the same way, with `repo=<the team>`: the same allow-list minus
+  `collaborators`, a read token minted for the product repository, the team's budget. Unlisted repositories answer
+  403 `not-allowed`; the app missing on the product repository answers 409 `product_missing`, and Studio leaves that
+  product out of its lists without marking the team's reads down (Settings says it). A visitor of a public demo team
+  also needs the product repository to be public. Writes to a product repository never go through Bridge: people
+  signed in with GitHub write there with their own token.
 
 ### Cache and limits
 

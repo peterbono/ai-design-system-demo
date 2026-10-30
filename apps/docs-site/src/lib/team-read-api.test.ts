@@ -34,6 +34,10 @@ interface World {
   pulls: number;
   /** GitHub's hourly limit is used up. */
   limited: boolean;
+  /** bridge.config.json text by repository (lower case); none: GitHub's 404. */
+  configs?: Record<string, string>;
+  /** Repositories the Bridge app is not installed on (lower case). */
+  noApp?: string[];
 }
 
 function github(w: World): FetchLike {
@@ -57,6 +61,10 @@ function github(w: World): FetchLike {
       if (init.headers['If-None-Match'] === etag) return new Response(null, { status: 304, headers: { ETag: etag } });
       return Response.json([{ number: w.pulls }], { headers: { ETag: etag, Link: '<x>; rel="next"' } });
     }
+    if (rest === '/contents/bridge.config.json') {
+      const text = w.configs?.[m[1]!.toLowerCase()];
+      return text === undefined ? Response.json({ message: 'Not Found' }, { status: 404 }) : new Response(text, { status: 200, headers: { 'Content-Type': 'application/vnd.github.raw' } });
+    }
     if (rest.startsWith('/contents/snapshot.json')) return Response.json({ message: 'Not Found' }, { status: 404 });
     const b = /^\/git\/blobs\/([0-9a-f]{40})$/.exec(rest);
     if (b) return w.blobs[b[1]!] !== undefined ? new Response(w.blobs[b[1]!], { status: 200, headers: { 'Content-Type': 'application/vnd.github.raw' } }) : Response.json({ message: 'Not Found' }, { status: 404 });
@@ -77,6 +85,7 @@ function setup(world: Partial<World> = {}, env: Record<string, string> = {}) {
     app: {
       installationToken: async (owner, repo) => {
         tokens.push(`${owner}/${repo}`);
+        if (w.noApp?.includes(`${owner}/${repo}`.toLowerCase())) return null;
         return 'ghs_read';
       },
     },
@@ -491,5 +500,77 @@ describe('team reads: the status of open changes, once for the team', () => {
     const cookie = await s.member();
     expect((await s.changes([`7:${H}`, `8:${H}`], cookie)).status).toBe(200);
     expect((await s.changes([`7:${H}`], cookie)).status).toBe(429);
+  });
+});
+
+describe('team reads: a product repository of the team', () => {
+  const SHOP = 'acme/shop';
+  const S = `/repos/${SHOP}`;
+  const config = (team: string, repos: string[]) => ({ [team]: JSON.stringify({ products: [...repos.map((r, i) => ({ key: `p${i}`, name: `P${i}`, repo: r })), { key: 'library', name: 'Library', default: true }] }) });
+
+  it('reads a product repository the team lists, with its own read token, on the team budget, the list kept', async () => {
+    const s = setup({ configs: config(TEAM, [SHOP]) });
+    const cookie = await s.member();
+    const r = await s.read(`${S}/pulls?state=open&per_page=100`, cookie);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual([{ number: 1 }]);
+    expect(s.tokens).toContain(SHOP);
+    expect(s.w.calls.find((c) => c.path.startsWith(`${S}/pulls`))!.auth).toBe('Bearer ghs_read');
+    expect(Number(await s.redis.cmd('GET', `bridge:read:count:team:${TEAM}:${Math.floor(T0 / 1000 / 600)}`))).toBeGreaterThan(0);
+    await s.read(`${S}/pulls?state=all`, cookie);
+    expect(gets(s.w, `${P}/contents/bridge.config.json`)).toBe(1);
+  });
+
+  it('refuses a repository the team does not list, and the members-only resources of a listed one', async () => {
+    const s = setup({ configs: config(TEAM, [SHOP]) });
+    const cookie = await s.member();
+    const other = await s.read('/repos/acme/secret/pulls', cookie);
+    expect(other.status).toBe(403);
+    expect((await other.json()).error).toBe('not-allowed');
+    expect(s.w.calls.some((c) => c.path.startsWith('/repos/acme/secret'))).toBe(false);
+    expect((await s.read(`${S}/collaborators`, cookie)).status).toBe(403);
+    // A team without bridge.config.json lists none.
+    const bare = setup();
+    expect((await bare.read(`${S}/pulls`, await bare.member())).status).toBe(403);
+  });
+
+  it('needs a reader of the team first: nobody else reads a product repository', async () => {
+    const s = setup({ configs: config(TEAM, [SHOP]) });
+    expect((await s.read(`${S}/pulls`)).status).toBe(401);
+  });
+
+  it('answers product_missing when the app is not on the product repository, without ending the session', async () => {
+    const s = setup({ configs: config(TEAM, [SHOP]), noApp: [SHOP] });
+    const r = await s.read(`${S}/pulls`, await s.member());
+    expect(r.status).toBe(409);
+    expect((await r.json()).error).toBe('product_missing');
+    expect(r.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('a visitor of a public demo team reads its public product repository, never a private one', async () => {
+    const pub = 'peterbono/bridge-demo-shop';
+    const priv = 'peterbono/secret-shop';
+    const s = setup({ configs: config(DEMO, [pub, priv]), private: { [DEMO]: false, [pub]: false, [priv]: true } });
+    expect((await s.read(`/repos/${pub}/pulls`, '', DEMO)).status).toBe(200);
+    const r = await s.read(`/repos/${priv}/pulls`, '', DEMO);
+    expect(r.status).toBe(403);
+    expect(s.w.calls.some((c) => c.path.startsWith(`/repos/${priv}/pulls`))).toBe(false);
+  });
+
+  it('never writes to a product repository through Bridge, even for a member', async () => {
+    const s = setup({ configs: config(TEAM, [SHOP]) });
+    const cookie = await s.member();
+    const r = await handleContribute(
+      new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(TEAM)}&gh=${encodeURIComponent(`${S}/issues/1/labels`)}`, {
+        method: 'POST',
+        headers: { host: HOST, origin: ORIGIN, cookie, 'x-bridge-contribute': '1', 'content-type': 'application/json' },
+        body: JSON.stringify({ labels: ['archived'] }),
+      }),
+      ENV,
+      s.deps,
+    );
+    expect(r.status).toBe(403);
+    expect((await r.json()).error).toBe('not-allowed');
+    expect(s.w.calls.some((c) => c.method !== 'GET')).toBe(false);
   });
 });

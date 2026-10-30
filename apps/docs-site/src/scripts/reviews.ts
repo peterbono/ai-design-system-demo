@@ -301,6 +301,8 @@ interface Row {
   agent?: boolean;
   /** Reviewers GitHub asks for a review (open pull requests). */
   requested?: string[];
+  /** An exploration in a product's own repository: the product key (its number is the product's own). */
+  product?: string;
 }
 
 /** How many recently closed branches are read for "N merged this month" (one request). */
@@ -395,8 +397,13 @@ function listRow(r: Row): ListRow {
     base: r.base ?? null,
     merged_at: r.merged_at ?? null,
     labels: r.labels ?? null,
-    // A library branch a product branch needs: listed under that product branch.
+    // A library branch a product branch needs: listed under that product branch (in its own repository, by product).
     neededBy: parseNeededBy(r.body)?.pr ?? null,
+    neededByProduct: (() => {
+      const n = parseNeededBy(r.body);
+      return n?.repo ? n.product : null;
+    })(),
+    ...(r.product ? { product: r.product } : {}),
     requester: requesterOf(r.body),
   };
 }
@@ -475,6 +482,32 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   ...('requested_reviewers' in p && Array.isArray(p.requested_reviewers) ? { requested: (p.requested_reviewers as { login: string }[]).map((x) => x.login) } : {}),
 });
 
+/** An exploration read in a product's own repository, as a row of its product's group (status from that pull request). */
+function productExploreRow(p: import('./product-repos').ProductPull): Row {
+  const labels = p.labels.map((l) => ({ name: typeof l === 'string' ? l : (l.name ?? '') })).filter((l) => l.name);
+  const s = explorationStatus({ state: p.merged_at ? 'merged' : p.state, labels, headRef: p.head.ref, body: p.body, headSha: p.head.sha, draft: p.draft });
+  return {
+    number: p.number,
+    title: p.title,
+    updated_at: p.updated_at,
+    tier: null,
+    kind: null,
+    skipped: false,
+    head: { ref: p.head.ref, sha: p.head.sha },
+    user: { login: p.user?.login ?? 'unknown' },
+    ...(p.draft !== undefined ? { draft: p.draft } : {}),
+    body: p.body ?? null,
+    state: p.state,
+    merged_at: p.merged_at ?? null,
+    labels,
+    nature: natureOf(p.title, labels),
+    agent: agentMade({ body: p.body ?? null, labels }),
+    exploration: true,
+    ...(s === 'active' ? {} : { explorationLabel: EXPLORATION_STATUS_LABEL[s] }),
+    product: p.product,
+  };
+}
+
 /** The most recently closed branches, read once: the "N merged this month" line and Show merged. */
 let closedRead: Promise<void> | null = null;
 function loadClosed(): Promise<void> {
@@ -503,6 +536,8 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
   let failure: unknown = null;
   let allOpen: Pull[] = [];
   paintRows([], true);
+  // The explorations of each product repository, read in parallel (one read each, unreachable ones left out).
+  const productRead = import('./product-repos').then((m) => m.productPulls()).catch(() => []);
   try {
     const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=100`);
     allOpen = openPulls(f.data);
@@ -516,6 +551,10 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     };
     exploreRows = allOpen.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft })).map(exploreRow);
     archivedRows = allOpen.filter((p) => isArchivedOpen({ state: p.state, labels: p.labels as never })).map(exploreRow);
+    // Explorations in products' own repositories: rows of their product's group, under their own status too.
+    const own = await productRead;
+    exploreRows = [...exploreRows, ...own.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft })).map(productExploreRow)];
+    archivedRows = [...archivedRows, ...own.filter((p) => isArchivedOpen({ state: p.state, labels: p.labels as never })).map(productExploreRow)];
   } catch (err) {
     failure = err;
   }

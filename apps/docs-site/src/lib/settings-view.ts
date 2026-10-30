@@ -332,3 +332,45 @@ export const soloPlain = (name: string) => `As the only owner, ${name} checks th
 
 /** A GitHub team as a designer reads it: "@acme/design" -> "the design team". */
 export const teamPlain = (slug: string) => `the ${slug.replace(/[-_]+/g, ' ')} team`;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Products with their own repository: whether Bridge reaches them. Said here only, never in lists (a product Bridge
+// cannot read simply adds nothing to Changes or the home).
+
+/** Where Bridge stands with a product's own repository: still checking, connected, read only, or not connected. */
+export type ProductConnection = 'checking' | 'connected' | 'read-only' | 'not-connected' | 'unavailable';
+
+export interface ProductConnectionRow {
+  label: string;
+  badge: { text: string; tone: 'success' | 'neutral' | 'warning' };
+  value: string;
+  /** The admin action when something is missing: the button label and the message it copies. */
+  ask: { label: string; message: string } | null;
+}
+
+/**
+ * One row of Settings > Products: the product, Bridge's connection to its repository in one badge, and what it means.
+ * Explorations for that product start in its repository once connected; until then they are not listed.
+ */
+export function productConnectionRow(
+  x: { product: string; repo: string; state: ProductConnection; installLink: string },
+  ask: (product: string, repo: string, reason: 'not-connected' | 'read-only', installLink: string) => { label: string; message: string },
+): ProductConnectionRow {
+  const label = x.product;
+  if (x.state === 'checking') return { label, badge: { text: 'Checking', tone: 'neutral' }, value: `Explorations for ${x.product} live in ${x.repo}.`, ask: null };
+  if (x.state === 'connected') return { label, badge: { text: 'Connected', tone: 'success' }, value: `Explorations for ${x.product} start in ${x.repo} and show on Changes and the home.`, ask: null };
+  if (x.state === 'read-only')
+    return {
+      label,
+      badge: { text: 'Read only', tone: 'warning' },
+      value: `Bridge reads ${x.repo}, so its explorations are listed, but you cannot start or hand off explorations there. An admin gives you write access.`,
+      ask: ask(x.product, x.repo, 'read-only', x.installLink),
+    };
+  if (x.state === 'unavailable') return { label, badge: { text: 'Not checked', tone: 'neutral' }, value: `GitHub did not answer for ${x.repo}. Try again in a few minutes.`, ask: null };
+  return {
+    label,
+    badge: { text: 'Not connected', tone: 'warning' },
+    value: `Bridge cannot read ${x.repo}, so its explorations are not listed anywhere. An admin installs the Bridge GitHub App on it.`,
+    ask: ask(x.product, x.repo, 'not-connected', x.installLink),
+  };
+}

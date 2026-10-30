@@ -16,8 +16,13 @@ import {
 import {
   ARCHIVED_LINE,
   branchFor,
+  explorationHref,
+  explorationKey,
+  explorationParam,
   explorationPreviews,
   explorationRows,
+  mergeExplorationRows,
+  productPreviews,
   explorationStateLine,
   explorationsSummary,
   runningCount,
@@ -38,8 +43,8 @@ import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { paintPeople, personHtml } from './people';
 import { sampleVisitor } from './demo-gate';
-import { currentAccess, currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
-import { canKeepExploration, keepExplorationLine } from '../lib/write-route';
+import { currentAccess, currentContributor, currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
+import { canKeepExploration, keepExplorationLine, productKeeperLine } from '../lib/write-route';
 import { viewerRole } from './needs-you';
 import { EXPLORATION_SUGGEST_LINE, ghAction, rateLimitedLine } from '../lib/gh-wording';
 import { changesModeOnPage } from './changes-mode';
@@ -50,6 +55,8 @@ import { jiraKeyOf, parseJiraKey, VOCAB } from '../lib/vocabulary';
 import { isProductBranch } from '../lib/product-branch';
 import { attrUrl } from '../lib/html';
 import { studioHref } from '../lib/team-path';
+import { productClient, productRepoByKey, readProductPulls, type ProductPull } from './product-repos';
+import type { GitHubClient } from '@bridge-ds/core';
 
 // The use case menu of Start an exploration (BridgedSelect id).
 const USE_CASE = 'ex-use-case';
@@ -64,8 +71,12 @@ const connected = () => Boolean(hasWorkingToken() && currentViewer());
 const client = () => explorationClient(CFG);
 
 let rows: ExplorationRow[] = [];
-/** What the rows were read from: the pull request (body, labels) and the requests each exploration implements. */
-let pullsBy = new Map<number, ExplorationPullLike>();
+/**
+ * What the rows were read from: the pull request (body, labels) and the requests each exploration implements. Keyed by
+ * explorationKey: "12" in the design system repository, "shop#12" in the shop's own one.
+ */
+let pullsBy = new Map<string, ExplorationPullLike>();
+const pullOf = (r: { number: number; product?: string | null | undefined }) => pullsBy.get(explorationKey(r));
 let requestRowsRead: RequestRow[] = [];
 let loaded: Promise<ExplorationRow[]> | null = null;
 let openPullsSource: (() => Promise<ExplorationPullLike[] | null>) | null = null;
@@ -81,7 +92,7 @@ export function paintExplorationCount(pulls: ExplorationPullLike[]) {
 
 /** Design or developer work, and who made it (lib/work-nature), from the pull request and the requests it implements. */
 function workOf(r: ExplorationRow) {
-  const pull = pullsBy.get(r.number);
+  const pull = pullOf(r);
   const requests = requestRowsRead.filter((q) => q.request?.exploration === r.branch).map((q) => ({ kind: q.kind, source: q.request?.source ?? null }));
   return explorationWork({ name: r.name, author: r.author, body: pull?.body ?? null, labels: pull?.labels ?? null, source: r.source, agent: r.agent, requests }, currentViewer()?.login ?? null);
 }
@@ -90,11 +101,12 @@ export function rowHtml(r: ExplorationRow) {
   const preview = r.previews[0];
   const w = workOf(r);
   const nature = w.nature.nature;
-  const key = jiraKeyOf(pullsBy.get(r.number)?.title ?? '');
+  const key = jiraKeyOf(pullOf(r)?.title ?? '');
   const reqs = r.requests.length ? `, ${r.requests.length} ${r.requests.length === 1 ? 'request' : 'requests'}` : '';
-  return `<li class="cg-row ex-row" data-exploration="${r.number}" ${natureAttr(nature)}>
+  const product = r.product ? ` data-product="${esc(r.product)}"` : '';
+  return `<li class="cg-row ex-row" data-exploration="${esc(explorationKey(r))}" ${natureAttr(nature)}>
     <div class="ex-row-main">
-      <p class="ex-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })} ${devTag(nature)}</p>
+      <p class="ex-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<a class="ex-name" href="${explorationHref(r)}" data-open-exploration="${r.number}"${product}>${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })} ${devTag(nature)}</p>
       ${purposeLine(r.name, r.purpose) ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
       <p class="ex-meta">${personHtml(r.author, { agent: w.maker.kind === 'claude' })}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${attrUrl(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
@@ -113,11 +125,15 @@ function paint() {
 }
 
 async function readRows(): Promise<ExplorationRow[]> {
-  const pulls = (openPullsSource ? await openPullsSource().catch(() => null) : null) ?? (await ghGet<ExplorationPullLike[]>(`${R}/pulls?state=open&per_page=100`)).data;
+  // The design system's open branches and, in parallel, one read per product repository (skipped when unreachable).
+  const [pulls, products] = await Promise.all([
+    (async () => (openPullsSource ? await openPullsSource().catch(() => null) : null) ?? (await ghGet<ExplorationPullLike[]>(`${R}/pulls?state=open&per_page=100`)).data)(),
+    readProductPulls(),
+  ]);
   const requests = await loadRequestRows({ openPulls: pulls as unknown as PullLike[], closed: false }).catch(() => []);
-  pullsBy = new Map(pulls.map((p) => [p.number, p]));
+  pullsBy = new Map([...pulls.map((p) => [explorationKey(p), p] as const), ...products.flatMap((x) => (x.pulls ?? []).map((p) => [explorationKey(p), p] as const))]);
   requestRowsRead = requests;
-  return explorationRows(pulls, CFG, { requests });
+  return mergeExplorationRows(explorationRows(pulls, CFG, { requests }), ...products.map((x) => (x.pulls ? explorationRows(x.pulls, CFG, { inProduct: x.at }) : [])));
 }
 
 /** Loads (once per page, or again after a write) and paints the Explorations view. */
@@ -331,7 +347,11 @@ function section(id: string, title: string, meta: string, body: string, open = f
   return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta">${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
 }
 
-const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${studioHref('changes/')}" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
+/** "Changes / #12", or "Changes / Shop / #12" for an exploration in a product's own repository (board P2). */
+const crumbs = (n: number, product?: string | null) => {
+  const name = product ? productRepoByKey(product)?.product.name : null;
+  return `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${studioHref('changes/')}" data-back>Changes</a><span aria-hidden="true">/</span>${name ? `<span>${esc(name)}</span><span aria-hidden="true">/</span>` : ''}<span class="mono">#${n}</span></nav>`;
+};
 
 /** The preview rows: one per app, a link with its designer name, or what is missing on the same line. */
 export function previewList(previews: BranchPreview[]): string {
@@ -347,7 +367,8 @@ export function previewList(previews: BranchPreview[]): string {
  * `keeper`: Send for review and Close are for the person who started it or a reviewer, with write access
  * (lib/write-route); false: others read who can.
  */
-const keeperOf = (r: ExplorationRow) => canKeepExploration({ viewer: currentViewer()?.login ?? null, author: r.author, reviewer: viewerRole() === 'reviewer', write: currentAccess()?.write ?? null });
+// In a product's own repository the design system's write access says nothing: GitHub answers for the write itself.
+const keeperOf = (r: ExplorationRow) => canKeepExploration({ viewer: currentViewer()?.login ?? null, author: r.author, reviewer: viewerRole() === 'reviewer', write: r.repo ? null : (currentAccess()?.write ?? null) });
 
 /**
  * The header actions. Running: Done exploring (primary) and Archive. With the developers: Archive only. Archived: the
@@ -359,6 +380,8 @@ function detailActions(r: ExplorationRow, opts: { connected: boolean; suggest: b
   const open = r.status === 'active' || r.status === 'ready' || r.status === 'building';
   if (!open || opts.suggest) return r.archived ? `<p class="cg-muted">${esc(ARCHIVED_LINE)}</p>` : '';
   if (opts.connected && opts.keeper === false) return `<p class="cg-muted">${esc(keepExplorationLine(r.author))}</p>`;
+  // An email member writes through Bridge in the design system only: someone with GitHub on the product takes it on.
+  if (r.product && currentContributor()) return `<p class="cg-muted">${esc(productKeeperLine(productRepoByKey(r.product)?.product.name ?? r.product))}</p>`;
   if (!opts.connected) {
     if (r.status !== 'active') return '';
     // The sample team: the button says what it does; a click opens the demo dialog (scripts/demo-gate.ts).
@@ -375,11 +398,11 @@ function detailActions(r: ExplorationRow, opts: { connected: boolean; suggest: b
  * "For developers", folded: the branch and the two commands to take it, labeled as a starting point (Claude's
  * prototype code is never reviewed or tested). Developer words live here only, never in the designer's flow.
  */
-export function developerSection(r: Pick<ExplorationRow, 'branch' | 'url' | 'status'>): string {
+export function developerSection(r: Pick<ExplorationRow, 'branch' | 'url' | 'status'> & { repo?: string | undefined }): string {
   if (r.status === 'closed') return '';
   const t = takeItLines(r.branch);
   const body = `<p class="cg-line">${esc(t.note)}</p>
-    <p class="cg-line">Branch <code class="mono">${esc(t.branch)}</code></p>
+    <p class="cg-line">Branch <code class="mono">${esc(t.branch)}</code>${r.repo ? ` in <code class="mono">${esc(r.repo)}</code>, the product's own repository` : ''}</p>
     <pre class="ex-take"><code>${esc(t.commands.join('\n'))}</code></pre>
     <p class="cg-line"><a href="${attrUrl(r.url)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a></p>`;
   return section('ex-sec-dev', 'For developers', 'Starting point', body);
@@ -389,14 +412,17 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   const suggest = opts.suggest ?? changesModeOnPage() === 'suggest';
   const actions = detailActions(r, { connected: opts.connected, suggest, ...(opts.keeper !== undefined ? { keeper: opts.keeper } : {}) });
   // Filled again by paintTryIt with what Vercel reports: a long branch alias is shortened with a hash, never guessed.
-  const resolved = explorationPreviews(r, CFG.apps);
-  const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Previews are not set up for this library yet.</p>';
+  const at = productRepoByKey(r.product);
+  const resolved = at ? productPreviews(r, at.product) : explorationPreviews(r, CFG.apps);
+  const previews = resolved.length
+    ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>`
+    : `<p class="cg-muted">${at ? `Previews are not set up for ${esc(at.product.name)} yet.` : 'Previews are not set up for this library yet.'}</p>`;
   const reqs = r.requests.length
     ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">${esc(subjectTitle(q.component, q.title))}</a> <span class="cg-muted">#${q.number}, ${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
     : '<p class="cg-muted">No request is built on this exploration yet.</p>';
   const purpose = purposeLine(r.name, r.purpose);
-  const key = jiraKeyOf(pullsBy.get(r.number)?.title ?? '');
-  return `${crumbs(r.number)}
+  const key = jiraKeyOf(pullOf(r)?.title ?? '');
+  return `${crumbs(r.number, r.product)}
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}${esc(r.name)} <span class="cg-num">#${r.number}</span></h1>
     ${purpose ? `<p class="ex-purpose-line">${esc(purpose)}</p>` : ''}
@@ -414,48 +440,73 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
     <div id="ex-visual" aria-live="polite"><p class="rv-loading">Reading the before and after</p></div>
   </section>
   <div class="cg-secs">
-    ${section('ex-sec-requests', 'Requests built on it', String(r.requests.length), reqs, r.requests.length > 0)}
+    ${r.product ? '' : section('ex-sec-requests', 'Requests built on it', String(r.requests.length), reqs, r.requests.length > 0)}
     ${developerSection(r)}
   </div>`;
 }
 
 let current: ExplorationRow | null = null;
+const isCurrent = (r: { number: number; product?: string | null | undefined }) => Boolean(current && explorationKey(current) === explorationKey(r));
+
+/** The API path of the repository an exploration lives in: the design system's, or the product's own. */
+const repoPath = (r: { product?: string | null | undefined }) => {
+  const at = productRepoByKey(r.product);
+  return at ? `/repos/${at.repo}` : R;
+};
+
+/** The client that writes an exploration: the design system's, or one for the product's own repository. */
+function clientFor(r: ExplorationRow): GitHubClient {
+  const at = productRepoByKey(r.product);
+  return at ? productClient(at.repo, pullOf(r)?.base?.ref) : client();
+}
+
+/** What Vercel reported per exploration (by explorationKey), kept for the preview link "Done exploring" puts on each request. */
+const sourcesBy = new Map<string, BranchPreviewSources>();
+
+/** Every preview of an exploration with what was reported: the library's apps, or the product's own preview. */
+const previewsOf = (r: ExplorationRow, sources: BranchPreviewSources = {}): BranchPreview[] => {
+  const at = productRepoByKey(r.product);
+  return at ? productPreviews(r, at.product, sources) : explorationPreviews(r, CFG.apps, sources);
+};
 
 /**
- * The preview URLs Vercel reports (its comment on the branch, the head's statuses). Two reads. A failed read keeps
- * the previews painted from the configured templates.
+ * The preview URLs Vercel reports (its comment on the branch, the head's statuses), in the repository the exploration
+ * lives in. Two reads. A failed read keeps the previews painted from the configured templates.
  */
-/** What Vercel reported per exploration, kept for the preview link "Done exploring" puts on each request. */
-const sourcesBy = new Map<number, BranchPreviewSources>();
-
 async function paintTryIt(r: ExplorationRow) {
   let sources: BranchPreviewSources | null = null;
+  const RR = repoPath(r);
   try {
     const [comments, statuses] = await Promise.all([
-      ghGet<{ body?: string | null }[]>(`${R}/issues/${r.number}/comments?per_page=100`).then((f) => f.data),
-      ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${r.headSha}/status`).then((f) => f.data.statuses).catch(() => []),
+      ghGet<{ body?: string | null }[]>(`${RR}/issues/${r.number}/comments?per_page=100`).then((f) => f.data),
+      ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${RR}/commits/${r.headSha}/status`).then((f) => f.data.statuses).catch(() => []),
     ]);
     sources = { comments, statuses };
   } catch {
     return;
   }
-  sourcesBy.set(r.number, sources);
-  if (current?.number !== r.number || !sources) return;
+  sourcesBy.set(explorationKey(r), sources);
+  if (!isCurrent(r) || !sources) return;
   const pv = document.getElementById('ex-previews');
-  if (pv) pv.innerHTML = previewList(explorationPreviews(r, CFG.apps, sources));
+  if (pv) pv.innerHTML = previewList(previewsOf(r, sources));
 }
 
 /**
  * The before and after against the official library: the visual impact workflow runs on pull requests, and an
  * exploration is one, so its manifest is read the same way as on a change in review (the biggest change on top).
- * An exploration that touches no token or component file has nothing to compare: one quiet line says so.
+ * An exploration that touches no token or component file has nothing to compare: one quiet line says so. In a
+ * product's own repository the workflow does not run: the product preview is the comparison.
  */
 async function paintVisual(r: ExplorationRow) {
   const slot = document.getElementById('ex-visual');
   if (!slot) return;
+  if (r.product) {
+    slot.innerHTML = '<p class="cg-line rv-what-quiet">This exploration lives in the product: open its preview above to see it with the library.</p>';
+    return;
+  }
   try {
     const files = (await ghGet<{ filename: string }[]>(`${R}/pulls/${r.number}/files?per_page=100`)).data;
-    if (current?.number !== r.number) return;
+    if (!isCurrent(r)) return;
     if (!touchesVisuals(files.map((f) => f.filename))) {
       slot.innerHTML = '<p class="cg-line rv-what-quiet">Nothing here changes how components look yet. The before and after appears once tokens or components change.</p>';
       return;
@@ -466,48 +517,61 @@ async function paintVisual(r: ExplorationRow) {
       { owner: CFG.owner, repo: CFG.repo, pr: r.number, sha: r.headSha, actionsUrl: `https://github.com/${CFG.owner}/${CFG.repo}/actions/workflows/visual-impact.yml` },
       slot,
     );
-    if (current?.number !== r.number) return;
+    if (!isCurrent(r)) return;
     renderTopChange(slot, v, `?pr=${r.number}`);
   } catch (err) {
     slot.innerHTML = `<p class="cg-line rv-what-quiet">${err instanceof RateLimitError ? `GitHub limits anonymous reads. ${ghAction('see the before and after', prefersSignIn())}.` : `Could not read the before and after: ${esc((err as Error).message)}`}</p>`;
   }
 }
 
-async function rowFor(n: number): Promise<ExplorationRow | null> {
+/** One exploration read again from its own repository (a closed or promoted one, or after a write). */
+async function readOne(n: number, product: string | null): Promise<ExplorationRow | null> {
+  const at = productRepoByKey(product);
+  if (product && !at) return null;
+  const p = (await ghGet<ExplorationPullLike>(`${at ? `/repos/${at.repo}` : R}/pulls/${n}`)).data;
+  const tagged: ExplorationPullLike = at ? { ...p, repo: at.repo, product: at.product.key } : p;
+  pullsBy.set(explorationKey(tagged), tagged);
+  return explorationRows([tagged], CFG, { archived: 'include', ...(at ? { inProduct: at } : {}) })[0] ?? null;
+}
+
+async function rowFor(n: number, product: string | null): Promise<ExplorationRow | null> {
   const list = await loadExplorations();
-  const hit = list.find((x) => x.number === n);
+  const key = explorationKey({ number: n, product });
+  const hit = list.find((x) => explorationKey(x) === key);
   if (hit) return hit;
   // A closed or promoted exploration is not in the open list: read it once.
   try {
-    const p = (await ghGet<ExplorationPullLike>(`${R}/pulls/${n}`)).data;
-    pullsBy.set(p.number, p);
-    return explorationRows([p], CFG, { archived: 'include' })[0] ?? null;
+    return await readOne(n, product);
   } catch {
     return null;
   }
 }
 
-/** Opens an exploration in place (?exploration=N). */
-export async function openExploration(n: number, push = true) {
-  if (push) history.pushState({ exploration: n }, '', `?exploration=${n}`);
+/** Opens an exploration in place (?exploration=N, &product=<key> when it lives in a product's own repository). */
+export async function openExploration(n: number, push = true, product: string | null = null) {
+  if (push) history.pushState({ exploration: n, product }, '', explorationHref({ number: n, product }));
   const d = $('rv-detail');
   d.hidden = false;
-  d.innerHTML = `${crumbs(n)}<p class="rv-loading">Loading exploration #${n}</p>`;
+  d.innerHTML = `${crumbs(n, product)}<p class="rv-loading">Loading exploration #${n}</p>`;
   window.scrollTo({ top: 0 });
-  const r = await rowFor(n);
-  if (Number(new URLSearchParams(location.search).get('exploration')) !== n) return;
+  const r = await rowFor(n, product);
+  const asked = explorationParam(location.search);
+  if (asked?.number !== n || asked.product !== product) return;
   current = r;
-  // A branch started for a product: the product branch page (its missing pieces and their library branches).
-  const pull = r ? pullsBy.get(r.number) : undefined;
+  // A branch started for a product: the product branch page (its missing pieces and their library branches). In the
+  // product's own repository, the repository says which product it is.
+  const pull = r ? pullOf(r) : undefined;
   if (r && pull) {
     const pb = await import('./product-branch');
     const products = pb.siteProducts();
-    const product = isProductBranch(pull.labels, products);
-    if (product) return pb.openProductBranch(d, r, pull, product, products, () => void openExploration(n, false));
+    const of = productRepoByKey(r.product)?.product ?? isProductBranch(pull.labels, products);
+    if (of) return pb.openProductBranch(d, r, pull, of, products, () => void openExploration(n, false, product));
   }
+  const where = product ? (productRepoByKey(product)?.product.name ?? product) : `${CFG.owner}/${CFG.repo}`;
+  const ghLink = product ? null : `https://github.com/${CFG.owner}/${CFG.repo}/pull/${n}`;
   d.innerHTML = r
     ? renderExplorationDetail(r, { connected: connected(), keeper: keeperOf(r) })
-    : `${crumbs(n)}<p class="cg-muted">#${n} is not an exploration in ${esc(`${CFG.owner}/${CFG.repo}`)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(`${CFG.owner}/${CFG.repo}`)}/pull/${n}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}</a>.</p>`;
+    : `${crumbs(n, product)}<p class="cg-muted">#${n} is not an exploration in ${esc(where)}, or it cannot be read right now.${ghLink ? ` <a href="${attrUrl(ghLink)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}</a>.` : ''}</p>`;
   if (r) {
     void paintTryIt(r);
     void paintVisual(r);
@@ -523,11 +587,9 @@ function actionError(message: string | null, err?: unknown, action?: string) {
 }
 
 /** Paints the detail again from a fresh read of the pull request (after Done exploring or Archive). */
-async function repaintDetail(n: number, said: string) {
-  const p = await ghGet<ExplorationPullLike>(`${R}/pulls/${n}`).then((f) => f.data, () => null);
-  if (p) pullsBy.set(n, p);
-  const r = p ? (explorationRows([p], CFG, { archived: 'include' })[0] ?? null) : null;
-  if (!r || current?.number !== n) return;
+async function repaintDetail(target: Pick<ExplorationRow, 'number' | 'product'>, said: string) {
+  const r = await readOne(target.number, target.product ?? null).catch(() => null);
+  if (!r || !isCurrent(r)) return;
   current = r;
   $('rv-detail').innerHTML = renderExplorationDetail(r, { connected: connected(), keeper: keeperOf(r) });
   const state = document.querySelector('#rv-detail .cg-pr-state');
@@ -541,9 +603,9 @@ async function repaintDetail(n: number, said: string) {
 
 /** The preview each request links to: a URL Vercel reported, never a template it may have shortened. */
 function reportedPreview(r: ExplorationRow): string | null {
-  const s = sourcesBy.get(r.number);
+  const s = sourcesBy.get(explorationKey(r));
   if (!s) return null;
-  return explorationPreviews(r, CFG.apps, s).find((p) => p.url && p.source !== 'template' && p.state !== 'failed')?.url ?? null;
+  return previewsOf(r, s).find((p) => p.url && p.source !== 'template' && p.state !== 'failed')?.url ?? null;
 }
 
 async function archive(btn: HTMLButtonElement) {
@@ -553,9 +615,10 @@ async function archive(btn: HTMLButtonElement) {
   actionError(null);
   setButtonBusy(btn, true, archived ? 'Archiving' : 'Unarchiving');
   try {
-    await archiveExplorationOnGitHub(client(), r.number, { archived });
+    await archiveExplorationOnGitHub(clientFor(r), r.number, { archived });
+    if (r.product) void readProductPulls(true);
     void loadExplorations(undefined, true);
-    await repaintDetail(r.number, archived ? ARCHIVED_LINE : 'Back in the lists.');
+    await repaintDetail(r, archived ? ARCHIVED_LINE : 'Back in the lists.');
   } catch (err) {
     actionError((err as Error).message, err, 'archive explorations');
     setButtonBusy(btn, false, archived ? 'Archive' : 'Unarchive');
@@ -584,13 +647,16 @@ export function initExplorations() {
       const r = current;
       actionError(null);
       // Done exploring: the dialog lists the new pieces to tick, then the branch goes to the developers. Nothing closes.
-      return void askDoneExploring(r, pullsBy.get(r.number)?.body, {
-        client,
+      // In a product's own repository the requests are filed in the design system's, where the DS lead works.
+      return void askDoneExploring(r, pullOf(r)?.body, {
+        client: () => clientFor(r),
+        ...(r.product ? { library: client } : {}),
         previewUrl: reportedPreview(r),
         focus: d,
         after: (line) => {
+          if (r.product) void readProductPulls(true);
           void loadExplorations(undefined, true);
-          void repaintDetail(r.number, line);
+          void repaintDetail(r, line);
         },
       });
     }

@@ -125,6 +125,29 @@ export function productRepoOf(p: ProductConfig | null | undefined, designSystemR
   return repo.toLowerCase() === (designSystemRepo ?? '').trim().toLowerCase() ? null : repo;
 }
 
+/**
+ * The products whose explorations live in their own repository (productRepoOf), each with that repository, one entry
+ * per repository (the first product listed wins when two share one). Lists read each of them once.
+ */
+export function productRepos(products: readonly ProductConfig[], designSystemRepo: string | null | undefined): { product: ProductConfig; repo: string }[] {
+  const seen = new Set<string>();
+  const out: { product: ProductConfig; repo: string }[] = [];
+  for (const p of products) {
+    const repo = productRepoOf(p, designSystemRepo);
+    if (!repo || seen.has(repo.toLowerCase())) continue;
+    seen.add(repo.toLowerCase());
+    out.push({ product: p, repo });
+  }
+  return out;
+}
+
+/** The product whose own repository is `repo` ("owner/name", any case), or undefined (the design system repository). */
+export function productOfRepo(products: readonly ProductConfig[], repo: string | null | undefined, designSystemRepo?: string | null | undefined): ProductConfig | undefined {
+  const r = (repo ?? '').trim().toLowerCase();
+  if (!r) return undefined;
+  return productRepos(products, designSystemRepo).find((x) => x.repo.toLowerCase() === r)?.product;
+}
+
 const KEY = /^[a-z0-9][a-z0-9-]*$/;
 const REPO = /^[\w.-]+\/[\w.-]+$/;
 const FIELDS = ['key', 'name', 'repo', 'path', 'preview', 'framework', 'default'];

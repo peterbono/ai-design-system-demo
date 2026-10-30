@@ -84,6 +84,11 @@ export interface LibraryLink {
   agent?: string | undefined;
   /** ISO date. */
   at: string;
+  /**
+   * "owner/name" of the design system repository, when the product branch lives in the product's own repository:
+   * "#12" alone would point at the product's own issue 12 there.
+   */
+  repo?: string | undefined;
 }
 
 /** What the product branch body keeps: the last check and the library branches opened for its pieces. */
@@ -132,7 +137,7 @@ export function piecesSection(r: PiecesRecord): string {
   const lines = r.pieces.length
     ? r.pieces.map((p) => {
         const l = link(p);
-        return `- **${p.title}**: ${p.summary}${l ? ` ${cap(KIND_WORD[l.kind])}: #${l.number}.` : ' No library branch yet.'}`;
+        return `- **${p.title}**: ${p.summary}${l ? ` ${cap(KIND_WORD[l.kind])}: ${l.repo ?? ''}#${l.number}.` : ' No library branch yet.'}`;
       })
     : ['- Nothing: every value and component comes from the library.'];
   return [SECTION, '', `Checked ${r.checkedAt.slice(0, 10)}${r.headSha ? ` on ${r.headSha.slice(0, 7)}` : ''} by Bridge.`, '', ...lines, '', hiddenJson(PIECES_MARK, r)].join('\n');
@@ -189,13 +194,21 @@ export interface NeededBy {
   /** The closest thing the library has today, so a reviewer can suggest it instead: "danger". */
   nearest?: string | undefined;
   nearestToken?: string | undefined;
+  /**
+   * "owner/name" when the product branch lives in the product's own repository: the request is filed in the design
+   * system repository, so "#12" alone would point at the wrong pull request there.
+   */
+  repo?: string | undefined;
 }
+
+/** How the library side names the product branch: "#12", or "owner/name#12" across repositories (GitHub links both). */
+const prRef = (b: { pr: number; repo?: string | undefined }) => `${b.repo ? b.repo : ''}#${b.pr}`;
 
 /** "Needed by" for a library branch body: one line people read, one hidden block tools read. */
 export function neededBySection(n: NeededBy): string {
   const who = n.author ? ` for @${n.author}` : '';
   const near = n.nearest ? ` The closest the library has today is ${n.nearest}${n.nearestToken ? ` (\`${n.nearestToken}\`)` : ''}.` : '';
-  return [`**Needed by:** [${n.title}](${n.url}) (#${n.pr}) in ${n.productName}${who}.${near}`, '', hiddenJson(NEEDED_MARK, n)].join('\n');
+  return [`**Needed by:** [${n.title}](${n.url}) (${prRef(n)}) in ${n.productName}${who}.${near}`, '', hiddenJson(NEEDED_MARK, n)].join('\n');
 }
 
 export function parseNeededBy(body: string | null | undefined): NeededBy | undefined {
@@ -226,6 +239,8 @@ export interface ProductBranchRef {
   productKey: string;
   productName: string;
   author?: string | undefined;
+  /** "owner/name" when the product branch lives in the product's own repository (not the design system one). */
+  repo?: string | undefined;
 }
 
 export type LibraryBranchPlan =
@@ -236,7 +251,7 @@ export type LibraryBranchPlan =
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 /** "Admin demo needs it for "Billing screen with overdue invoices"". */
-const forLine = (b: ProductBranchRef) => `${b.productName} needs it for "${b.title.replace(/"/g, "'")}" (#${b.pr})`;
+const forLine = (b: ProductBranchRef) => `${b.productName} needs it for "${b.title.replace(/"/g, "'")}" (${prRef(b)})`;
 
 /**
  * What a piece opens in the library, honestly labelled by what Bridge can write:
@@ -258,6 +273,7 @@ export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef,
     piece: piece.id,
     pieceTitle: piece.title,
     ...(piece.nearest ? { nearest: piece.nearest.label, nearestToken: piece.nearest.token } : {}),
+    ...(branch.repo ? { repo: branch.repo } : {}),
   };
   const near = piece.nearest ? ` The closest the library has today is ${piece.nearest.label} (${piece.nearest.token}, ${piece.nearest.value}).` : '';
   if (piece.kind === 'token' && piece.token) {
@@ -544,7 +560,7 @@ export function nearestQuestion(n: NeededBy, opts: { names?: Record<string, stri
 /** The review comment of "Suggest <nearest>": request changes with the library value to use instead. */
 export function suggestNearestComment(n: NeededBy): string | null {
   if (!n.nearest) return null;
-  return `Let's not add it to the library: ${n.nearest}${n.nearestToken ? ` (\`${n.nearestToken}\`)` : ''} covers it. Use it on ${n.title} (#${n.pr}) instead, then close this branch.`;
+  return `Let's not add it to the library: ${n.nearest}${n.nearestToken ? ` (\`${n.nearestToken}\`)` : ''} covers it. Use it on ${n.title} (${prRef(n)}) instead, then close this branch.`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

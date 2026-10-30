@@ -48,7 +48,7 @@ import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MOD
 import OwnersField from '../../../components/ds/studio/OwnersField';
 import { andList, approvalRules, changesInConfig, leadsPublishRow, RULES_NEED_REVIEW, overrideRow, ANYONE_WHO_CODES, RIGHT_PLAIN, soloOwnerRow, teamPlain, TOKEN_VALUES_DEV, TOKEN_VALUES_PLAIN } from '../../../lib/settings-view';
 import { personName } from '../../../lib/people';
-import { overrideHolders, overrideReasonMin } from '@bridge-ds/core';
+import { overrideHolders, overrideReasonMin, productRepos as productRepos_ } from '@bridge-ds/core';
 import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
 import MembersSection from '../../../components/ds/studio/MembersSection';
 import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
@@ -117,6 +117,8 @@ const intData = jsonForScript({
   secretsUrl,
 });
 const changes = changesInConfig(config);
+// Products with their own repository (bridge.config.json products[].repo): Settings > Products says whether Bridge reaches each.
+const productRepos = productRepos_(Array.isArray(config.products) ? config.products : [], repoName);
 const protectedBranches: string[] = config.governance?.protectedBranches ?? ['main', 'master'];
 const branchPrefix: string = config.governance?.branchPrefix ?? '';
 const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? x : `@${x.replace(/^@/, '')}`)).join(', ') : 'none');
@@ -452,6 +454,30 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
         </Card>
       </div>
     </section>
+    {
+      productRepos.length > 0 && (
+        <section class="set-band" id="products" aria-labelledby="set-products">
+          <div class="set-band-intro">
+            <h2 id="set-products" class="set-h">Products</h2>
+            <p class="set-intro">Products with their own repository. Their explorations start there, and Bridge lists them once it can read it.</p>
+          </div>
+          <div class="set-band-body">
+            <Card>
+              <CardBody>
+                <div class="set-rows" data-product-connections aria-live="polite">
+                  {productRepos.map((x) => (
+                    <div class="set-row">
+                      <p class="set-row-label">{x.product.name}</p>
+                      <p class="set-row-value set-row-span">Explorations for {x.product.name} live in {x.repo}.</p>
+                    </div>
+                  ))}
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        </section>
+      )
+    }
     <section class="set-band" id="appearance" aria-labelledby="set-appearance">
       <div class="set-band-intro">
         <h2 id="set-appearance" class="set-h">Appearance</h2>
@@ -494,5 +520,9 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
   <script>
     import { initIntegrations } from '../../../scripts/integrations';
     initIntegrations();
+  </script>
+  <script>
+    import { initProductConnections } from '../../../scripts/product-connections';
+    initProductConnections();
   </script>
 </Layout>

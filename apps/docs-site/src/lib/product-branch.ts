@@ -125,12 +125,13 @@ export function productCrumbs(product: string, jira: string | null, title: strin
 }
 
 /** What a developer needs, in the "For developers" fold: the branch, the commands that check it and open library branches. */
-export function developerLines(input: { number: number; branch: string; links: Pick<LibraryLink, 'kind' | 'number' | 'branch'>[] }): { label: string; value: string }[] {
+export function developerLines(input: { number: number; branch: string; links: Pick<LibraryLink, 'kind' | 'number' | 'branch'>[]; /** Set in a product's own repository: "shop", so tools name it shop#12. */ product?: string | null; repo?: string | null }): { label: string; value: string }[] {
+  const ref = input.product ? `${input.product}#${input.number}` : String(input.number);
   return [
-    { label: 'Product branch', value: `${input.branch} (#${input.number})` },
+    { label: 'Product branch', value: `${input.branch} (${input.repo ?? ''}#${input.number})` },
     ...input.links.map((l) => ({ label: l.kind === 'request' ? 'Library request' : l.kind === 'suggestion' ? 'Library suggestion' : 'Library branch', value: l.branch ? `${l.branch} (#${l.number})` : `#${l.number}` })),
-    { label: 'Check it again', value: `bridge pieces ${input.number} --record` },
-    { label: 'With Claude', value: `bridge_missing_pieces { pr: ${input.number}, record: true }` },
+    { label: 'Check it again', value: `bridge pieces ${ref} --record` },
+    { label: 'With Claude', value: `bridge_missing_pieces { pr: ${input.product ? `"${ref}"` : ref}, record: true }` },
   ];
 }
 
@@ -163,7 +164,8 @@ export function productContextOf(body: string | null | undefined, names: Record<
     who,
     title: n.title,
     product: n.productName,
-    productHref: `?exploration=${n.pr}`,
+    // A product branch in the product's own repository ("Needed by" names it owner/name#12): its page carries the product.
+    productHref: n.repo ? `?exploration=${n.pr}&product=${encodeURIComponent(n.product)}` : `?exploration=${n.pr}`,
     question: nearestQuestion(n, { names }),
     suggest: n.nearest && comment ? { label: `Suggest ${n.nearest}`, comment } : null,
     neededBy: n,
@@ -175,18 +177,26 @@ export function productContextOf(body: string | null | undefined, names: Record<
  * branch is listed): the library branch leaves its own group and follows its product branch, marked `child`. Counts
  * leave children out. Groups left empty disappear.
  */
-export function nestLinked<R extends { r: { number: number; neededBy?: number | null } }>(groups: { key: string; label: string; rows: R[] }[]): { key: string; label: string; rows: (R & { child: boolean })[]; count: number }[] {
-  const listed = new Set(groups.flatMap((g) => g.rows.map((x) => x.r.number)));
-  const nested = (x: R) => Boolean(x.r.neededBy && x.r.neededBy !== x.r.number && listed.has(x.r.neededBy));
-  const children = new Map<number, R[]>();
-  for (const g of groups) for (const x of g.rows) if (nested(x)) children.set(x.r.neededBy!, [...(children.get(x.r.neededBy!) ?? []), x]);
+export function nestLinked<R extends { r: { number: number; product?: string | null | undefined; neededBy?: number | null; neededByProduct?: string | null | undefined } }>(
+  groups: { key: string; label: string; rows: R[] }[],
+): { key: string; label: string; rows: (R & { child: boolean })[]; count: number }[] {
+  // Keys across repositories: "12" in the design system, "shop#12" in the shop's own repository.
+  const keyOf = (x: R) => (x.r.product ? `${x.r.product}#${x.r.number}` : String(x.r.number));
+  const parentOf = (x: R) => (x.r.neededBy ? (x.r.neededByProduct ? `${x.r.neededByProduct}#${x.r.neededBy}` : String(x.r.neededBy)) : null);
+  const listed = new Set(groups.flatMap((g) => g.rows.map(keyOf)));
+  const nested = (x: R) => {
+    const parent = parentOf(x);
+    return Boolean(parent && parent !== keyOf(x) && listed.has(parent));
+  };
+  const children = new Map<string, R[]>();
+  for (const g of groups) for (const x of g.rows) if (nested(x)) children.set(parentOf(x)!, [...(children.get(parentOf(x)!) ?? []), x]);
   return groups
     .map((g) => {
       const rows: (R & { child: boolean })[] = [];
       for (const x of g.rows) {
         if (nested(x)) continue;
         rows.push({ ...x, child: false });
-        for (const c of children.get(x.r.number) ?? []) rows.push({ ...c, child: true });
+        for (const c of children.get(keyOf(x)) ?? []) rows.push({ ...c, child: true });
       }
       return { key: g.key, label: g.label, rows, count: rows.filter((x) => !x.child).length };
     })

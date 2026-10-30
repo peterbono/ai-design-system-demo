@@ -14,6 +14,8 @@ import { REQUEST_TRIAGE_IN_STUDIO } from './studio-flags';
 export type TeamBranchesRoute =
   | { view: 'list' }
   | { view: 'pr'; n: number }
+  /** An exploration in a product's own repository (&product=<key>): it opens on the exploration page, not as a branch here. */
+  | { view: 'exploration'; n: number; product: string }
   | { view: 'suggestion'; n: number }
   | { view: 'request'; n: number }
   | { view: 'history' }
@@ -27,6 +29,8 @@ export function teamBranchesRoute(search: string, requestTriage: boolean = REQUE
     return Number.isInteger(n) && n > 0 ? n : 0;
   };
   if (num('suggestion')) return { view: 'suggestion', n: num('suggestion') };
+  const product = p.get('product')?.trim().toLowerCase();
+  if (num('exploration') && product && /^[a-z0-9][a-z0-9-]*$/.test(product)) return { view: 'exploration', n: num('exploration'), product };
   const pr = num('pr') || num('exploration');
   if (pr) return { view: 'pr', n: pr };
   if (num('request')) return { view: 'request', n: num('request') };

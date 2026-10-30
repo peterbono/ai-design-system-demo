@@ -29,7 +29,10 @@ import {
   productRepoOf,
   explorationSlug,
   explorationTestBuildOnGitHub,
+  explorationRefLabel,
   findExplorationOnGitHub,
+  inProductRepo,
+  listProductExplorationsOnGitHub,
   isExplorationBranch,
   listExplorationsOnGitHub,
   parseRequestIssue,
@@ -47,6 +50,7 @@ import { branchExists, commitToNewLocalBranch, currentBranch, git } from '@bridg
 import { BridgeContext } from './context.js';
 import { productMarks, resolveProduct, viewerOf } from './branches.js';
 import { addToken, readOnlyPreview, say } from './say.js';
+import { locate, productClient, type Located } from './product-repos.js';
 
 const USE_CASES = new Set<string>(EXPLORATION_USE_CASES.map((u) => u.value));
 
@@ -253,11 +257,19 @@ async function requestsByExploration(gh: GitHubClient): Promise<Map<string, { nu
 export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' | 'closed' | 'all'; archived?: boolean | undefined } = {}) {
   const { config } = await ctx.config();
   const gh = await requireGitHub(ctx);
-  const [list, linked] = await Promise.all([listExplorationsOnGitHub(gh, settingsOf(config), { state: a.state ?? 'open', archived: a.archived ? 'only' : 'exclude' }), requestsByExploration(gh)]);
+  const opts = { state: a.state ?? 'open', archived: a.archived ? ('only' as const) : ('exclude' as const) };
+  // One more read per product with its own repository; one Bridge cannot reach is left out (bridge_list_products says it).
+  const [list, linked, inProducts] = await Promise.all([
+    listExplorationsOnGitHub(gh, settingsOf(config), opts),
+    requestsByExploration(gh),
+    listProductExplorationsOnGitHub((repo) => productClient(ctx, repo), productsOf(config), gh.fullName, opts),
+  ]);
+  const productOnes = inProducts.explorations.map((x) => ({ ...x, ref: explorationRefLabel(x), install: null, requests: [] as { number: number; title: string; url: string; state: string }[], note: `In ${x.repo}: the library comes from npm there, and developers run it in their usual environment.` }));
   // Running ones and the ones with the developers (a living prototype): the real preview URLs (Vercel shortens long
   // branch aliases) and the published install command.
-  const explorations = await Promise.all(
-    list.map(async (x) => {
+  const dsOnes = await Promise.all(
+    list.map(async (summary) => {
+      const x = { ...summary, ref: explorationRefLabel(summary) };
       const requests = linked.get(x.branch) ?? [];
       if (x.status !== 'active' && x.status !== 'ready' && x.status !== 'building') return { ...x, install: null, requests };
       const t = await explorationTestBuildOnGitHub(gh, { number: x.number, branch: x.branch }, config).catch(() => null);
@@ -265,6 +277,7 @@ export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' |
       return { ...x, previews: t.previews.map((p) => ({ app: p.app, label: p.label, url: p.url, state: p.state })), install: installOf(t.tryIt), requests };
     }),
   );
+  const explorations = [...dsOnes, ...productOnes];
   let localBranches: string[] = [];
   if (ctx.mode === 'local' && ctx.isGit) {
     const refs = (await git(ctx.root!, ['for-each-ref', '--format=%(refname:short)', `refs/heads/${EXPLORATION_PREFIX}`]).catch(() => '')).split('\n').filter(Boolean);
@@ -284,7 +297,12 @@ export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' |
   };
 }
 
-const refOf = (ref: string) => (/^#?\d+$/.test(ref.trim()) ? Number(ref.trim().replace(/^#/, '')) : toExplorationBranch(ref));
+const refOf = (ref: string | number) => (typeof ref === 'number' ? ref : /^#?\d+$/.test(ref.trim()) ? Number(ref.trim().replace(/^#/, '')) : toExplorationBranch(ref));
+
+/** The exploration a reference names, in the design system repository or a product's own one (product-repos.ts). */
+async function located(ctx: BridgeContext, ref: string): Promise<Located & { gh: GitHubClient }> {
+  return locate(ctx, ref, await requireGitHub(ctx));
+}
 
 /**
  * bridge_promote_exploration (kept name) / `bridge explore done` (`promote` is an alias): "Done exploring". The pieces
@@ -295,14 +313,23 @@ const refOf = (ref: string) => (/^#?\d+$/.test(ref.trim()) ? Number(ref.trim().r
  */
 export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces?: string[] | undefined; dryRun?: boolean | undefined; source?: ExplorationSource | undefined; agent?: string | undefined }) {
   const { config } = await ctx.config();
-  const gh = await requireGitHub(ctx);
+  const ds = await requireGitHub(ctx);
+  const at = await locate(ctx, a.ref, ds);
+  const gh = at.gh;
   if (!a.dryRun && !ctx.canWriteRemote) throw new Error(`Saying "Done exploring" needs a GitHub token (contents, pull requests and issues: write): ${addToken(ctx)}. Or on GitHub: remove the exploration label and add ready-for-devs, keeping the pull request open.`);
-  const p = await findExplorationOnGitHub(gh, refOf(a.ref));
-  // The preview the requests link: the first one Vercel reported, else the pull request (pieceRequest says so).
-  const build = await explorationTestBuildOnGitHub(gh, { number: p.number, branch: p.headRef }, config).catch(() => null);
-  const previewUrl = build?.previews.find((v) => v.url && v.state !== 'failed')?.url ?? null;
-  const viewer = await viewerOf(ctx, gh);
+  const p = await findExplorationOnGitHub(gh, refOf(at.ref));
+  // The preview the requests link: the first one Vercel reported (the product's preview template in its own
+  // repository), else the pull request (pieceRequest says so).
+  let previewUrl: string | null;
+  if (at.product && at.repo) previewUrl = inProductRepo({ branch: p.headRef, number: p.number, headSha: p.headSha } as Parameters<typeof inProductRepo>[0], at.product, at.repo).previews[0]?.url ?? null;
+  else {
+    const build = await explorationTestBuildOnGitHub(gh, { number: p.number, branch: p.headRef }, config).catch(() => null);
+    previewUrl = build?.previews.find((v) => v.url && v.state !== 'failed')?.url ?? null;
+  }
+  const viewer = await viewerOf(ctx, ds);
   const r = await doneExploringOnGitHub(gh, p.number, {
+    // In a product's own repository the requests are filed in the design system repository, where the DS lead works.
+    ...(at.repo ? { library: ds.withBranchPrefix(undefined) } : {}),
     pieces: a.pieces ?? [],
     products: productsOf(config),
     previewUrl,
@@ -318,6 +345,8 @@ export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces
   return {
     status,
     number: r.number,
+    ref: explorationRefLabel({ number: r.number, product: at.product?.key, repo: at.repo }),
+    ...(at.repo ? { repo: at.repo, product: at.product!.key, requestsIn: ds.fullName } : {}),
     url: r.url,
     branch: r.branch,
     exploration: r.status,
@@ -330,7 +359,7 @@ export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces
     forDevelopers: { take: r.take, note: EXPLORATION_STARTING_POINT },
     warnings: r.warnings,
     next: [
-      record ? (unsent.length ? `${unsent.length} piece${unsent.length === 1 ? ' was' : 's were'} not sent to the DS lead: pass their ids in pieces to send them later.` : '') : `The exploration was not checked against the library: ${say(ctx, `bridge_missing_pieces { pr: ${r.number}, record: true }`, `\`bridge pieces ${r.number} --record\``)} finds the pieces to propose.`,
+      record ? (unsent.length ? `${unsent.length} piece${unsent.length === 1 ? ' was' : 's were'} not sent to the DS lead: pass their ids in pieces to send them later.` : '') : `The exploration was not checked against the library: ${say(ctx, `bridge_missing_pieces { pr: "${explorationRefLabel({ number: r.number, product: at.product?.key, repo: at.repo })}", record: true }`, `\`bridge pieces ${explorationRefLabel({ number: r.number, product: at.product?.key, repo: at.repo })} --record\``)} finds the pieces to propose.`,
       `Developers take it with \`${r.take[0]}\` then \`${r.take[1]}\`, as a starting point. The pull request stays open so the preview keeps working; ${say(ctx, 'bridge_archive_exploration', '`bridge explore archive`')} hides it from the lists later.`,
     ]
       .filter(Boolean)
@@ -343,20 +372,22 @@ export const promoteExploration = doneExploring;
 
 /** bridge_archive_exploration / `bridge explore archive|unarchive`: the archived label on the still open pull request. */
 export async function archiveExploration(ctx: BridgeContext, a: { ref: string; archived?: boolean | undefined }) {
-  const gh = await requireGitHub(ctx);
+  const at = await located(ctx, a.ref);
   if (!ctx.canWriteRemote) throw new Error(`Archiving an exploration needs a GitHub token (pull requests or issues: write): ${addToken(ctx)}. Or add the archived label on GitHub.`);
-  const r = await archiveExplorationOnGitHub(gh, refOf(a.ref), { archived: a.archived ?? true });
+  const r = await archiveExplorationOnGitHub(at.gh, refOf(at.ref), { archived: a.archived ?? true });
   return {
     status: r.archived ? ('archived' as const) : ('unarchived' as const),
     ...r,
+    ref: explorationRefLabel({ number: r.number, product: at.product?.key, repo: at.repo }),
+    ...(at.repo ? { repo: at.repo } : {}),
     next: r.archived ? 'Hidden from the default lists. Its pull request stays open, so the preview link keeps working.' : 'Back in the lists.',
   };
 }
 
 export async function closeExploration(ctx: BridgeContext, a: { ref: string }) {
-  const gh = await requireGitHub(ctx);
+  const at = await located(ctx, a.ref);
   if (!ctx.canWriteRemote) throw new Error(`Closing an exploration needs a GitHub token (pull requests: write): ${addToken(ctx)}. Or close the pull request on GitHub.`);
-  return { status: 'closed' as const, ...(await closeExplorationOnGitHub(gh, refOf(a.ref))), note: 'Closing removes its preview. To keep the link alive and only hide it, archive it instead.' };
+  return { status: 'closed' as const, ...(await closeExplorationOnGitHub(at.gh, refOf(at.ref))), ...(at.repo ? { repo: at.repo } : {}), note: 'Closing removes its preview. To keep the link alive and only hide it, archive it instead.' };
 }
 
 // --- target branch of the write tools ------------------------------------------------------------------------------

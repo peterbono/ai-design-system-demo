@@ -698,7 +698,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     {
       title: 'List explorations',
       description:
-        'Explorations of the repo (pull requests on explore/* branches): name, purpose, status (active: running; ready: done exploring, waiting for code; building: developers push to it; shipped: merged; promoted: sent to review the older way; closed), archived, author, last update, for open ones the preview links Vercel reports (url null while it has not reported one yet) and the install command a product staging branch uses, read from the preview comment on the pull request (state building until the snapshot of the latest commit is published, never a guessed command), and the component requests implemented on each. Archived ones are left out unless archived is true. Locally, also explore/* branches without a pull request.',
+        'Explorations (pull requests on explore/* branches) of the design system repository and of every product with its own repository (bridge.config.json products[].repo, one read each; a product repository Bridge cannot reach is left out, bridge_list_products says which): ref ("#12", or "shop#12" in a product repository: pass it as is to the other exploration tools), repo, name, purpose, status (active: running; ready: done exploring, waiting for code; building: developers push to it; shipped: merged; promoted: sent to review the older way; closed), archived, author, last update, for open ones the preview links Vercel reports (url null while it has not reported one yet) and the install command a product staging branch uses, read from the preview comment on the pull request (state building until the snapshot of the latest commit is published, never a guessed command), and the component requests implemented on each. Archived ones are left out unless archived is true. Locally, also explore/* branches without a pull request.',
       inputSchema: {
         state: z.enum(['open', 'closed', 'all']).optional().describe('Pull request state. Default open: running ones and the ones with the developers.'),
         archived: z.boolean().optional().describe('true: only the archived ones (the Archived filter in Studio).'),
@@ -713,9 +713,9 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     {
       title: 'Done exploring',
       description:
-        '"Done exploring" on an exploration (explore/<name>), as in Studio (the tool keeps its old name). It never closes, merges or marks the draft ready for review: the pull request stays open so its preview link keeps working for the designer, the DS lead, stakeholders and developers. The pieces you pass (ids from bridge_missing_pieces; ask the person which ones) each become a request for the DS lead with a link to the preview; pieces left out are not proposed. Then the exploration label and note go and ready-for-devs comes: developers take the branch (git fetch origin, then git checkout explore/<name>) as a starting point, never as code ready to ship. Their pushes read "Being built", the merge "Shipped". Said again later, it only sends newly picked pieces. dryRun shows what it would send. Needs GITHUB_TOKEN (contents, pull requests and issues: write). Only when the person asked.',
+        '"Done exploring" on an exploration (explore/<name>), as in Studio (the tool keeps its old name). It never closes, merges or marks the draft ready for review: the pull request stays open so its preview link keeps working for the designer, the DS lead, stakeholders and developers. The pieces you pass (ids from bridge_missing_pieces; ask the person which ones) each become a request for the DS lead with a link to the preview; pieces left out are not proposed. For an exploration in a product\'s own repository (shop#42) the requests are filed in the design system repository, where the DS lead works, and link back to the product pull request; its status keeps following that pull request. Then the exploration label and note go and ready-for-devs comes: developers take the branch (git fetch origin, then git checkout explore/<name>) as a starting point, never as code ready to ship. Their pushes read "Being built", the merge "Shipped". Said again later, it only sends newly picked pieces. dryRun shows what it would send. Needs GITHUB_TOKEN (contents, pull requests and issues: write). Only when the person asked.',
       inputSchema: {
-        exploration: z.string().min(1).describe('Its name, explore/<name> branch or number (#42).'),
+        exploration: z.string().min(1).describe('Its ref from bridge_list_explorations (#42, or shop#42 in a product repository), name, explore/<name> branch or pull request link.'),
         pieces: z.array(z.string()).optional().describe('Ids of the missing pieces the person ticked (bridge_missing_pieces). Omitted: none is proposed, and the result lists the ones not sent.'),
         dryRun: z.boolean().optional(),
       },
@@ -730,7 +730,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
       title: 'Archive an exploration',
       description:
         'Archive an exploration, as in Studio: the archived label on its still open pull request hides it from the default lists, home and counts (bridge_list_explorations with archived: true lists them). The preview link keeps working. unarchive: true brings it back. Prefer it to bridge_close_exploration, which removes the preview. Needs GITHUB_TOKEN (pull requests or issues: write). Only when the person asked.',
-      inputSchema: { exploration: z.string().min(1).describe('Its name, explore/<name> branch or number (#42).'), unarchive: z.boolean().optional() },
+      inputSchema: { exploration: z.string().min(1).describe('Its ref from bridge_list_explorations (#42, or shop#42 in a product repository), name, explore/<name> branch or pull request link.'), unarchive: z.boolean().optional() },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     run((a) => explorations.archiveExploration(ctx, { ref: a.exploration, archived: !a.unarchive })),
@@ -741,14 +741,14 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     {
       title: 'Close an exploration',
       description: 'Close an exploration without merging it. Its branch stays on GitHub, but closing removes its preview prerelease and visual images: archive it instead (bridge_archive_exploration) unless the person explicitly wants it closed. Needs GITHUB_TOKEN (pull requests: write). Only when the person asked.',
-      inputSchema: { exploration: z.string().min(1).describe('Its name, explore/<name> branch or number (#42).') },
+      inputSchema: { exploration: z.string().min(1).describe('Its ref from bridge_list_explorations (#42, or shop#42 in a product repository), name, explore/<name> branch or pull request link.') },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
     run((a) => explorations.closeExploration(ctx, { ref: a.exploration })),
   );
 
   // --- branches in review: the Studio actions (packages/mcp/src/branches.ts over @bridge-ds/core) ---
-  const Pr = z.union([z.number().int().positive(), z.string().min(1)]).describe('The branch number Studio shows (12 or "#12"), or its GitHub link.');
+  const Pr = z.union([z.number().int().positive(), z.string().min(1)]).describe('The branch number Studio shows (12 or "#12"), its GitHub link, or "<product>#12" (shop#12, the ref bridge_list_explorations gives) for a branch in a product\'s own repository.');
   const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true } as const;
   const READ = { readOnlyHint: true, openWorldHint: true } as const;
 
@@ -926,7 +926,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     'bridge_list_products',
     {
       title: 'List products',
-      description: 'The products of this design system (bridge.config.json "products": name, repo or folder, preview link pattern, framework) and the one the current folder or repo belongs to, which tools that start work use when no product is given. Ask the person which product when it is not obvious.',
+      description: 'The products of this design system (bridge.config.json "products": name, repo or folder, preview link pattern, framework; for a product with its own repository, connection: connected, read-only or not-connected, where not-connected means its explorations are left out of the lists until an admin installs the Bridge GitHub App there) and the one the current folder or repo belongs to, which tools that start work use when no product is given. Ask the person which product when it is not obvious.',
       inputSchema: {},
       annotations: RO,
     },

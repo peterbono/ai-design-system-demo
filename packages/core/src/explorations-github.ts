@@ -27,7 +27,8 @@ import {
   type PromotionPlan,
 } from './explorations';
 import { GitHubError, type GitHubClient, type PullRequestSummary } from './github-client';
-import { findPreviewComment, previewLinks, previewsSettled, type BranchPreview, type PreviewApps } from './previews';
+import { findPreviewComment, previewLinks, previewsSettled, previewUrl, type BranchPreview, type PreviewApps } from './previews';
+import { productRepos, type ProductConfig } from './products';
 import { branchPreviewUrls } from './previews-github';
 import { noOnlinePreview } from './try-in-product';
 
@@ -74,6 +75,12 @@ export interface ExplorationSummary {
    * URLs Vercel reports, with their build state, come from `explorationTestBuildOnGitHub`.
    */
   previews: { app: string; label: string; url: string }[];
+  /**
+   * Set when the exploration lives in a product's own repository (productRepoOf): that repository ("owner/name") and
+   * the product key. Tools name it "<product>#<number>" (explorationRefLabel); absent in the design system repository.
+   */
+  repo?: string | undefined;
+  product?: string | undefined;
 }
 
 /** One exploration from a pull request summary. */
@@ -111,6 +118,52 @@ export async function listExplorationsOnGitHub(gh: GitHubClient, s: Pick<Explora
     .filter((p) => isExplorationPull({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body }))
     .filter((p) => archived === 'include' || (archived === 'only') === isArchivedExploration(p.labels))
     .map((p) => explorationSummary(p, gh.owner, gh.name, s));
+}
+
+/** A product repository Bridge could not read while listing: left out of the lists, said only where connections live. */
+export interface UnreachableProductRepo {
+  product: string;
+  name: string;
+  repo: string;
+  /** not-connected: GitHub hides it (Bridge not installed there, or the token does not reach it); unavailable: any other failure. */
+  reason: 'not-connected' | 'unavailable';
+}
+
+/** GitHub hides the repository from this token, or Bridge's proxy says its app is not there. */
+export const isHiddenRepoError = (err: unknown): boolean => err instanceof GitHubError && (err.status === 404 || err.status === 409 || (err.status === 403 && err.auth !== 'rejected' && !err.resetsAt));
+
+/**
+ * The explorations of every product that has its own repository (bridge.config.json products[].repo): one read of
+ * the open (or `state`) pull requests per repository, all in parallel. Each one carries its `repo` and `product`, and
+ * the product's preview template as its preview. A repository Bridge cannot read is skipped and reported in
+ * `unreachable`, never thrown: designers never see it in a list, Settings says it. `clientFor` gives a client for
+ * "owner/name" with the same token (or proxy) as the design system repository.
+ */
+export async function listProductExplorationsOnGitHub(
+  clientFor: (repo: string) => GitHubClient,
+  products: readonly ProductConfig[],
+  designSystemRepo: string | null | undefined,
+  opts: { state?: 'open' | 'closed' | 'all'; archived?: 'exclude' | 'include' | 'only' } = {},
+): Promise<{ explorations: ExplorationSummary[]; unreachable: UnreachableProductRepo[] }> {
+  const unreachable: UnreachableProductRepo[] = [];
+  const lists = await Promise.all(
+    productRepos(products, designSystemRepo).map(async ({ product, repo }) => {
+      try {
+        const list = await listExplorationsOnGitHub(clientFor(repo), { packages: [], apps: {} }, opts);
+        return list.map((x) => inProductRepo(x, product, repo));
+      } catch (err) {
+        unreachable.push({ product: product.key, name: product.name, repo, reason: isHiddenRepoError(err) ? 'not-connected' : 'unavailable' });
+        return [];
+      }
+    }),
+  );
+  return { explorations: lists.flat(), unreachable };
+}
+
+/** An exploration read in a product's own repository: its repository, its product and the product's preview. */
+export function inProductRepo(x: ExplorationSummary, product: ProductConfig, repo: string): ExplorationSummary {
+  const url = previewUrl(product.preview, { branch: x.branch, pr: x.number, sha: x.headSha });
+  return { ...x, repo, product: product.key, previews: url ? [{ app: product.key, label: product.name, url }] : [] };
 }
 
 export interface StartedExploration {

@@ -28,6 +28,8 @@ export interface ExplorationPull {
   head?: { ref: string; sha?: string };
   user: { login: string; avatar_url?: string; type?: string } | null;
   updated_at: string;
+  /** Read in a product's own repository (bridge.config.json products[].repo): that product's key. */
+  product?: string;
 }
 
 /** Where an exploration stands. */
@@ -35,6 +37,8 @@ export type ExplorationStage = 'exploring' | 'found' | 'with-devs' | 'in-review'
 
 export interface ExplorationCard {
   number: number;
+  /** "12", or "shop#12" for an exploration in the shop's own repository: the card's one key. */
+  key?: string;
   title: string;
   /** The exploration page (the product branch page for a product), or the change page once it is a plain change. */
   href: string;
@@ -56,8 +60,10 @@ const labelNames = (p: Pick<ExplorationPull, 'labels'>) => (p.labels ?? []).map(
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.replace(/^@/, '').toLowerCase() === b.replace(/^@/, '').toLowerCase());
 
 /** The product a "product: account" label names, any product but the library: its configured name, else the key in words. */
-export function explorationProduct(p: Pick<ExplorationPull, 'labels'>, products: readonly ProductConfig[]): string | null {
+export function explorationProduct(p: Pick<ExplorationPull, 'labels'> & { product?: string | undefined }, products: readonly ProductConfig[]): string | null {
   const lib = defaultProduct(products);
+  // Read in the product's own repository: that product, whatever its labels say.
+  if (p.product) return findProduct(products, p.product)?.name ?? p.product.charAt(0).toUpperCase() + p.product.slice(1);
   for (const l of labelNames(p)) {
     if (!l.toLowerCase().startsWith(PRODUCT_LABEL_PREFIX)) continue;
     const key = l.slice(PRODUCT_LABEL_PREFIX.length).trim();
@@ -76,6 +82,8 @@ export function explorationProduct(p: Pick<ExplorationPull, 'labels'>, products:
 /** An exploration, or a branch started for a product: what the home's section shows. Library changes are not. */
 export function isHomeExploration(p: ExplorationPull, products: readonly ProductConfig[]): boolean {
   if (p.user?.type === 'Bot') return false;
+  // A product repository's other branches are not Bridge's: only its explorations.
+  if (p.product) return isExplorationPull({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body });
   return isExplorationPull({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body }) || explorationProduct(p, products) !== null;
 }
 
@@ -109,6 +117,8 @@ export function explorationTitle(p: Pick<ExplorationPull, 'title' | 'body'>): st
 
 /** Where its card opens: the exploration (or product branch) page while it is one, the change page once kept or a plain change. */
 export function explorationHref(p: ExplorationPull): string {
+  // In a product's own repository it is always the exploration page: Studio reviews no branch there.
+  if (p.product) return studioHref(`changes/?exploration=${p.number}&product=${encodeURIComponent(p.product)}`);
   const kept = Boolean(p.merged_at) || p.state === 'merged';
   const exploration = !kept && isExplorationPull({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body });
   return studioHref(exploration ? `changes/?exploration=${p.number}` : `changes/?pr=${p.number}`);
@@ -146,17 +156,19 @@ const givenUp = (p: Pick<ExplorationPull, 'state' | 'merged_at'>) => p.state ===
  * explorations closed without merging are left out.
  */
 export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: HomeExplorationsOptions<P>): ExplorationCard[] {
-  const seen = new Set<number>();
+  const seen = new Set<string>();
+  const keyOf = (p: P) => (p.product ? `${p.product}#${p.number}` : String(p.number));
   return pulls
     .filter((p) => {
-      if (seen.has(p.number)) return false;
-      seen.add(p.number);
+      if (seen.has(keyOf(p))) return false;
+      seen.add(keyOf(p));
       return !givenUp(p) && !isArchivedExploration(p.labels) && isHomeExploration(p, opts.products) && (!opts.onlyOwn || isOwnExploration(p, opts.viewer));
     })
     .map((p): ExplorationCard => {
       const { stage, state } = explorationStage(p);
       return {
         number: p.number,
+        key: keyOf(p),
         title: explorationTitle(p),
         href: explorationHref(p),
         product: explorationProduct(p, opts.products),

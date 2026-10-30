@@ -19,8 +19,9 @@ Usage:
   bridge explore list [--all] [--archived] [--json]
                      running explorations and the ones with the developers, with the preview links Vercel
                      reports, the install command from the pull request (once the snapshot is built) and the
-                     requests implemented on each (--all: closed ones too; --archived: only archived ones)
-  bridge explore done <name|#pr> [--piece <id> ...] [--dry-run] [--json]
+                     requests implemented on each (--all: closed ones too; --archived: only archived ones).
+                     Explorations in a product's own repository are listed too, named product#pr (shop#12)
+  bridge explore done <name|#pr|product#pr> [--piece <id> ...] [--dry-run] [--json]
                      done exploring: each --piece (ids from bridge pieces) becomes a request for the DS lead
                      with the preview link; the exploration label and note go, ready-for-devs comes, and
                      developers continue on the branch. Never closes, merges or marks it ready
@@ -85,7 +86,7 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
       io.print(r.summary);
       for (const x of r.explorations) {
-        io.print(`\n#${x.number} ${x.name}  ${EXPLORATION_STATUS_LABEL[x.status]}  ${x.branch}  @${x.author}  ${date(x.updatedAt)}`);
+        io.print(`\n${x.ref} ${x.name}  ${EXPLORATION_STATUS_LABEL[x.status]}  ${x.branch}${x.repo ? ` in ${x.repo}` : ''}  @${x.author}  ${date(x.updatedAt)}`);
         if (x.purpose) io.print(`  ${x.purpose}`);
         io.print(`  ${x.url}`);
         for (const p of x.previews as { label: string; url: string | null; state?: string }[]) io.print(`  ${p.label}: ${p.url ? `${p.url}${p.state === 'building' ? ' (building)' : p.state === 'failed' ? ' (build failed)' : ''}` : 'link not reported by Vercel yet, see the pull request'}`);
@@ -104,7 +105,7 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       const r = await explorations.doneExploring(ctx, { ref, pieces: a.flags.piece ?? [], dryRun: has(a, 'dry-run'), ...exploreSource(io.env) });
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
       const lead = r.status === 'dry-run' ? 'Dry run: done exploring' : r.status === 'already-done' ? 'Already done exploring' : 'Done exploring';
-      io.print(`${lead} #${r.number} (${r.branch}). Nothing closed or merged: the preview stays.`);
+      io.print(`${lead} ${r.ref} (${r.branch}${r.repo ? ` in ${r.repo}` : ''}). Nothing closed or merged: the preview stays.${r.requestsIn && r.requests.length ? ` Requests go to ${r.requestsIn}.` : ''}`);
       if (r.labels) io.print(`Labels: +${r.labels.add.join(', +')}, -${r.labels.remove.join(', -')}${r.removeFiles.length ? `. Removes ${r.removeFiles.join(', ')}` : ''}.`);
       for (const q of r.requests) io.print(`${r.status === 'dry-run' ? 'Would request' : 'Requested'}: ${q.title}${q.number ? ` #${q.number} ${q.url}` : ''}`);
       for (const q of r.alreadySent) io.print(`Already sent: ${q.piece} #${q.number}`);
@@ -121,7 +122,7 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       const ctx = await context(root, io, a, 'write');
       const r = await explorations.archiveExploration(ctx, { ref, archived: sub === 'archive' });
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
-      io.print(`${r.archived ? 'Archived' : 'Unarchived'} #${r.number} (${r.branch}). ${r.next} ${r.url}`);
+      io.print(`${r.archived ? 'Archived' : 'Unarchived'} ${r.ref} (${r.branch}). ${r.next} ${r.url}`);
       return 0;
     }
     case 'close': {

@@ -27,6 +27,12 @@
 //                                                        a read of the team's repository through Bridge, for its
 //                                                        members and for anyone on a public demo team: allow-listed,
 //                                                        read-only token, cached, rate limited (api/_lib/team-read.ts)
+//   GET  /api/contribute?repo=owner/name&gh=/repos/<product owner>/<product name>/...
+//                                                        a read of one of the team's product repositories (its
+//                                                        bridge.config.json products[].repo), read only, same
+//                                                        allow-list minus members-only resources, the product's own
+//                                                        read token, the team's budget; 409 product_missing when the
+//                                                        app is not installed there (api/_lib/team-read.ts)
 //   ANY  other than GET, same gh=                         the GitHub call, under the policy below; GitHub's status,
 //                                                        body and Link header come back as they are
 // Every request other than GET must carry `X-Bridge-Contribute: 1` and, when the browser sends an Origin, come from a
@@ -110,7 +116,7 @@ import { redisRest, type Redis } from '../_lib/redis.js';
 import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { accountTeamsKey } from '../_lib/members.js';
-import { isPublicRepo, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
+import { isPublicRepo, productReadAllowed, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
 
@@ -461,6 +467,16 @@ export interface Target {
  * segment (encoded or not), no encoded slash or backslash, no control character. Anything else: not allowed.
  */
 export function parseTarget(raw: unknown, owner: string, repo: string): Target {
+  const t = parseAnyTarget(raw);
+  if (t.owner.toLowerCase() !== owner.toLowerCase() || t.repo.toLowerCase() !== repo.toLowerCase()) throw notAllowed();
+  return { rest: t.rest, rawRest: t.rawRest, query: t.query };
+}
+
+/**
+ * The same checks as parseTarget, for a path under any /repos/<owner>/<repo>: the caller decides whether that
+ * repository may be read (the team's own, or a product repository its bridge.config.json lists).
+ */
+export function parseAnyTarget(raw: unknown): Target & { owner: string; repo: string } {
   if (typeof raw !== 'string' || raw.length > 2048 || !raw.startsWith('/')) throw notAllowed();
   const q = raw.indexOf('?');
   const path = q < 0 ? raw : raw.slice(0, q);
@@ -478,8 +494,8 @@ export function parseTarget(raw: unknown, owner: string, repo: string): Target {
     if (!d || d === '.' || d === '..' || /[/\\\u0000-\u001f\u007f]/.test(d)) throw notAllowed();
     decoded.push(d);
   }
-  if (decoded.length < 3 || decoded[0] !== 'repos' || decoded[1]!.toLowerCase() !== owner.toLowerCase() || decoded[2]!.toLowerCase() !== repo.toLowerCase()) throw notAllowed();
-  return { rest: decoded.slice(3), rawRest: segs.slice(3), query };
+  if (decoded.length < 3 || decoded[0] !== 'repos' || !/^[\w.-]+$/.test(decoded[1]!) || !/^[\w.-]+$/.test(decoded[2]!)) throw notAllowed();
+  return { owner: decoded[1]!, repo: decoded[2]!, rest: decoded.slice(3), rawRest: segs.slice(3), query };
 }
 
 /** A branch name git accepts (git check-ref-format, the parts that matter here). */
@@ -933,9 +949,13 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
   // The path is checked before anyone is looked up: a bad address costs no storage call.
   const logins = usersArg !== null ? parseUserList(usersArg) : null;
   const changes = changesArg !== null && !logins ? parseChangeList(changesArg) : null;
-  const target = blobs === null && !logins && !changes ? parseTarget(params.get('gh'), owner, repo) : null;
+  const any = blobs === null && !logins && !changes ? parseAnyTarget(params.get('gh')) : null;
+  // A path under another repository: a product repository of the team (bridge.config.json products[].repo), read only,
+  // checked once the reader is known. Never its collaborators.
+  const product = any && (any.owner.toLowerCase() !== owner.toLowerCase() || any.repo.toLowerCase() !== repo.toLowerCase()) ? { owner: any.owner, repo: any.repo } : null;
+  const target = any;
   const shas = blobs !== null && !logins && !changes ? parseBlobList(blobs) : null;
-  if (target && !readAllowed(target.rest, { kind: 'member' })) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
+  if (target && !readAllowed(target.rest, { kind: product ? 'guest' : 'member' })) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
   const reader = await readerOf(ctx, req, full, rctx);
   if (!reader) {
     // A team cookie that no longer holds is cleared, as for any other call.
@@ -945,6 +965,11 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
   if (logins) return onUsers(req, rctx, { owner, repo, full }, logins, reader);
   if (changes) return onChanges(req, rctx, { owner, repo, full }, changes, reader);
   if (shas) return onBlobs(req, rctx, { owner, repo, full }, shas, reader);
+  if (product) {
+    await productReadAllowed(rctx, { owner, repo }, product, reader, notAllowed);
+    // The team's budget and write marks, the product's token and cache entries (the URL names the product repository).
+    return onRead(req, rctx, { owner: product.owner, repo: product.repo, full, rest: target!.rest, rawRest: target!.rawRest, query: target!.query }, reader);
+  }
   return onRead(req, rctx, { owner, repo, full, rest: target!.rest, rawRest: target!.rawRest, query: target!.query }, reader);
 }
 

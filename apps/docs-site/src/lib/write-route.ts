@@ -36,6 +36,12 @@ export function canKeepExploration(x: { viewer: string | null | undefined; autho
   return x.reviewer || x.viewer.replace(/^@/, '').toLowerCase() === x.author.replace(/^@/, '').toLowerCase();
 }
 
+/**
+ * The line in place of Done exploring and Archive on an exploration in a product's own repository, for someone who
+ * signed in with their email: Bridge writes for them in the design system only.
+ */
+export const productKeeperLine = (product: string): string => `Someone on ${product} who signs in with GitHub says it is done exploring or archives it.`;
+
 /** The line in place of Done exploring and Archive for everyone else. */
 export function keepExplorationLine(author: string): string {
   return `Only ${author ? `@${author.replace(/^@/, '')}, who started it,` : 'the person who started it'} or a reviewer can say it is done exploring or archive it.`;

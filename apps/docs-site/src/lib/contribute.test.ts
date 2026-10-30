@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canReview, contributorAccess } from './access';
-import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, contributeHashToken, isContribAuth, parseMember, proxyUrl } from './contribute';
+import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, contributeHashToken, isContribAuth, parseMember, productReposOfConfig, proxyUrl } from './contribute';
 import { accessScreen } from './access-view';
 import { emailMembers } from './invites';
 import { reviewActions, type ActionInput } from './review-page';
@@ -16,6 +16,13 @@ describe('proxyUrl', () => {
     expect(proxyUrl('https://api.github.com/user', 'acme/ds')).toBeNull();
     expect(proxyUrl('https://api.github.com/graphql', 'acme/ds')).toBeNull();
     expect(proxyUrl('https://raw.githubusercontent.com/acme/ds/main/x.json', 'acme/ds')).toBeNull();
+  });
+  it("routes a read of the team's product repository through the team's proxy, never an unlisted one", () => {
+    const products = productReposOfConfig([{ repo: 'Acme/Shop' }, { repo: 'acme/ds' }, { repo: 'bad' }, {}], 'acme/ds');
+    expect(products).toEqual(['acme/shop']);
+    expect(proxyUrl('https://api.github.com/repos/acme/shop/pulls?state=open', 'acme/ds', products)).toBe(`/api/contribute?repo=acme%2Fds&gh=${encodeURIComponent('/repos/acme/shop/pulls?state=open')}`);
+    expect(proxyUrl('https://api.github.com/repos/acme/shop/pulls', 'acme/ds')).toBeNull();
+    expect(proxyUrl('https://api.github.com/repos/acme/other/pulls', 'acme/ds', products)).toBeNull();
   });
 });
 

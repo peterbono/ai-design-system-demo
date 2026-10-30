@@ -29,6 +29,10 @@
 //   - read only: GET, and a token narrowed to read permissions (READ_PERMISSIONS, else READ_BASE)
 //   - only paths under /repos/<the team> (api/contribute parseTarget: no `..`, no encoded slash), and only the
 //     resources of READ_RULES; everything else answers 403 not-allowed (hooks, keys, secrets, invitations, settings...)
+//   - or paths under a product repository the team's bridge.config.json lists (products[].repo, productReposOf, kept
+//     PRODUCTS_KEEP_S): the same READ_RULES minus members-only ones, with a read token of that repository, on the
+//     team's budget; the app missing there answers 409 product_missing (the page skips that product only); a visitor
+//     of a public demo team also needs the product repository to be public
 //   - who: a member of the team (the team's email session cookie, or a Bridge account that is a member), or anyone for
 //     the public demo teams (PUBLIC_TEAMS, and only while GitHub says the repository is public). `collaborators`
 //     only for members.
@@ -41,6 +45,7 @@
 //   bridge:read:blob:<repo>:<sha>                 a blob's text (content-addressed), BLOB_KEEP_S
 //   bridge:read:change:<repo>:<number>:<sha>      the reads of one change's status { at, reads }, shared by the
 //                                                 team's members while fresh (FRESH_MS, and no write since)
+//   bridge:read:products:<repo>                  the product repositories its bridge.config.json lists, PRODUCTS_KEEP_S
 //   bridge:read:user:<login>                      a public profile { login, name, avatar_url, type } or "null", USER_KEEP_S
 //                                                 (public data, shared by every team)
 //   bridge:read:wrote:<repo>                      when a write went through Bridge (api/contribute): older answers
@@ -91,6 +96,7 @@ export const READ_WORDS = {
   notAllowed: 'Bridge does not read this from GitHub.',
   signin: 'Sign in to read this team.',
   appMissing: 'Bridge cannot read this design system yet. An admin of the repository gives the Bridge app access to it.',
+  productMissing: 'Bridge cannot read this product yet. An admin connects it in Settings.',
   busy: (seconds: number) => `Bridge is busy, try again in ${Math.max(1, Math.ceil(seconds / 60))} min.`,
 };
 
@@ -330,6 +336,81 @@ export async function isPublicRepo(ctx: ReadCtx, owner: string, repo: string): P
   }
   publicCache.set(k, { at: ctx.now(), public: pub });
   return pub;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Product repositories of a team
+
+/** How long the team's list of product repositories is kept. */
+export const PRODUCTS_KEEP_S = 5 * 60;
+export const productsKey = (team: string) => `bridge:read:products:${team.toLowerCase()}`;
+const REPO_FULL = /^[\w.-]+\/[\w.-]+$/;
+
+/**
+ * The product repositories ("owner/name", lower case) the team's bridge.config.json lists (products[].repo), never
+ * the team's own repository. Read on the default branch with the team's read token, kept PRODUCTS_KEEP_S. A team
+ * without the file lists none; a read that fails lists none and is not kept.
+ */
+export async function productReposOf(ctx: ReadCtx, owner: string, repo: string): Promise<string[]> {
+  const full = `${owner}/${repo}`.toLowerCase();
+  const kept = await ctx.redis.cmd('GET', productsKey(full));
+  if (typeof kept === 'string') {
+    try {
+      const list = JSON.parse(kept) as unknown;
+      if (Array.isArray(list)) return list.filter((x): x is string => typeof x === 'string');
+    } catch {
+      /* read it again */
+    }
+  }
+  // Deny by default: a config Bridge cannot read now (no app, GitHub busy or down) lists nothing, and is not kept.
+  const token = await ctx.token(owner, repo).catch(() => null);
+  if (!token) return [];
+  const res = await upstream(ctx, `${API}/repos/${owner}/${repo}/contents/bridge.config.json`, token, 'application/vnd.github.raw', null).catch(() => null);
+  if (!res || (res.status !== 200 && res.status !== 404)) return [];
+  let list: string[] = [];
+  if (res.status === 200) {
+    try {
+      const config = JSON.parse(await res.text()) as { products?: unknown };
+      if (Array.isArray(config.products)) {
+        list = [
+          ...new Set(
+            config.products
+              .map((p) => (p && typeof p === 'object' ? (p as { repo?: unknown }).repo : undefined))
+              .filter((r): r is string => typeof r === 'string' && REPO_FULL.test(r.trim()))
+              .map((r) => r.trim().toLowerCase())
+              .filter((r) => r !== full),
+          ),
+        ];
+      }
+    } catch {
+      list = [];
+    }
+  }
+  await ctx.redis.cmd('SET', productsKey(full), JSON.stringify(list), 'EX', PRODUCTS_KEEP_S);
+  return list;
+}
+
+/** The Bridge app is not on a product repository: the page leaves that product out, the team's reads go on. */
+export const PRODUCT_MISSING = 'product_missing';
+
+/**
+ * Whether `reader` (already a reader of the team) may read `product` through the team: the team's bridge.config.json
+ * lists it (else 403 not-allowed), the Bridge app is installed on it (else 409 product_missing), and for a visitor of a
+ * public demo team GitHub says it is public too (else 403 not-allowed).
+ */
+export async function productReadAllowed(
+  ctx: ReadCtx,
+  team: { owner: string; repo: string },
+  product: { owner: string; repo: string },
+  reader: Reader,
+  /** The refusal for an unlisted repository: the caller's own "not allowed" answer for a path outside the team. */
+  refuse: () => HttpError = () => new HttpError(403, 'not-allowed', READ_WORDS.notAllowed),
+): Promise<void> {
+  const listed = await productReposOf(ctx, team.owner, team.repo);
+  if (!listed.includes(`${product.owner}/${product.repo}`.toLowerCase())) throw refuse();
+  const token = await ctx.token(product.owner, product.repo);
+  if (!token) throw new HttpError(409, PRODUCT_MISSING, READ_WORDS.productMissing);
+  if (reader.kind === 'guest' && !(await isPublicRepo(ctx, product.owner, product.repo))) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
 }
 
 function answerKept(k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', inm: string | null, missingOk = false): Response {

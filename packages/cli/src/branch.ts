@@ -207,7 +207,9 @@ export async function runStudioRead(cmd: 'products' | 'settings' | 'coverage', a
   if (cmd === 'products') {
     const r = await branches.listProducts(ctx);
     if (json) return io.print(JSON.stringify(r, null, 2)), 0;
-    for (const p of r.products) io.print(`${p.key === r.current.key ? '*' : ' '} ${p.key.padEnd(12)} ${p.name}${p.default ? ' (default)' : ''}${p.path ? `  ${p.path}` : ''}${p.repo ? `  ${p.repo}` : ''}`);
+    const conn: Record<string, string> = { connected: 'connected', 'read-only': 'read only', 'not-connected': 'not connected: its explorations are left out of the lists', unknown: 'GitHub did not answer' };
+    for (const p of r.products) io.print(`${p.key === r.current.key ? '*' : ' '} ${p.key.padEnd(12)} ${p.name}${p.default ? ' (default)' : ''}${p.path ? `  ${p.path}` : ''}${p.repo ? `  ${p.repo}` : ''}${'connection' in p && p.connection ? ` (${conn[p.connection] ?? p.connection})` : ''}`);
+    for (const p of r.products) if ('connect' in p && p.connect) io.print(`\n${p.name}: ${p.connect}`);
     io.print(`\nThis folder: ${r.current.name}. Pick another with --product <key>.`);
     return 0;
   }

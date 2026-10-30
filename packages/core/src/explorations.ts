@@ -119,6 +119,44 @@ export function explorationSlugFromBranch(ref: string): string | null {
   return isExplorationBranch(ref) ? ref.replace(/^refs\/heads\//, '').slice(EXPLORATION_PREFIX.length) : null;
 }
 
+/**
+ * Which exploration a person or a tool means, wherever it lives. In the design system repository: its number ("12",
+ * "#12") or its name ("pill-buttons", "explore/pill-buttons"). In a product's own repository, the product key or the
+ * repository goes first: "shop#12", "peterbono/bridge-demo-shop#12", "shop:checkout-flow", or the pull request link.
+ */
+export interface ExplorationRef {
+  /** A product key ("shop"), when the reference names one. */
+  product?: string | undefined;
+  /** "owner/name", when the reference names the repository (a link or owner/name#12). */
+  repo?: string | undefined;
+  /** The pull request number, or the exploration's name or branch. */
+  ref: number | string;
+}
+
+const REPO_NAME = /^[\w.-]+\/[\w.-]+$/;
+const KEY_NAME = /^[a-z0-9][a-z0-9-]*$/i;
+
+/** Reads an exploration reference (ExplorationRef). Anything else is taken as a name in the design system repository. */
+export function parseExplorationRef(input: string | number): ExplorationRef {
+  if (typeof input === 'number') return { ref: input };
+  const s = input.trim();
+  const link = /^https?:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/i.exec(s);
+  if (link) return { repo: `${link[1]}/${link[2]}`, ref: Number(link[3]) };
+  if (/^#?\d+$/.test(s)) return { ref: Number(s.replace(/^#/, '')) };
+  const hash = /^(.+)#(\d+)$/.exec(s);
+  if (hash) {
+    const where = hash[1]!.trim();
+    if (REPO_NAME.test(where)) return { repo: where, ref: Number(hash[2]) };
+    if (KEY_NAME.test(where)) return { product: where.toLowerCase(), ref: Number(hash[2]) };
+  }
+  const named = /^([a-z0-9][a-z0-9-]*):(.+)$/i.exec(s);
+  if (named) return { product: named[1]!.toLowerCase(), ref: /^#?\d+$/.test(named[2]!.trim()) ? Number(named[2]!.trim().replace(/^#/, '')) : named[2]!.trim() };
+  return { ref: s };
+}
+
+/** How tools name an exploration back: "#12" in the design system repository, "shop#12" in a product's own one. */
+export const explorationRefLabel = (x: { number: number; product?: string | null | undefined; repo?: string | null | undefined }): string => (x.repo && x.product ? `${x.product}#${x.number}` : `#${x.number}`);
+
 /** Path of the note that starts an exploration branch. */
 export const explorationNotePath = (slug: string) => `${EXPLORATION_NOTES_DIR}/${slug}.md`;
 

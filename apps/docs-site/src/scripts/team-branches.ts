@@ -136,6 +136,13 @@ export async function initTeamBranches(): Promise<void> {
       return;
     }
     reviews.closePr();
+    if (r.view === 'exploration') {
+      // An exploration in a product's own repository: the exploration page reads that repository.
+      showMain(null);
+      const m = await loadExplorationsModule();
+      void m.openExploration(r.n, false, r.product);
+      return;
+    }
     if (r.view === 'suggestion') {
       showMain(null);
       if (sgHost) void suggestions.openSuggestion(r.n, { el: sgHost, crumbs: [{ label: 'Changes', href: studioHref('changes/') }, { label: 'Suggestion' }] });
@@ -194,7 +201,8 @@ export async function initTeamBranches(): Promise<void> {
     const n = Number(pr?.dataset.openPr ?? pr?.dataset.openExploration ?? sg?.dataset.openSuggestion ?? rq?.dataset.openRequest);
     if (n) {
       e.preventDefault();
-      go(sg ? `?suggestion=${n}` : rq ? `?request=${n}` : `?pr=${n}`);
+      const product = pr?.dataset.product;
+      go(sg ? `?suggestion=${n}` : rq ? `?request=${n}` : product ? `?exploration=${n}&product=${encodeURIComponent(product)}` : `?pr=${n}`);
       return;
     }
     const start = t.closest<HTMLElement>('[data-start-for]');

@@ -12,7 +12,7 @@ import {
   type StartedExploration,
 } from '@bridge-ds/core';
 import type { ExplorationsConfig } from '../lib/explorations-view';
-import { getToken, readRepo, studioClient } from './github-session';
+import { currentContributor, getToken, readRepo, studioClient } from './github-session';
 import { SuggestOnlyError, changesModeOnPage } from './changes-mode';
 import { EXPLORATION_SUGGEST_INSTEAD } from '../lib/gh-wording';
 
@@ -84,6 +84,8 @@ export async function startInProductRepo(
   inProduct: NonNullable<ExplorationSettings['inProduct']>,
 ): Promise<LinkedStart | ProductRepoBlocked> {
   const [owner, name] = repo.split('/') as [string, string];
+  // An email member's writes go through Bridge to the design system only: nothing is written in the product's own.
+  if (currentContributor()) return { blocked: 'read-only' };
   const access = await productRepoAccess(studioClient(repo, getToken() ?? ''));
   if (!access.ok) return { blocked: access.reason };
   return startLinkedExploration({ owner, repo: name, defaultBranch: access.base, apps: {}, packages: [] }, e, null, labels, inProduct);
