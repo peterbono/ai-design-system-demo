@@ -16,8 +16,8 @@ export function contrastFailures(model: Pick<RepoModel, 'contrast'>): number {
 }
 
 /** Drafted guidance waiting for review: each row opens the draft on GitHub (the docs editor is the demo Library's). */
-export function teamGuidance(data: { owner: string; repo: string; sha: string; model: Pick<RepoModel, 'components'> }): { name: string; href: string; since: string | null }[] {
+export function teamGuidance(data: { owner: string; repo: string; sha: string; model: Pick<RepoModel, 'components'> }): { name: string; slug: string; href: string; since: string | null }[] {
   return (data.model.components?.list ?? [])
     .filter((c) => c.docs?.needsReview)
-    .map((c) => ({ name: c.name, href: `${libraryHref(data.owner, data.repo, `components/${encodeURIComponent(c.slug.toLowerCase())}/`)}?edit=1`, since: null }));
+    .map((c) => ({ name: c.name, slug: c.slug, href: `${libraryHref(data.owner, data.repo, `components/${encodeURIComponent(c.slug.toLowerCase())}/`)}?edit=1`, since: null }));
 }

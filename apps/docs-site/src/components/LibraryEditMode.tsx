@@ -35,6 +35,8 @@ import {
   keepAllLabel,
   keepDrafts,
   pendingSections,
+  pendingDraftsNote,
+  sendStateFor,
   replaceSelection,
   restoreMeta,
   sectionById,
@@ -1031,7 +1033,9 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   }, [focusRequest]);
 
   /* Request review (a new branch) or save to the branch being edited */
-  const toSend = useMemo(() => docsToSend(state), [state]);
+  // Publish counts as the review: Claude's pending drafts go out kept (sendStateFor).
+  const sending = useMemo(() => sendStateFor(state, publish && !branch), [state, publish, branch]);
+  const toSend = useMemo(() => docsToSend(sending), [sending]);
   const issues = useMemo(() => validateDocs(cleanDocs(toSend)), [toSend]);
   const sendBlock = useMemo(() => sendBlockedReason({ fileText: docsFileText(toSend, base), base, continuing: Boolean(branch) }), [toSend, base, branch]);
   const forgetLocal = () => {
@@ -1081,7 +1085,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       const fileText = docsFileText(toSend, base);
       const docsCommit = await import('../scripts/docs-commit');
       // Who wrote the text: Claude's drafts kept as is, edited by the person, or written by the person.
-      const authorLine = docsAuthorLine(authorship(state), viewer);
+      const authorLine = docsAuthorLine(authorship(sending), viewer);
       let continued = Boolean(branch?.continues);
       if (branch?.continues && branch.pr) {
         await docsCommit.continueDocs({ number: branch.pr, branch: branch.ref }, p.path, p.name, fileText, authorLine);
@@ -1459,7 +1463,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
                 )}
                 {pending.length > 0 && (
                   <Alert tone="info" announce="off">
-                    {pending.length === 1 ? '1 Claude draft is' : `${pending.length} Claude drafts are`} not reviewed yet. They go out marked for review.
+                    {pendingDraftsNote(pending.length, publish && !branch)}
                   </Alert>
                 )}
                 {!branch && <Input label="Title" value={title} onChange={(ev) => setTitle(ev.target.value)} />}

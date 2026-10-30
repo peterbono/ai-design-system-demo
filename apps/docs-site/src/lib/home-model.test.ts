@@ -17,6 +17,7 @@ import {
   daysSince,
   displayName,
   greeting,
+  guidanceChangeOf,
   guidanceNeed,
   hintSnoozed,
   homeState,
@@ -154,6 +155,35 @@ describe('rows', () => {
     const g = guidanceNeed({ name: 'Tooltip', href: '/components/tooltip/?edit=1', since: daysAgo(2) }, NOW);
     expect(g).toMatchObject({ kind: 'guidance', title: 'Tooltip usage guidance', person: CLAUDE, waitsOnYou: true, pill: { label: 'Waiting 2 days' }, thumb: { kind: 'text' } });
     expect(guidanceNeed({ name: 'X', href: '#', since: null }, NOW).pill).toBeNull();
+  });
+  it('a guidance draft someone already sent no longer waits on you', () => {
+    const pulls = [
+      { number: 7, head: { ref: 'docs/button-group-20261030-abcd' } },
+      { number: 610, head: { ref: 'docs/visually-hidden-20261030-qlsh' }, auto_merge: { merge_method: 'squash' } },
+      { number: 611, head: { ref: 'docs/DS-42-tooltip-20261030-x1y2' } },
+    ];
+    const vh = { name: 'VisuallyHidden', slug: 'visually-hidden', href: '#', since: daysAgo(2) };
+    // Published by a lead: Bridge armed its merge, it ships by itself.
+    const published = guidanceChangeOf(vh, pulls);
+    expect(published).toEqual({ number: 610, onItsWay: true });
+    expect(guidanceNeed(vh, NOW, published)).toMatchObject({
+      kind: 'guidance',
+      number: 610,
+      waitsOnYou: false,
+      since: null,
+      line: 'It ships by itself once the automatic checks pass.',
+      pill: { label: 'On its way to the library', tone: 'neutral' },
+      action: 'Open',
+    });
+    expect(guidanceNeed(vh, NOW, published).href).toContain('changes/?pr=610');
+    // The change's status wins once read: a failing check holds it, it is in review again.
+    expect(guidanceChangeOf(vh, pulls, () => false)).toEqual({ number: 610, onItsWay: false });
+    // Sent for review: in review, not waiting on you here (the change has its own row when it does).
+    const tooltip = guidanceChangeOf({ name: 'Tooltip' }, pulls);
+    expect(guidanceNeed({ name: 'Tooltip', href: '#', since: null }, NOW, tooltip)).toMatchObject({ number: 611, waitsOnYou: false, pill: { label: 'In review' }, line: 'Sent for review in a change' });
+    // "Button" is not "ButtonGroup"; nothing open: the draft still waits on you.
+    expect(guidanceChangeOf({ name: 'Button' }, pulls)).toBeNull();
+    expect(guidanceNeed({ name: 'Button', href: '#', since: null }, NOW, null)).toMatchObject({ waitsOnYou: true, line: 'Claude AI drafted it from the code' });
   });
   it('contrast failing on main is a danger row', () => {
     expect(contrastNeed(0)).toBeNull();

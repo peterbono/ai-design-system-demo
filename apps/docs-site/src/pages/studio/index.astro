@@ -46,7 +46,7 @@ const comps = loadComponents();
 const changedAt = (path: string): string | null => git(['log', '-1', '--format=%cI', '--', path]) || null;
 
 // Usage guidance Claude drafted and nobody reviewed yet: one Needs you row each, waiting since the draft landed.
-const guidance = comps.filter((c) => guidanceState(c) === 'review').map((c) => ({ name: c.name, href: docsEditHref(c.slug), since: changedAt(c.files.docs) }));
+const guidance = comps.filter((c) => guidanceState(c) === 'review').map((c) => ({ name: c.name, slug: c.slug, href: docsEditHref(c.slug), since: changedAt(c.files.docs) }));
 const firstMissing = comps.find((c) => guidanceState(c) === 'missing');
 
 // Library health on main: contrast (a Needs you row when it fails), adoption since the audit before (a line when it drops).

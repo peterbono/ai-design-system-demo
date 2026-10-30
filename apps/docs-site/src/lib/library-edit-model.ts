@@ -269,6 +269,20 @@ export function docsToSend(s: EditState): ComponentDocsJson {
   return d;
 }
 
+/**
+ * What goes out. Publish skips the review in Changes: the lead who publishes is the review, so Claude's drafts still
+ * pending go out kept (credited to Claude, needsReview false) instead of marked for a review nobody will be asked for.
+ * Send for review leaves them pending: the reviewers in Changes are asked for them.
+ */
+export const sendStateFor = (s: EditState, publish: boolean): EditState => (publish && pendingSections(s).length ? keepDrafts(s) : s);
+
+/** The send step's note on Claude's drafts nobody kept yet, or null when there are none. */
+export function pendingDraftsNote(pending: number, publish: boolean): string | null {
+  if (!pending) return null;
+  const n = pending === 1 ? '1 Claude draft' : `${pending} Claude drafts`;
+  return publish ? `Publishing keeps ${pending === 1 ? 'the Claude draft' : `the ${n}`} as ${pending === 1 ? 'it is' : 'they are'} and marks ${pending === 1 ? 'it' : 'them'} reviewed.` : `${n} ${pending === 1 ? 'is' : 'are'} not reviewed yet. They go out marked for review.`;
+}
+
 /** "2 sections", "1 section and the status", for the rail's Changed line. */
 export function changedLabel(s: Pick<EditState, 'base' | 'docs'>): string {
   const n = changedSections(s).length;
