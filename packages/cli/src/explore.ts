@@ -9,10 +9,12 @@ export const EXPLORE_HELP = `bridge explore: explorations, to try experimental v
 staging branch without touching main (an explore/<name> branch with a draft pull request labeled exploration)
 
 Usage:
-  bridge explore start <name> --purpose "..." [--use-case ${EXPLORATION_USE_CASES.map((u) => u.value).join('|')}]
-                       [--experimental "..." ...] [--product <key>] [--dry-run] [--json]
-                     GitHub token: the branch and the draft pull request on GitHub. Without one, in a git repo:
-                     a local branch only, nothing pushed
+  bridge explore start <name> [--purpose "..."] [--use-case ${EXPLORATION_USE_CASES.map((u) => u.value).join('|')}]
+                       [--experimental "..." ...] [--product <key>] [--in-library] [--dry-run] [--json]
+                     GitHub token: the branch and the draft pull request on GitHub, in the product's own
+                     repository when bridge.config.json gives it one (products[].repo), else in the design
+                     system repository (--in-library: always there). Without a token, in a git repo: a local
+                     branch only, nothing pushed. The purpose is optional
   bridge explore list [--all] [--json]
                      running and promoted explorations, with the preview links Vercel reports, the install
                      command from the pull request (once the snapshot is built) and the requests implemented
@@ -48,19 +50,19 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
     case 'start': {
       const name = a._.slice(2).join(' ').trim() || flag(a, 'name');
       const purpose = flag(a, 'purpose');
-      if (!name || !purpose) throw new RequestUsageError('Usage: bridge explore start <name> --purpose "What you want to learn"');
+      if (!name) throw new RequestUsageError('Usage: bridge explore start <name> [--purpose "What you want to learn"]');
       const useCase = flag(a, 'use-case');
       const ctx = await context(root, io, a, has(a, 'dry-run') ? 'read' : 'write');
-      const r = (await explorations.startExploration(ctx, { name, purpose, ...exploreSource(io.env), ...(useCase ? { useCase } : {}), ...(a.flags.experimental ? { experimental: a.flags.experimental } : {}), ...(flag(a, 'product') ? { product: flag(a, 'product') } : {}), dryRun: has(a, 'dry-run') })) as Record<string, any>;
+      const r = (await explorations.startExploration(ctx, { name, ...(purpose ? { purpose } : {}), ...(has(a, 'in-library') ? { where: 'library' as const } : {}), ...exploreSource(io.env), ...(useCase ? { useCase } : {}), ...(a.flags.experimental ? { experimental: a.flags.experimental } : {}), ...(flag(a, 'product') ? { product: flag(a, 'product') } : {}), dryRun: has(a, 'dry-run') })) as Record<string, any>;
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
       if (r.status === 'dry-run') {
-        io.print(`Dry run, nothing written.\n\nBranch: ${r.branch} (from ${r.base})\nPull request: ${r.title} (draft, label ${r.label})\nNote: ${r.note.path}\n\n${r.prBody}`);
+        io.print(`Dry run, nothing written.\n\nBranch: ${r.branch} (from ${r.base}${r.repo ? ` in ${r.repo}` : ''})\nPull request: ${r.title} (draft, label ${r.label})\nNote: ${r.note.path}\n\n${r.prBody}`);
         return 0;
       }
       if (r.status === 'started') {
-        io.print(`Started ${r.branch}: draft pull request #${r.pr} ${r.url}`);
+        io.print(`Started ${r.branch}${r.inProductRepo ? ` in ${r.repo}` : ''}: draft pull request #${r.pr} ${r.url}`);
         // Nothing is built yet: the command and the real preview links come from the pull request once they exist.
-        io.print(`\n${r.install.note}`);
+        if (r.install) io.print(`\n${r.install.note}`);
         for (const p of r.previews ?? []) io.print(`${p.label}: ${p.url}`);
       } else {
         io.print(`Created the local branch ${r.branch} (${String(r.commit).slice(0, 7)}).`);

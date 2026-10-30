@@ -11,6 +11,7 @@ import {
   productMarks,
   productOfBranch,
   productProblems,
+  productRepoOf,
   productsOf,
   type ProductConfig,
 } from '../src/products';
@@ -150,4 +151,13 @@ test('productMarks: a label and a body line for a non-default product, nothing f
   assert.deepEqual(productMarks(CUSTOM, defaultProduct(CUSTOM)), { labels: [], line: '' });
   // What it writes, productOfBranch reads back.
   assert.equal(productOfBranch(CUSTOM, { files: [], labels: productMarks(CUSTOM, shop).labels }).key, 'shop');
+});
+
+test('productRepoOf: a product with its own repository, never the design system one', () => {
+  assert.equal(productRepoOf({ key: 'shop', name: 'Shop', repo: 'acme/shop' }, 'acme/ds'), 'acme/shop');
+  assert.equal(productRepoOf({ key: 'shop', name: 'Shop', repo: 'Acme/DS' }, 'acme/ds'), null);
+  assert.equal(productRepoOf({ key: 'admin', name: 'Admin demo', path: 'apps/admin' }, 'acme/ds'), null);
+  assert.equal(productRepoOf(defaultProduct(DEFAULT_PRODUCTS), 'acme/ds'), null);
+  assert.equal(productRepoOf({ key: 'shop', name: 'Shop', repo: 'not a repo' }, 'acme/ds'), null);
+  assert.equal(productRepoOf(null, 'acme/ds'), null);
 });

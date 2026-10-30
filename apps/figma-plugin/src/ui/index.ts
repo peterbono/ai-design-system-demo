@@ -1123,7 +1123,7 @@ const pickedExploration = (r: PushState) => r.explorations?.find((e) => e.branch
 function explorationBlocker(r: PushState): string | undefined {
   if (r.destination !== 'exploration') return undefined;
   if (r.loadingExplorations) return 'Loading explorations';
-  if (r.exploreTarget === 'new') return newExplorationProblems(r.newExploration.name, r.newExploration.purpose).length ? 'Add a name and what to learn' : undefined;
+  if (r.exploreTarget === 'new') return newExplorationProblems(r.newExploration.name, r.newExploration.purpose).length ? 'Add a name' : undefined;
   return pickedExploration(r) ? undefined : 'Pick an exploration';
 }
 

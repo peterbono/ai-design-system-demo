@@ -35,13 +35,17 @@ describe('bridge explore', () => {
 
     const help = io(gh);
     expect(await runExplore(args('explore'), dir, help.io)).toBe(2);
-    expect(help.out()).toContain('bridge explore start <name> --purpose');
-    await expect(runExplore(args('explore', 'start', 'Pill buttons'), dir, io(gh).io)).rejects.toThrow(/--purpose/);
+    expect(help.out()).toContain('bridge explore start <name> [--purpose "..."]');
+    await expect(runExplore(args('explore', 'start'), dir, io(gh).io)).rejects.toThrow(/Usage: bridge explore start <name>/);
+    // No purpose needed: nobody is asked for a brief.
+    const free = io(gh);
+    expect(await runExplore(args('explore', 'start', 'Billing screen', '--dry-run'), dir, free.io)).toBe(0);
+    expect(free.out()).not.toContain('**Purpose.**');
     await expect(runExplore(args('explore', 'nope'), dir, io(gh).io)).rejects.toThrow(/Unknown explore command/);
 
     const dry = io(gh);
     expect(await runExplore(args('explore', 'start', 'Pill', 'buttons', '--purpose', 'Rounder buttons in checkout.', '--dry-run'), dir, dry.io)).toBe(0);
-    expect(dry.out()).toContain('Branch: explore/pill-buttons (from main)');
+    expect(dry.out()).toContain(`Branch: explore/pill-buttons (from main in ${OWNER}/${NAME})`);
     expect(gh.pulls).toHaveLength(0);
 
     const s = io(gh);

@@ -11,7 +11,7 @@
 
 import type { BridgeConfig } from './config';
 import { slugify } from './pr-composer';
-import { previewLinks, readPreviewComment, type PreviewApps } from './previews';
+import { previewLinks, previewUrl, readPreviewComment, type PreviewApps } from './previews';
 import { classifyRisk, type ChangedFile, type RiskTier } from './risk';
 
 /** Every exploration pull request carries this label while it is an exploration. */
@@ -43,7 +43,10 @@ export const EXPLORATION_STATUS_LABEL: Record<ExplorationStatus, string> = { act
 export interface Exploration {
   /** Display name, sentence case: "Denser data tables". */
   name: string;
-  /** What the team wants to learn, in one or two sentences. */
+  /**
+   * What the team wants to learn, in one or two sentences, or empty: designers explore freely and nobody is asked
+   * for a brief (Claude passes the designer's first sentence when it has one).
+   */
   purpose: string;
   /** Branch slug: `explore/<slug>`. Derived from the name when missing. */
   slug?: string | undefined;
@@ -91,15 +94,17 @@ export function explorationSlugFromBranch(ref: string): string | null {
 /** Path of the note that starts an exploration branch. */
 export const explorationNotePath = (slug: string) => `${EXPLORATION_NOTES_DIR}/${slug}.md`;
 
-/** Problems with a new exploration, as sentences that say how to fix them. Empty when it can start. */
-export function explorationProblems(e: Pick<Exploration, 'name' | 'purpose'> & { slug?: string | undefined }): string[] {
+/**
+ * Problems with a new exploration, as sentences that say how to fix them. Empty when it can start. Only the name is
+ * needed: the purpose is optional, nobody has to write a brief to explore.
+ */
+export function explorationProblems(e: Pick<Exploration, 'name'> & { purpose?: string | undefined; slug?: string | undefined }): string[] {
   const out: string[] = [];
   const name = e.name.trim();
   const slug = e.slug?.trim() || explorationSlug(name);
   if (!name) out.push('Name the exploration, for example "Denser data tables".');
   else if (name.length > 60) out.push('Keep the name under 60 characters: it becomes the exploration\'s link name.');
   else if (slug.length < 2 || !SLUG_RE.test(slug)) out.push('Use letters or digits in the name: it becomes the exploration\'s link name.');
-  if (!e.purpose.trim()) out.push('Say what you want to learn, in one sentence.');
   return out;
 }
 
@@ -112,8 +117,7 @@ export function explorationNote(e: Exploration): string {
   return [
     `# Exploration: ${e.name.trim()}`,
     '',
-    e.purpose.trim(),
-    '',
+    ...(e.purpose?.trim() ? [e.purpose.trim(), ''] : []),
     `- Branch: \`${EXPLORATION_PREFIX}${slug}\``,
     ...(uc ? [`- Use case: ${uc}`] : []),
     ...(e.startedAt ? [`- Started: ${e.startedAt.slice(0, 10)}${e.author ? ` by @${e.author}` : ''}`] : []),
@@ -132,6 +136,12 @@ export interface ExplorationPrContext {
   apps: PreviewApps;
   /** Requests implemented on this exploration. */
   requests?: { number: number; title: string }[] | undefined;
+  /**
+   * Set when the exploration lives in a product's own repository (productRepoOf): the body says to check the branch
+   * out there and to get the library from npm (`library`: the design system repository), with the product's preview
+   * template instead of the library's apps.
+   */
+  inProduct?: { name: string; library: string; preview?: string | undefined } | undefined;
 }
 
 /** Draft pull request title: "Exploration: denser data tables". */
@@ -154,25 +164,44 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
     '',
     `> Not mergeable as is. This draft pull request is a sandbox on \`${branch}\`: promote it to a normal review when the idea is validated, or close it.`,
     '',
-    `**Purpose.** ${e.purpose.trim()}`,
-    ...(uc ? ['', `**Use case.** ${uc}`] : []),
-    '',
+    ...(e.purpose?.trim() ? [`**Purpose.** ${e.purpose.trim()}`, ''] : []),
+    ...(uc ? [`**Use case.** ${uc}`, ''] : []),
     '### What is experimental',
     '',
-    ...(experimental.length ? experimental.map((x) => `- ${x}`) : ['- Token edits and component work committed to this branch. Nothing here reaches main or production.']),
+    ...(experimental.length
+      ? experimental.map((x) => `- ${x}`)
+      : [ctx.inProduct ? `- The ${ctx.inProduct.name} screens and flows built on this branch with the library. Nothing here reaches main or production.` : '- Token edits and component work committed to this branch. Nothing here reaches main or production.']),
     ...(ctx.requests?.length ? ['', 'Requests implemented here:', ...ctx.requests.map((r) => `- #${r.number} ${r.title}`)] : []),
     '',
-    '### Try it in a product staging branch',
-    '',
   ];
-  // No guessed command here: pkg.pr.new may not be set up. The sticky comment has the one the workflow published.
-  lines.push(
-    'In the product repo, on a branch that deploys to staging (production keeps the released version), install the snapshot with the command in the "Try this exploration in your product" comment below. It appears a few minutes after each push and always matches the latest commit.',
-  );
-  lines.push('', '### Previews', '');
-  const links = previewLinks(ctx.apps, { branch, ...(ctx.pr ? { pr: ctx.pr } : {}) });
-  if (links.length) lines.push('| App | Preview |', '| --- | --- |', ...links.map((l) => `| ${l.label} | ${l.url} |`));
-  else lines.push('Preview deploys are not set up: add `previews.apps` to `bridge.config.json` (docs/PREVIEWS.md).');
+  if (ctx.inProduct) {
+    // In the product repository: developers check the branch out in their own environment, the library comes from npm.
+    const p = ctx.inProduct;
+    lines.push(
+      '### Work on it',
+      '',
+      `This exploration lives in the ${p.name} repository, so it runs in your usual environment: \`git fetch origin && git switch ${branch}\`, then start ${p.name} as you always do.`,
+      '',
+      `The library comes from npm, as on main. To try library changes that are not released yet, install the snapshot of their branch in ${p.library} (\`npm i @bridge-ds/react@<snapshot>\`): the command is in its "Try this exploration in your product" comment. Library changes are made in ${p.library}, never on this branch.`,
+      '',
+      '### Previews',
+      '',
+    );
+    const url = p.preview ? previewUrl(p.preview, { branch, ...(ctx.pr ? { pr: ctx.pr } : {}) }) : null;
+    if (url) lines.push('| App | Preview |', '| --- | --- |', `| ${p.name} | ${url} |`);
+    else lines.push(`The preview deploys of ${p.name}, if it has them, build this branch like any other.`);
+  } else {
+    // No guessed command here: pkg.pr.new may not be set up. The sticky comment has the one the workflow published.
+    lines.push(
+      '### Try it in a product staging branch',
+      '',
+      'In the product repo, on a branch that deploys to staging (production keeps the released version), install the snapshot with the command in the "Try this exploration in your product" comment below. It appears a few minutes after each push and always matches the latest commit.',
+    );
+    lines.push('', '### Previews', '');
+    const links = previewLinks(ctx.apps, { branch, ...(ctx.pr ? { pr: ctx.pr } : {}) });
+    if (links.length) lines.push('| App | Preview |', '| --- | --- |', ...links.map((l) => `| ${l.label} | ${l.url} |`));
+    else lines.push('Preview deploys are not set up: add `previews.apps` to `bridge.config.json` (docs/PREVIEWS.md).');
+  }
   lines.push(
     '',
     '### When it is done',
@@ -180,7 +209,7 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
     `- **Promote:** in Bridge Studio (Changes, Explorations, Promote to review) or \`bridge explore promote ${slug}\`. Bridge marks the pull request ready for review, removes the \`${EXPLORATION_LABEL}\` label and the exploration note, and adds the tier labels. Then it goes through the usual review.`,
     '- **Close:** close this pull request. The branch stays for reference; the preview prerelease is removed.',
     '',
-    `<!-- ${MARK} ${JSON.stringify({ name: e.name.trim(), purpose: e.purpose.trim(), slug, ...(e.useCase ? { useCase: e.useCase } : {}), ...(experimental.length ? { experimental } : {}), ...(e.author ? { author: e.author } : {}), ...(e.startedAt ? { startedAt: e.startedAt } : {}), ...(e.source ? { source: e.source } : {}), ...(e.agent ? { agent: e.agent } : {}) }).replace(/-->/g, '--\\u003e')} -->`,
+    `<!-- ${MARK} ${JSON.stringify({ name: e.name.trim(), purpose: (e.purpose ?? '').trim(), slug, ...(e.useCase ? { useCase: e.useCase } : {}), ...(experimental.length ? { experimental } : {}), ...(e.author ? { author: e.author } : {}), ...(e.startedAt ? { startedAt: e.startedAt } : {}), ...(e.source ? { source: e.source } : {}), ...(e.agent ? { agent: e.agent } : {}) }).replace(/-->/g, '--\\u003e')} -->`,
   );
   return lines.join('\n');
 }
@@ -192,7 +221,9 @@ export function parseExplorationBody(body: string | null | undefined): Explorati
   if (!m) return undefined;
   try {
     const e = JSON.parse(m[1]!) as Exploration;
-    return e && typeof e.name === 'string' && typeof e.purpose === 'string' ? e : undefined;
+    if (!e || typeof e.name !== 'string') return undefined;
+    // Started without a purpose: nothing was asked, the exploration reads with an empty one.
+    return typeof e.purpose === 'string' ? e : e.purpose === undefined ? { ...e, purpose: '' } : undefined;
   } catch {
     return undefined;
   }

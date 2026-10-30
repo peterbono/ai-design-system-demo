@@ -29,14 +29,28 @@ otherwise it is closed.
 
 ## Start one
 
-In **Bridge Studio**, Changes, Explorations, **Start an exploration**: a name and what you want to learn. Bridge
-creates the branch from `main` with the exploration note and opens the draft pull request (it needs a GitHub
-token with contents and pull requests write: Connect GitHub).
+In **Bridge Studio**, Changes, Explorations, **Start an exploration**: a name, and what you want to learn if you
+want to say it (optional, nobody needs a brief to explore). Bridge creates the branch from `main` with the
+exploration note and opens the draft pull request (it needs a GitHub token with contents and pull requests write:
+Connect GitHub).
+
+**Where it is created.** An exploration for a product that has its own repository (`bridge.config.json`
+`products[].repo`) is created **in that product repository** by default: `explore/<name>` from its default branch and
+the draft pull request there, so developers check the branch out in their usual environment. The library arrives as
+the npm package, as on main; to try library changes that are not released yet, install the snapshot of their library
+branch (`npm i @bridge-ds/react@<snapshot>`, below). A product that is a folder of the design system repository (the
+Admin demo) and the demo workspace keep their explorations in the design system repository. When Bridge cannot reach
+the product repository (Bridge not installed on it, or no write access), Studio's "Create branch" says so in one
+line with **Ask an admin to connect <product>** (it copies a message for an admin) and starts it in the design system
+repository only if the person picks **Start in the library instead**. Claude gets the same error and asks before
+using `where: "library"`; the CLI takes `--in-library`.
 
 From a terminal:
 
 ```sh
+bridge explore start "Pill buttons"                                  # the purpose is optional
 bridge explore start "Pill buttons" --purpose "Do rounder buttons feel friendlier in checkout?" --use-case user-test
+bridge explore start "Billing screen" --product shop                 # in the shop repository when it has one
 bridge explore start "Pill buttons" --purpose "..." --dry-run      # the branch, note and pull request body, nothing written
 ```
 
@@ -45,8 +59,8 @@ are created on GitHub. Without one, in a git repo, Bridge creates the local bran
 push it and open the draft (`gh pr create --draft --label exploration`). Use cases: `user-test`,
 `stakeholder-demo`, `ab-idea`, `terminal`, `other`.
 
-With Claude: "Start an exploration called Pill buttons to test rounder buttons in checkout." Claude calls
-`bridge_start_exploration`.
+With Claude: "I want to explore pill buttons in checkout." Claude calls `bridge_start_exploration` right away, named
+from what you said, without asking for a purpose or a brief.
 
 ## Try it in a product staging branch
 

@@ -3,7 +3,7 @@
 // feature is and in which product, or which library change. A feature starts the way the CLI and MCP server start one
 // for a product: an exploration with the product's label (productMarks from @bridge-ds/core), handed to Claude with
 // one line that sets it up and hands control back. Pure: the dialog and its tests share it.
-import { defaultProduct, findProduct, parseJiraKey, type ProductConfig } from '@bridge-ds/core';
+import { defaultProduct, findProduct, parseJiraKey, productRepoOf, type ProductConfig } from '@bridge-ds/core';
 import { studioHref } from './team-path';
 
 export type WorkKind = 'feature' | 'library';
@@ -82,3 +82,26 @@ export function claudePrompt(x: { sentence: string; product: ProductConfig; numb
 
 /** Where the person lands once the feature started: the branch in place on the Branches page. */
 export const featureHref = (n: number) => studioHref(`changes/?exploration=${n}`);
+
+/**
+ * Where a feature's exploration is created: the product's own repository when the team connected one (productRepoOf
+ * from @bridge-ds/core), so developers check the branch out in their own environment and get the library from npm;
+ * else null, the design system repository (a product folder there, the demo workspace).
+ */
+export const featureRepo = (p: ProductConfig, designSystemRepo: string): string | null => productRepoOf(p, designSystemRepo);
+
+/** Why the feature cannot start in its product's repository, in designer words: no GitHub detail, one way forward. */
+export function productRepoBlockedLine(product: string, reason: 'not-connected' | 'read-only'): string {
+  return reason === 'read-only'
+    ? `You can look at ${product} but not start work in it yet. Ask an admin to give you access, or start it in the library for now.`
+    : `Bridge is not connected to ${product} yet. Ask an admin to connect it, or start it in the library for now.`;
+}
+
+/** The admin action: its button label and the message it copies (install Bridge on the repository, or give access). */
+export function askAdmin(product: string, repo: string, reason: 'not-connected' | 'read-only', installLink: string): { label: string; message: string } {
+  if (reason === 'read-only') return { label: 'Ask an admin for access', message: `Hi, can you give me write access to github.com/${repo}? I want to start ${product} explorations from Bridge.` };
+  return {
+    label: `Ask an admin to connect ${product}`,
+    message: `Hi, can you connect ${product} to Bridge? Install Bridge on github.com/${repo} (${installLink}, pick ${repo.split('/')[1] ?? repo}), so our explorations start in ${product} directly.`,
+  };
+}

@@ -289,7 +289,6 @@ function wireStart() {
     }
     if (problems.length) {
       if (!branchFor(f.name)) form.querySelector('[name="name"]')?.setAttribute('aria-invalid', 'true');
-      if (!f.purpose.trim()) form.querySelector('[name="purpose"]')?.setAttribute('aria-invalid', 'true');
       error.textContent = problems.join(' ');
       error.hidden = false;
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();

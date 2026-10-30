@@ -37,6 +37,57 @@ describe('explorations on GitHub', () => {
     expect(gh.fileAt('main', '.bridge/explorations/pill-buttons.md')).toBeUndefined();
   });
 
+  it('start without a purpose: nothing asked, no empty purpose line', async () => {
+    const gh = fakeGitHub('acme', 'ds', files());
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    const r = (await explorations.startExploration(ctx, { name: 'Billing screen' })) as any;
+    expect(r).toMatchObject({ status: 'started', branch: 'explore/billing-screen', inProductRepo: false });
+    expect(gh.pulls[0]!.body).not.toContain('**Purpose.**');
+    expect(gh.fileAt('explore/billing-screen', '.bridge/explorations/billing-screen.md')).toMatch(/^# Exploration: Billing screen\n\n- Branch:/);
+  });
+
+  it('a product with its own repository: the exploration starts there; without access, a plain error and the library on request', async () => {
+    const tree = files();
+    const cfg = JSON.parse(tree['bridge.config.json']!);
+    cfg.products = [
+      { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
+      { key: 'shop', name: 'Shop', repo: 'acme/shop', preview: 'https://shop-git-{branch}-acme.vercel.app' },
+      { key: 'library', name: 'Library', default: true },
+    ];
+    const ds = fakeGitHub('acme', 'ds', { ...tree, 'bridge.config.json': `${JSON.stringify(cfg, null, 2)}\n` });
+    const shop = fakeGitHub('acme', 'shop', { 'package.json': '{"name":"shop"}' });
+    const both = ((url: string, init?: RequestInit) => (String(url).includes('/repos/acme/shop') ? shop.fetch(url, init) : ds.fetch(url, init))) as typeof fetch;
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: both });
+
+    const dry = (await explorations.startExploration(ctx, { name: 'Billing screen', product: 'shop', dryRun: true })) as any;
+    expect(dry).toMatchObject({ status: 'dry-run', repo: 'acme/shop', inProductRepo: true, base: 'main' });
+    expect(dry.prBody).toContain('The library comes from npm');
+
+    const r = (await explorations.startExploration(ctx, { name: 'Billing screen', product: 'shop', source: 'mcp' })) as any;
+    expect(r).toMatchObject({ status: 'started', repo: 'acme/shop', inProductRepo: true, branch: 'explore/billing-screen', pr: 1 });
+    expect(r.next).toContain('git switch explore/billing-screen');
+    expect(shop.pulls).toHaveLength(1);
+    expect(ds.pulls).toHaveLength(0);
+    expect(shop.pulls[0]).toMatchObject({ draft: true, base: { ref: 'main' } });
+    expect(shop.pulls[0]!.labels.map((l: any) => l.name)).toEqual(['exploration', 'product: shop']);
+    expect(shop.pulls[0]!.body).toContain('| Shop | https://shop-git-explore-billing-screen-acme.vercel.app/ |');
+    expect(shop.fileAt('explore/billing-screen', '.bridge/explorations/billing-screen.md')).toContain('# Exploration: Billing screen');
+
+    // The Admin demo lives in the design system repository: its explorations stay there.
+    const admin = (await explorations.startExploration(ctx, { name: 'Admin table', product: 'admin' })) as any;
+    expect(admin).toMatchObject({ status: 'started', repo: 'acme/ds', inProductRepo: false });
+    expect(ds.pulls).toHaveLength(1);
+
+    // Bridge cannot reach the product repository: nothing written, the admin action, the library only on request.
+    const hidden = ((url: string, init?: RequestInit) => (String(url).includes('/repos/acme/shop') ? Promise.resolve(new Response('{"message":"Not Found"}', { status: 404 })) : ds.fetch(url, init))) as typeof fetch;
+    const off = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: hidden });
+    await expect(explorations.startExploration(off, { name: 'Checkout', product: 'shop' })).rejects.toThrow(/Ask an admin to connect Shop to Bridge[\s\S]*where: "library"/);
+    expect(ds.pulls).toHaveLength(1);
+    const fallback = (await explorations.startExploration(off, { name: 'Checkout', product: 'shop', where: 'library' })) as any;
+    expect(fallback).toMatchObject({ status: 'started', repo: 'acme/ds', inProductRepo: false });
+    expect(ds.pulls[1]!.labels.map((l: any) => l.name)).toEqual(['exploration', 'product: shop']);
+  });
+
   it('token edits, requests and docs drafts aimed at the exploration branch; list; promote', async () => {
     const gh = fakeGitHub('acme', 'ds', files());
     const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });

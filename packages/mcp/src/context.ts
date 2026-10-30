@@ -142,6 +142,14 @@ export class BridgeContext {
     return this.github();
   }
 
+  /**
+   * A client for another repository (a product's own one) with the same token, fetch and hosts. Its default branch
+   * and the protected ones are refused, new branches need `branchPrefix`.
+   */
+  githubFor(repo: string, rules: { protectedBranches: string[]; branchPrefix: string }): GitHubClient {
+    return client(repo, this.opts, rules);
+  }
+
   get canWriteRemote(): boolean {
     return Boolean(this.opts.token) && !this.opts.readOnly;
   }

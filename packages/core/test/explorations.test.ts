@@ -29,6 +29,7 @@ import {
   previewComment,
   readPreviewComment,
   promoteExplorationOnGitHub,
+  productRepoAccess,
   promotionPlan,
   requestBrief,
   startExplorationOnGitHub,
@@ -58,9 +59,11 @@ describe('exploration naming', () => {
     expect(explorationSlugFromBranch('main')).toBeNull();
   });
 
-  it('says how to fix a name or a purpose', () => {
+  it('says how to fix a name, and never asks for a purpose', () => {
     expect(explorationProblems({ name: 'Pill buttons', purpose: 'Do rounder buttons read as more friendly?' })).toEqual([]);
-    expect(explorationProblems({ name: '', purpose: '' })).toEqual(['Name the exploration, for example "Denser data tables".', 'Say what you want to learn, in one sentence.']);
+    expect(explorationProblems({ name: 'Pill buttons', purpose: '' })).toEqual([]);
+    expect(explorationProblems({ name: 'Pill buttons' })).toEqual([]);
+    expect(explorationProblems({ name: '', purpose: '' })).toEqual(['Name the exploration, for example "Denser data tables".']);
     expect(explorationProblems({ name: '!!!', purpose: 'x' })[0]).toMatch(/letters or digits/);
     expect(explorationProblems({ name: 'x'.repeat(61), purpose: 'x' })[0]).toMatch(/under 60/);
   });
@@ -89,6 +92,33 @@ describe('exploration pull request', () => {
     expect(parseExplorationBody(byAgent)).toMatchObject({ source: 'cli', agent: 'claude' });
     // Before the pull request exists the body says where the command will appear.
     expect(explorationPrBody(e, { owner: 'acme', repo: 'ds', packages, apps: {} })).toMatch(/comment below[\s\S]*Preview deploys are not set up/);
+  });
+
+  it('without a purpose: no empty Purpose line, the block reads back with an empty one', () => {
+    const free = { name: 'Billing screen', purpose: '' };
+    const body = explorationPrBody(free, { owner: 'acme', repo: 'ds', packages, apps });
+    expect(body).not.toContain('**Purpose.**');
+    expect(body).not.toMatch(/\n\n\n/);
+    expect(parseExplorationBody(body)).toMatchObject({ name: 'Billing screen', purpose: '' });
+    // A block written without the field at all still reads.
+    expect(parseExplorationBody('<!-- bridge-exploration {"name":"Free","slug":"free"} -->')).toEqual({ name: 'Free', slug: 'free', purpose: '' });
+    expect(explorationNote({ ...free, slug: 'billing-screen' })).toMatch(/^# Exploration: Billing screen\n\n- Branch: `explore\/billing-screen`/);
+  });
+
+  it('in a product repository: work there, the library from npm, the product preview', () => {
+    const body = explorationPrBody(
+      { name: 'Billing screen', purpose: 'Overdue invoices.' },
+      { owner: 'acme', repo: 'shop', pr: 7, packages: [], apps: {}, inProduct: { name: 'Shop', library: 'acme/ds', preview: 'https://shop-git-{branch}-acme.vercel.app' } },
+    );
+    expect(body).toContain('This exploration lives in the Shop repository');
+    expect(body).toContain('`git fetch origin && git switch explore/billing-screen`');
+    expect(body).toContain('The library comes from npm');
+    expect(body).toContain('`npm i @bridge-ds/react@<snapshot>`');
+    expect(body).toContain('Library changes are made in acme/ds, never on this branch.');
+    expect(body).toContain('| Shop | https://shop-git-explore-billing-screen-acme.vercel.app/ |');
+    expect(body).not.toContain('### Try it in a product staging branch');
+    expect(body).not.toMatch(/\u2014/);
+    expect(explorationPrBody({ name: 'Billing screen', purpose: '' }, { owner: 'acme', repo: 'shop', packages: [], apps: {}, inProduct: { name: 'Shop', library: 'acme/ds' } })).toContain('The preview deploys of Shop, if it has them');
   });
 
   it('note file names the branch and how it ends', () => {
@@ -285,6 +315,24 @@ describe('explorations on GitHub', () => {
     await expect(startExplorationOnGitHub(gh.client(''), { name: 'Other', purpose: 'x' }, settings)).rejects.toThrow(/needs a GitHub token/);
     await expect(startExplorationOnGitHub(gh.client(), { name: '', purpose: '' }, settings)).rejects.toBeInstanceOf(GitHubError);
     expect(gh.pulls).toHaveLength(1);
+  });
+
+  it('start without a purpose: the commit message has none, the note and the body neither', async () => {
+    const gh = fakeGitHub();
+    await startExplorationOnGitHub(gh.client(), { name: 'Billing screen', purpose: '' }, settings);
+    const commit = gh.calls.find((c) => c.method === 'POST' && c.path === '/git/commits')!;
+    expect(commit.body.message).toBe('chore(explore): start Billing screen\n\nExploration: never merged as is. Promote it to review or close it.');
+    expect(gh.pulls[0].body).not.toContain('**Purpose.**');
+  });
+
+  it('product repository access: its default branch, or not connected, or read only', async () => {
+    const res = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body), headers: new Headers() });
+    const noRetry = { attempts: 1, baseDelayMs: 0, sleep: async () => {} };
+    const repo = (status: number, body: unknown) => new GitHubClient('acme/shop', 't', (async () => res(status, body)) as unknown as FetchLike, noRetry);
+    expect(await productRepoAccess(repo(200, { full_name: 'acme/shop', default_branch: 'develop', private: true, permissions: { push: true } }))).toEqual({ ok: true, base: 'develop' });
+    expect(await productRepoAccess(repo(200, { full_name: 'acme/shop', default_branch: 'main', private: true, permissions: { push: false, pull: true } }))).toEqual({ ok: false, reason: 'read-only' });
+    expect(await productRepoAccess(repo(404, { message: 'Not Found' }))).toEqual({ ok: false, reason: 'not-connected' });
+    expect(await productRepoAccess(repo(403, { message: 'Resource not accessible by integration' }))).toEqual({ ok: false, reason: 'not-connected' });
   });
 
   it('start with a Jira ticket: the key goes first in the pull request title', async () => {

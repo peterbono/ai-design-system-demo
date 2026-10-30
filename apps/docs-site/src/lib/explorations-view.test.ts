@@ -92,11 +92,14 @@ describe('explorations view', () => {
 
   it('start form: problems that say how to fix, the branch it creates, the terminal command', () => {
     expect(startProblems({ name: 'Pill buttons', purpose: 'Learn.', useCase: '' })).toEqual([]);
-    expect(startProblems({ name: '', purpose: '', useCase: '' })).toHaveLength(2);
+    // Only the name is needed: nobody is asked for a purpose.
+    expect(startProblems({ name: '', purpose: '', useCase: '' })).toHaveLength(1);
+    expect(startProblems({ name: 'Pill buttons', purpose: '', useCase: '' })).toEqual([]);
     expect(startProblems({ name: 'x y', purpose: 'p', useCase: 'nope' })).toEqual(['Pick a use case from the list, or leave it empty.']);
     expect(branchFor('Pill buttons')).toBe('explore/pill-buttons');
     expect(branchFor('!')).toBeNull();
     expect(startCommand({ name: 'Pill "round" buttons', purpose: 'Costs $5?' })).toBe('bridge explore start "Pill \\"round\\" buttons" --purpose "Costs \\$5?"');
+    expect(startCommand({ name: 'Pill buttons', purpose: '' })).toBe('bridge explore start "Pill buttons"');
     expect(implementOnCommand(40, 'explore/pill-buttons')).toBe('bridge request implement 40 --branch explore/pill-buttons');
     expect(implementOnCommand(null, 'explore/x')).toBe('bridge request implement <number> --branch explore/x');
   });

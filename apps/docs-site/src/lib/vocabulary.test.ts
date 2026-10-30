@@ -39,7 +39,7 @@ describe('core words a designer reads', () => {
       ...explorationProblems({ name: 'x'.repeat(61), purpose: 'x' }),
       ...explorationProblems({ name: '!!!', purpose: 'x' }),
     ];
-    expect(problems.length).toBeGreaterThanOrEqual(4);
+    expect(problems.length).toBeGreaterThanOrEqual(3);
     const words = [...Object.values(BUILD_IMAGE_LABEL), ...EXPLORATION_USE_CASES.flatMap((u) => [u.label, u.hint]), ...problems];
     for (const w of words) expect(jargonIn(w), w).toEqual([]);
   });
