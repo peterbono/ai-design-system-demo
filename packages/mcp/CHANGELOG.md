@@ -1,5 +1,14 @@
 # @bridge-ds/mcp
 
+## 0.11.2
+
+### Patch Changes
+
+- Updated dependencies [a367cfe]
+- Updated dependencies [f8a1085]
+  - @bridge-ds/core@0.23.0
+  - @bridge-ds/visual@0.3.17
+
 ## 0.11.1
 
 ### Patch Changes
