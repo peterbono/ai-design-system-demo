@@ -6,7 +6,7 @@
 // recorded reads match these URLs exactly, kept by ghGet's cache when GitHub stops answering. Display names and the
 // before/after thumbnails of what is
 // shown first are read after, and only add to the page.
-import { productsOf, SUGGESTION_LABEL, type ProductConfig } from '@bridge-ds/core';
+import { isGuardedExploration, productsOf, SUGGESTION_LABEL, type ProductConfig } from '@bridge-ds/core';
 import { ghGet, RateLimitError, readRepo } from './github-session';
 import { personOf, previewOf, thumbOf } from './home-data';
 import { currentViewer } from './github-session';
@@ -111,7 +111,11 @@ export async function loadDemoHome(stat: DemoStatic, onUpdate: (d: DemoHomeData)
   const opts = { thumbs, people, approved: sample ? demoApprovals() : new Set<number>() };
   const products = demoProducts();
   const needs = () => sortNeeds([...staticNeeds(), ...leadQueue(activity.open, activity.suggestions, now, opts)]);
-  const explorations = () => teamExplorations([...activity.open, ...(activity.closed ?? [])], { people, products, previews, sample });
+  // The changed files of each running exploration, so its card says what its page says ("Not started", "Exploring").
+  const xpFiles = new Map<string, string[] | null>();
+  const xpKey = (p: DemoPull) => `${p.number}@${p.head?.sha ?? ''}`;
+  const files = (p: DemoPull) => (xpFiles.has(xpKey(p)) ? xpFiles.get(xpKey(p)) : undefined);
+  const explorations = () => teamExplorations([...activity.open, ...(activity.closed ?? [])], { people, products, previews, sample, files });
   const paint = () => onUpdate({ loading: false, needs: needs(), explorations: explorations(), lead, role, failed: null });
   paint();
 
@@ -149,6 +153,13 @@ export async function loadDemoHome(stat: DemoStatic, onUpdate: (d: DemoHomeData)
     });
   };
   await Promise.all([
+    ...activity.open
+      .filter((p) => p.head?.sha && isGuardedExploration({ state: p.state ?? 'open', draft: p.draft, labels: p.labels ?? [], headRef: p.head.ref, body: p.body }))
+      .map(async (p) => {
+        const m = await import('./product-repos');
+        xpFiles.set(xpKey(p), await m.explorationFiles({ number: p.number, headSha: p.head!.sha! }));
+        later();
+      }),
     ...activity.open
       .filter((p): p is Readable => wanted.has(p.number) && readable(p))
       .map(async (p) => {

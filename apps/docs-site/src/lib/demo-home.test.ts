@@ -136,3 +136,13 @@ describe("the DS lead's queue on the demo", () => {
     expect(teamExplorations([pull(8, { head: { ref: 'explore/profile-page' } })])[0]!.preview).toEqual({ kind: 'screen', src: null });
   });
 });
+
+describe('teamExplorations: the state of a running exploration, signed out', () => {
+  const running = { number: 611, title: 'Exploration: pill buttons', user: { login: 'peterbono' }, draft: true, created_at: '2026-10-30T08:00:00Z', updated_at: '2026-10-30T08:00:00Z', labels: [{ name: 'exploration' }], head: { ref: 'explore/pill-buttons', sha: 'abc' }, body: null };
+
+  it('says "Not started" while only the Bridge note changed, "Exploring" once more did', () => {
+    expect(teamExplorations([running], { files: () => ['.bridge/explorations/pill-buttons.md'] })[0]!.state).toBe('Not started');
+    expect(teamExplorations([running], { files: () => ['.bridge/explorations/pill-buttons.md', 'apps/admin/src/App.tsx'] })[0]!.state).toBe('Exploring');
+    expect(teamExplorations([running], { files: () => undefined })[0]!.state).toBe('');
+  });
+});
