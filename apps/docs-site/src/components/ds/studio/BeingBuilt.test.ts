@@ -6,7 +6,7 @@ import { createElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { assembleBuildRequests } from '@bridge-ds/core';
+import { assembleBuildRequests, composeBuildRequestIssue } from '@bridge-ds/core';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { sampleBuildData, SAMPLE_BUILDERS } from '../../../lib/building-sample';
 import { toBuildIssue, toBuildPull } from '../../../lib/building-view';
@@ -79,5 +79,69 @@ describe('Being built', () => {
     await userEvent.click(screen.getByRole('radio', { name: /Waiting to be picked up/ }));
     expect(screen.queryByText('Button')).toBeNull();
     await expectNoAxeViolations(container);
+  });
+
+  // Issue #489 "Tag: test: rounder tag corners", closed as not planned, with its In code now and In Figma pictures.
+  const declinedTag = (closedDaysAgo: number) => {
+    const at = new Date(NOW - closedDaysAgo * 86_400_000).toISOString();
+    const r = composeBuildRequestIssue({ component: 'Tag', kind: 'visual', title: 'Test: rounder tag corners', summary: 'Tags would read softer.', figma: { nodeName: 'Tone=signal' }, images: { before: ['https://example.com/tag-before.png'], after: ['https://example.com/tag-after.png'] }, source: 'figma', requestedBy: 'dana' });
+    return { number: 489, title: r.title, body: r.body, html_url: 'https://github.com/acme/ds/issues/489', state: 'closed', state_reason: 'not_planned', labels: r.labels, user: { login: 'dana' }, assignees: [], created_at: at, closed_at: at };
+  };
+  const withTag = (closedDaysAgo: number, fixes: unknown[] = []) => {
+    const { issues, pulls } = sampleBuildData(NOW);
+    const all = [...issues, declinedTag(closedDaysAgo)];
+    const nameOf = (l: string) => SAMPLE_BUILDERS[l] ?? l;
+    return { views: assembleBuildRequests({ issues: all.map(toBuildIssue), pulls: pulls.map(toBuildPull), now: NOW, nameOf }), bodies: new Map(all.map((i) => [i.number, i.body ?? ''])), sample: false, stale: false, nameOf, jiraBase: null, fixes };
+  };
+
+  it('keeps a request closed as not planned for a week, with its own pictures and component, then leaves it out', async () => {
+    data = withTag(6);
+    const { container, unmount } = render(createElement(BeingBuilt));
+    const title = await screen.findByText('Tag: test: rounder tag corners');
+    const row = title.closest('li')!;
+    expect(row.textContent).toContain('Developers closed it without building it');
+    expect(row.textContent).toContain('Not planned');
+    const thumb = row.querySelector('.bt')!;
+    expect(thumb.getAttribute('data-label')).toBe('Tag');
+    expect([...thumb.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual(['https://example.com/tag-before.png', 'https://example.com/tag-after.png']);
+    expect(row.querySelector('a')!.getAttribute('title')).toBe('Tag: test: rounder tag corners');
+    expect(screen.getByRole('radio', { name: /All/ }).textContent).toContain('7');
+    unmount();
+    data = withTag(8);
+    const again = render(createElement(BeingBuilt));
+    await screen.findByText('Tabs: put a count after the label');
+    expect(screen.queryByText('Tag: test: rounder tag corners')).toBeNull();
+    expect(again.container.querySelectorAll('.sh-row-item')).toHaveLength(6);
+    expect(screen.getByRole('radio', { name: /All/ }).textContent).toContain('6');
+    expect(container.textContent).not.toContain('Tag: test');
+  });
+
+  it('shows the empty state once every listed request has left, never an empty list under a sentence', async () => {
+    const nameOf = (l: string) => l;
+    data = { views: assembleBuildRequests({ issues: [toBuildIssue(declinedTag(9))], pulls: [], now: NOW, nameOf }), bodies: new Map(), sample: false, stale: false, nameOf, jiraBase: null };
+    render(createElement(BeingBuilt));
+    expect(await screen.findByText('Nothing is being built yet.')).toBeTruthy();
+  });
+
+  it("labels each of Claude's fixes with its own component, one row per session", async () => {
+    const at = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
+    const stopped = (d: number) => parseSession({ component: 'Button', state: 'stopped', startedAt: at(d), updatedAt: at(d), elapsed: 60, steps: [{ kind: 'step', text: 'Claude stopped', at: at(d), by: 'peterbono' }] })!;
+    const fixes = fixRows([stopped(1), stopped(2)], [], NOW);
+    expect(new Set(fixes.map((f) => f.id)).size).toBe(2);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    data = withTag(1, fixes);
+    const { container } = render(createElement(BeingBuilt));
+    await screen.findByText('Tag: test: rounder tag corners');
+    expect(error.mock.calls.flat().join(' ')).not.toContain('same key');
+    error.mockRestore();
+    const rows = [...container.querySelectorAll('.sh-row-item')];
+    const fixRowsShown = rows.filter((li) => li.textContent?.includes("Claude's fix from Figma"));
+    expect(fixRowsShown).toHaveLength(2);
+    for (const li of fixRowsShown) {
+      expect(li.querySelector('.bt')!.getAttribute('data-label')).toBe('Button');
+      expect(li.querySelector('a')!.getAttribute('title')).toBe("Button: Claude's fix from Figma");
+    }
+    const tagRow = rows.find((li) => li.textContent?.includes('Tag: test'))!;
+    expect(tagRow.querySelector('.bt')!.getAttribute('data-label')).toBe('Tag');
   });
 });

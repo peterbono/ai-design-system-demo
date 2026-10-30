@@ -116,9 +116,12 @@ function body(spec: ThumbSpec, size: ThumbSize): ReactNode {
   }
 }
 
+/** What the thumbnail shows, when it is one named thing (a build request's component): kept on the element for tests and tools. */
+const label = (spec: ThumbSpec) => (spec.kind === 'image' || spec.kind === 'icon' ? spec.label : undefined);
+
 export function BranchThumb({ spec, size }: { spec: ThumbSpec; size: 'row' | 'card' }) {
   return (
-    <span className={`bt bt--${size} bt--${spec.kind}`} aria-hidden="true">
+    <span className={`bt bt--${size} bt--${spec.kind}`} aria-hidden="true" data-label={label(spec)}>
       {body(spec, size)}
     </span>
   );

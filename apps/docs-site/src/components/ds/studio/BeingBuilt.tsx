@@ -52,16 +52,18 @@ import {
   detailQuery,
   filterCounts,
   jiraLink,
+  listedRows,
   mergeRows,
   pageSentence,
   propLine,
   rowLine,
+  rowThumb,
   shortDate,
   statusTag,
   timelineSteps,
   viewTitle,
 } from "../../../lib/building-view";
-import type { FixRow } from "../../../lib/claude-connector";
+import { FIX_ROW_TITLE, type FixRow } from "../../../lib/claude-connector";
 import { studioHref } from "../../../lib/team-path";
 import {
   loadBuildData,
@@ -133,9 +135,10 @@ function Rows({
           return (
             <BranchRow
               key={v.id}
-              thumb={{ kind: "icon", icon: "component" }}
+              thumb={{ kind: "icon", icon: "component", label: v.component }}
               who={<Builders v={v} data={data} />}
               title={v.component}
+              hint={`${v.component}: ${FIX_ROW_TITLE}`}
               href={studioHref(v.fix.href)}
               line={v.fix.line}
               pill={statusTag(v)}
@@ -151,7 +154,7 @@ function Rows({
         return (
           <BranchRow
             key={v.id}
-            thumb={{ kind: "icon", icon: "component" }}
+            thumb={rowThumb(v, data.bodies.get(v.number))}
             who={<Builders v={v} data={data} />}
             title={viewTitle(v)}
             href={href}
@@ -491,7 +494,8 @@ export default function BeingBuilt() {
     : null;
   if (current)
     return <Detail v={current} data={data} onBack={() => go(null)} />;
-  const rows = mergeRows(data.views, data.fixes ?? []);
+  // Only what "All" lists counts: a request declined more than a week ago has left the page (sentence, counts, empty).
+  const rows = listedRows(mergeRows(data.views, data.fixes ?? []), now);
   if (!rows.length) return <Empty />;
 
   const counts = filterCounts(rows, now);

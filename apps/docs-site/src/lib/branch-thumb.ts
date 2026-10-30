@@ -19,8 +19,8 @@ export type ThumbSpec =
   | { kind: 'screen'; src: string | null }
   /** Usage guidance: lines of text. */
   | { kind: 'text' }
-  /** Nothing to draw before/after: an icon. */
-  | { kind: 'icon'; icon: ThumbIcon };
+  /** Nothing to draw before/after: an icon, with what it stands for when known (a build request's component). */
+  | { kind: 'icon'; icon: ThumbIcon; label?: string };
 
 /** A changed token as lib/token-review TokenChangeRow gives it (only the fields read here). */
 export interface ThumbToken {

@@ -18,6 +18,8 @@ export interface BranchRowProps {
   /** The avatar (or an icon for rows without a person). Decorative: the line names the person. */
   who: ReactNode;
   title: string;
+  /** The title attribute of the row's link (its hover text) when the title alone does not say what the row is. */
+  hint?: string;
   href: string;
   onClick?: (e: MouseEvent<HTMLAnchorElement>) => void;
   /** Extra attributes on the title link (data-open-pr for the in-place branch review). */
@@ -42,7 +44,7 @@ export interface BranchRowProps {
   detail?: string | null;
 }
 
-export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, selected, jira, line, pill, lead, end, className, compact, tags, detail }: BranchRowProps) {
+export function BranchRow({ thumb, who, title, hint, href, onClick, linkAttributes, selected, jira, line, pill, lead, end, className, compact, tags, detail }: BranchRowProps) {
   const chip = pill && (
     <Badge tone={TONE[pill.tone]} size="md" className="sh-row-pill">
       {pill.label}
@@ -59,7 +61,7 @@ export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, se
               {who}
             </span>
             <span className="sh-row-text">
-              <Link href={href} variant="subtle" className="t-body sh-row-title" title={line ? `${title} · ${line}` : title} data-card-primary onClick={onClick} aria-current={selected ? 'true' : undefined} {...linkAttributes}>
+              <Link href={href} variant="subtle" className="t-body sh-row-title" title={hint ?? (line ? `${title} · ${line}` : title)} data-card-primary onClick={onClick} aria-current={selected ? 'true' : undefined} {...linkAttributes}>
                 <span className="sh-strong">{title}</span>
                 {jira && <span className="t-ui t-muted sh-mono"> {jira}</span>}
                 {line && (
@@ -93,7 +95,7 @@ export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, se
             {who}
           </span>
           <span className="sh-row-text">
-            <Link href={href} variant="subtle" className="t-body sh-row-title" title={title} data-card-primary onClick={onClick} aria-current={selected ? 'true' : undefined} {...linkAttributes}>
+            <Link href={href} variant="subtle" className="t-body sh-row-title" title={hint ?? title} data-card-primary onClick={onClick} aria-current={selected ? 'true' : undefined} {...linkAttributes}>
               <span className="sh-strong">{title}</span>
             </Link>
             {(jira || line || pill || tags) && (

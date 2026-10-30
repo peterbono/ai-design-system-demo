@@ -149,7 +149,7 @@ type PullState = Pick<RestPull, 'number' | 'state' | 'merged_at' | 'updated_at'>
 
 /** The rows of the team's fix sessions, reconciled with the pull requests the list already read (no read per row). */
 export function fixRows(sessions: readonly Session[], pulls: readonly PullState[], now: number, nameOf: (login: string) => string = (l) => l): FixRow[] {
-  return sessions.map((s) => {
+  return sessions.map((s, i) => {
     const review = reviewOf(s);
     const prNumber = review ? Number(/pr=(\d+)/.exec(review)?.[1]) || null : null;
     const pull = prNumber ? pulls.find((p) => Number(p.number) === prNumber) : undefined;
@@ -193,7 +193,8 @@ export function fixRows(sessions: readonly Session[], pulls: readonly PullState[
     if (status === 'not-planned') timeline.push({ status: 'not-planned', ...(closedAt ? { at: closedAt } : {}) });
     const slug = componentSlug(s.component);
     return {
-      id: `fix-${slug}`,
+      // One row per session: a component can have several (Claude asked again), so the start time keeps keys unique.
+      id: `fix-${slug}-${s.startedAt ?? s.updatedAt ?? i}`,
       kind: 'pull',
       number: prNumber ?? 0,
       url: '',

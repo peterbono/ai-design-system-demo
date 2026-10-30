@@ -146,7 +146,7 @@ Developers split and track the work in GitHub or Jira. Bridge never writes to a 
 | In progress | A linked pull request (`Closes #n`) still a draft, with work on it |
 | In review | A linked pull request ready for review |
 | Shipped | A linked pull request merged, or the issue closed as completed |
-| Not planned | Closed as not planned |
+| Not planned | Closed as not planned. Stays in Studio's All list for 7 days after it was closed (`BUILD_DECLINED_DAYS`), then leaves it |
 
 `buildRequestStatus`, `assembleBuildRequests` and `listBuildRequestsOnGitHub` give each request its status,
 builders, age, stale flag, timeline, Jira key (`jira: DS-12` label) and Figma link. `matchesBuildFilter` gives the

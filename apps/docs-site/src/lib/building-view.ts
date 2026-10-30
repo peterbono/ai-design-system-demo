@@ -20,7 +20,9 @@ import {
   type BuildRequestView,
   type BuildStatus,
 } from '@bridge-ds/core';
+import type { ThumbSpec } from './branch-thumb';
 import { daysSince, type PillTone } from './home-model';
+import { safeUrl } from './html';
 
 /** The fields of a GitHub issue the page reads (GET /repos/{o}/{r}/issues). */
 export interface RestIssue {
@@ -47,6 +49,7 @@ export interface RestPull {
   state: string;
   draft?: boolean;
   merged_at?: string | null;
+  closed_at?: string | null;
   created_at?: string;
   updated_at?: string;
   labels?: ({ name?: string } | string)[] | null;
@@ -83,6 +86,7 @@ export function toBuildPull(p: RestPull): BuildPullLike {
     state: p.merged_at ? 'merged' : p.state,
     draft: Boolean(p.draft),
     mergedAt: p.merged_at ?? null,
+    closedAt: p.closed_at ?? null,
     labels: labelNames(p.labels),
     author: p.user?.login,
     assignees: (p.assignees ?? []).map((a) => a.login),
@@ -117,6 +121,7 @@ export const slimPull = (p: RestPull): RestPull => ({
   state: p.state,
   draft: Boolean(p.draft),
   merged_at: p.merged_at ?? null,
+  closed_at: p.closed_at ?? null,
   created_at: p.created_at,
   updated_at: p.updated_at,
   labels: labelNames(p.labels),
@@ -168,6 +173,12 @@ export function mergeRows<V extends BuildRequestView>(views: readonly BuildReque
   return [...views, ...own].sort((a, b) => ROW_ORDER[a.status] - ROW_ORDER[b.status] || (a.status === 'shipped' ? String(b.shippedAt).localeCompare(String(a.shippedAt)) : a.createdAt.localeCompare(b.createdAt)));
 }
 
+/**
+ * What the page lists: every row "All" shows (a request closed as not planned leaves a week after it was closed). The
+ * sentence, the empty state and the counts read these rows, never the ones that left.
+ */
+export const listedRows = <V extends BuildRequestView>(rows: readonly V[], now: number): V[] => rows.filter((v) => matchesBuildFilter(v, 'all', now));
+
 /** The counts on the filters: "In progress 3". */
 export function filterCounts(views: readonly BuildRequestView[], now: number): Record<BuildFilter, number> {
   const out = { all: 0, waiting: 0, 'in-progress': 0, 'shipped-this-week': 0 } as Record<BuildFilter, number>;
@@ -175,12 +186,17 @@ export function filterCounts(views: readonly BuildRequestView[], now: number): R
   return out;
 }
 
-/** The sentence under the page title. */
+/** The sentence under the page title, from the rows the page lists (listedRows). */
 export function pageSentence(views: readonly BuildRequestView[]): string {
   const open = views.filter((v) => v.status !== 'shipped' && v.status !== 'not-planned');
   const stale = open.filter((v) => v.stale).length;
   if (!views.length) return 'Nothing is being built yet.';
-  if (!open.length) return 'Everything sent from Figma or from Components is in the library.';
+  if (!open.length) {
+    // Shipped is in the library; a declined request is not, so it never reads as "everything is in the library".
+    const declined = views.filter((v) => v.status === 'not-planned').length;
+    if (!declined) return 'Everything sent from Figma or from Components is in the library.';
+    return `Nothing is being built right now. ${declined === 1 ? 'One change was' : `${declined} changes were`} closed without being built this week.`;
+  }
   const waiting = open.filter((v) => v.status === 'requested').length;
   const building = open.length - waiting;
   const parts = [...(building ? [`${building} being built`] : []), ...(waiting ? [`${waiting} waiting for a developer`] : [])];
@@ -295,3 +311,16 @@ export function rowLine(v: Pick<BuildRequestView, 'status' | 'createdAt' | 'stal
 
 /** The title of a row and of the detail: "Button: add a lg size", the same words as the issue on GitHub. */
 export const viewTitle = (v: Pick<BuildRequestView, 'component' | 'title'>) => (v.component ? requestIssueTitle({ component: v.component, title: v.title }) : v.title);
+
+/**
+ * The thumbnail of a row: the request's own pictures (In code now | In Figma, from its issue) when it carries both,
+ * else the component placeholder. Either way it is labelled with the request's component, never a default one.
+ */
+export function rowThumb(v: Pick<BuildRequestView, 'kind' | 'number' | 'url' | 'component'>, body: string | null | undefined): ThumbSpec {
+  const label = v.component || 'Component';
+  const d = v.kind === 'issue' && body ? buildDetail(body, v) : null;
+  const before = safeUrl(d?.before[0]);
+  const after = safeUrl(d?.after[0]);
+  return before && after ? { kind: 'image', before, after, label } : { kind: 'icon', icon: 'component', label };
+}
+
