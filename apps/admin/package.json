@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/admin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "Back-office demo on the Bridge design system: the react-admin e-commerce demo migrated from MUI to Bridge components, keeping the headless ra-core.",
