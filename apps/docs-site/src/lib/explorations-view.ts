@@ -20,6 +20,8 @@ import {
   explorationSummary,
   explorationTryIt,
   findPreviewComment,
+  previewUrl,
+  productRepos,
   isActiveExploration,
   isHeldExploration,
   isExplorationPull,
@@ -30,6 +32,7 @@ import {
   type ExplorationStatus,
   type ExplorationTryIt,
   type PreviewApps,
+  type ProductConfig,
   type PullRequestSummary,
 } from '@bridge-ds/core';
 import { tierLabel, type StatusTone } from './changes';
@@ -49,6 +52,11 @@ export interface ExplorationPullLike {
   user?: { login: string } | null;
   updated_at: string;
   html_url: string;
+  /** The branch it targets (the product's default branch, for a client that never writes it). */
+  base?: { ref: string } | null;
+  /** Read in a product's own repository (tagProductPulls): that repository and the product key. */
+  repo?: string;
+  product?: string;
 }
 
 export interface ExplorationsConfig {
@@ -91,6 +99,70 @@ export interface ExplorationRow {
   /** Head commit: the preview comment's snapshot must match it before its install command is shown. */
   headSha: string;
   requests: LinkedRequest[];
+  /**
+   * Set when the exploration lives in a product's own repository (bridge.config.json products[].repo): that
+   * repository ("owner/name") and the product key. Absent in the design system repository.
+   */
+  repo?: string;
+  product?: string;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Explorations in a product's own repository: one key, one address
+
+/** A product whose explorations live in its own repository, and that repository. */
+export interface ProductRepo {
+  product: ProductConfig;
+  repo: string;
+}
+
+/** The products of the site that have their own repository (core productRepos), the design system one left out. */
+export const productReposOf = (products: readonly ProductConfig[], cfg: Pick<ExplorationsConfig, 'owner' | 'repo'>): ProductRepo[] => productRepos(products, `${cfg.owner}/${cfg.repo}`);
+
+/**
+ * The one key of an exploration across repositories: "12" in the design system repository, "shop#12" in a product's
+ * own one, so the design system's #12 and the shop's #12 never collide in a map or a list.
+ */
+export const explorationKey = (x: { number: number; product?: string | null | undefined }): string => (x.product ? `${x.product}#${x.number}` : String(x.number));
+
+/** Where an exploration opens on Changes: `?exploration=12`, or `?exploration=12&product=shop` for a product's own repository. */
+export const explorationHref = (x: { number: number; product?: string | null | undefined }): string =>
+  x.product ? `?exploration=${x.number}&product=${encodeURIComponent(x.product)}` : `?exploration=${x.number}`;
+
+/** The exploration an address asks for: its number and, for a product's own repository, the product key. Null: none. */
+export function explorationParam(search: string): { number: number; product: string | null } | null {
+  const q = new URLSearchParams(search);
+  const n = Number(q.get('exploration'));
+  if (!Number.isInteger(n) || n <= 0) return null;
+  const product = q.get('product')?.trim().toLowerCase() || null;
+  return { number: n, product: product && /^[a-z0-9][a-z0-9-]*$/.test(product) ? product : null };
+}
+
+/** The read of one product repository's open branches: one request per repository, cached like the design system list. */
+export const productPullsPath = (repo: string) => `/repos/${repo}/pulls?state=open&per_page=100`;
+
+/**
+ * Pull requests read in a product's own repository, tagged with that product so the rows, the home and the address
+ * know where they live. Only explorations stay: a product repository's other branches are not Bridge's.
+ */
+export function tagProductPulls<P extends ExplorationPullLike>(pulls: readonly P[], at: ProductRepo): (P & { repo: string; product: string })[] {
+  return pulls.filter(isExploration).map((p) => ({ ...p, repo: at.repo, product: at.product.key }));
+}
+
+/** The product's preview of an exploration (its `preview` template, as on the product's Vercel project), or none. */
+export function productPreviewLinks(product: ProductConfig, ctx: { branch: string; number: number; headSha: string }): { app: string; label: string; url: string }[] {
+  const url = previewUrl(product.preview, { branch: ctx.branch, pr: ctx.number, sha: ctx.headSha });
+  return url ? [{ app: product.key, label: product.name, url }] : [];
+}
+
+/**
+ * The previews of a product's own exploration, with what Vercel reports in that repository (its statuses and comment
+ * on the branch), read against the product's template the way the library's apps are. Named after the product.
+ */
+export function productPreviews(r: Pick<ExplorationRow, 'branch' | 'number' | 'headSha'>, product: ProductConfig, sources: BranchPreviewSources = {}): BranchPreview[] {
+  if (!product.preview) return [];
+  // The admin slot carries the product's template: core matches Vercel projects by the template's host.
+  return resolveBranchPreviews({ admin: product.preview }, { branch: r.branch, pr: r.number, sha: r.headSha }, sources).map((p) => ({ ...p, app: product.key as keyof PreviewApps, label: product.name }));
 }
 
 const labelName = (l: { name?: string } | string) => (typeof l === 'string' ? l : (l.name ?? ''));
@@ -145,15 +217,22 @@ const ORDER: Record<ExplorationStatus, number> = { active: 0, ready: 1, building
 export function explorationRows(
   pulls: ExplorationPullLike[],
   cfg: ExplorationsConfig,
-  opts: { requests?: RequestRow[]; issues?: IssueLike[]; requestPulls?: RequestPullLike[]; archived?: 'exclude' | 'include' | 'only' } = {},
+  opts: {
+    requests?: RequestRow[];
+    issues?: IssueLike[];
+    requestPulls?: RequestPullLike[];
+    archived?: 'exclude' | 'include' | 'only';
+    /** The pulls were read in this product's own repository: rows carry it, and its preview. */
+    inProduct?: ProductRepo;
+  } = {},
 ): ExplorationRow[] {
   const reqs = opts.requests ?? (opts.issues?.length ? requestRows(opts.issues, opts.requestPulls ?? []) : []);
   const archived = opts.archived ?? 'exclude';
-  const seen = new Set<number>();
+  const seen = new Set<string>();
   return pulls
     .filter((p) => {
-      if (seen.has(p.number)) return false;
-      seen.add(p.number);
+      if (seen.has(explorationKey(p))) return false;
+      seen.add(explorationKey(p));
       return isExploration(p) && (archived === 'include' || (archived === 'only') === isArchivedExploration(p.labels));
     })
     .map((p) => {
@@ -177,10 +256,33 @@ export function explorationRows(
         updatedAt: s.updatedAt,
         previews: s.previews.map((v) => ({ ...v, label: previewName(v.app as keyof PreviewApps, v.label) })),
         headSha: p.head.sha,
-        requests: linkedRequests(s.branch, reqs),
+        // Requests are filed in the design system repository: they name design system branches only.
+        requests: opts.inProduct ? [] : linkedRequests(s.branch, reqs),
+        ...(opts.inProduct
+          ? { repo: opts.inProduct.repo, product: opts.inProduct.product.key, previews: productPreviewLinks(opts.inProduct.product, { branch: s.branch, number: s.number, headSha: p.head.sha }) }
+          : {}),
       };
     })
-    .sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.updatedAt.localeCompare(a.updatedAt) || b.number - a.number);
+    .sort(byStatus);
+}
+
+const byStatus = (a: ExplorationRow, b: ExplorationRow) => ORDER[a.status] - ORDER[b.status] || b.updatedAt.localeCompare(a.updatedAt) || b.number - a.number;
+
+/**
+ * The design system's rows and each product repository's rows in one list, in the same order as explorationRows, one
+ * row per key (explorationKey). A product repository Bridge could not read simply adds nothing.
+ */
+export function mergeExplorationRows(...lists: ExplorationRow[][]): ExplorationRow[] {
+  const seen = new Set<string>();
+  return lists
+    .flat()
+    .filter((r) => {
+      const k = explorationKey(r);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .sort(byStatus);
 }
 
 /** "2 explorations running, 1 with the developers." Summary first; promoted ones that still wait for review after. */

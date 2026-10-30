@@ -38,7 +38,7 @@ export function ProductContext({ context: c, canSuggest, onSuggest }: ProductCon
           Open the product preview
         </Link>
       ) : (
-        <Link href={c.productHref} data-open-exploration={c.neededBy.pr}>
+        <Link href={c.productHref} data-open-exploration={c.neededBy.pr} {...(c.neededBy.repo ? { 'data-product': c.neededBy.product } : {})}>
           Open the product branch
         </Link>
       )}

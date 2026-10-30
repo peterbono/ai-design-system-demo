@@ -249,7 +249,7 @@ function Explorations({
             <StartChange components={components} appearance="card" exploration />
           </li>
           {shown.map((c) => (
-            <ExplorationCardItem key={c.number} c={c} />
+            <ExplorationCardItem key={c.key ?? c.number} c={c} />
           ))}
         </ul>
       ) : (

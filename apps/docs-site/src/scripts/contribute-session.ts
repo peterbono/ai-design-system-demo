@@ -524,9 +524,10 @@ function withoutAuth(h: Record<string, string>): Record<string, string> {
  * method and body, with the session cookie; any other call goes out as a guest. A 401 from the proxy means the
  * session ended: it is forgotten here and the page shows the signed-out state.
  */
-export async function contributeFetch(repo: string, url: string, init: RequestInit = {}): Promise<Response> {
+export async function contributeFetch(repo: string, url: string, init: RequestInit = {}, products: readonly string[] = []): Promise<Response> {
   const headers = withoutAuth((init.headers ?? {}) as Record<string, string>);
-  const target = proxyUrl(url, repo);
+  // A read of one of the team's product repositories goes through the team's proxy too; writes there never do.
+  const target = proxyUrl(url, repo, (init.method ?? 'GET').toUpperCase() === 'GET' ? products : []);
   if (!target) {
     // A person's public profile (names on Being built, History, branch pages): through Bridge, as a member.
     const user = (init.method ?? 'GET').toUpperCase() === 'GET' ? USER_URL.exec(url) : null;
@@ -603,9 +604,9 @@ const publicReads = new Map<string, 'down'>();
  * this read should go to GitHub as before (another team, another call, or Bridge cannot read it here). Bridge's own
  * limit throws a GitHubError with its sentence ("Bridge is busy, try again in N min."), never GitHub's token advice.
  */
-export async function publicTeamRead(repo: string, url: string, accept: string): Promise<Response | null> {
+export async function publicTeamRead(repo: string, url: string, accept: string, products: readonly string[] = []): Promise<Response | null> {
   if (!isDemoRepo(repo) || publicReads.get(key(repo)) === 'down') return null;
-  const target = proxyUrl(url, repo);
+  const target = proxyUrl(url, repo, products);
   if (!target) return null;
   let res: Response;
   try {
@@ -630,6 +631,7 @@ export async function publicTeamRead(repo: string, url: string, accept: string):
     const wait = typeof body?.retryAfter === 'number' ? body.retryAfter : null;
     throw new GitHubError(429, typeof body?.message === 'string' ? body.message : 'Bridge is busy, try again in a few minutes.', `${CONTRIB_REFUSAL}busy`, wait ? { resetsAt: new Date(Date.now() + wait * 1000) } : {});
   }
-  if (code !== 'not-allowed') publicReads.set(key(repo), 'down');
+  // The app missing on one product repository leaves that product out, never the team's other reads.
+  if (code !== 'not-allowed' && code !== 'product_missing') publicReads.set(key(repo), 'down');
   return null;
 }

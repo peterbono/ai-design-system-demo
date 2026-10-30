@@ -35,6 +35,7 @@ const ALLOWED: Record<string, string> = {
   'lib/library-use.ts': 'the match is text inside a code sample shown on the Install page, not a sink',
   // Browser scripts: GitHub and repo data through esc / attrUrl / cssValue.
   'scripts/explorations.ts': 'esc, attrUrl on preview and PR URLs',
+  'scripts/product-connections.ts': 'esc on product names, repos and the admin message; badgeHtml escapes',
   'scripts/explorer/detail.ts': 'esc, attrUrl, cssValue on token values',
   'scripts/explorer/grid.ts': 'esc; cells via cellHtml (cssValue)',
   'scripts/explorer/index.ts': 'esc; tiers and categories from fixed sets',

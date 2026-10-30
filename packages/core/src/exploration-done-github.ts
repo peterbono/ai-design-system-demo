@@ -33,6 +33,11 @@ export interface DoneExploringInput {
   source?: RequestSource | undefined;
   date?: Date | undefined;
   dryRun?: boolean | undefined;
+  /**
+   * The design system repository, when the exploration lives in a product's own repository (`gh` reads that one): the
+   * requests for the ticked pieces are filed there, where the DS lead works, linking back to the product pull request.
+   */
+  library?: GitHubClient | undefined;
 }
 
 export interface DoneExploring {
@@ -69,7 +74,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   const take = plan?.take ?? (['git fetch origin', `git checkout ${p.headRef}`] as [string, string]);
   const out: DoneExploring = { number: p.number, url: p.url, branch: p.headRef, status: fresh ? 'ready' : status, handedOff: fresh, plan, pieces: { proposed: [], already: [], unknown: [], warnings: [] }, take, warnings: [] };
   const products = input.products ?? [];
-  const ask = { pieces: input.pieces ?? [], products, previewUrl: input.previewUrl, openedBy: input.openedBy, agent: input.agent, source: input.source };
+  const ask = { pieces: input.pieces ?? [], products, previewUrl: input.previewUrl, openedBy: input.openedBy, agent: input.agent, source: input.source, library: input.library };
   if (input.dryRun) {
     out.pieces = await proposePiecesOnGitHub(gh, p.number, { ...ask, dryRun: true }).catch((e: Error) => ({ proposed: [], already: [], unknown: [], warnings: [e.message] }));
     return out;

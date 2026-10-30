@@ -8,7 +8,7 @@
 import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
 import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
-import { repoContext } from './repo-context';
+import { repoContext, siteConfig } from './repo-context';
 import { clearPrivateRepoCaches, clearRepoCache } from './repo-cache';
 import {
   authFailure,
@@ -59,7 +59,7 @@ import {
 } from '../lib/github-signin';
 import { studioHref } from '../lib/team-path';
 import { clearGuestReads, guestFetch } from './guest-activity';
-import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, isContribAuth, type ContributeMember } from '../lib/contribute';
+import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, isContribAuth, productReposOfConfig, type ContributeMember } from '../lib/contribute';
 import { ROLE_WORDS } from '../lib/invites';
 import { contributeFetch, contributeInfo, contributorFor, contributorKey, onContributeChange, publicTeamRead, signOutEmail, takeContributeHash, verifyEmailSignIn } from './contribute-session';
 import { busyText } from '../lib/team-load';
@@ -175,6 +175,18 @@ function githubToken(): string | null {
 const pageRepo = () => {
   const r = readRepo();
   return `${r.owner}/${r.repo}`;
+};
+
+/**
+ * The product repositories of this page's team (bridge.config.json products[].repo): an email member or a visitor of
+ * a public demo team reads them through the team's proxy, never writes there through it.
+ */
+const pageProductRepos = (): string[] => {
+  try {
+    return productReposOfConfig((siteConfig() as { products?: { repo?: string }[] }).products, pageRepo());
+  } catch {
+    return [];
+  }
 };
 
 /**
@@ -636,7 +648,7 @@ export const studioFetch: FetchLike = async (url, init = {}) => {
   const method = (init.method ?? 'GET').toUpperCase();
   let headers = init.headers ?? {};
   // An email contributor: every call to the team's repository goes through this site's proxy, the rest as a guest.
-  if (isContribAuth(headers.Authorization)) return contributeFetch(pageRepo(), url, init as RequestInit);
+  if (isContribAuth(headers.Authorization)) return contributeFetch(pageRepo(), url, init as RequestInit, pageProductRepos());
   // A write with a token GitHub already refused cannot succeed: answer for it, so the action shows the one message.
   if (method !== 'GET' && tokenRejected() && headers.Authorization) {
     return new Response(JSON.stringify({ message: 'Bad credentials' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
@@ -658,7 +670,7 @@ export const studioFetch: FetchLike = async (url, init = {}) => {
   // (scripts/guest-activity.ts). GitHub's hourly limit is said in Bridge's words, never "add a GitHub token".
   if (method === 'GET' && !headers.Authorization && url.startsWith(API)) {
     const h = headers;
-    return busyIfLimited(await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '')) ?? fetch(url, { ...init, headers: h })));
+    return busyIfLimited(await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '', pageProductRepos())) ?? fetch(url, { ...init, headers: h })));
   }
   const res = await fetch(url, { ...init, headers });
   if (res.status === 401 && headers.Authorization) {
@@ -685,8 +697,11 @@ function busyIfLimited(res: Response): Response {
 /** The core GitHub client the Studio uses: the saved token, the session-aware fetch. */
 export function studioClient(repo: string, token: string | null = getToken(), options?: ClientOptions): GitHubClient {
   // An email member's client goes through this site's proxy for its own repository, which is not always the page's
-  // (a team Library page is not a Studio team shell: its page repository is the site's own).
-  const f: FetchLike = isContribAuth(token) ? (url, init = {}) => (isContribAuth(init.headers?.Authorization) ? contributeFetch(repo, url, init as RequestInit) : studioFetch(url, init)) : studioFetch;
+  // (a team Library page is not a Studio team shell: its page repository is the site's own). A client for one of the
+  // team's product repositories reads through the team's proxy (its session is the team's); writes there are refused.
+  const product = pageProductRepos().includes(repo.toLowerCase());
+  const via = product ? pageRepo() : repo;
+  const f: FetchLike = isContribAuth(token) ? (url, init = {}) => (isContribAuth(init.headers?.Authorization) ? contributeFetch(via, url, init as RequestInit, product ? [repo] : []) : studioFetch(url, init)) : studioFetch;
   return new GitHubClient(repo, token ?? '', f, undefined, options);
 }
 
@@ -765,7 +780,7 @@ function cacheSet(url: string, data: unknown) {
 
 /** fetch for a call with the session's headers: the proxy for an email contributor, GitHub otherwise. */
 const ghFetch = (url: string, init: RequestInit & { headers: Record<string, string> }): Promise<Response> =>
-  isContribAuth(init.headers.Authorization) ? contributeFetch(pageRepo(), url, init) : fetch(url, init);
+  isContribAuth(init.headers.Authorization) ? contributeFetch(pageRepo(), url, init, pageProductRepos()) : fetch(url, init);
 
 function headers(extra: Record<string, string> = {}): Record<string, string> {
   const h: Record<string, string> = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...extra };
@@ -835,7 +850,7 @@ async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { ac
     const isApi = url.startsWith(API);
     const h = headers(opts.accept ? { Accept: opts.accept } : {});
     // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
-    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '')) ?? fetch(url, { headers: h })) : isApi ? await ghFetch(url, { headers: h }) : await fetch(url);
+    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '', pageProductRepos())) ?? fetch(url, { headers: h })) : isApi ? await ghFetch(url, { headers: h }) : await fetch(url);
     // GitHub refused the token: mark it, then read anonymously (public repos keep working).
     if (res.status === 401 && isApi && hasWorkingToken()) {
       markTokenRejected();

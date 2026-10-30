@@ -12,7 +12,18 @@ export const DONE_EXPLORING_EVENT = 'bridge:done-exploring-ask';
 export function askDoneExploring(
   r: { number: number; name: string },
   body: string | null | undefined,
-  opts: { client: () => GitHubClient; previewUrl: string | null; products?: readonly ProductConfig[]; after: (line: string) => void; focus?: HTMLElement | null },
+  opts: {
+    client: () => GitHubClient;
+    /**
+     * The design system repository, when the exploration lives in a product's own one (`client` writes that one): the
+     * ticked pieces are filed there as requests, where the DS lead works.
+     */
+    library?: () => GitHubClient;
+    previewUrl: string | null;
+    products?: readonly ProductConfig[];
+    after: (line: string) => void;
+    focus?: HTMLElement | null;
+  },
 ) {
   const found = donePieces(body);
   const detail: DoneExploringDetail = {
@@ -23,7 +34,7 @@ export function askDoneExploring(
     sent: found.sent,
     confirm: async (pieces) => {
       const viewer = currentViewer()?.login;
-      const res = await doneExploringOnGitHub(opts.client(), r.number, { pieces, products: opts.products ?? [], previewUrl: opts.previewUrl, ...(viewer ? { openedBy: viewer } : {}), source: 'studio' });
+      const res = await doneExploringOnGitHub(opts.client(), r.number, { pieces, products: opts.products ?? [], previewUrl: opts.previewUrl, ...(viewer ? { openedBy: viewer } : {}), ...(opts.library ? { library: opts.library() } : {}), source: 'studio' });
       opts.after(`${doneLine(res.pieces.proposed.length)}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`);
     },
     closed: (done) => {

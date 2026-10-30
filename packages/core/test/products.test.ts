@@ -12,6 +12,8 @@ import {
   productOfBranch,
   productProblems,
   productRepoOf,
+  productRepos,
+  productOfRepo,
   productsOf,
   type ProductConfig,
 } from '../src/products';
@@ -160,4 +162,21 @@ test('productRepoOf: a product with its own repository, never the design system 
   assert.equal(productRepoOf(defaultProduct(DEFAULT_PRODUCTS), 'acme/ds'), null);
   assert.equal(productRepoOf({ key: 'shop', name: 'Shop', repo: 'not a repo' }, 'acme/ds'), null);
   assert.equal(productRepoOf(null, 'acme/ds'), null);
+});
+
+test('productRepos and productOfRepo: products with their own repository, once each, never the design system one', () => {
+  const products = [
+    { key: 'shop', name: 'Shop', repo: 'acme/shop' },
+    { key: 'shop2', name: 'Shop again', repo: 'ACME/shop' },
+    { key: 'self', name: 'Self', repo: 'acme/ds' },
+    { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
+    { key: 'library', name: 'Library', default: true },
+  ];
+  assert.deepEqual(
+    productRepos(products, 'acme/ds').map((x) => [x.product.key, x.repo]),
+    [['shop', 'acme/shop']],
+  );
+  assert.equal(productOfRepo(products, 'Acme/Shop', 'acme/ds')?.key, 'shop');
+  assert.equal(productOfRepo(products, 'acme/ds', 'acme/ds'), undefined);
+  assert.equal(productOfRepo(products, '', 'acme/ds'), undefined);
 });

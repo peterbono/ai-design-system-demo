@@ -4,6 +4,7 @@
 // runs the adoption audit on the branch diff against main, which Studio cannot do in the browser.
 import {
   baseBranchOf,
+  explorationRefLabel,
   NEEDED_BY_LABEL,
   openLibraryBranchOnGitHub,
   planTokenProposal,
@@ -22,7 +23,8 @@ import {
   type MissingPiece,
 } from '@bridge-ds/core';
 import { missingPieces } from '@bridge-ds/core/audit';
-import { branchNumber, reader, viewerOf, writer } from './branches.js';
+import { reader, viewerOf, writer } from './branches.js';
+import { locate, locatedNumber } from './product-repos.js';
 import type { BridgeContext } from './context.js';
 import { core } from './core-adapter.js';
 import { settingsOf } from './explorations.js';
@@ -31,6 +33,21 @@ import { designSystemIndex } from './ops.js';
 import { say } from './say.js';
 
 const NEED = 'Contents, Pull requests and Issues: read and write';
+
+/**
+ * The product branch a reference names: in the design system repository ("12", "#12", its link) or in a product's
+ * own repository ("shop#12", owner/name#12, its link). `gh` reads and writes the product branch, `library` is the
+ * design system repository when they differ (requests and library branches are opened there), `label` names it back.
+ */
+async function target(ctx: BridgeContext, pr: number | string, ds: GitHubClient) {
+  const at = await locate(ctx, pr, ds);
+  const n = locatedNumber(at, pr);
+  return { gh: at.gh, n, library: at.repo ? ds : undefined, label: explorationRefLabel({ number: n, product: at.product?.key, repo: at.repo }), repo: at.repo };
+}
+
+/** Preview and switch merge library branches into the product branch: impossible across repositories. */
+const ACROSS =
+  'This product branch lives in the product\'s own repository: the library reaches it as the npm package, never as a merged branch. Install the snapshot of the library branch (its "Try this exploration in your product" comment) to try it before release, and bump @bridge-ds/react once it ships.';
 
 /** Who opens library branches from here: the MCP server speaks for an AI agent, the CLI for the person. */
 export type PiecesSource = 'mcp' | 'cli';
@@ -53,9 +70,10 @@ const short = (p: MissingPiece) => ({
  * (Studio's product branch page reads it there), keeping the library branches already opened.
  */
 export async function missingPiecesOp(ctx: BridgeContext, a: { pr: number | string; record?: boolean | undefined }) {
-  const n = branchNumber(a.pr);
-  const gh = a.record ? await writer(ctx, 'Recording the missing pieces', NEED) : await reader(ctx);
+  const t = await target(ctx, a.pr, a.record ? await writer(ctx, 'Recording the missing pieces', NEED) : await reader(ctx));
+  const { gh, n } = t;
   const { config } = await ctx.config();
+  // The audit reads the product branch where it lives, and the library (tokens, components) from the design system.
   const read = await readProductBranchOnGitHub(gh, n, { products: productsOf(config) });
   const [ds, set] = await Promise.all([designSystemIndex(ctx), ctx.tokens()]);
   const r = missingPieces({ files: read.files, ds, set });
@@ -63,6 +81,8 @@ export async function missingPiecesOp(ctx: BridgeContext, a: { pr: number | stri
   const linked = recorded?.links ?? read.record?.links ?? [];
   return {
     pr: n,
+    ref: t.label,
+    ...(t.repo ? { repo: t.repo } : {}),
     branch: read.pull.headRef,
     product: read.product.name,
     files: r.files,
@@ -71,7 +91,7 @@ export async function missingPiecesOp(ctx: BridgeContext, a: { pr: number | stri
     fixes: { count: r.fixes.length, sample: r.fixes.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.what} -> use ${f.use}`) },
     recorded: Boolean(recorded),
     next: r.pieces.length
-      ? `${a.record ? '' : `Record them (${say(ctx, 'record: true', `\`bridge pieces ${n} --record\``)}) so Studio shows them, then `}open a library branch for each with ${say(ctx, `bridge_open_library_branch { pr: ${n}, piece: "<id>" }`, `\`bridge pieces open ${n} <id>\``)}. Fixes are values and components the library already has: use them in the product code instead.`
+      ? `${a.record ? '' : `Record them (${say(ctx, 'record: true', `\`bridge pieces ${t.label} --record\``)}) so Studio shows them, then `}${t.repo ? `say "Done exploring" with the pieces the person picks (${say(ctx, `bridge_promote_exploration { exploration: "${t.label}", pieces: [...] }`, `\`bridge explore done ${t.label} --piece <id>\``)}): each becomes a request in the design system repository` : `open a library branch for each with ${say(ctx, `bridge_open_library_branch { pr: ${n}, piece: "<id>" }`, `\`bridge pieces open ${n} <id>\``)}`}. Fixes are values and components the library already has: use them in the product code instead.`
       : 'Nothing is missing from the library. Fix the values that equal a token, if any.',
   };
 }
@@ -106,14 +126,17 @@ export async function openLibraryBranchOp(
   ctx: BridgeContext,
   a: { pr: number | string; piece: string; usePreview?: boolean | undefined; dryRun?: boolean | undefined; source?: PiecesSource | undefined; changes?: ChangesMode | undefined },
 ) {
-  const n = branchNumber(a.pr);
   const source = a.source ?? 'mcp';
   const mode = await changesFor(ctx, a.changes);
-  const gh = a.dryRun ? await reader(ctx) : mode === 'suggest' ? await writer(ctx, 'Suggesting a library change', SUGGEST_RIGHTS) : await writer(ctx, 'Opening a library branch', NEED);
+  const ds = a.dryRun ? await reader(ctx) : mode === 'suggest' ? await writer(ctx, 'Suggesting a library change', SUGGEST_RIGHTS) : await writer(ctx, 'Opening a library branch', NEED);
+  const t = await target(ctx, a.pr, ds);
+  const { gh: pgh, n } = t;
+  const gh = ds;
   const { config } = await ctx.config();
   const viewer = await viewerOf(ctx, gh);
   const s = settingsOf(config);
-  const r = await openLibraryBranchOnGitHub(gh, {
+  const r = await openLibraryBranchOnGitHub(pgh, {
+    ...(t.library ? { library: t.library } : {}),
     pr: n,
     piece: a.piece,
     base: s.base,
@@ -151,7 +174,8 @@ export async function openLibraryBranchOp(
     ...(plan.kind === 'exploration' ? { exploration: plan.exploration.name, brief: plan.brief } : {}),
     ...(plan.kind === 'request' ? { request: plan.request.title } : {}),
     changesMode: mode,
-    neededBy: `${plan.neededBy.title} (#${plan.neededBy.pr}) in ${plan.neededBy.productName}`,
+    ...(t.repo ? { ref: t.label, repo: t.repo } : {}),
+    neededBy: `${plan.neededBy.title} (${plan.neededBy.repo ?? ''}#${plan.neededBy.pr}) in ${plan.neededBy.productName}`,
     ...(r.link ? { library: { kind: r.link.kind, number: r.link.number, url: r.link.url, ...(r.link.branch ? { branch: r.link.branch } : {}) } } : {}),
     ...(r.preview ? { preview: r.preview } : {}),
     ...(r.warnings.length ? { warnings: r.warnings } : {}),
@@ -161,13 +185,15 @@ export async function openLibraryBranchOp(
 
 /** bridge_product_branch / `bridge pieces status <n>`: the product branch page, as Studio shows it. */
 export async function productBranchOp(ctx: BridgeContext, a: { pr: number | string }) {
-  const n = branchNumber(a.pr);
-  const gh = await reader(ctx);
+  const ds = await reader(ctx);
+  const t = await target(ctx, a.pr, ds);
+  const n = t.n;
   const { config } = await ctx.config();
-  const viewer = await viewerOf(ctx, gh);
-  const v = await productBranchViewOnGitHub(gh, n, { products: productsOf(config), viewer });
+  const viewer = await viewerOf(ctx, ds);
+  const v = await productBranchViewOnGitHub(t.gh, n, { products: productsOf(config), viewer, ...(t.library ? { library: t.library } : {}) });
   return {
     pr: n,
+    ...(t.repo ? { ref: t.label, repo: t.repo, library: ds.fullName } : {}),
     title: v.pull.title,
     product: v.product.name,
     said: `${v.sentence.lead}${v.sentence.strong}${v.sentence.rest}`,
@@ -180,14 +206,15 @@ export async function productBranchOp(ctx: BridgeContext, a: { pr: number | stri
       ...(l.preview.action ? { action: l.preview.action.label, tool: l.preview.action.kind === 'switch' ? say(ctx, `bridge_switch_to_published { pr: ${n} }`, `bridge pieces switch ${n}`) : say(ctx, `bridge_use_library_preview { pr: ${n}, piece: "${l.link.piece}" }`, `bridge pieces preview ${n} ${l.link.piece}`) } : {}),
     })),
     notLinked: v.open.map(short),
-    ...(v.record ? {} : { next: `Find its missing pieces: ${say(ctx, `bridge_missing_pieces { pr: ${n}, record: true }`, `\`bridge pieces ${n} --record\``)}.` }),
+    ...(v.record ? {} : { next: `Find its missing pieces: ${say(ctx, `bridge_missing_pieces { pr: ${t.repo ? `"${t.label}"` : n}, record: true }`, `\`bridge pieces ${t.label.replace(/^#/, '')} --record\``)}.` }),
   };
 }
 
 /** bridge_use_library_preview: the product branch takes (again) the library branch of a piece, merged in. */
 export async function useLibraryPreviewOp(ctx: BridgeContext, a: { pr: number | string; piece: string }) {
-  const n = branchNumber(a.pr);
-  const gh = await writer(ctx, 'Using a library preview', 'Contents: read and write');
+  const t = await target(ctx, a.pr, await writer(ctx, 'Using a library preview', 'Contents: read and write'));
+  if (t.repo) throw new Error(ACROSS);
+  const { gh, n } = t;
   const { config } = await ctx.config();
   const v = await productBranchViewOnGitHub(gh, n, { products: productsOf(config) });
   const l = v.linked.find((x) => x.link.piece === a.piece);
@@ -201,7 +228,7 @@ export async function useLibraryPreviewOp(ctx: BridgeContext, a: { pr: number | 
 
 /** bridge_switch_to_published: main into the product branch once its library branches shipped. */
 export async function switchToPublishedOp(ctx: BridgeContext, a: { pr: number | string }) {
-  const n = branchNumber(a.pr);
-  const gh = await writer(ctx, 'Switching to the published version', 'Contents and Pull requests: read and write');
-  return { pr: n, ...(await switchToPublishedOnGitHub(gh, n)) };
+  const t = await target(ctx, a.pr, await writer(ctx, 'Switching to the published version', 'Contents and Pull requests: read and write'));
+  if (t.repo) throw new Error(ACROSS);
+  return { pr: t.n, ...(await switchToPublishedOnGitHub(t.gh, t.n)) };
 }

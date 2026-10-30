@@ -47,17 +47,30 @@ export interface ContributeMember {
 }
 
 /**
+ * The product repositories of a team ("owner/name", bridge.config.json products[].repo) other than the team's own:
+ * Studio reads them through the team's proxy (GET only, api/_lib/team-read.ts productReadAllowed).
+ */
+export function productReposOfConfig(products: readonly { repo?: string | undefined }[] | null | undefined, team: string): string[] {
+  const t = team.toLowerCase();
+  return [...new Set((products ?? []).map((p) => p?.repo?.trim().toLowerCase() ?? '').filter((r) => /^[\w.-]+\/[\w.-]+$/.test(r) && r !== t))];
+}
+
+/**
  * The proxy address of a GitHub REST call made for `repo` ("owner/name"), or null when the call is not the team's
  * (another host, another repository, the account itself): those go to GitHub as a guest. Case-insensitive on the
- * repository, the path and its query are kept as they are.
+ * repository, the path and its query are kept as they are. `products`: a read of one of the team's product
+ * repositories (productReposOfConfig) also goes to the team's proxy (`repo` stays the team); pass them for GET only.
  */
-export function proxyUrl(url: string, repo: string): string | null {
+export function proxyUrl(url: string, repo: string, products: readonly string[] = []): string | null {
   if (!url.startsWith(GITHUB_API)) return null;
   const path = url.slice(GITHUB_API.length) || '/';
   if (!path.startsWith('/')) return null;
-  const base = `/repos/${repo}`.toLowerCase();
   const head = path.split(/[?#]/)[0]!.toLowerCase();
-  if (head !== base && !head.startsWith(`${base}/`)) return null;
+  const under = (r: string) => {
+    const base = `/repos/${r}`.toLowerCase();
+    return head === base || head.startsWith(`${base}/`);
+  };
+  if (!under(repo) && !products.some(under)) return null;
   return `${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&gh=${encodeURIComponent(path)}`;
 }
 

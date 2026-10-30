@@ -73,6 +73,13 @@ export interface ListRow {
   labels?: { name: string }[] | null;
   /** The product branch this library branch is needed by (its "Needed by" block): listed under it. */
   neededBy?: number | null;
+  /** The product key of that product branch when it lives in the product's own repository ("Needed by" owner/name#12). */
+  neededByProduct?: string | null;
+  /**
+   * Set for an exploration in a product's own repository (bridge.config.json products[].repo): the product key. The
+   * row sits in that product's group and opens ?exploration=N&product=<key>; its number is the product's own.
+   */
+  product?: string | null;
   /** Who asked for it, as Bridge records it in the body ("Requested by Ann Leroy."): the designer of the change. */
   requester?: { name: string | null; login: string | null } | null;
 }
@@ -129,6 +136,8 @@ function useExtras(rows: ListRow[], read: 'all' | 'seat' | 'none'): Map<number, 
     const put = (n: number, e: Extra) => live && setExtras((m) => new Map(m).set(n, { ...m.get(n), ...e }));
     void import('../../../scripts/home-data').then(({ personOf, thumbOf, filesOf }) => {
       for (const r of rows) {
+        // An exploration in a product's own repository: its files and screens are not in this repository.
+        if (r.product) continue;
         if (!r.agent && read === 'all') void personOf(r.author, avatarOf(r.author)).then((p) => put(r.number, { person: p }));
         void filesOf(r.number, r.head.sha).then((files) => put(r.number, { files }));
         if (r.base) void thumbOf({ number: r.number, head: r.head, base: r.base }, r.guidance).then((thumb) => put(r.number, { thumb }));
@@ -181,14 +190,16 @@ export function BranchesList(p: BranchesListProps) {
 
   const shown = all.filter((r) => showsForWho(who, { author: r.author, yourTurn: r.yourTurn, mine: r.mine }, viewer) && (!finished.only || r.lifecycle === finished.only));
   const tabRows = shown.map((r) => {
-    const e = extras.get(r.number);
-    return { r, e, product: productOf(e?.files ?? null, p.products, r.labels), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
+    // Extras are keyed by the design system's numbers: a product repository's #12 is another branch.
+    const e = r.product ? undefined : extras.get(r.number);
+    return { r, e, product: r.product ?? productOf(e?.files ?? null, p.products, r.labels), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
   });
   const waitingView = who === 'waiting' && !finished.only && Boolean(viewer);
   // The kind and designer of each listed branch: the filter bar narrows every tab, not only Waiting on me.
   const products = p.products ?? DEFAULT_PRODUCTS;
   const classified = tabRows.map((x) => {
-    const c = categoryOf({ files: x.e?.files ?? null, labels: x.r.labels, headRef: x.r.head.ref, signals: x.r.signals, guidanceOnly: x.r.guidance }, products);
+    const own = x.r.product ? (products.find((pp) => pp.key === x.r.product) ?? null) : null;
+    const c = own ? { category: 'product' as const, product: own } : categoryOf({ files: x.e?.files ?? null, labels: x.r.labels, headRef: x.r.head.ref, signals: x.r.signals, guidanceOnly: x.r.guidance }, products);
     const pp = personOf(x.r, x.e);
     return { kind: 'branch' as const, x, category: c.category, productName: c.product?.name ?? null, designer: { key: designerKey(pp), name: pp.name } };
   });
@@ -206,8 +217,9 @@ export function BranchesList(p: BranchesListProps) {
   );
   const filtered = active.kind !== 'all' || Boolean(active.by);
   const kept = queue.filter((q) => passes(q, active));
-  const keptBranches = new Set(kept.filter((q) => q.kind === 'branch').map((q) => (q as (typeof classified)[number]).x.r.number));
-  const rows = tabRows.filter((x) => keptBranches.has(x.r.number));
+  const rowKey = (r: ListRow) => (r.product ? `${r.product}#${r.number}` : String(r.number));
+  const keptBranches = new Set(kept.filter((q) => q.kind === 'branch').map((q) => rowKey((q as (typeof classified)[number]).x.r)));
+  const rows = tabRows.filter((x) => keptBranches.has(rowKey(x.r)));
   // Token branches carry a checkbox to preview them together, except in the demo lead's read-only Waiting on me.
   const picks = !(waitingView && p.seat);
   // Library branches a listed product branch needs follow it, one step in (lib/product-branch nestLinked).
@@ -272,7 +284,7 @@ export function BranchesList(p: BranchesListProps) {
   const slot = <span className="bl-pick-slot" aria-hidden="true" />;
   const branchRow = ({ r, e, tokenOnly, child }: (typeof rows)[number] & { child: boolean }, line?: string, reserve = false) => {
     const tok = picks && tokenOnly;
-                const href = r.opens === 'pr' ? `?pr=${r.number}` : `?exploration=${r.number}`;
+                const href = r.opens === 'pr' ? `?pr=${r.number}` : r.product ? `?exploration=${r.number}&product=${encodeURIComponent(r.product)}` : `?exploration=${r.number}`;
                 const checked = selected.includes(r.number);
                 const full = boxDisabled(selected, r.number);
                 const box = (
@@ -287,7 +299,7 @@ export function BranchesList(p: BranchesListProps) {
                 const behind = r.behindBy && r.behindBy > 0 && r.lifecycle !== 'shipped' && r.lifecycle !== 'closed';
                 return (
                   <BranchRow
-                    key={r.number}
+                    key={rowKey(r)}
                     className={`bl-row${tok ? ' is-pickable' : ''}${child ? ' is-linked' : ''}`}
                     selected={checked}
                     lead={tok ? (full ? <Tooltip content={FULL_TIP}>{box}</Tooltip> : box) : reserve ? slot : undefined}
@@ -297,7 +309,7 @@ export function BranchesList(p: BranchesListProps) {
                     jira={r.jira}
                     line={child ? childLine(nameOf(r, e)) : (line ?? nameOf(r, e))}
                     href={href}
-                    linkAttributes={r.opens === 'pr' ? { 'data-open-pr': r.number } : { 'data-open-exploration': r.number }}
+                    linkAttributes={r.opens === 'pr' ? { 'data-open-pr': r.number } : { 'data-open-exploration': r.number, ...(r.product ? { 'data-product': r.product } : {}) }}
                     pill={r.pill}
                     end={
                       behind ? (

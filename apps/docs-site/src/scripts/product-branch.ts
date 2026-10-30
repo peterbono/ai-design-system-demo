@@ -32,7 +32,8 @@ import {
   type ProductConfig,
 } from '@bridge-ds/core';
 import { ASK_CLAUDE, developerLines, pieceRows, productCrumbs, whyItShows, type PieceActionKind, type PieceRowView } from '../lib/product-branch';
-import { ARCHIVED_LINE, explorationPreviews, explorationStateLine, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
+import { ARCHIVED_LINE, explorationKey, explorationPreviews, explorationStateLine, productPreviews, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
+import { productClient, productRepoByKey } from './product-repos';
 import { touchesVisuals } from '../lib/visual-impact';
 import { ghAction, sendButton, suggestionSentLine } from '../lib/gh-wording';
 import { assertBranchWrites, changesModeOnPage } from './changes-mode';
@@ -40,8 +41,8 @@ import { jiraKeyOf } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
 import { askDoneExploring } from './exploration-done';
 import type { ProductBranchProps } from '../components/ds/studio/ProductBranch';
-import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, resolveAccess, studioClient } from './github-session';
-import { canKeepExploration, keepExplorationLine, sendModeFor } from '../lib/write-route';
+import { currentContributor, currentViewer, ghGet, hasWorkingToken, prefersSignIn, resolveAccess, studioClient } from './github-session';
+import { canKeepExploration, keepExplorationLine, productKeeperLine, sendModeFor } from '../lib/write-route';
 import { viewerRole } from './needs-you';
 import { explorationsConfig } from './exploration-start';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
@@ -52,7 +53,8 @@ const R = `/repos/${CFG.owner}/${CFG.repo}`;
 
 type Module = typeof import('../components/ds/studio/ProductBranch');
 let mod: Module | null = null;
-let current: { n: number; props: ProductBranchProps } | null = null;
+/** The branch on the page, by explorationKey ("12", or "shop#12" in the shop's own repository). */
+let current: { n: string; props: ProductBranchProps } | null = null;
 
 const connected = () => Boolean(hasWorkingToken() && currentViewer());
 const client = () => studioClient(`${CFG.owner}/${CFG.repo}`, undefined, { protectedBranches: [CFG.defaultBranch] });
@@ -90,10 +92,13 @@ function tokenWriter(gh: ReturnType<typeof client>) {
 }
 
 async function previewSources(r: ExplorationRow): Promise<BranchPreviewSources | null> {
+  // In the product's own repository, what Vercel reported there.
+  const own = productRepoByKey(r.product);
+  const RR = own ? `/repos/${own.repo}` : R;
   try {
     const [comments, statuses] = await Promise.all([
-      ghGet<{ body?: string | null }[]>(`${R}/issues/${r.number}/comments?per_page=100`).then((f) => f.data),
-      ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${r.headSha}/status`).then((f) => f.data.statuses).catch(() => []),
+      ghGet<{ body?: string | null }[]>(`${RR}/issues/${r.number}/comments?per_page=100`).then((f) => f.data),
+      ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${RR}/commits/${r.headSha}/status`).then((f) => f.data.statuses).catch(() => []),
     ]);
     return { comments, statuses };
   } catch {
@@ -104,7 +109,8 @@ async function previewSources(r: ExplorationRow): Promise<BranchPreviewSources |
 /** The admin preview GitHub reported for the branch, opened with the Bridge toolbar. Only a reported URL, never a template. */
 export function tryUrlOf(r: ExplorationRow, sources: BranchPreviewSources | null): string | null {
   if (!sources) return null;
-  const admin = explorationPreviews(r, CFG.apps, sources).find((p) => p.app === 'admin');
+  const own = productRepoByKey(r.product);
+  const admin = own ? productPreviews(r, own.product, sources)[0] : explorationPreviews(r, CFG.apps, sources).find((p) => p.app === 'admin');
   if (!admin?.url || admin.source === 'template' || admin.state === 'failed') return null;
   // The URL comes from a comment or a status on the branch: React 18 renders a javascript: href as is.
   return safeUrl(tryInProductUrl(admin.url, r.number, null)) || null;
@@ -120,12 +126,14 @@ function repaint(d: HTMLElement, patch: Partial<ProductBranchProps>) {
 async function paintVisual(d: HTMLElement, r: ExplorationRow) {
   const slot = document.getElementById('pb-visual');
   if (!slot) return;
+  // The visual impact workflow runs in the design system repository only: the product preview is the comparison.
+  if (r.product) return repaint(d, { visual: 'none' });
   try {
     const files = (await ghGet<{ filename: string }[]>(`${R}/pulls/${r.number}/files?per_page=100`)).data;
-    if (current?.n !== r.number) return;
+    if (current?.n !== explorationKey(r)) return;
     if (!touchesVisuals(files.map((f) => f.filename))) return repaint(d, { visual: 'none' });
     const v = await loadVisualImpact(document.createElement('div'), { owner: CFG.owner, repo: CFG.repo, pr: r.number, sha: r.headSha, actionsUrl: `https://github.com/${CFG.owner}/${CFG.repo}/actions/workflows/visual-impact.yml` }, slot);
-    if (current?.n !== r.number) return;
+    if (current?.n !== explorationKey(r)) return;
     if (v.error || !v.changed || !v.top) return repaint(d, { visual: 'none' });
     renderTopChange(slot, v, `?pr=${r.number}`);
     repaint(d, { visual: 'shown' });
@@ -134,9 +142,10 @@ async function paintVisual(d: HTMLElement, r: ExplorationRow) {
   }
 }
 
-async function readView(r: ExplorationRow, products: readonly ProductConfig[]): Promise<{ view: ProductBranchView; names: Record<string, string> } | null> {
+async function readView(r: ExplorationRow, gh: ReturnType<typeof client>, products: readonly ProductConfig[]): Promise<{ view: ProductBranchView; names: Record<string, string> } | null> {
   try {
-    const view = await productBranchViewOnGitHub(client(), r.number, { products, viewer: currentViewer()?.login ?? null });
+    // In the product's own repository, the linked requests and library branches are read in the design system's.
+    const view = await productBranchViewOnGitHub(gh, r.number, { products, viewer: currentViewer()?.login ?? null, ...(r.product ? { library: client() } : {}) });
     const names = await namesOf([...view.linked.flatMap((l) => l.people), view.pull.author]);
     return { view, names };
   } catch {
@@ -149,7 +158,11 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
   mod ??= await import('../components/ds/studio/ProductBranch');
   const record = parsePiecesRecord(pull.body);
   const jira = jiraKeyOf(pull.title);
-  const gh = client();
+  // An exploration in the product's own repository is written there; the library side is the design system's.
+  const own = productRepoByKey(r.product);
+  const lib = client();
+  const gh = own ? productClient(own.repo, pull.base?.ref) : lib;
+  const key = explorationKey(r);
   let lastView: ProductBranchView | null = null;
   // A reader in a direct-mode team suggests the missing pieces (lib/write-route): nothing fails at GitHub after a click.
   const access = connected() ? await resolveAccess().catch(() => null) : null;
@@ -165,7 +178,8 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
         base: CFG.defaultBranch,
         products,
         exploration: { packages: CFG.packages, apps: CFG.apps },
-        writeTokens: tokenWriter(gh),
+        writeTokens: tokenWriter(lib),
+        ...(own ? { library: lib } : {}),
         ...(viewer ? { openedBy: viewer } : {}),
         source: 'studio',
       });
@@ -189,8 +203,8 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
     return res.said;
   };
   const refresh = async () => {
-    const read = await readView(r, products);
-    if (current?.n !== r.number) return;
+    const read = await readView(r, gh, products);
+    if (current?.n !== key) return;
     if (!read) return repaint(d, { rows: [] });
     lastView = read.view;
     const rows = pieceActions(pieceRows({ record: read.view.record, linked: read.view.linked, names: read.names }), mode);
@@ -200,7 +214,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       checked: Boolean(read.view.record),
       sentence,
       why: whyItShows(rows),
-      developer: developerLines({ number: r.number, branch: r.branch, links: read.view.record?.links ?? [] }),
+      developer: developerLines({ number: r.number, branch: r.branch, links: read.view.record?.links ?? [], ...(own ? { product: own.product.key, repo: own.repo } : {}) }),
     });
   };
   // Done exploring: the dialog lists the pieces still without a library side, the ticked ones go to the DS lead as
@@ -209,6 +223,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
   const done = (focus: HTMLElement | null) =>
     askDoneExploring(r, pull.body, {
       client: () => gh,
+      ...(own ? { library: () => lib } : {}),
       previewUrl: tryUrlOf(r, reported),
       products,
       focus,
@@ -219,11 +234,13 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
     });
   // Suggest mode: done exploring and archive are branch writes, so they are not offered. They have no suggestion
   // path: the person who started it or a reviewer, with write access.
-  const keeper = canKeepExploration({ viewer: currentViewer()?.login ?? null, author: r.author, reviewer: viewerRole() === 'reviewer', write: access?.write ?? null });
+  const keeper = canKeepExploration({ viewer: currentViewer()?.login ?? null, author: r.author, reviewer: viewerRole() === 'reviewer', write: own ? null : (access?.write ?? null) });
   const open = r.status === 'active' || r.status === 'ready' || r.status === 'building';
-  const writable = connected() && open && mode === 'direct' && keeper;
+  // An email member writes through Bridge in the design system only: not in the product's own repository.
+  const emailOnProduct = Boolean(own && currentContributor());
+  const writable = connected() && open && mode === 'direct' && keeper && !emailOnProduct;
   current = {
-    n: r.number,
+    n: key,
     props: {
       number: r.number,
       crumbs: productCrumbs(product.name, jira, r.name),
@@ -248,8 +265,8 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
         : null,
       archived: Boolean(r.archived),
       state: r.archived ? ARCHIVED_LINE : r.status === 'active' ? null : explorationStateLine(r.status),
-      keepNote: connected() && open && changesModeOnPage() === 'direct' && !keeper ? keepExplorationLine(r.author) : null,
-      developer: developerLines({ number: r.number, branch: r.branch, links: record?.links ?? [] }),
+      keepNote: emailOnProduct && open ? productKeeperLine(product.name) : connected() && open && changesModeOnPage() === 'direct' && !keeper ? keepExplorationLine(r.author) : null,
+      developer: developerLines({ number: r.number, branch: r.branch, links: record?.links ?? [], ...(own ? { product: own.product.key, repo: own.repo } : {}) }),
       take: r.status === 'closed' ? null : takeItLines(r.branch),
       githubUrl: safeUrl(r.url, '#'),
       ask: ASK_CLAUDE,
@@ -259,7 +276,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
   mod.paintProductBranch(d, current.props);
   void previewSources(r).then((s) => {
     reported = s;
-    if (current?.n === r.number) repaint(d, { tryUrl: tryUrlOf(r, s) });
+    if (current?.n === key) repaint(d, { tryUrl: tryUrlOf(r, s) });
   });
   void paintVisual(d, r);
   if (record) void refresh();

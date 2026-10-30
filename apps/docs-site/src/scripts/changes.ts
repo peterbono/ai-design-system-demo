@@ -11,6 +11,7 @@ import { readWaitingExtras } from './waiting-extras';
 import { initHistory } from './history/page';
 import { initRequests, loadRequests, openRequest } from './requests';
 import { closeSuggestion, onViewerChange, openSuggestion } from './suggestions';
+import { explorationParam } from '../lib/explorations-view';
 import { initExplorations, loadExplorations, openExploration, paintExplorationCount, startForRequest } from './explorations';
 import type { ExplorationPullLike } from '../lib/explorations-view';
 import type { PullLike } from '../lib/requests-view';
@@ -153,11 +154,12 @@ function route() {
     void openRequest(req, false, openPullsForRequests());
     return;
   }
-  const ex = Number(params.get('exploration'));
+  const asked = explorationParam(location.search);
+  const ex = asked?.number ?? 0;
   if (ex) {
     closePr();
     $('cg-main').hidden = true;
-    void openExploration(ex, false);
+    void openExploration(ex, false, asked?.product ?? null);
     void loadExplorations(openPullsForExplorations);
     return;
   }
@@ -241,7 +243,7 @@ export function initChanges() {
       e.preventDefault();
       closeSuggestion(sgHost());
       $('cg-main').hidden = true;
-      void openExploration(Number(ex.dataset.openExploration));
+      void openExploration(Number(ex.dataset.openExploration), true, ex.dataset.product || null);
       return;
     }
     if (t.closest('[data-back-requests]')) {

@@ -9,7 +9,7 @@ import type { ChangesMode } from './config';
 import { EXPLORATION_NOTES_DIR, EXPLORATION_PREFIX, isExplorationBranch } from './explorations';
 import { startExplorationOnGitHub, type ExplorationSettings } from './explorations-github';
 import { GitHubError, type GitHubClient, type PullRequestSummary } from './github-client';
-import { defaultProduct, productOfBranch, type ProductConfig } from './products';
+import { defaultProduct, productOfBranch, productOfRepo, type ProductConfig } from './products';
 import {
   libraryBranchPlan,
   linkStatus,
@@ -53,8 +53,22 @@ export interface ProductBranchRead {
 
 const cleanPath = (p: string) => p.trim().replace(/^\.?\/+|\/+$/g, '');
 
-/** The product of a branch, refusing the library itself: missing pieces are about a product built on the library. */
-function productOf(products: readonly ProductConfig[], pull: Pick<Pull, 'labels'>, files: string[]): ProductConfig {
+/** The product whose own repository the client reads, never the library. */
+function ownProduct(products: readonly ProductConfig[], repo: string | undefined): ProductConfig | undefined {
+  const p = repo ? productOfRepo(products, repo) : undefined;
+  return p && p.key !== defaultProduct(products).key ? p : undefined;
+}
+
+/** "owner/name" of a product branch read in the product's own repository, else undefined (the design system one). */
+const repoOfProductBranch = (gh: GitHubClient, lib: GitHubClient | undefined): string | undefined => (lib && lib.fullName.toLowerCase() !== gh.fullName.toLowerCase() ? gh.fullName : undefined);
+
+/**
+ * The product of a branch, refusing the library itself: missing pieces are about a product built on the library. A
+ * branch read in a product's own repository (`repo`, the client's "owner/name") belongs to that product.
+ */
+function productOf(products: readonly ProductConfig[], pull: Pick<Pull, 'labels'>, files: string[], repo?: string): ProductConfig {
+  const own = ownProduct(products, repo);
+  if (own) return own;
   const product = productOfBranch(products, { labels: pull.labels, files });
   if (product.key === defaultProduct(products).key) throw new GitHubError(422, `This branch is a library branch (${product.name}), not a product branch: missing pieces are checked on a branch started for a product.`);
   return product;
@@ -67,8 +81,9 @@ function productOf(products: readonly ProductConfig[], pull: Pick<Pull, 'labels'
 export async function readProductBranchOnGitHub(gh: GitHubClient, pr: number, opts: { products: readonly ProductConfig[] }): Promise<ProductBranchRead> {
   const pull = await gh.getPullRequest(pr);
   const cmp = await gh.compareDetailed(pull.baseRef, pull.headSha);
-  const product = productOf(opts.products, pull, cmp.files.map((f) => f.filename));
-  const dir = product.path ? `${cleanPath(product.path)}/` : '';
+  const product = productOf(opts.products, pull, cmp.files.map((f) => f.filename), gh.fullName);
+  // In the product's own repository every file is the product's: `path` is a folder of the design system repository.
+  const dir = product.path && !ownProduct(opts.products, gh.fullName) ? `${cleanPath(product.path)}/` : '';
   const changed = cmp.files.filter((f) => f.status !== 'removed' && (!dir || f.filename.startsWith(dir)) && PRODUCT_FILE.test(f.filename) && !SKIP_FILE.test(f.filename) && !f.filename.split('/').includes('node_modules'));
   const read = changed.slice(0, PIECES_FILE_LIMIT);
   const start = cmp.mergeBase ?? pull.baseRef;
@@ -143,6 +158,12 @@ export interface OpenLibraryBranchInput {
    * the token only needs Issues write. Callers pass changesMode(config), or an explicit choice.
    */
   mode?: ChangesMode | undefined;
+  /**
+   * The design system repository, when the product branch lives in the product's own repository (`gh` reads that
+   * one): the library side (request, suggestion, library exploration) is opened here, and the product branch keeps the
+   * link. Its preview cannot be merged across repositories, so `usePreview` does nothing then.
+   */
+  library?: GitHubClient | undefined;
 }
 
 /** What writeTokens returns: the pull request it opened, or the suggestion it filed. */
@@ -158,7 +179,7 @@ export interface OpenedLibraryBranch {
 }
 
 /** The product branch as the library side names it. */
-export function productBranchRef(pull: Pick<Pull, 'number' | 'title' | 'headRef' | 'url' | 'author' | 'body'>, product: ProductConfig): ProductBranchRef {
+export function productBranchRef(pull: Pick<Pull, 'number' | 'title' | 'headRef' | 'url' | 'author' | 'body'>, product: ProductConfig, repo?: string): ProductBranchRef {
   const name = /<!-- bridge-exploration (\{[\s\S]*?\}) -->/.exec(pull.body ?? '');
   let title = pull.title.replace(/^[A-Z][A-Z0-9_]*-\d+\s+/, '').replace(/^Exploration:\s*/i, '');
   let author = pull.author;
@@ -171,7 +192,7 @@ export function productBranchRef(pull: Pick<Pull, 'number' | 'title' | 'headRef'
       // The pull request title is enough.
     }
   }
-  return { pr: pull.number, title: title.charAt(0).toUpperCase() + title.slice(1), branch: pull.headRef, url: pull.url, productKey: product.key, productName: product.name, ...(author ? { author } : {}) };
+  return { pr: pull.number, title: title.charAt(0).toUpperCase() + title.slice(1), branch: pull.headRef, url: pull.url, productKey: product.key, productName: product.name, ...(author ? { author } : {}), ...(repo ? { repo } : {}) };
 }
 
 /**
@@ -187,43 +208,46 @@ export async function openLibraryBranchOnGitHub(gh: GitHubClient, input: OpenLib
   const record = parsePiecesRecord(pull.body);
   const piece = record?.pieces.find((p) => p.id === input.piece);
   if (!record || !piece) throw new GitHubError(404, record ? `No piece "${input.piece}" on #${input.pr}. Pieces: ${record.pieces.map((p) => p.id).join(', ') || 'none'}.` : `#${input.pr} was not checked yet: find its missing pieces first (bridge_missing_pieces with record, or \`bridge pieces ${input.pr} --record\`).`);
-  const product = productOf(input.products, pull, await gh.listPullRequestFiles(input.pr).then((f) => f.map((x) => x.filename), () => []));
+  const product = productOf(input.products, pull, await gh.listPullRequestFiles(input.pr).then((f) => f.map((x) => x.filename), () => []), gh.fullName);
   const mode: ChangesMode = input.mode ?? 'direct';
-  const plan = libraryBranchPlan(piece, productBranchRef(pull, product), { source: input.source, requestedBy: input.openedBy, mode });
+  // A product branch in the product's own repository: the library side lives in the design system repository.
+  const lib = input.library ?? gh;
+  const repo = repoOfProductBranch(gh, input.library);
+  const plan = libraryBranchPlan(piece, productBranchRef(pull, product, repo), { source: input.source, requestedBy: input.openedBy, mode });
   const existing = record.links.find((l) => l.piece === piece.id);
   if (existing) return { status: 'already-linked', plan, link: existing, preview: null, warnings: [] };
   if (input.dryRun) return { status: 'dry-run', plan, link: null, preview: null, warnings: [] };
-  if (!gh.canWrite) throw new GitHubError(401, mode === 'suggest' ? 'Suggesting a library change needs a GitHub token (issues: write).' : 'Opening a library branch needs a GitHub token (contents, pull requests and issues: write).');
+  if (!gh.canWrite || !lib.canWrite) throw new GitHubError(401, mode === 'suggest' ? 'Suggesting a library change needs a GitHub token (issues: write).' : 'Opening a library branch needs a GitHub token (contents, pull requests and issues: write).');
   const warnings: string[] = [];
   const at = new Date().toISOString();
-  const who = { ...(input.openedBy ? { openedBy: input.openedBy } : {}), ...(input.agent ? { agent: input.agent } : {}) };
+  const who = { ...(input.openedBy ? { openedBy: input.openedBy } : {}), ...(input.agent ? { agent: input.agent } : {}), ...(repo ? { repo: lib.fullName } : {}) };
   let link: LibraryLink;
   if (plan.kind === 'token-change') {
     if (!input.writeTokens) throw new GitHubError(422, 'This piece is a token: open it where the token files are read (Bridge Studio, bridge_open_library_branch or `bridge pieces open`).');
     const r = await input.writeTokens(plan, { mode });
     link = r.status === 'suggested' ? { piece: piece.id, kind: 'suggestion', number: r.number, url: r.url, title: plan.title, at, ...who } : { piece: piece.id, kind: 'token-change', number: r.number, url: r.url, title: plan.title, branch: r.branch, at, ...who };
   } else if (plan.kind === 'exploration') {
-    const r = await startExplorationOnGitHub(gh, { ...plan.exploration, ...(input.openedBy ? { author: input.openedBy } : {}), ...(input.agent ? { agent: input.agent } : {}) }, { base: input.base, ...input.exploration, labels: [NEEDED_BY_LABEL] });
+    const r = await startExplorationOnGitHub(lib, { ...plan.exploration, ...(input.openedBy ? { author: input.openedBy } : {}), ...(input.agent ? { agent: input.agent } : {}) }, { base: input.base, ...input.exploration, labels: [NEEDED_BY_LABEL] });
     link = { piece: piece.id, kind: 'exploration', number: r.pr, url: r.url, title: plan.title, branch: r.branch, at, ...who };
   } else {
     const issue = composeRequestIssue(plan.request, { labels: [NEEDED_BY_LABEL] });
-    const r = await gh.createIssue(issue);
+    const r = await lib.createIssue(issue);
     link = { piece: piece.id, kind: 'request', number: r.number, url: r.url, title: plan.title, at, ...who };
   }
   // The library side says who needs it; the product side records the link.
   try {
     if (link.kind === 'request' || link.kind === 'suggestion') {
-      const issue = await gh.getIssue(link.number);
-      await gh.updateIssue(link.number, { body: withNeededBy(issue.body, plan.neededBy) });
-      if (link.kind === 'suggestion' && !issue.labels.includes(NEEDED_BY_LABEL)) await gh.addLabels(link.number, [NEEDED_BY_LABEL]);
+      const issue = await lib.getIssue(link.number);
+      await lib.updateIssue(link.number, { body: withNeededBy(issue.body, plan.neededBy) });
+      if (link.kind === 'suggestion' && !issue.labels.includes(NEEDED_BY_LABEL)) await lib.addLabels(link.number, [NEEDED_BY_LABEL]);
     } else {
-      const lib = await gh.getPullRequest(link.number);
-      await gh.updatePullRequest(link.number, { body: withNeededBy(lib.body, plan.neededBy) });
-      await gh.addLabels(link.number, [NEEDED_BY_LABEL]);
+      const libPull = await lib.getPullRequest(link.number);
+      await lib.updatePullRequest(link.number, { body: withNeededBy(libPull.body, plan.neededBy) });
+      await lib.addLabels(link.number, [NEEDED_BY_LABEL]);
     }
   } catch (err) {
     if (err instanceof GitHubError && err.auth === 'rejected') throw err;
-    warnings.push(`The library side does not say who needs it yet (${(err as Error).message}). Add "Needed by #${input.pr}" to #${link.number} on GitHub.`);
+    warnings.push(`The library side does not say who needs it yet (${(err as Error).message}). Add "Needed by ${repo ?? ''}#${input.pr}" to #${link.number} on GitHub.`);
   }
   try {
     const fresh = await gh.getPullRequest(input.pr);
@@ -232,10 +256,11 @@ export async function openLibraryBranchOnGitHub(gh: GitHubClient, input: OpenLib
   } catch (err) {
     // Direct mode needs the record (the token can write pull requests); a suggest-mode token may not.
     if (mode !== 'suggest') throw err;
-    warnings.push(`#${input.pr} does not list #${link.number} yet (${(err as Error).message}). Add "Library: #${link.number}" to #${input.pr} on GitHub, so this piece is not sent twice.`);
+    warnings.push(`#${input.pr} does not list #${link.number} yet (${(err as Error).message}). Add "Library: ${repo ? lib.fullName : ''}#${link.number}" to #${input.pr} on GitHub, so this piece is not sent twice.`);
   }
   let preview: PreviewMerge | null = null;
-  if ((input.usePreview ?? true) && link.kind === 'token-change' && link.branch) {
+  // Across repositories the product gets the library from npm: there is no branch to merge in.
+  if (!repo && (input.usePreview ?? true) && link.kind === 'token-change' && link.branch) {
     preview = await useLibraryPreviewOnGitHub(gh, { productBranch: pull.headRef, libraryBranch: link.branch, libraryNumber: link.number }).catch((err: Error) => {
       warnings.push(`Your branch does not use the preview yet: ${err.message}`);
       return null;
@@ -263,11 +288,26 @@ export interface ProductBranchView {
   open: MissingPiece[];
 }
 
+/**
+ * Across repositories nothing is merged into the product branch: no "use the preview" or "switch" action, and a
+ * shipped library change reads as a package update in the product.
+ */
+function acrossRepos(p: LibraryPreviewState, lifecycle: string, across: boolean | undefined): LibraryPreviewState {
+  if (!across || !p.action) return p;
+  if (lifecycle === 'merged') return { ...p, sentence: 'The library published it. Update @bridge-ds/react in your product to use it.', action: null };
+  return { ...p, action: null };
+}
+
 const isNote = (path: string) => path.startsWith(`${EXPLORATION_NOTES_DIR}/`);
 
-/** Where one linked library branch stands, and what its preview means for the product branch. */
-export async function linkedLibraryBranchOnGitHub(gh: GitHubClient, link: LibraryLink, product: { headSha: string; baseRef: string }, piece?: MissingPiece): Promise<LinkedLibraryBranch> {
+/**
+ * Where one linked library branch stands, and what its preview means for the product branch. `gh` reads the library
+ * side. `opts.across`: the product branch lives in the product's own repository, so the library change reaches it as
+ * an npm release, never by a merge: nothing is compared across the two repositories.
+ */
+export async function linkedLibraryBranchOnGitHub(gh: GitHubClient, link: LibraryLink, product: { headSha: string; baseRef: string }, piece?: MissingPiece, opts: { across?: boolean } = {}): Promise<LinkedLibraryBranch> {
   const nearest = piece?.nearest?.label;
+  const behind = () => (opts.across ? Promise.resolve(null) : gh.compare(product.baseRef, product.headSha).then((c) => c.behindBy, () => null));
   if (link.kind === 'suggestion') {
     const issue = await gh.getIssue(link.number);
     // Status from the issue and its state label (a cache): the review comments are read on the suggestion itself.
@@ -275,17 +315,17 @@ export async function linkedLibraryBranchOnGitHub(gh: GitHubClient, link: Librar
     const s = suggestionStatus({ state: issue.state, stateReason: issue.stateReason, applied: cached === 'applying', review: cached === 'applying' ? undefined : cached });
     const status = linkStatus({ kind: 'suggestion', status: s });
     const lifecycle = s === 'applied' ? 'merged' : issue.state === 'closed' ? 'closed' : 'open';
-    const behindMain = lifecycle === 'merged' ? await gh.compare(product.baseRef, product.headSha).then((c) => c.behindBy, () => null) : null;
+    const behindMain = lifecycle === 'merged' ? await behind() : null;
     const preview = libraryPreviewState({ kind: 'suggestion', lifecycle, hasChanges: false, missing: null, total: null, behindMain, nearest });
-    return { link, piece, status, preview, people: status.people };
+    return { link, piece, status, preview: acrossRepos(preview, lifecycle, opts.across), people: status.people };
   }
   if (link.kind === 'request') {
     const issue = await gh.getIssue(link.number);
     const status = linkStatus({ kind: 'request', state: issue.state, stateReason: issue.stateReason });
     const lifecycle = issue.state === 'closed' ? (issue.stateReason === 'not_planned' ? 'closed' : 'merged') : 'open';
-    const behindMain = lifecycle === 'merged' ? await gh.compare(product.baseRef, product.headSha).then((c) => c.behindBy, () => null) : null;
+    const behindMain = lifecycle === 'merged' ? await behind() : null;
     const preview = libraryPreviewState({ kind: 'request', lifecycle, hasChanges: false, missing: null, total: null, behindMain, nearest });
-    return { link, piece, status, preview, people: status.people };
+    return { link, piece, status, preview: acrossRepos(preview, lifecycle, opts.across), people: status.people };
   }
   const lib = await gh.getPullRequest(link.number);
   const reviews = await gh.listReviews(link.number).catch(() => []);
@@ -299,29 +339,35 @@ export async function linkedLibraryBranchOnGitHub(gh: GitHubClient, link: Librar
     const [files, own, inProduct] = await Promise.all([
       gh.listPullRequestFiles(link.number).catch(() => null),
       gh.compare(lib.baseRef, lib.headSha).catch(() => null),
-      gh.compare(product.headSha, lib.headSha).catch(() => null),
+      opts.across ? Promise.resolve(null) : gh.compare(product.headSha, lib.headSha).catch(() => null),
     ]);
     hasChanges = files ? files.some((f) => !isNote(f.filename)) : true;
     total = own?.aheadBy ?? null;
     missing = inProduct?.aheadBy ?? null;
   } else if (lifecycle === 'merged') {
-    behindMain = await gh.compare(product.baseRef, product.headSha).then((c) => c.behindBy, () => null);
+    behindMain = await behind();
   }
   const preview = libraryPreviewState({ kind: link.kind, lifecycle, hasChanges, missing, total, behindMain, nearest });
-  return { link, piece, status, preview, people: status.people };
+  return { link, piece, status, preview: acrossRepos(preview, lifecycle, opts.across), people: status.people };
 }
 
 /**
  * Everything a product branch page shows: the record, the sentence, and each linked library branch with its status,
  * its reviewers and what its preview means for the product branch. A few reads per linked branch.
  */
-export async function productBranchViewOnGitHub(gh: GitHubClient, pr: number, opts: { products: readonly ProductConfig[]; viewer?: string | null | undefined; agentName?: string | undefined }): Promise<ProductBranchView> {
+export async function productBranchViewOnGitHub(
+  gh: GitHubClient,
+  pr: number,
+  opts: { products: readonly ProductConfig[]; viewer?: string | null | undefined; agentName?: string | undefined; /** The design system repository, when `gh` reads a product's own one: its requests and library branches are read there. */ library?: GitHubClient | undefined },
+): Promise<ProductBranchView> {
   const pull = await gh.getPullRequest(pr);
   const files = await gh.listPullRequestFiles(pr).then((f) => f.map((x) => x.filename), () => []);
-  const product = productOf(opts.products, pull, files);
+  const product = productOf(opts.products, pull, files, gh.fullName);
   const record = parsePiecesRecord(pull.body);
+  const across = Boolean(repoOfProductBranch(gh, opts.library));
+  const lib = opts.library ?? gh;
   const linked = await Promise.all(
-    (record?.links ?? []).map((l) => linkedLibraryBranchOnGitHub(gh, l, { headSha: pull.headSha, baseRef: pull.baseRef }, record?.pieces.find((p) => p.id === l.piece))),
+    (record?.links ?? []).map((l) => linkedLibraryBranchOnGitHub(lib, l, { headSha: pull.headSha, baseRef: pull.baseRef }, record?.pieces.find((p) => p.id === l.piece), { across })),
   );
   const open = (record?.pieces ?? []).filter((p) => !record!.links.some((l) => l.piece === p.id));
   return { pull, product, record, sentence: productBranchSentence(record, { viewer: opts.viewer, agentName: opts.agentName }), linked, open };
@@ -366,7 +412,20 @@ export interface ProposedPieces {
 export async function proposePiecesOnGitHub(
   gh: GitHubClient,
   pr: number,
-  input: { pieces: readonly string[]; products: readonly ProductConfig[]; previewUrl?: string | null | undefined; openedBy?: string | undefined; agent?: string | undefined; source?: RequestSource | undefined; dryRun?: boolean | undefined },
+  input: {
+    pieces: readonly string[];
+    products: readonly ProductConfig[];
+    previewUrl?: string | null | undefined;
+    openedBy?: string | undefined;
+    agent?: string | undefined;
+    source?: RequestSource | undefined;
+    dryRun?: boolean | undefined;
+    /**
+     * The design system repository, when the exploration lives in a product's own repository (`gh` reads that one):
+     * the requests are filed there, where the DS lead works, and link back to the product pull request as owner/name#n.
+     */
+    library?: GitHubClient | undefined;
+  },
 ): Promise<ProposedPieces> {
   const out: ProposedPieces = { proposed: [], already: [], unknown: [], warnings: [] };
   const ids = [...new Set(input.pieces.map((p) => p.trim()).filter(Boolean))];
@@ -375,7 +434,9 @@ export async function proposePiecesOnGitHub(
   const record = parsePiecesRecord(pull.body);
   if (!record) throw new GitHubError(404, `#${pr} was not checked against the library yet: find its missing pieces first (bridge_missing_pieces with record, or \`bridge pieces ${pr} --record\`).`);
   const files = await gh.listPullRequestFiles(pr).then((f) => f.map((x) => x.filename), () => []);
-  const ref = productBranchRef(pull, productOfBranch(input.products, { labels: pull.labels, files }));
+  const lib = input.library ?? gh;
+  const repo = repoOfProductBranch(gh, input.library);
+  const ref = productBranchRef(pull, ownProduct(input.products, repo) ?? productOfBranch(input.products, { labels: pull.labels, files }), repo);
   const todo: { piece: MissingPiece; ask: ReturnType<typeof pieceRequest> }[] = [];
   for (const id of ids) {
     const piece = record.pieces.find((p) => p.id === id);
@@ -386,13 +447,13 @@ export async function proposePiecesOnGitHub(
   }
   if (input.dryRun) return { ...out, proposed: todo.map((t) => ({ piece: t.piece.id, title: t.ask.request.title, number: 0, url: '' })) };
   if (!todo.length) return out;
-  if (!gh.canWrite) throw new GitHubError(401, 'Sending pieces to the library needs a GitHub token (issues: write).');
+  if (!lib.canWrite) throw new GitHubError(401, 'Sending pieces to the library needs a GitHub token (issues: write).');
   const at = new Date().toISOString();
-  const who = { ...(input.openedBy ? { openedBy: input.openedBy } : {}), ...(input.agent ? { agent: input.agent } : {}) };
+  const who = { ...(input.openedBy ? { openedBy: input.openedBy } : {}), ...(input.agent ? { agent: input.agent } : {}), ...(repo ? { repo: lib.fullName } : {}) };
   const links: LibraryLink[] = [];
   for (const t of todo) {
     const issue = composeRequestIssue(t.ask.request, { labels: [NEEDED_BY_LABEL] });
-    const r = await gh.createIssue({ ...issue, body: withNeededBy(issue.body, t.ask.neededBy) });
+    const r = await lib.createIssue({ ...issue, body: withNeededBy(issue.body, t.ask.neededBy) });
     links.push({ piece: t.piece.id, kind: 'request', number: r.number, url: r.url, title: t.ask.request.title, at, ...who });
     out.proposed.push({ piece: t.piece.id, title: t.ask.request.title, number: r.number, url: r.url });
   }
@@ -402,7 +463,7 @@ export async function proposePiecesOnGitHub(
     await gh.updatePullRequest(pr, { body: withPiecesRecord(fresh.body, next) });
   } catch (err) {
     if (err instanceof GitHubError && err.auth === 'rejected') throw err;
-    out.warnings.push(`#${pr} does not list the requests yet (${(err as Error).message}). Add "Library: ${links.map((l) => `#${l.number}`).join(', ')}" to #${pr} on GitHub, so they are not sent twice.`);
+    out.warnings.push(`#${pr} does not list the requests yet (${(err as Error).message}). Add "Library: ${links.map((l) => `${repo ? lib.fullName : ''}#${l.number}`).join(', ')}" to #${pr} on GitHub, so they are not sent twice.`);
   }
   return out;
 }

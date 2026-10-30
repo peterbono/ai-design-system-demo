@@ -7,6 +7,8 @@
 import { relative } from 'node:path';
 import {
   addedComment,
+  productRepoAccess,
+  productRepos,
   askOthersToReviewOnGitHub,
   commentOnGitHub,
   reviewersToAsk,
@@ -90,6 +92,7 @@ import {
   type ReviewStatusKind,
 } from '@bridge-ds/core';
 import { originRepo } from '@bridge-ds/core/node';
+import { productClient } from './product-repos.js';
 import type { BridgeContext } from './context.js';
 import { addToken, BlockedError, say } from './say.js';
 
@@ -391,13 +394,39 @@ export async function whatNeedsMe(ctx: BridgeContext, a: { limit?: number | unde
   };
 }
 
+/**
+ * Whether Bridge reaches a product's own repository with this token: connected (may create explorations there),
+ * read-only, not-connected (GitHub hides it: the Bridge app is not installed there, or the token does not reach it),
+ * or unknown (GitHub did not answer). Lists leave an unreachable product repository out silently; this is where it is said.
+ */
+async function productConnection(ctx: BridgeContext, repo: string): Promise<'connected' | 'read-only' | 'not-connected' | 'unknown'> {
+  try {
+    const a = await productRepoAccess(productClient(ctx, repo));
+    return a.ok ? (ctx.canWriteRemote ? 'connected' : 'read-only') : a.reason;
+  } catch {
+    return 'unknown';
+  }
+}
+
 /** The configured products, and the one the current folder or repo belongs to (the default for new work). */
 export async function listProducts(ctx: BridgeContext) {
   const { config } = await ctx.config();
   const products = productsOf(config);
   const here = await productHere(ctx, config);
+  const ds = (await ctx.github().catch(() => null))?.fullName ?? (config.repo ? `${config.repo.owner}/${config.repo.name}` : null);
+  // One read per product with its own repository: whether its explorations show up in the lists.
+  const own = new Map(await Promise.all(productRepos(products, ds).map(async (x) => [x.product.key, await productConnection(ctx, x.repo)] as const)));
   return {
-    products: products.map((p) => ({ key: p.key, name: p.name, ...(p.repo ? { repo: p.repo } : {}), ...(p.path ? { path: p.path } : {}), ...(p.preview ? { preview: p.preview } : {}), ...(p.framework ? { framework: p.framework } : {}), default: p === defaultProduct(products) })),
+    products: products.map((p) => ({
+      key: p.key,
+      name: p.name,
+      ...(p.repo ? { repo: p.repo } : {}),
+      ...(own.has(p.key) ? { connection: own.get(p.key)!, ...(own.get(p.key) === 'not-connected' ? { connect: `Install the Bridge GitHub App on ${p.repo} (or give the token access to it): until then its explorations are left out of the lists.` } : {}) } : {}),
+      ...(p.path ? { path: p.path } : {}),
+      ...(p.preview ? { preview: p.preview } : {}),
+      ...(p.framework ? { framework: p.framework } : {}),
+      default: p === defaultProduct(products),
+    })),
     current: { key: here.product.key, name: here.product.name, how: here.how },
     howToPick: 'Pass "product" (key or name) to the tools that start work. Without it Bridge uses the product of the current folder or repo, else the default product. Ask the person when it is not obvious.',
   };

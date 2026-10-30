@@ -19,6 +19,9 @@ Usage:
   bridge pieces preview <n> <piece>              the product branch takes the latest library branch (merged in)
   bridge pieces switch <n>                       once the library shipped: main into the product branch
 
+<n> is the branch number (12), its link, or product#n (shop#12) for a product with its own repository:
+its pieces become requests in the design system repository when you say "Done exploring" there.
+
 ${TOKEN_HELP}
 Exit codes: 0 ok, 2 usage or setup error.`;
 
@@ -26,10 +29,11 @@ const has = (a: RequestArgs, k: string) => Boolean(a.flags[k]);
 
 const context = (root: string, io: RequestIO, a: RequestArgs, access: Access) => cliContext(root, io, a, access);
 
-function number(a: RequestArgs, at: number, usage: string): number {
+/** The product branch: 12, #12, its link, or shop#12 for a product with its own repository (checked by the operation). */
+function number(a: RequestArgs, at: number, usage: string): number | string {
   const raw = a._[at];
   if (!raw) throw new RequestUsageError(`Usage: ${usage}`);
-  return branches.branchNumber(raw);
+  return /^#?\d+$/.test(raw) ? branches.branchNumber(raw) : raw;
 }
 
 function piece(a: RequestArgs, at: number, usage: string): string {

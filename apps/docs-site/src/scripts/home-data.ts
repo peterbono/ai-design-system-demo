@@ -56,6 +56,8 @@ export interface HomePull extends QueuePullFull {
   merged_at?: string | null;
   /** Bridge armed its merge (a lead published it): it ships by itself once the checks pass. */
   auto_merge?: unknown;
+  /** Read in a product's own repository (scripts/product-repos.ts): the product key. Only explorations come from there. */
+  product?: string;
 }
 
 /** Build-time facts the page passes in (repo data, not GitHub). */
@@ -275,6 +277,12 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       if (rows.length) repaint();
     });
   const { owner, repo } = readRepo();
+  // The explorations in products' own repositories, one read each in parallel; an unreachable one adds nothing.
+  let productOpen: HomePull[] = [];
+  const productRead = import('./product-repos')
+    .then((m) => m.productPulls())
+    .then((list) => (productOpen = list.map((p) => ({ ...p, user: p.user ?? { login: 'unknown' }, created_at: p.updated_at, base: { ref: p.base?.ref ?? '', sha: '' }, labels: p.labels.map((l) => ({ name: typeof l === 'string' ? l : (l.name ?? '') })) }) as unknown as HomePull)))
+    .catch(() => (productOpen = []));
   let pulls: HomePull[];
   try {
     pulls = (await ghGet<HomePull[]>(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`)).data;
@@ -378,14 +386,15 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     for (let i = needs.length - 1; i >= 0; i--) if (needs[i]!.kind === 'guidance' && needs[i]!.number && asked.has(needs[i]!.number!)) needs.splice(i, 1);
     // Explorations are the home's cards; the viewer's library changes are counted under them (Changes lists them).
     // The team's: a contributor's home keeps only their own (home by role, lib/home-explorations explorationsFor).
-    const explorations = homeExplorations([...pulls, ...closed], {
+    const explorations = homeExplorations([...pulls, ...productOpen, ...closed], {
       products,
       viewer,
       author: (p) => {
         const r = requesterOf(p.body);
         return (r && requesterPerson(r, (l) => pick(l)!)) ?? pick(p.user.login)!;
       },
-      preview: (p) => shots.get(p.number),
+      // Screens are captured in the design system repository only: a product's own exploration keeps its sketch.
+      preview: (p) => (p.product ? undefined : shots.get(p.number)),
     });
     const branches: BranchCard[] = queue
       .filter((p) => same(p.user.login, viewer) && !isHomeExploration(p, products))
@@ -412,6 +421,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     suggestionsRead,
     joinsRead,
     ownSuggestionsRead,
+    productRead,
   ]);
   loading = false;
   paint();

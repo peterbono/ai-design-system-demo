@@ -602,3 +602,58 @@ describe('exploration try it', () => {
     expect(await explorationTryItOnGitHub(c, { number: s.pr, branch: s.branch })).toMatchObject({ state: 'ready', source: 'release' });
   });
 });
+
+describe('explorations in a product repository', () => {
+  it('references name the repository: shop#12, owner/name#12, a link, shop:name; plain ones stay in the design system', async () => {
+    const { parseExplorationRef, explorationRefLabel } = await import('../src/index');
+    expect(parseExplorationRef(12)).toEqual({ ref: 12 });
+    expect(parseExplorationRef('#12')).toEqual({ ref: 12 });
+    expect(parseExplorationRef('pill-buttons')).toEqual({ ref: 'pill-buttons' });
+    expect(parseExplorationRef('explore/pill-buttons')).toEqual({ ref: 'explore/pill-buttons' });
+    expect(parseExplorationRef('Shop#12')).toEqual({ product: 'shop', ref: 12 });
+    expect(parseExplorationRef('acme/shop#12')).toEqual({ repo: 'acme/shop', ref: 12 });
+    expect(parseExplorationRef('https://github.com/acme/shop/pull/12/files')).toEqual({ repo: 'acme/shop', ref: 12 });
+    expect(parseExplorationRef('shop:checkout-flow')).toEqual({ product: 'shop', ref: 'checkout-flow' });
+    expect(explorationRefLabel({ number: 12 })).toBe('#12');
+    expect(explorationRefLabel({ number: 12, product: 'shop', repo: 'acme/shop' })).toBe('shop#12');
+  });
+
+  it('lists each product repository once, tags its explorations, and skips one Bridge cannot read', async () => {
+    const { listProductExplorationsOnGitHub } = await import('../src/index');
+    const res = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body), headers: new Headers() });
+    const noRetry = { attempts: 1, baseDelayMs: 0, sleep: async () => {} };
+    const pull = { number: 3, title: 'Exploration: checkout', body: '', state: 'open', draft: true, user: { login: 'ann' }, head: { ref: 'explore/checkout', sha: 'a'.repeat(40) }, base: { ref: 'main' }, labels: [{ name: 'exploration' }], html_url: 'https://github.com/acme/shop/pull/3', updated_at: '2026-10-29T00:00:00Z' };
+    const reads: string[] = [];
+    const clientFor = (repo: string) =>
+      new GitHubClient(
+        repo,
+        't',
+        (async (url: string) => {
+          reads.push(url);
+          return repo === 'acme/shop' ? res(200, [pull, { ...pull, number: 4, head: { ref: 'feature/x', sha: 'b'.repeat(40) }, labels: [] }]) : res(404, { message: 'Not Found' });
+        }) as unknown as FetchLike,
+        noRetry,
+      );
+    const products = [
+      { key: 'shop', name: 'Shop', repo: 'acme/shop', preview: 'https://shop-git-{branch}.vercel.app' },
+      { key: 'gone', name: 'Gone', repo: 'acme/gone' },
+      { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
+      { key: 'library', name: 'Library', default: true },
+    ];
+    const r = await listProductExplorationsOnGitHub(clientFor, products, 'acme/ds');
+    expect(r.explorations).toHaveLength(1);
+    expect(r.explorations[0]).toMatchObject({ number: 3, repo: 'acme/shop', product: 'shop', status: 'active', previews: [{ app: 'shop', label: 'Shop', url: 'https://shop-git-explore-checkout.vercel.app/' }] });
+    expect(r.unreachable).toEqual([{ product: 'gone', name: 'Gone', repo: 'acme/gone', reason: 'not-connected' }]);
+    expect(reads.filter((u) => u.includes('/pulls'))).toHaveLength(2);
+  });
+
+  it('a piece request names the product pull request across repositories', () => {
+    const piece = { id: 'badge-overdue-tone', kind: 'variant' as const, name: 'overdue', title: 'Badge: overdue tone', summary: 'An overdue tone.', component: 'Badge', aspect: 'tone' as const, values: [{ category: 'color', property: 'background', value: '#fdecec' }], where: [] };
+    const ref = { pr: 1, title: 'Billing', branch: 'explore/billing', url: 'https://github.com/acme/shop/pull/1', productKey: 'shop', productName: 'Shop', repo: 'acme/shop' };
+    const r = pieceRequest(piece, ref, { previewUrl: 'https://shop.example/preview' });
+    expect(r.request.summary).toContain('Shop needs it for "Billing" (acme/shop#1)');
+    expect(r.neededBy).toMatchObject({ pr: 1, repo: 'acme/shop' });
+    const same = pieceRequest(piece, { ...ref, repo: undefined });
+    expect(same.request.summary).toContain('(#1)');
+  });
+});

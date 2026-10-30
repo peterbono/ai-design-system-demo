@@ -153,6 +153,37 @@ bridge explore archive pill-buttons
 bridge explore list --archived
 ```
 
+### In a product's own repository
+
+An exploration created in a product repository (`products[].repo`) lives there for good, and Bridge follows it there:
+
+- **Lists.** Studio (Changes, the home, Being built), `bridge explore list` and `bridge_list_explorations` read the
+  open `explore/*` pull requests of each product repository too: one read per repository, cached like the design
+  system's list, through the same GitHub sign-in or Bridge's proxy (for email members and demo visitors, read only).
+  They show under their product. A product repository Bridge cannot read is left out of the lists without a word;
+  Settings, `bridge products` and `bridge_list_products` (`connection`) say which one is not connected.
+- **Naming it.** Studio opens it at `changes/?exploration=<n>&product=<key>`. The CLI and Claude name it
+  `<product>#<n>` (`shop#12`), `owner/name#12` or its pull request link; a plain name (`checkout-flow`) is looked up
+  in the design system repository first, then in each product repository.
+- **Missing pieces** (`bridge pieces shop#12 --record`, `bridge_missing_pieces`, the Studio pieces dialog) read the
+  product branch where it lives; every product file counts, since `path` is a folder of the design system repository.
+- **Done exploring** files the requests in the **design system repository**, where the DS lead works. Each one links
+  back to the product pull request (`owner/name#12`, which GitHub links across repositories) and to its preview (the
+  product's `preview` template). The product pull request records them as `owner/ds#n`, so a piece is never sent
+  twice. Labels, the note and the **For developers** section change on the product pull request, as for any
+  exploration; Archive works there too.
+- **Status** follows the product pull request: pushes read Being built, the merge reads Shipped.
+- A library branch cannot be merged into a branch of another repository: `bridge pieces preview|switch` say so. Try an
+  unreleased library change with its snapshot (`npm i @bridge-ds/react@<snapshot>`), then bump the package once it
+  ships.
+
+```sh
+bridge explore list                            # shop#12 Checkout flow  Running  explore/checkout-flow in acme/shop
+bridge pieces shop#12 --record
+bridge explore done shop#12 --piece badge-overdue-tone
+bridge products                                # shop  Shop  acme/shop (connected)
+```
+
 Statuses everywhere (Studio, CLI, MCP): **Running** (open, labeled `exploration`), **Waiting for code** (done
 exploring, labeled `ready-for-devs`, no new commit since), **Being built** (developers pushed to it or marked it
 ready for review), **Shipped** (merged after done exploring), **Closed** (closed without merging). An exploration
