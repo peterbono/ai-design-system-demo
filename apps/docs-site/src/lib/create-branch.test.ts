@@ -54,12 +54,12 @@ describe('create branch, product first', () => {
     expect(featureProblems({ product: 'admin', sentence: '### --', jira: '' }, choices).sentence).toMatch(/letters or digits/);
   });
 
-  it('hands off to Claude with one sentence and lands on the branch', () => {
-    expect(claudePrompt({ sentence: 'Billing screen with overdue invoices', product: THREE[0]!, number: 160 })).toBe(
-      'Build "Billing screen with overdue invoices" in Admin demo (apps/admin) on Bridge exploration #160, with the Bridge library. Tell me what the library is missing.',
-    );
-    expect(claudePrompt({ sentence: 'Cart', product: THREE[1]!, number: 3 })).toContain('in Shop (acme/shop) on');
-    expect(claudePrompt({ sentence: 'x', product: { key: 'k', name: 'K' }, number: 1 })).toContain('in K on');
+  it('hands off to Claude with one line that sets it up and hands control back, and lands on the branch', () => {
+    const line = claudePrompt({ sentence: 'Billing screen with overdue invoices', product: THREE[0]!, number: 160 });
+    expect(line).toBe('Open Bridge exploration #160 "Billing screen with overdue invoices" in Admin demo (apps/admin) and use the Bridge library. I\'ll tell you what to explore.');
+    expect(line).not.toMatch(/missing|Build|\u2014/);
+    expect(claudePrompt({ sentence: 'Cart', product: THREE[1]!, number: 3 })).toContain('"Cart" in Shop (acme/shop) and use');
+    expect(claudePrompt({ sentence: 'x', product: { key: 'k', name: 'K' }, number: 1 })).toContain('"x" in K and use');
     expect(featureHref(160)).toBe('/studio/changes/?exploration=160');
   });
 
