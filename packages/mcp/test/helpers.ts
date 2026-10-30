@@ -95,6 +95,7 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
   let n = 0;
   // Hex like a real git sha (suggestions check the base commit's shape); the counter sits at the end.
   const id = () => `5ba${(++n).toString(16).padStart(37, '0')}`;
+  const messages = new Map<string, string>();
   const commits = new Map<string, Commit>();
   const trees = new Map<string, Map<string, string>>();
   const refs = new Map<string, string>();
@@ -232,6 +233,7 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     if (method === 'POST' && path === '/git/commits') {
       const c = id();
       commits.set(c, { files: trees.get(body.tree)!, parents: body.parents });
+      messages.set(c, body.message ?? '');
       return json(201, { sha: c });
     }
     if (method === 'PATCH' && (m = /^\/git\/refs\/heads\/(.+)$/.exec(path))) {
@@ -358,6 +360,16 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       if (!at) return json(404, { message: 'Not Found' });
       comments.get(at.issue)![at.index] = body.body;
       return json(200, { id: Number(m[1]), body: body.body });
+    }
+    if (method === 'GET' && (m = /^\/pulls\/(\d+)\/commits$/.exec(path))) {
+      // The branch's own commits, oldest first: from the head back to the base branch's commit.
+      const pr = pulls[Number(m[1]) - 1]!;
+      const stop = refs.get(pr.base.ref);
+      const out: unknown[] = [];
+      for (let sha = refs.get(pr.head.ref) ?? pr.head.sha; sha && sha !== stop && commits.has(sha); sha = commits.get(sha)!.parents[0]) {
+        out.unshift({ sha, commit: { message: messages.get(sha) ?? '', author: { name: viewer.login, date: '2026-10-30T12:00:00Z' } }, author: { login: viewer.login } });
+      }
+      return json(200, out);
     }
     if ((m = /^\/pulls\/(\d+)\/files$/.exec(path))) {
       const pr = pulls[Number(m[1]) - 1]!;

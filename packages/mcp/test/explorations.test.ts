@@ -215,3 +215,36 @@ describe('explorations in a local repo', () => {
     expect(git(dir, 'branch', '--list', 'bridge/*').trim()).toBe('');
   });
 });
+
+describe('continue an exploration', () => {
+  it('resolves "Continue Bridge exploration #n", says where it stands, then what changed', async () => {
+    const gh = fakeGitHub('acme', 'ds', files());
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    await explorations.startExploration(ctx, { name: 'Orders bulk actions' });
+    const first = (await explorations.continueExploration(ctx, { ref: 'Continue Bridge exploration #1 "Orders bulk actions" in Library and use the Bridge library.' })) as any;
+    expect(first).toMatchObject({ ref: '#1', number: 1, name: 'Orders bulk actions', branch: 'explore/orders-bulk-actions', stage: 'not-started', status: 'active' });
+    expect(first.whereItStands).toBe('"Orders bulk actions" is started but nothing is built yet.');
+    expect(first.continueLines.terminal).toBe('claude "Continue Bridge exploration #1"');
+    // Remote: nothing to switch, the write tools take the branch.
+    expect(first.checkout).toMatchObject({ status: 'not-switched' });
+    expect(first.next).toMatch(/^Start by telling the designer where it stands/);
+
+    const client = (await ctx.github())!.withBranchPrefix('explore/');
+    await client.commitToBranch({ branch: 'explore/orders-bulk-actions', message: 'feat: add a Bulk actions bar\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>', files: [{ path: 'apps/admin/src/BulkActionsBar.tsx', content: 'export {}\n' }] });
+    const then = (await explorations.continueExploration(ctx, { ref: '#1' })) as any;
+    expect(then.stage).toBe('exploring');
+    expect(then.activity[0]).toMatchObject({ who: 'Claude', what: 'added a Bulk actions bar' });
+    expect(then.activity.at(-1)).toMatchObject({ what: 'started the exploration' });
+    expect(then.whereItStands).toMatch(/^So far it changes Bulk actions bar\. Last: Claude added a Bulk actions bar/);
+    expect(then.whereItStands).not.toMatch(/commit|pull request|—/);
+  });
+
+  it('lists only the ones the person started with mine', async () => {
+    const gh = fakeGitHub('acme', 'ds', files());
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    await explorations.startExploration(ctx, { name: 'Pill buttons' });
+    expect(((await explorations.listExplorations(ctx, { mine: true })) as any).explorations).toHaveLength(0);
+    gh.viewer.login = 'agent';
+    expect(((await explorations.listExplorations(ctx, { mine: true })) as any).explorations.map((x: any) => x.ref)).toEqual(['#1']);
+  });
+});

@@ -1309,6 +1309,11 @@ export class GitHubClient {
     return r.map((f) => ({ filename: f.filename, status: f.status, additions: f.additions, deletions: f.deletions }));
   }
 
+  /** The commits of a pull request, oldest first, as GitHub lists them (one read, up to 100). */
+  async listPullRequestCommits(n: number): Promise<{ sha: string; commit: { message: string; author?: { name?: string | null; date?: string | null } | null; committer?: { date?: string | null } | null }; author?: { login?: string | null } | null }[]> {
+    return this.request('GET', `${this.repoPath}/pulls/${n}/commits?per_page=100`);
+  }
+
   async updatePullRequest(n: number, patch: { title?: string; body?: string; state?: 'open' | 'closed' }): Promise<void> {
     await this.request('PATCH', `${this.repoPath}/pulls/${n}`, patch);
   }
