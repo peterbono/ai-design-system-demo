@@ -286,7 +286,7 @@ export function ExplorationPage(p: ExplorationPageProps) {
                   </ButtonLink>
                 </Tooltip>
               )}
-              <ContinueButton p={p} line={p.lines.app} say={setSaid} variant="secondary" size="lg" />
+              <ContinueButton p={p} line={p.lines.app} say={setSaid} variant="secondary" />
             </div>
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
               <p className="xp-muted xp-note" id="xp-preview-note">
