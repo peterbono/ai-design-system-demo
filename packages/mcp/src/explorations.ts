@@ -390,9 +390,11 @@ export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces
  * branches in the repository the exploration lives in.
  */
 async function checkoutOf(ctx: BridgeContext, repo: string): Promise<string | null> {
-  if (ctx.mode !== 'local' || !ctx.isGit || !ctx.root) return null;
-  const origin = (await git(ctx.root, ['remote', 'get-url', 'origin']).catch(() => '')).trim().replace(/\.git$/, '');
-  return origin.toLowerCase().endsWith(repo.toLowerCase()) ? ctx.root : null;
+  // Local mode: the repo Bridge runs on. A connected product repository (.bridge/product.json): its checkout.
+  const root = ctx.checkout;
+  if (!root) return null;
+  const origin = (await git(root, ['remote', 'get-url', 'origin']).catch(() => '')).trim().replace(/\.git$/, '');
+  return origin.toLowerCase().endsWith(repo.toLowerCase()) ? root : null;
 }
 
 /**
@@ -402,10 +404,13 @@ async function checkoutOf(ctx: BridgeContext, repo: string): Promise<string | nu
 async function switchTo(ctx: BridgeContext, repo: string, branch: string): Promise<{ status: 'already-on-it' | 'switched' | 'not-switched'; note: string }> {
   const root = await checkoutOf(ctx, repo);
   const run = `git fetch origin ${branch} && git switch ${branch}`;
-  if (!root) return { status: 'not-switched', note: ctx.mode === 'remote' ? `Work on it through Bridge: pass "branch": "${branch}" to the write tools.` : `This folder is not a checkout of ${repo}. In one: \`${run}\`.` };
+  if (!root) return { status: 'not-switched', note: ctx.mode === 'remote' && !ctx.checkout ? `Work on it through Bridge: pass "branch": "${branch}" to the write tools.` : `This folder is not a checkout of ${repo}. In one: \`${run}\`.` };
   if ((await currentBranch(root).catch(() => '')) === branch) return { status: 'already-on-it', note: `The working tree is on ${branch}.` };
   const dirty = (await git(root, ['status', '--porcelain']).catch(() => 'unknown')).trim();
-  if (dirty) return { status: 'not-switched', note: `The working tree has uncommitted changes, so Bridge did not switch. Once they are committed or stashed: \`${run}\`.` };
+  if (dirty) {
+    const n = dirty.split('\n').length;
+    return { status: 'not-switched', note: `Not switched: ${n} ${n === 1 ? 'file has' : 'files have'} uncommitted changes in ${root}, and switching could lose them. Commit or stash them, then \`${run}\`.` };
+  }
   try {
     await git(root, ['fetch', 'origin', branch]);
     if (await branchExists(root, branch)) {

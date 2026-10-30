@@ -2,7 +2,8 @@
 // for Claude and the CLI: a client per product repository with the same token, and which repository a reference
 // means. "shop#12", "peterbono/bridge-demo-shop#12", "shop:checkout-flow" and a pull request link name one in a
 // product's repository; "12", "#12" and a plain name stay in the design system repository, and a plain name not found
-// there is looked up in the product repositories too. The reference rules are @bridge-ds/core's (parseExplorationRef).
+// there is looked up in the product repositories too. Run inside a connected product repository (.bridge/product.json),
+// "12", "#12" and a name mean that product's own explorations first. The reference rules are @bridge-ds/core's (parseExplorationRef).
 import {
   EXPLORATION_PREFIX,
   explorationSlug,
@@ -58,6 +59,14 @@ export async function locate(ctx: BridgeContext, input: string | number, ds: Git
     const p = productOfRepo(products, r.repo, ds.fullName);
     if (!p) throw new Error(`${r.repo} is neither the design system repository (${ds.fullName}) nor a product repository in bridge.config.json "products".`);
     return inProduct(p, productRepoOf(p, ds.fullName)!);
+  }
+  // Run inside a connected product repository (.bridge/product.json): "#12" and a name mean that product's own ones.
+  const here = ctx.product ? findProduct(products, ctx.product) : undefined;
+  const hereRepo = here ? productRepoOf(here, ds.fullName) : null;
+  if (here && hereRepo) {
+    if (typeof r.ref === 'number') return inProduct(here, hereRepo);
+    const at = productClient(ctx, hereRepo);
+    if (await at.findOpenPullRequest(`${EXPLORATION_PREFIX}${explorationSlug(r.ref)}`).catch(() => undefined)) return { gh: at, ref: r.ref, product: here, repo: hereRepo };
   }
   if (typeof r.ref === 'string') {
     // A name: the design system repository first, then each product repository (one read each, unreachable ones skipped).

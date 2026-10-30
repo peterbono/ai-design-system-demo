@@ -14,6 +14,7 @@ import { runBuild } from './build-requests.js';
 import { runExplore } from './explore.js';
 import { runBranch, runDocsSave, runStudioRead } from './branch.js';
 import { runPieces } from './pieces.js';
+import { runConnect } from './connect.js';
 import { runFigma } from './figma.js';
 import { runSpecs } from './specs.js';
 import { runFixes, runGap } from './fixes.js';
@@ -38,6 +39,10 @@ const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
 
 Usage:
   bridge init [--force]               write bridge.config.json (detected) and .mcp.json for Claude Code
+  bridge connect --ds <owner/name> [--product <key>] [--dry-run]
+                                      in a product repository, once: connect it to the team's design system
+                                      (.mcp.json, .bridge/product.json, a Bridge section in CLAUDE.md), so
+                                      bridge explore and Claude work from there
   bridge check [--json] [--strict] [--offline]
                                       validate tokens + contrast gate, and say whether the library is
                                       protected (reviewed pull requests only) and who is in the GitHub
@@ -852,6 +857,7 @@ async function main(): Promise<number> {
   if (cmd === 'explore') return runExplore(a, root);
   if (cmd === 'branch') return runBranch(a, root);
   if (cmd === 'pieces') return runPieces(a, root);
+  if (cmd === 'connect') return runConnect(a, root);
   if (cmd === 'figma') return runFigma(a, root);
   if (cmd === 'specs') return runSpecs(a, root);
   if (cmd === 'fixes') return runFixes(a, root);

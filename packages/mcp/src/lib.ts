@@ -4,8 +4,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { BridgeContext, type ContextOptions } from './context.js';
 import { createServer, type ServerOptions, VERSION } from './server.js';
+import { linkedOptions } from './product-link.js';
 
 export { BridgeContext, type ContextOptions } from './context.js';
+export { findProductLink, GIT_CONFIG_KEYS, linkedOptions, parseProductPointer, PRODUCT_POINTER, type ProductLink, type ProductPointer } from './product-link.js';
 export { BlockedError, isBlocked, say } from './say.js';
 export { createServer, SERVER_INFO, VERSION, type ServerOptions } from './server.js';
 export { CONFIG_FILE, detectConfig, parseConfig, toConfigJson, type BridgeConfig } from './config.js';
@@ -82,7 +84,9 @@ export async function handleHttp(ctx: BridgeContext, req: Request, parsedBody?: 
 /** Starts the stdio MCP server. Logs go to stderr: stdout belongs to the protocol. */
 export async function serveStdio(opts: ServeOptions = {}): Promise<void> {
   const { tokenSource, ...context } = opts;
-  const ctx = await BridgeContext.create(context);
+  // Started inside a connected product repository (.bridge/product.json, `bridge connect`): the design system it names,
+  // read from GitHub, with this checkout and its product.
+  const ctx = await BridgeContext.create(await linkedOptions(context.root ?? process.cwd(), context));
   const server = createServer(ctx);
   await server.connect(new StdioServerTransport());
   process.stderr.write(`bridge-mcp ${VERSION}: ${ctx.describe()}\n`);
