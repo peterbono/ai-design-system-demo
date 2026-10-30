@@ -21,6 +21,9 @@ Usage:
                      reports, the install command from the pull request (once the snapshot is built) and the
                      requests implemented on each (--all: closed ones too; --archived: only archived ones).
                      Explorations in a product's own repository are listed too, named product#pr (shop#12)
+  bridge explore continue <#pr|product#pr|name> [--no-checkout] [--json]
+                     pick one up where it was left ("Continue Bridge exploration #12"): switches this
+                     checkout to its branch when nothing is uncommitted, then says where it stands
   bridge explore done <name|#pr|product#pr> [--piece <id> ...] [--dry-run] [--json]
                      done exploring: each --piece (ids from bridge pieces) becomes a request for the DS lead
                      with the preview link; the exploration label and note go, ready-for-devs comes, and
@@ -113,6 +116,17 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       io.print(`\nFor developers: ${r.forDevelopers.take.join(' && ')}\n${r.forDevelopers.note}`);
       for (const w of r.warnings) io.error(`Warning: ${w}`);
       io.print(r.url);
+      return 0;
+    }
+    case 'continue': {
+      const ref = a._.slice(2).join(' ').trim();
+      if (!ref) throw new RequestUsageError('Usage: bridge explore continue <#pr|product#pr|name>');
+      const ctx = await context(root, io, a, 'read');
+      const r = await explorations.continueExploration(ctx, { ref, checkout: !has(a, 'no-checkout') });
+      if (json) return io.print(JSON.stringify(r, null, 2)), 0;
+      io.print(`${r.ref} ${r.name} (${r.product}): ${r.whereItStands}`);
+      for (const e of r.activity) io.print(`  ${e.who} ${e.what}, ${e.when}`);
+      io.print(`${r.checkout.note} ${r.url}`);
       return 0;
     }
     case 'archive':

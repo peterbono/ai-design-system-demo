@@ -154,6 +154,7 @@ Usage:
                                       brief for Claude (\`bridge build help\`)
   bridge explore start <name> --purpose "..." [--use-case user-test|stakeholder-demo|ab-idea|terminal]
   bridge explore list [--all] [--archived] [--json]
+  bridge explore continue <#pr|product#pr>   pick one up where it was left
   bridge explore done <name|#pr> [--piece <id> ...] [--dry-run]
   bridge explore archive|unarchive|close <name|#pr>
                                       explorations: an explore/<name> branch with a draft pull request

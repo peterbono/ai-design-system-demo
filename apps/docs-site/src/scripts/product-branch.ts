@@ -26,6 +26,7 @@ import {
   writeTokenProposalOnGitHub,
   type BranchPreview,
   type BranchPreviewSources,
+  type PreviewApps,
   type ChangesMode,
   type LibraryTokenWrite,
   type LibraryBranchPlan,
@@ -61,7 +62,7 @@ const connected = () => Boolean(hasWorkingToken() && currentViewer());
 const client = () => studioClient(`${CFG.owner}/${CFG.repo}`, undefined, { protectedBranches: [CFG.defaultBranch] });
 
 /** Display names of the people on the page, read once each (only with a token: anonymous reads are kept for statuses). */
-async function namesOf(logins: string[]): Promise<Record<string, string>> {
+export async function namesOf(logins: string[]): Promise<Record<string, string>> {
   if (!connected() || !logins.length) return {};
   const { personOf } = await import('./home-data');
   const people = await Promise.all([...new Set(logins)].map((l) => personOf(l).catch(() => null)));
@@ -92,7 +93,7 @@ function tokenWriter(gh: ReturnType<typeof client>) {
   };
 }
 
-async function previewSources(r: ExplorationRow): Promise<BranchPreviewSources | null> {
+export async function previewSources(r: ExplorationRow): Promise<BranchPreviewSources | null> {
   // In the product's own repository, what Vercel reported there.
   const own = productRepoByKey(r.product);
   const RR = own ? `/repos/${own.repo}` : R;
@@ -107,15 +108,18 @@ async function previewSources(r: ExplorationRow): Promise<BranchPreviewSources |
   }
 }
 
-/** The product's preview of the branch, as GitHub reported it (null while unread). */
-function productPreviewOf(r: ExplorationRow, sources: BranchPreviewSources | null): BranchPreview | null {
+/**
+ * The product's preview of the branch, as GitHub reported it (null while unread). `app`: which of the design system
+ * repository's previews (the product's key, admin by default).
+ */
+export function productPreviewOf(r: ExplorationRow, sources: BranchPreviewSources | null, app: keyof PreviewApps = 'admin'): BranchPreview | null {
   if (!sources) return null;
   const own = productRepoByKey(r.product);
-  return (own ? productPreviews(r, own.product, sources)[0] : explorationPreviews(r, CFG.apps, sources).find((p) => p.app === 'admin')) ?? null;
+  return (own ? productPreviews(r, own.product, sources)[0] : explorationPreviews(r, CFG.apps, sources).find((p) => p.app === app)) ?? null;
 }
 
 /** The preview opened with the Bridge toolbar. The URL comes from a comment or a status: React 18 renders a javascript: href as is. */
-const withToolbar = (r: ExplorationRow) => (url: string) => safeUrl(tryInProductUrl(url, r.number, null)) || null;
+export const withToolbar = (r: ExplorationRow) => (url: string) => safeUrl(tryInProductUrl(url, r.number, null)) || null;
 
 /**
  * The branch's own build, opened with the Bridge toolbar: only a reported URL, never a template, never a build that
@@ -128,7 +132,7 @@ export function tryUrlOf(r: ExplorationRow, sources: BranchPreviewSources | null
 
 /** The files the branch changed, read once per commit (null when GitHub cannot be read). */
 const filesBy = new Map<string, Promise<string[] | null>>();
-function changedFiles(r: ExplorationRow): Promise<string[] | null> {
+export function changedFiles(r: ExplorationRow): Promise<string[] | null> {
   const own = productRepoByKey(r.product);
   const k = `${explorationKey(r)}@${r.headSha}`;
   let files = filesBy.get(k);

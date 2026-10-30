@@ -21,6 +21,7 @@ const TOOLS = [
   'bridge_close_exploration',
   'bridge_combine_branches',
   'bridge_comment',
+  'bridge_continue_exploration',
   'bridge_create_request',
   'bridge_create_suggestion',
   'bridge_draft_docs',

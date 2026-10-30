@@ -45,6 +45,17 @@ import {
   type ExplorationUseCase,
   type GitHubClient,
   type ProductConfig,
+  continueLines,
+  actorName,
+  explorationActivity,
+  explorationStage,
+  explorationStatus,
+  isArchivedExploration,
+  parseExplorationBody,
+  productOfBranch,
+  shortAgo,
+  whereItStands,
+  EXPLORATION_STATUS_LABEL,
 } from '@bridge-ds/core';
 import { branchExists, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
 import { BridgeContext } from './context.js';
@@ -254,7 +265,7 @@ async function requestsByExploration(gh: GitHubClient): Promise<Map<string, { nu
 }
 
 /** bridge_list_explorations / `bridge explore list`. */
-export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' | 'closed' | 'all'; archived?: boolean | undefined } = {}) {
+export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' | 'closed' | 'all'; archived?: boolean | undefined; mine?: boolean | undefined } = {}) {
   const { config } = await ctx.config();
   const gh = await requireGitHub(ctx);
   const opts = { state: a.state ?? 'open', archived: a.archived ? ('only' as const) : ('exclude' as const) };
@@ -277,7 +288,9 @@ export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' |
       return { ...x, previews: t.previews.map((p) => ({ app: p.app, label: p.label, url: p.url, state: p.state })), install: installOf(t.tryIt), requests };
     }),
   );
-  const explorations = [...dsOnes, ...productOnes];
+  // mine: the ones the viewer started (the token's account); none when Bridge cannot tell who that is.
+  const me = a.mine ? await viewerOf(ctx, gh) : null;
+  const explorations = [...dsOnes, ...productOnes].filter((x) => !a.mine || (me !== null && x.author.toLowerCase() === me.toLowerCase()));
   let localBranches: string[] = [];
   if (ctx.mode === 'local' && ctx.isGit) {
     const refs = (await git(ctx.root!, ['for-each-ref', '--format=%(refname:short)', `refs/heads/${EXPLORATION_PREFIX}`]).catch(() => '')).split('\n').filter(Boolean);
@@ -364,6 +377,89 @@ export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces
     ]
       .filter(Boolean)
       .join(' '),
+  };
+}
+
+/**
+ * The local working tree when it is a checkout of `repo` (its origin remote names it), else null: Claude only switches
+ * branches in the repository the exploration lives in.
+ */
+async function checkoutOf(ctx: BridgeContext, repo: string): Promise<string | null> {
+  if (ctx.mode !== 'local' || !ctx.isGit || !ctx.root) return null;
+  const origin = (await git(ctx.root, ['remote', 'get-url', 'origin']).catch(() => '')).trim().replace(/\.git$/, '');
+  return origin.toLowerCase().endsWith(repo.toLowerCase()) ? ctx.root : null;
+}
+
+/**
+ * Switches the working tree to the exploration branch when that is safe: the checkout of its repository, nothing
+ * uncommitted. Otherwise it says what to run, and nothing is touched.
+ */
+async function switchTo(ctx: BridgeContext, repo: string, branch: string): Promise<{ status: 'already-on-it' | 'switched' | 'not-switched'; note: string }> {
+  const root = await checkoutOf(ctx, repo);
+  const run = `git fetch origin ${branch} && git switch ${branch}`;
+  if (!root) return { status: 'not-switched', note: ctx.mode === 'remote' ? `Work on it through Bridge: pass "branch": "${branch}" to the write tools.` : `This folder is not a checkout of ${repo}. In one: \`${run}\`.` };
+  if ((await currentBranch(root).catch(() => '')) === branch) return { status: 'already-on-it', note: `The working tree is on ${branch}.` };
+  const dirty = (await git(root, ['status', '--porcelain']).catch(() => 'unknown')).trim();
+  if (dirty) return { status: 'not-switched', note: `The working tree has uncommitted changes, so Bridge did not switch. Once they are committed or stashed: \`${run}\`.` };
+  try {
+    await git(root, ['fetch', 'origin', branch]);
+    if (await branchExists(root, branch)) {
+      await git(root, ['switch', branch]);
+      await git(root, ['merge', '--ff-only', `origin/${branch}`]).catch(() => '');
+    } else await git(root, ['switch', '-c', branch, '--track', `origin/${branch}`]);
+    return { status: 'switched', note: `Switched the working tree to ${branch}, up to date with GitHub.` };
+  } catch (err) {
+    return { status: 'not-switched', note: `Bridge could not switch (${(err as Error).message.split('\n')[0]}). Run \`${run}\`.` };
+  }
+}
+
+/**
+ * bridge_continue_exploration / "Continue Bridge exploration #12" (or shop#12): resolves the exploration, switches the
+ * local checkout of its repository to its branch when that is safe, and returns where it stands in plain words (what
+ * changed, the last activity) for Claude to say first, with the previews and the missing pieces when recorded.
+ * One read of the pull request, its files and its commits.
+ */
+export async function continueExploration(ctx: BridgeContext, a: { ref: string; checkout?: boolean | undefined }) {
+  const { config } = await ctx.config();
+  const ds = await requireGitHub(ctx);
+  const at = await locate(ctx, a.ref.replace(/^\s*continue\s+bridge\s+exploration\s+/i, '').replace(/\s+".*$/, '').trim(), ds);
+  const gh = at.gh;
+  const p = await findExplorationOnGitHub(gh, refOf(at.ref));
+  const [files, commits] = await Promise.all([gh.listPullRequestFiles(p.number).then((f) => f.map((x) => x.filename)).catch(() => null), gh.listPullRequestCommits(p.number).catch(() => [])]);
+  const status = explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body });
+  const archived = isArchivedExploration(p.labels);
+  const stage = explorationStage({ status, archived, files });
+  const e = parseExplorationBody(p.body);
+  const name = e?.name ?? p.title.replace(/^Exploration:\s*/i, '');
+  const products = productsOf(config);
+  const product = at.product ?? productOfBranch(products, { labels: p.labels, files: null });
+  const repo = at.repo ?? gh.fullName;
+  const events = explorationActivity({ commits, author: p.author, startedAt: p.createdAt ?? e?.startedAt ?? null, limit: 3 });
+  const ref = explorationRefLabel({ number: p.number, product: at.product?.key, repo: at.repo });
+  const checkout = a.checkout === false ? { status: 'not-switched' as const, note: `Not switched. \`git fetch origin ${p.headRef} && git switch ${p.headRef}\`.` } : await switchTo(ctx, repo, p.headRef);
+  const record = parsePiecesRecord(p.body);
+  return {
+    ref,
+    number: p.number,
+    name,
+    product: product.name,
+    repo,
+    branch: p.headRef,
+    url: p.url,
+    status,
+    statusLabel: EXPLORATION_STATUS_LABEL[status],
+    archived,
+    stage,
+    whereItStands: whereItStands({ name, stage, statusLabel: EXPLORATION_STATUS_LABEL[status], events, files }),
+    activity: events.map((x) => ({ who: actorName(x), what: x.text, when: shortAgo(x.at) })),
+    changedFiles: files,
+    ...(record ? { missingPieces: record.pieces.map((x) => ({ id: x.id, title: x.title })) } : {}),
+    checkout,
+    continueLines: continueLines({ number: p.number, name, productName: product.name, product: at.product?.key, repo: at.repo }),
+    next: [
+      'Start by telling the designer where it stands, in one or two sentences from whereItStands and activity, without technical words, then ask what they want to do next.',
+      stage === 'handed' ? 'It is no longer being explored: say so, and only change it if they ask.' : `Keep working on ${p.headRef}${at.repo ? ` in ${at.repo}` : ''}: ${say(ctx, `write tools take "branch": "${p.headRef}"`, `\`bridge propose --branch ${p.headRef}\``)}. Never open a pull request to main from it. Build screens with the library components (bridge_search_tokens, bridge_get_token).`,
+    ].join(' '),
   };
 }
 

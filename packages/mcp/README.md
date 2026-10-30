@@ -45,7 +45,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 
 <!-- tools:start (generated from the server: npm run readme:tools -w @bridge-ds/mcp) -->
 
-74 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
+75 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
 
 | Tool | Access | What it does |
 | --- | --- | --- |
@@ -60,6 +60,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_close_exploration` | writes | Close an exploration without merging it. |
 | `bridge_combine_branches` | reads | Combined preview of 2 to 4 token branches, as "Try together" in Studio: each branch's own token edits on the latest main, the tokens two branches set differently (pick one per key with picks), and the links that open the combination (the admin demo with the Bridge toolbar, the library views). |
 | `bridge_comment` | writes | Post a comment on a branch, or reply in the thread of a line comment (replyTo: its id from bridge_list_comments). |
+| `bridge_continue_exploration` | writes | Pick an exploration up where it was left, when the person says "Continue Bridge exploration #12" (Studio's Continue in Claude line; shop#12 for a product with its own repository) or asks to continue one by name. |
 | `bridge_create_request` | writes | File a component change request as a GitHub issue labeled component-change (source: mcp), in the same format as Figma and Bridge Studio requests. |
 | `bridge_create_suggestion` | writes | File any change as a suggestion from its payload (schema bridge.suggestion/1: kind, title, summary, and tokens edits, docs, componentSpec or files). |
 | `bridge_draft_docs` | reads | Start or refresh a component's docs.json. |

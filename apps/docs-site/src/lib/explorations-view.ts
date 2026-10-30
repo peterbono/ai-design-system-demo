@@ -51,6 +51,8 @@ export interface ExplorationPullLike {
   head: { ref: string; sha: string };
   user?: { login: string } | null;
   updated_at: string;
+  /** When it was started (the pull request's creation). */
+  created_at?: string;
   html_url: string;
   /** The branch it targets (the product's default branch, for a client that never writes it). */
   base?: { ref: string } | null;

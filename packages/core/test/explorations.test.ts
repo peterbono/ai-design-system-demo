@@ -198,6 +198,20 @@ describe('exploration naming', () => {
     expect(explorationSlugFromBranch('main')).toBeNull();
   });
 
+  it('keeps a short phrase whole and cuts a long one on a word boundary', () => {
+    expect(explorationSlug('Exploration page: pick up where you left off')).toBe('exploration-page-pick-up-where-you-left-off');
+    const long = explorationSlug('Checkout redesign with saved cards and express wallets for returning buyers');
+    expect(long.length).toBeLessThanOrEqual(60);
+    expect(long).toBe('checkout-redesign-with-saved-cards-and-express-wallets-for');
+  });
+
+  it('titles the pull request with the name as typed, the prefix once', () => {
+    expect(explorationPrTitle({ name: 'Exploration page: pick up where you left off' })).toBe('Exploration: Exploration page, pick up where you left off');
+    expect(explorationPrTitle({ name: 'Exploration: denser tables' })).toBe('Exploration: denser tables');
+    expect(explorationPrTitle({ name: 'iOS tab bar.' })).toBe('Exploration: iOS tab bar');
+    expect(explorationPrTitle({ name: 'Orders: bulk actions' })).toBe('Exploration: Orders, bulk actions');
+  });
+
   it('says how to fix a name, and never asks for a purpose', () => {
     expect(explorationProblems({ name: 'Pill buttons', purpose: 'Do rounder buttons read as more friendly?' })).toEqual([]);
     expect(explorationProblems({ name: 'Pill buttons', purpose: '' })).toEqual([]);
@@ -213,7 +227,7 @@ describe('exploration pull request', () => {
 
   it('composes a draft body with purpose, install, previews and promote or close, and reads it back', () => {
     const body = explorationPrBody(e, { owner: 'acme', repo: 'ds', pr: 12, packages, apps, requests: [{ number: 40, title: 'Button: pill radius' }] });
-    expect(explorationPrTitle(e)).toBe('Exploration: pill buttons');
+    expect(explorationPrTitle(e)).toBe('Exploration: Pill buttons');
     expect(body).toContain('## Exploration: Pill buttons');
     expect(body).toContain('Not mergeable as is');
     expect(body).toContain('**Use case.** Prototype for a user test');
@@ -233,6 +247,14 @@ describe('exploration pull request', () => {
     expect(parseExplorationBody(byAgent)).toMatchObject({ source: 'cli', agent: 'claude' });
     // Before the pull request exists the body says where the command will appear.
     expect(explorationPrBody(e, { owner: 'acme', repo: 'ds', packages, apps: {} })).toMatch(/comment below[\s\S]*Preview deploys are not set up/);
+  });
+
+  it('previews set up but the branch too long for a predictable link: the Vercel comment, never "not set up"', () => {
+    const vercel = { docs: 'https://bridge-docs-git-{branch}-peterbonos-projects.vercel.app', admin: 'https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app' };
+    const body = explorationPrBody({ name: 'Exploration page: pick up where you left off', purpose: '' }, { owner: 'acme', repo: 'ds', pr: 621, packages, apps: vercel });
+    expect(body).not.toContain('not set up');
+    expect(body).toContain('| Docs | Link in the Vercel comment on this pull request |');
+    expect(body).toContain('| Admin demo | Link in the Vercel comment on this pull request |');
   });
 
   it('without a purpose: no empty Purpose line, the block reads back with an empty one', () => {
@@ -487,7 +509,7 @@ describe('explorations on GitHub', () => {
   it('start with a Jira ticket: the key goes first in the pull request title', async () => {
     const gh = fakeGitHub();
     await startExplorationOnGitHub(gh.client(), { name: 'Pill buttons', purpose: 'Rounder buttons.', jira: 'DS-42' }, settings);
-    expect(gh.pulls[0].title).toBe('DS-42 Exploration: pill buttons');
+    expect(gh.pulls[0].title).toBe('DS-42 Exploration: Pill buttons');
   });
 
   it('start for a product: its label goes on the draft pull request with the exploration one', async () => {

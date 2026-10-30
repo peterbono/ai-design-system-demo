@@ -126,6 +126,21 @@ must be checked out: Bridge writes the files to that working tree and you commit
 an exploration says: work on that branch, commit there, never open a pull request to `main`, never mark it ready
 for review.
 
+### Pick it up where you left off
+
+The exploration's page in Studio says where it stands. **Not started** while the branch only carries the Bridge
+note: "Nothing built yet", the line to paste in Claude (Claude app or Terminal) and **Continue in Claude**, which
+copies it. **Exploring** once something changed: who changed what and when (the files named as screens and
+components, else the commit subject), the preview, **Done exploring** in the "Happy with it?" card and the last
+three events.
+
+The line reads `Continue Bridge exploration #12 "Name" in Admin demo and use the Bridge library.`, or
+`claude "Continue Bridge exploration #12"` in a terminal (`shop#12` for a product with its own repository). Claude
+resolves it with `bridge_continue_exploration` (`bridge explore continue #12` in the CLI): it switches a clean
+checkout of the right repository to the branch, then starts by saying where it stands. At the start of a session,
+Claude mentions your running explorations once (`bridge_list_explorations` with `mine: true`) and offers to continue
+one.
+
 ## Done exploring, archive
 
 - **Done exploring** (Studio, `bridge explore done <name>`, Claude `bridge_promote_exploration`; `bridge explore

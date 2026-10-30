@@ -56,7 +56,7 @@ import { isProductBranch } from '../lib/product-branch';
 import { attrUrl } from '../lib/html';
 import { studioHref } from '../lib/team-path';
 import { productClient, productRepoByKey, readProductPulls, type ProductPull } from './product-repos';
-import type { GitHubClient } from '@bridge-ds/core';
+import { defaultProduct, type GitHubClient } from '@bridge-ds/core';
 
 // The use case menu of Start an exploration (BridgedSelect id).
 const USE_CASE = 'ex-use-case';
@@ -565,6 +565,13 @@ export async function openExploration(n: number, push = true, product: string | 
     const pb = await import('./product-branch');
     const products = pb.siteProducts();
     const of = productRepoByKey(r.product)?.product ?? isProductBranch(pull.labels, products);
+    // While it runs (boards X1 and X2): not started or exploring, for a product or the library.
+    const xp = await import('./exploration-page');
+    if (xp.runsHere(r)) {
+      pb.closeProductBranch();
+      return xp.openExplorationPage(d, r, pull, of ?? defaultProduct(products), products, () => void openExploration(n, false, product));
+    }
+    xp.closeExplorationPage();
     if (of) return pb.openProductBranch(d, r, pull, of, products, () => void openExploration(n, false, product));
   }
   const where = product ? (productRepoByKey(product)?.product.name ?? product) : `${CFG.owner}/${CFG.repo}`;

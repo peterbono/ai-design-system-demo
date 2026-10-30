@@ -1,0 +1,384 @@
+/* The exploration page while it runs (components/ds/studio/ExplorationPage.tsx), the validated boards X1 and X2:
+   title with its status and the "..." menu on one line, one line on who did what, then either the "Nothing built yet"
+   panel beside the empty preview frame (X1) or the preview beside the Harbor card and the activity (X2, 3 to 2).
+   "For developers" folded at the bottom. Four type sizes: h1, h2 (the panel title), body, ui. */
+
+.xp {
+  display: grid;
+  gap: var(--space-6);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.xp p,
+.xp h1,
+.xp h2 {
+  margin: 0;
+}
+
+.xp-top {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Every crumb on one baseline: links and the current page share the line box (a link was lifted by its own box). */
+.xp-crumbs ol,
+.pb-crumbs ol {
+  align-items: baseline;
+}
+
+.xp-crumbs li,
+.pb-crumbs li {
+  align-items: baseline;
+}
+
+.xp-crumbs a,
+.xp-crumbs [aria-current],
+.pb-crumbs a,
+.pb-crumbs [aria-current] {
+  display: inline;
+  padding-block: 0;
+  min-height: 0;
+  line-height: inherit;
+}
+
+.xp-crumbs svg,
+.pb-crumbs svg {
+  align-self: center;
+}
+
+.xp-crumbs-phone {
+  display: none;
+}
+
+.xp-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.xp-title {
+  min-width: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-h1-weight);
+  letter-spacing: var(--typography-h1-tracking);
+  line-height: var(--typography-h1-line-height);
+  overflow-wrap: anywhere;
+}
+
+.xp-title:focus {
+  outline: none;
+}
+
+.xp-spacer {
+  flex: 1;
+}
+
+.xp-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.xp strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.xp-muted {
+  color: var(--color-text-muted);
+}
+
+.xp-skel {
+  height: var(--size-64);
+}
+
+.xp-skel-rows {
+  height: var(--size-24);
+}
+
+/* X1: one soft panel, the text and its actions on the left, the empty frame on the right. */
+.xp-start {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--size-96));
+  gap: var(--space-10);
+  align-items: center;
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-subtle);
+}
+
+.xp-start-text,
+.xp-start-intro {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.xp-start-intro {
+  gap: var(--space-2);
+}
+
+.xp-h-lg {
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  letter-spacing: var(--typography-h2-tracking);
+  line-height: var(--typography-h2-line-height);
+}
+
+.xp-body {
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.xp-h2 {
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+/* The line to paste: a white card, its tabs on the header line, the copy button on the line it copies. */
+.xp-paste {
+  overflow: hidden;
+  border: var(--border-width-1) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+}
+
+.xp-paste-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-block-end: var(--border-width-1) solid var(--color-border-default);
+}
+
+.xp-paste-head > :first-child {
+  flex: 1;
+}
+
+.xp-paste-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.xp-line {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  font-family: var(--font-family-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.xp-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.xp-start .xp-acts {
+  gap: var(--space-6);
+}
+
+.xp-continue .xp-claude {
+  flex: none;
+  margin-inline-end: var(--space-1-5);
+}
+
+/* "Exploring" in Harbor, as on the validated board: the selected surface and the link text, its dot the same. */
+.xp .xp-head .xp-exploring {
+  --_bg: var(--color-surface-selected);
+  --_border: transparent;
+  --_text: var(--color-text-link);
+  --_mark: var(--color-text-link);
+}
+
+.xp-today {
+  font-weight: var(--font-weight-medium);
+}
+
+/* The preview frame: an empty dashed one (X1), a neutral one, or a captured screen (X2). */
+.xp-frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  border: var(--border-width-1) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+}
+
+.xp-frame.is-empty {
+  border-width: var(--border-width-2);
+  border-style: dashed;
+  border-color: var(--color-border-strong);
+}
+
+.xp-frame-lines {
+  display: grid;
+  gap: var(--space-2);
+  width: var(--size-40);
+  opacity: 0.7;
+}
+
+.xp-frame-lines > span {
+  height: var(--space-2);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-border-default);
+}
+
+.xp-frame-lines > span:first-child {
+  width: 45%;
+}
+
+.xp-frame-lines > span:last-child {
+  width: 70%;
+}
+
+.xp-frame.is-shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+}
+
+/* X2: the preview (3) beside the Harbor card and the activity (2). */
+.xp-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.xp-preview {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-subtle);
+}
+
+.xp-note {
+  margin-block-start: calc(-1 * var(--space-2));
+}
+
+.xp-side {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.xp-done {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+
+.xp-rows {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-block-end: var(--border-width-1) solid var(--color-border-default);
+}
+
+.xp-row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.xp-when {
+  white-space: nowrap;
+}
+
+.xp-said:empty {
+  display: none;
+}
+
+.xp-dev-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.xp-dev-row {
+  display: grid;
+  grid-template-columns: var(--size-40) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.xp-dev-row dt {
+  color: var(--color-text-muted);
+}
+
+.xp-dev-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.xp-dev-take p {
+  margin: 0 0 var(--space-2);
+}
+
+.xp-mono {
+  font-family: var(--font-family-mono);
+}
+
+/* Narrow windows: one column, the frame under the panel. Phones: the way back instead of the breadcrumb. */
+@media (max-width: 960px) {
+  .xp-start,
+  .xp-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xp-start {
+    padding: var(--space-6);
+  }
+}
+
+@media (max-width: 640px) {
+  .xp-crumbs {
+    display: none;
+  }
+
+  .xp-crumbs-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: var(--size-6);
+  }
+
+  .xp-head {
+    flex-wrap: wrap;
+  }
+
+  .xp-paste-head {
+    flex-wrap: wrap;
+  }
+
+  .xp-acts > * {
+    flex: 1 1 100%;
+  }
+
+  .xp-dev-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
