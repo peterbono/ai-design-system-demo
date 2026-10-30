@@ -31,7 +31,9 @@ import {
   explorationTestBuildOnGitHub,
   explorationRefLabel,
   findExplorationOnGitHub,
-  inProductRepo,
+  branchPreviewUrls,
+  previewLinksOf,
+  productPreviewOnGitHub,
   listProductExplorationsOnGitHub,
   isExplorationBranch,
   listExplorationsOnGitHub,
@@ -334,8 +336,11 @@ export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces
   // The preview the requests link: the first one Vercel reported (the product's preview template in its own
   // repository), else the pull request (pieceRequest says so).
   let previewUrl: string | null;
-  if (at.product && at.repo) previewUrl = inProductRepo({ branch: p.headRef, number: p.number, headSha: p.headSha } as Parameters<typeof inProductRepo>[0], at.product, at.repo).previews[0]?.url ?? null;
-  else {
+  if (at.product && at.repo) {
+    // The URL Vercel reported in the product repository: a long branch name gets a shortened alias the template misses.
+    const pv = await productPreviewOnGitHub(gh, at.product, { number: p.number, branch: p.headRef, sha: p.headSha }).catch(() => null);
+    previewUrl = pv?.url && pv.state !== 'failed' && !pv.skipped ? pv.url : null;
+  } else {
     const build = await explorationTestBuildOnGitHub(gh, { number: p.number, branch: p.headRef }, config).catch(() => null);
     previewUrl = build?.previews.find((v) => v.url && v.state !== 'failed')?.url ?? null;
   }
@@ -438,6 +443,13 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
   const ref = explorationRefLabel({ number: p.number, product: at.product?.key, repo: at.repo });
   const checkout = a.checkout === false ? { status: 'not-switched' as const, note: `Not switched. \`git fetch origin ${p.headRef} && git switch ${p.headRef}\`.` } : await switchTo(ctx, repo, p.headRef);
   const record = parsePiecesRecord(p.body);
+  // Where to see it: the product's preview Vercel reported in its repository, else the library's apps.
+  const previews = at.product
+    ? [await productPreviewOnGitHub(gh, at.product, { number: p.number, branch: p.headRef, sha: p.headSha }).catch(() => null)].filter((x) => x !== null)
+    : await branchPreviewUrls(gh, p.number, config, { branch: p.headRef, sha: p.headSha }).catch(() => []);
+  const keepWorking = at.repo
+    ? `Keep working on ${p.headRef} in a checkout of ${at.repo}: build the screens with the library components (bridge_get_component, bridge_search_tokens), commit and push there. What the library lacks goes to the DS lead in ${ds.fullName} with ${say(ctx, `bridge_missing_pieces { pr: "${ref}" }`, `\`bridge pieces ${ref} --record\``)} then Done exploring, never on this branch.`
+    : `Keep working on ${p.headRef}: ${say(ctx, `write tools take "branch": "${p.headRef}"`, `\`bridge propose --branch ${p.headRef}\``)}. Build screens with the library components (bridge_search_tokens, bridge_get_token).`;
   return {
     ref,
     number: p.number,
@@ -453,12 +465,13 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
     whereItStands: whereItStands({ name, stage, statusLabel: EXPLORATION_STATUS_LABEL[status], events, files }),
     activity: events.map((x) => ({ who: actorName(x), what: x.text, when: shortAgo(x.at) })),
     changedFiles: files,
+    previews: previewLinksOf(previews),
     ...(record ? { missingPieces: record.pieces.map((x) => ({ id: x.id, title: x.title })) } : {}),
     checkout,
     continueLines: continueLines({ number: p.number, name, productName: product.name, product: at.product?.key, repo: at.repo }),
     next: [
       'Start by telling the designer where it stands, in one or two sentences from whereItStands and activity, without technical words, then ask what they want to do next.',
-      stage === 'handed' ? 'It is no longer being explored: say so, and only change it if they ask.' : `Keep working on ${p.headRef}${at.repo ? ` in ${at.repo}` : ''}: ${say(ctx, `write tools take "branch": "${p.headRef}"`, `\`bridge propose --branch ${p.headRef}\``)}. Never open a pull request to main from it. Build screens with the library components (bridge_search_tokens, bridge_get_token).`,
+      stage === 'handed' ? 'It is no longer being explored: say so, and only change it if they ask.' : `${keepWorking} Never open a pull request to main from it.`,
     ].join(' '),
   };
 }
