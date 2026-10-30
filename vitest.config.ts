@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 //   react  keyboard and ARIA behavior of the React components (jsdom + Testing Library + axe-core)
 //   core   @bridge-ds/core, pure token logic (node)
 //   docs   docs-site data layer: token review, review rules, token editor model (node)
-//   admin  back-office demo data layer: browser persistence of the demo dataset (node)
+//   admin  back-office demo data layer: browser persistence of the demo dataset, and the Bridge toolbar's logic (node)
 //   visual @bridge-ds/visual: impact selection, pixel diff and manifest (node, no browser)
 //   lint   @bridge-ds/stylelint-plugin and @bridge-ds/eslint-plugin rules (node)
 //   scripts repo scripts with logic (Vercel ignored build step)
@@ -66,7 +66,7 @@ export default defineConfig({
         test: {
           name: 'admin',
           environment: 'node',
-          include: ['apps/admin/src/**/*.test.ts'],
+          include: ['apps/admin/src/**/*.test.ts', 'packages/toolbar/src/**/*.test.ts'],
         },
       },
       {

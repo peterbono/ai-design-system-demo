@@ -14,6 +14,7 @@
   "dependencies": {
     "@bridge-ds/react": "*",
     "@bridge-ds/tokens": "*",
+    "@bridge-ds/toolbar": "*",
     "@faker-js/faker": "10.6.0",
     "@tanstack/react-query": "5.103.3",
     "data-generator-retail": "5.15.4",

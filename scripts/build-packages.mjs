@@ -4,7 +4,8 @@
 // (TypeScript sources). Published consumers get the `default` condition (built JS, .d.ts and one CSS file).
 //
 //   node scripts/build-packages.mjs              every publishable package, in dependency order
-//                                                (tokens, core, react, visual, mcp, cli, stylelint-plugin, eslint-plugin)
+//                                                (tokens, core, react, toolbar, visual, mcp, cli, stylelint-plugin,
+//                                                eslint-plugin)
 //   node scripts/build-packages.mjs react core   only these
 //
 // After building, every non-source export target is checked to exist, so a broken manifest fails here and not
@@ -16,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const ORDER = ['tokens', 'core', 'react', 'visual', 'mcp', 'cli', 'stylelint-plugin', 'eslint-plugin'];
+const ORDER = ['tokens', 'core', 'react', 'toolbar', 'visual', 'mcp', 'cli', 'stylelint-plugin', 'eslint-plugin'];
 const wanted = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const targets = wanted.length ? ORDER.filter((p) => wanted.includes(p)) : ORDER;
 const unknown = wanted.filter((p) => !ORDER.includes(p));
@@ -28,12 +29,13 @@ if (unknown.length) {
 const pkgDir = (name) => join(ROOT, 'packages', name);
 const tsc = (args, cwd) => execFileSync(process.execPath, [join(ROOT, 'node_modules/typescript/bin/tsc'), ...args], { cwd, stdio: 'inherit' });
 
-async function viteLib(name, { external, css, entry = { index: 'src/index.ts' } }) {
+async function viteLib(name, { external, css, entry = { index: 'src/index.ts' }, plugins = [], cssCodeSplit }) {
   const { build, defaultClientConditions } = await import('vite');
   const dir = pkgDir(name);
   await build({
     configFile: false,
     root: dir,
+    plugins,
     logLevel: 'warn',
     esbuild: { jsx: 'automatic' },
     resolve: { conditions: ['source', ...defaultClientConditions] },
@@ -42,6 +44,7 @@ async function viteLib(name, { external, css, entry = { index: 'src/index.ts' } 
       emptyOutDir: false,
       sourcemap: true,
       minify: false,
+      ...(cssCodeSplit ? { cssCodeSplit: true } : {}),
       target: 'es2022',
       lib: { entry, formats: ['es'], fileName: (_format, entryName) => `${entryName}.js`, ...(css ? { cssFileName: 'components' } : {}) },
       rollupOptions: { external },
@@ -60,6 +63,33 @@ const externalFor = (name) => {
   const list = deps(name);
   return (id) => id.startsWith('node:') || NODE_BUILTINS.has(id) || list.some((d) => id === d || id.startsWith(`${d}/`));
 };
+// The toolbar's styles travel inside the lazy chunk that renders it: a product mounts one component and imports no
+// stylesheet, and a page without `?bridge=` loads neither. Each chunk's CSS becomes a <style> it adds once.
+const injectCss = () => ({
+  name: 'bridge-inject-css',
+  enforce: 'post',
+  generateBundle(_options, bundle) {
+    for (const chunk of Object.values(bundle)) {
+      const imported = chunk.type === 'chunk' ? [...(chunk.viteMetadata?.importedCss ?? [])] : [];
+      if (!imported.length) continue;
+      const css = imported.map((file) => String(bundle[file]?.source ?? '')).join('\n');
+      for (const file of imported) delete bundle[file];
+      const mark = JSON.stringify(chunk.name);
+      const inject = [
+        `if (typeof document !== 'undefined' && !document.querySelector('style[data-bridge-toolbar-css="' + ${mark} + '"]')) {`,
+        `  const style = document.createElement('style');`,
+        `  style.setAttribute('data-bridge-toolbar-css', ${mark});`,
+        `  style.textContent = ${JSON.stringify(css)};`,
+        // After the page's styles, the library's components included: the toolbar's rules win over equal selectors,
+        // as when a bundler appends a lazy chunk's stylesheet.
+        `  document.head.appendChild(style);`,
+        `}`,
+      ].join('\n');
+      chunk.code = `${inject}\n${chunk.code}`;
+    }
+  },
+});
+
 // Packages bundled with their own esbuild script (Node tools): JS from build.mjs, declarations from tsc.
 const esbuildPackage = (name, { types = true } = {}) => () => {
   const dir = pkgDir(name);
@@ -97,6 +127,14 @@ const BUILDERS = {
     const components = existsSync(componentsCss) ? readFileSync(componentsCss, 'utf8') : '';
     writeFileSync(join(dir, 'dist/styles.css'), `${base}\n/* Components */\n${components}`);
     rmSync(componentsCss, { force: true });
+  },
+  async toolbar() {
+    const dir = pkgDir('toolbar');
+    rmSync(join(dir, 'dist'), { recursive: true, force: true });
+    // Two entry points: the component (index, which lazy-loads the toolbar and its styles) and ./together (the
+    // combination of changes tried together, with @bridge-ds/core), which a product passes back as a lazy loader.
+    await viteLib('toolbar', { external: externalFor('toolbar'), css: false, cssCodeSplit: true, plugins: [injectCss()], entry: { index: 'src/index.ts', together: 'src/together.ts' } });
+    tsc(['-p', 'tsconfig.build.json'], dir);
   },
   visual: esbuildPackage('visual'),
   mcp: esbuildPackage('mcp'),

@@ -1,5 +1,5 @@
 // The Bridge toolbar's pure logic: when it shows, which change it follows, what Before and After mean for that
-// change, and the screens it lists. The admin opens it only when Bridge Studio links here with `?bridge=<change>`;
+// change, and the screens it lists. A product opens it only when Bridge Studio links here with `?bridge=<change>`;
 // production renders nothing, except the Before side of a code change, which arrives with a handoff from a preview.
 
 export interface StorageLike {
@@ -8,21 +8,28 @@ export interface StorageLike {
   removeItem(key: string): void;
 }
 
-/** Build-time facts, injected by vite.config.ts from bridge.config.json and the host's environment. */
+/**
+ * What the toolbar knows about the product and its design system: from bridge.config.json (the product's entry in
+ * products[] and previews), read at build time (the Admin demo) or from the design system repository at run time.
+ */
 export interface BridgeBuild {
+  /** The repository whose pull requests `?bridge=<n>` names: the product's own repository, else the design system's. */
   owner: string;
   repo: string;
   /** Production Studio (previews.production.docs): the link back and the shipped tokens.css. */
   studio: string | null;
-  /** Production admin (previews.production.admin): the Before side of a code change. */
-  productionAdmin: string | null;
-  /** Admin preview template (previews.apps.admin): only these hosts may hand a code change over to production. */
-  adminTemplate: string | null;
-  /** VERCEL_ENV of the build ('production', 'preview', 'development'), null off Vercel. */
+  /** The product in production (products[].production, else previews.production.<key>): Before of a code change. */
+  production: string | null;
+  /** The product's preview template (products[].preview): only these hosts may hand a code change over to production. */
+  preview: string | null;
+  /** VERCEL_ENV of the build ('production', 'preview', 'development'), null when unknown. */
   deployEnv: string | null;
   /** The library branch (repo.defaultBranch) and the token files' root (tokens.root): changes tried together. */
   defaultBranch?: string;
   tokensRoot?: string;
+  /** The product's key (products[].key) and the design system repository ("owner/name"), for the way back to Studio. */
+  product?: string;
+  ds?: string;
 }
 
 export const PARAM = 'bridge';
@@ -97,7 +104,7 @@ export function readUse(search: string, storage: StorageLike | null): string | n
   return storage ? safe(() => storage.getItem(USE_KEY), null) : null;
 }
 
-/** A host that matches the admin preview template (`bridge-admin-git-{branch}-team.vercel.app`), https only. */
+/** A host that matches the product's preview template (`bridge-admin-git-{branch}-team.vercel.app`), https only. */
 export function isPreviewUrl(raw: string | null | undefined, template: string | null): boolean {
   if (!raw || !template) return false;
   let url: URL;
@@ -132,9 +139,9 @@ export function readReturn(search: string, storage: StorageLike | null, template
 
 export type Where = 'production' | 'preview' | 'local';
 
-/** Which deployment this page is: the production admin by host or by build, a preview, or a local build. */
-export function whereAmI(host: string, build: Pick<BridgeBuild, 'productionAdmin' | 'deployEnv'>): Where {
-  const prodHost = build.productionAdmin ? safe(() => new URL(build.productionAdmin!).host, null) : null;
+/** Which deployment this page is: the product in production by host or by build, a preview, or a local build. */
+export function whereAmI(host: string, build: Pick<BridgeBuild, 'production' | 'deployEnv'>): Where {
+  const prodHost = build.production ? safe(() => new URL(build.production!).host, null) : null;
   if (build.deployEnv === 'production' || (prodHost && host.toLowerCase() === prodHost.toLowerCase())) return 'production';
   if (build.deployEnv === 'preview') return 'preview';
   return 'local';
@@ -187,9 +194,15 @@ export function liveTokensUrl(build: Pick<BridgeBuild, 'studio'>): string | null
   return build.studio ? safe(() => new URL('tokens.css', build.studio!.replace(/\/?$/, '/')).href, null) : null;
 }
 
-/** Studio's page for the change. */
-export function studioChangeUrl(build: Pick<BridgeBuild, 'studio' | 'owner' | 'repo'>, change: number): string {
-  return build.studio ? `${build.studio.replace(/\/$/, '')}/studio/changes/?pr=${change}` : `https://github.com/${build.owner}/${build.repo}/pull/${change}`;
+/**
+ * Studio's page for the change. A change in a product's own repository (an exploration there) opens as
+ * `?exploration=<n>&product=<key>`; a change of the design system repository as `?pr=<n>`.
+ */
+export function studioChangeUrl(build: Pick<BridgeBuild, 'studio' | 'owner' | 'repo' | 'product' | 'ds'>, change: number): string {
+  if (!build.studio) return `https://github.com/${build.owner}/${build.repo}/pull/${change}`;
+  const studio = build.studio.replace(/\/$/, '');
+  const own = build.product && build.ds && build.ds.toLowerCase() !== `${build.owner}/${build.repo}`.toLowerCase();
+  return own ? `${studio}/studio/changes/?exploration=${change}&product=${encodeURIComponent(build.product!)}` : `${studio}/studio/changes/?pr=${change}`;
 }
 
 /** Shape of a visual impact manifest that the toolbar reads (written by @bridge-ds/visual). */
@@ -211,7 +224,7 @@ export interface Screen {
   percent: number;
 }
 
-/** The admin screens the change alters, most changed first, one entry per screen, shop and theme. */
+/** The product screens the change alters, most changed first, one entry per screen, shop and theme. */
 export function changedScreens(shots: ManifestShot[] | null | undefined): Screen[] {
   if (!Array.isArray(shots)) return [];
   const seen = new Set<string>();

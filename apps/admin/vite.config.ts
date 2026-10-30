@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 
 const root = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
-// What the Bridge toolbar (src/bridge) needs to know about this repository and this deploy, read once at build time:
+// What the Bridge toolbar (@bridge-ds/toolbar, mounted in src/bridge) needs to know about this repository and this deploy, read once at build time:
 // the repository, production Studio and admin, the admin preview template, and whether Vercel builds production.
 const config = JSON.parse(readFileSync(root('../../bridge.config.json'), 'utf8')) as {
   repo: { owner: string; name: string; defaultBranch?: string };
@@ -15,8 +15,8 @@ const bridgeBuild = {
   owner: config.repo.owner,
   repo: config.repo.name,
   studio: config.previews?.production?.docs ?? null,
-  productionAdmin: config.previews?.production?.admin ?? null,
-  adminTemplate: config.previews?.apps?.admin ?? null,
+  production: config.previews?.production?.admin ?? null,
+  preview: config.previews?.apps?.admin ?? null,
   deployEnv: process.env.VERCEL_ENV ?? null,
   defaultBranch: config.repo.defaultBranch ?? 'main',
   tokensRoot: config.tokens?.root ?? 'packages/tokens/src',
@@ -39,6 +39,9 @@ export default defineConfig({
       { find: /^@bridge-ds\/tokens$/, replacement: root('../../packages/tokens/dist/tokens.ts') },
       // Changes tried together combine token files in the browser (src/bridge/together.ts, loaded only then).
       { find: /^@bridge-ds\/core$/, replacement: root('../../packages/core/src/index.ts') },
+      // The Bridge toolbar from source too, like the library.
+      { find: /^@bridge-ds\/toolbar\/together$/, replacement: root('../../packages/toolbar/src/together.ts') },
+      { find: /^@bridge-ds\/toolbar$/, replacement: root('../../packages/toolbar/src/index.ts') },
       // The data generator imports the full faker build (every locale, about 2 MB). English is enough.
       { find: /^@faker-js\/faker$/, replacement: '@faker-js/faker/locale/en' },
     ],

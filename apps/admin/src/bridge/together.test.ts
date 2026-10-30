@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { changeEdits } from '@bridge-ds/core';
 import { latestBase } from './latest';
-import { scopeSelector, together, togetherPairs } from './together';
-import { fromText, parseChanges, readChanges, readUse, SESSION_KEY, shouldRender, toggleIncluded, togetherLabel, TOGETHER_HINT, USE_KEY, type StorageLike } from './session';
+import { scopeSelector, together, togetherPairs } from '@bridge-ds/toolbar/together';
+import { fromText, parseChanges, readChanges, readUse, SESSION_KEY, shouldRender, toggleIncluded, togetherLabel, TOGETHER_HINT, USE_KEY, type StorageLike } from '../../../../packages/toolbar/src/session';
 
 // The latest library exactly as the toolbar loads it: this checkout's token files and config.
 const base = latestBase('packages/tokens/src');

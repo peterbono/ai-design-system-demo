@@ -1,0 +1,60 @@
+{
+  "name": "@bridge-ds/toolbar",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "The Bridge toolbar for a product built with the Bridge design system: opened from Bridge Studio with ?bridge=<change>, it flips the real product between before and after and shows what changed.",
+  "license": "MIT",
+  "author": "Florian Gouloubi",
+  "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/toolbar#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "directory": "packages/toolbar"
+  },
+  "bugs": {
+    "url": "https://github.com/peterbono/ai-design-system-demo/issues"
+  },
+  "keywords": [
+    "react",
+    "design-system",
+    "bridge",
+    "preview",
+    "before-after"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./together": {
+      "source": "./src/together.ts",
+      "types": "./dist/together.d.ts",
+      "default": "./dist/together.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build:package": "node ../../scripts/build-packages.mjs toolbar"
+  },
+  "dependencies": {
+    "@bridge-ds/core": "^0.21.0",
+    "lucide-react": "1.58.0"
+  },
+  "peerDependencies": {
+    "@bridge-ds/react": ">=1.8.0",
+    "react": ">=18",
+    "react-dom": ">=18"
+  }
+}

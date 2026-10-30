@@ -1,5 +1,6 @@
 // Changes tried together, in the toolbar: reads the changes (github.ts loadTogetherChange), loads the combination
-// module on demand (latest.ts: this build's token files and @bridge-ds/core), keeps which changes are switched on,
+// module on demand (together.ts with @bridge-ds/core) and the latest library from the product (its `together` option:
+// the token files its own tokens.css was built from), keeps which changes are switched on,
 // and paints the combination as one stylesheet that switches sides like the live tokens do for one change. Changes
 // that edit code are listed but stay off: they cannot be applied live.
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -8,7 +9,7 @@ import { loadTogetherChange, type TogetherFacts } from './github';
 import { toggleIncluded, type BridgeBuild, type NoDifference } from './session';
 import type { TogetherBase, TogetherPair, TogetherResult } from './together';
 
-type Mod = typeof import('./latest');
+type Mod = typeof import('./together');
 
 export interface Together {
   /** The changes in Studio's order, once read (null while reading). */
@@ -50,7 +51,14 @@ function useSheet(css: string | null, applied: boolean): HTMLStyleElement | null
   return el;
 }
 
-export function useTogether(build: BridgeBuild, changes: number[] | null, use: string | null, here: { theme: string; brand: string; density: string }, applied: boolean): Together | null {
+export function useTogether(
+  build: BridgeBuild,
+  latest: (() => Promise<TogetherBase>) | null,
+  changes: number[] | null,
+  use: string | null,
+  here: { theme: string; brand: string; density: string },
+  applied: boolean,
+): Together | null {
   const [mod, setMod] = useState<{ m: Mod; base: TogetherBase } | null>(null);
   const [list, setList] = useState<TogetherFacts[] | null>(null);
   const [error, setError] = useState(false);
@@ -61,10 +69,12 @@ export function useTogether(build: BridgeBuild, changes: number[] | null, use: s
     if (!key) return;
     let live = true;
     const numbers = key.split(',').map(Number);
-    Promise.all([import('./latest'), Promise.all(numbers.map((n) => loadTogetherChange(build, n)))]).then(
-      ([m, facts]) => {
+    // Without the latest library (a product that did not pass it) the combination cannot be painted: say so.
+    const base = latest ? latest() : Promise.reject(new Error('This product does not try changes together.'));
+    Promise.all([import('./together'), base, Promise.all(numbers.map((n) => loadTogetherChange(build, n)))]).then(
+      ([m, b, facts]) => {
         if (!live) return;
-        setMod({ m, base: m.latestBase(build.tokensRoot ?? 'packages/tokens/src') });
+        setMod({ m, base: b });
         setList(facts);
         setIncluded(facts.filter((f) => f.mode === 'tokens' && f.source).map((f) => f.number));
       },
@@ -73,7 +83,7 @@ export function useTogether(build: BridgeBuild, changes: number[] | null, use: s
     return () => {
       live = false;
     };
-  }, [build, key]);
+  }, [build, key, latest]);
 
   const edits = useMemo<ChangeEdits[]>(() => (mod && list ? list.filter((f) => f.source).map((f) => mod.m.changeEdits(f.source!)) : []), [mod, list]);
   const result = useMemo(() => (mod && list ? mod.m.together(mod.base, edits, mod.m.decodePicks(use), included) : null), [mod, list, edits, use, included]);
