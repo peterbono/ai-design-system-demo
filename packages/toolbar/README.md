@@ -7,7 +7,7 @@ The Bridge toolbar for a product built with the Bridge design system. Bridge Stu
 - **Code changes** (an exploration in the product's repository, a feature branch): Before is the product in
   production, After is the branch's preview. Flipping keeps the screen and the scroll position.
 - **Token changes** of the design system: the live tokens swap in without a reload. As soon as the toolbar is open,
-  every surface that differs is outlined and counted in the bar ("3 changes"). Previous and Next scroll to each one
+  every surface that differs is outlined and counted in the bar ("13 changed", then "2 / 13 changed"). Previous and Next scroll to each one
   in reading order and outline it stronger than the others; Isolate dims the rest of the page (Esc turns it off). The
   outlines, the position and Isolate hold when you flip to Live product, since both sides are the same page.
 

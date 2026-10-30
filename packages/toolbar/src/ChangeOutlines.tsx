@@ -9,6 +9,7 @@ import type { Theme } from '@bridge-ds/react';
 import { shownRect, type ChangedElement } from './outline';
 import type { Rect } from './session';
 import { PIN_ATTR, PIN_CLASS } from './pin';
+import { tipSide, type Box as TipBox } from './navigate';
 import styles from './BridgeToolbar.module.css';
 
 /** Inset of a page-sized frame, so it sits inside the viewport like a selection, not like the window edge. */
@@ -55,6 +56,7 @@ export function ChangeOutlines({
   emphasis,
   flash,
   isolate = false,
+  bar,
 }: {
   surfaces: ChangedElement[];
   theme: Theme;
@@ -64,6 +66,8 @@ export function ChangeOutlines({
   flash: boolean;
   /** Dim everything but the changed surfaces. */
   isolate?: boolean;
+  /** Where the toolbar is: the before and after tooltip never covers it. */
+  bar?: () => TipBox | null;
   /** Tooltip content for a surface: its role, token and before and after. */
   tip: (s: ChangedElement) => ReactNode;
   onShown: (shown: Shown) => void;
@@ -166,10 +170,24 @@ export function ChangeOutlines({
             data-emphasis={emphasis === i || undefined}
             style={{ left: b.left, top: b.top, width: b.width, height: b.height, borderRadius: b.radius }}
           >
-            <span className={styles.tint} />
-            {active === i || emphasis === i ? (
-              // Above the chip when there is room, else below it: never over the toolbar, which keeps clear of boxes.
-              <Tooltip open content={tip(s)} side={b.top < 64 ? 'bottom' : 'top'} align="start" className={PIN_CLASS}>
+            {/* The tooltip is anchored to the surface itself, on the side with room: below it first (its title or heading
+                usually sits above it), else beside it, above only when nothing else fits, never over the toolbar. A
+                page-sized surface has no tint: its tooltip hangs under its chip, inside the frame. */}
+            {(active === i || emphasis === i) && !b.page ? (
+              <Tooltip
+                open
+                content={tip(s)}
+                side={tipSide({ left: b.left, top: b.top, right: b.left + b.width, bottom: b.top + b.height }, { width: window.innerWidth, height: window.innerHeight }, bar?.() ?? null)}
+                align="start"
+                className={PIN_CLASS}
+              >
+                <span className={styles.tint} />
+              </Tooltip>
+            ) : (
+              <span className={styles.tint} />
+            )}
+            {(active === i || emphasis === i) && b.page ? (
+              <Tooltip open content={tip(s)} side="bottom" align="start" className={PIN_CLASS}>
                 {chip}
               </Tooltip>
             ) : (

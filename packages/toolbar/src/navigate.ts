@@ -29,14 +29,17 @@ export function stepTo(current: number | null, delta: 1 | -1, count: number): nu
   return (current + delta + count) % count;
 }
 
-/** "1 change", "3 changes": what the bar shows before stepping. */
-export const changeCount = (n: number) => `${n} ${n === 1 ? 'change' : 'changes'}`;
+/**
+ * "13 changed": what the bar shows before stepping. Never "13 changes": it sits next to "This change" (the change being
+ * tried) and must not read as a number of changes.
+ */
+export const changeCount = (n: number) => `${n} changed`;
 
-/** "2 of 3": the bar while stepping. */
-export const positionLabel = (position: number, n: number) => `${position + 1} of ${n}`;
+/** "2 / 13 changed": the bar while stepping. */
+export const positionLabel = (position: number, n: number) => `${position + 1} / ${n} changed`;
 
-/** "Change 2 of 3: Save bar (Save changes)": what a screen reader hears on each step. */
-export const stepAnnouncement = (position: number, n: number, label: string) => `Change ${position + 1} of ${n}: ${label}`;
+/** "Changed element 2 of 13: Save bar (Save changes)": what a screen reader hears on each step. */
+export const stepAnnouncement = (position: number, n: number, label: string) => `Changed element ${position + 1} of ${n}: ${label}`;
 
 /** No changed surface on this screen: say so, and where the change shows when the toolbar knows it. */
 export function elsewhereLine(screens: string[]): string {
@@ -66,4 +69,30 @@ export function isTyping(target: unknown): boolean {
 /** Escape turns Isolate off, unless the person is typing (Escape clears or closes the field there). */
 export function isEscape(e: KeyLike): boolean {
   return e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !isTyping(e.target);
+}
+
+export interface Box {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+export type TipSide = 'bottom' | 'right' | 'left' | 'top';
+
+/** Room the before and after tooltip of the current element needs, with its offset from the element. */
+export const TIP_ROOM = { width: 300, height: 64 };
+
+/**
+ * Where the before and after tooltip of the current element goes: below it when there is room above the bar (the
+ * label region of an element, its title or heading, usually sits above it), else beside it (right, then left), and
+ * above it only when nothing else fits. The bar's top is the floor: the tooltip never sits over the bar.
+ */
+export function tipSide(box: Box, view: { width: number; height: number }, bar: Box | null, room = TIP_ROOM): TipSide {
+  const floor = bar ? Math.min(view.height, bar.top) : view.height;
+  if (floor - box.bottom >= room.height) return 'bottom';
+  const fitsBeside = box.top >= 0 && box.top + room.height <= floor;
+  if (fitsBeside && view.width - box.right >= room.width) return 'right';
+  if (fitsBeside && box.left >= room.width) return 'left';
+  return 'top';
 }

@@ -638,7 +638,7 @@ function Toolbar({
     )
   ) : total && shownCount === 0 && position === null ? (
     <p className={styles.note} role="status">
-      Nothing changed in view. Next takes you to {total === 1 ? 'the change' : `the ${total} changes`}.
+      Nothing changed in view. Next takes you to {total === 1 ? 'the changed element' : `the ${total} changed elements`}.
     </p>
   ) : tg && T && side === 'after' && activeHere < T.included.length ? (
     <p className={styles.note} role="status">
@@ -671,7 +671,7 @@ function Toolbar({
   // outlines, the position and Isolate hold when the person flips to Live product.
   const tokenNames = (facts?.tokens ?? []).map((t) => t.name);
   const summary = shownCount === null ? null : surfaceLine(diff!.surfaces.flatMap((s) => s.roots.map(nameOf)), total ?? shownCount);
-  const countText = !outlinesOn ? 'Show what changed' : total === null ? 'Finding changes' : total === 0 ? 'No changes here' : position !== null ? `Change ${positionLabel(position, total)}` : changeCount(total);
+  const countText = !outlinesOn ? 'Show what changed' : total === null ? 'Finding changes' : total === 0 ? 'Nothing changed here' : position !== null ? positionLabel(position, total) : changeCount(total);
   const toggleTip = outlinesOn ? `${summary ? `${summary}. ` : ''}Press C to hide the outlines.` : `Outline what ${tokenNames.length === 1 ? tokenNames[0] : 'this change'} changes on this screen. Press C.`;
   const nav = canOutline ? (
     <ChangeNav
@@ -744,6 +744,7 @@ function Toolbar({
           emphasis={emphasis ?? current}
           flash={flash}
           isolate={isolateOn}
+          bar={() => root.current?.getBoundingClientRect() ?? null}
           onShown={setShownStable}
           tip={(s) => {
             // This surface's own before and after (its computed colour), and the token whose value it now shows.
