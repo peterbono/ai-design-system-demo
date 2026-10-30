@@ -2,14 +2,14 @@
 // product. Step 1 asks what the work is (a feature in a product, or a change to the library); step 2 asks what the
 // feature is and in which product, or which library change. A feature starts the way the CLI and MCP server start one
 // for a product: an exploration with the product's label (productMarks from @bridge-ds/core), handed to Claude with
-// one sentence to say. Pure: the dialog and its tests share it.
+// one line that sets it up and hands control back. Pure: the dialog and its tests share it.
 import { defaultProduct, findProduct, parseJiraKey, type ProductConfig } from '@bridge-ds/core';
 import { studioHref } from './team-path';
 
 export type WorkKind = 'feature' | 'library';
 
 export const KIND_CHOICES: { value: WorkKind; title: string; line: string }[] = [
-  { value: 'feature', title: 'A feature in a product', line: 'A new screen or flow. Claude AI builds it with the library and tells you what is missing.' },
+  { value: 'feature', title: 'A feature in a product', line: 'A new screen or flow. You explore it with Claude AI and the library.' },
   { value: 'library', title: 'A change to the library', line: 'A token, a variant or a new component.' },
 ];
 
@@ -70,10 +70,14 @@ export function featureProblems(f: FeatureForm, choices: readonly ProductConfig[
   return out;
 }
 
-/** What to say to Claude once the work exists: the existing hand-off, one sentence it acts on with the Bridge MCP server. */
+/**
+ * What to say to Claude once the work exists, with the Bridge MCP server: it opens the exploration and the library,
+ * then hands control back. No task and no gap report up front: the designer drives the exploration in the terminal,
+ * and bridge_missing_pieces lists what the library lacks when they finish.
+ */
 export function claudePrompt(x: { sentence: string; product: ProductConfig; number: number }): string {
   const where = x.product.path ? ` (${x.product.path})` : x.product.repo ? ` (${x.product.repo})` : '';
-  return `Build "${featureName(x.sentence)}" in ${x.product.name}${where} on Bridge exploration #${x.number}, with the Bridge library. Tell me what the library is missing.`;
+  return `Open Bridge exploration #${x.number} "${featureName(x.sentence)}" in ${x.product.name}${where} and use the Bridge library. I'll tell you what to explore.`;
 }
 
 /** Where the person lands once the feature started: the branch in place on the Branches page. */
