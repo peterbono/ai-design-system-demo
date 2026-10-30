@@ -101,6 +101,17 @@ export function shownRect(el: Element): DOMRect | null {
 
 const visible = (el: Element) => el.getClientRects().length > 0;
 
+/** Whether an element shows somewhere on the page (in view or after a scroll): what the changes count and step through. */
+export function rendered(el: Element): boolean {
+  const check = (el as Element & { checkVisibility?: (o: object) => boolean }).checkVisibility;
+  if (check && !check.call(el, { opacityProperty: true, visibilityProperty: true })) return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0;
+}
+
+/** The page's own canvas (html, body): stepping to it never scrolls. */
+export const isPage = (el: Element) => el === document.documentElement || el === document.body;
+
 /**
  * Compares the candidates under both token sets. `sheet` is the toolbar's stylesheet that switches sides (loaded):
  * the live tokens over a change's preview (`sheetIs` 'before', one change), or the combination over the live product
