@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, libraryPreviewState, linkStatus, withNeededBy, type LinkedLibraryBranch, type MissingPiece, type PiecesRecord } from '@bridge-ds/core';
-import { ASK_CLAUDE, childLine, developerLines, failedPreviewLine, isProductBranch, libraryHref, nestLinked, notesOnly, pieceRows, productContextOf, productCrumbs, productTodayUrl, statusLine, TRY_BUILDING_NOTE, TRY_TODAY_NOTE, TRY_UNAVAILABLE_NOTE, tryInProductView, whyItShows } from './product-branch';
+import { ASK_CLAUDE, childLine, developerLines, failedPreviewLine, isProductBranch, libraryHref, nestLinked, notesOnly, pieceRows, productContextOf, productCrumbs, productProduction, productTodayUrl, statusLine, TRY_BUILDING_NOTE, TRY_TODAY_NOTE, TRY_UNAVAILABLE_NOTE, tryInProductView, whyItShows } from './product-branch';
 
 const piece = (over: Partial<MissingPiece> = {}): MissingPiece => ({
   id: 'badge-overdue-tone',
@@ -194,6 +194,10 @@ describe('"Try it in the product" never opens a canceled deployment', () => {
     expect(productTodayUrl({ key: 'admin', preview: 'https://bridge-admin-git-{branch}-acme.vercel.app' }, { production: { admin: today }, defaultBranch: 'main' })).toBe(`${today}/`);
     expect(productTodayUrl({ key: 'shop', preview: 'https://shop-git-{branch}-acme.vercel.app' }, { defaultBranch: 'trunk' })).toBe('https://shop-git-trunk-acme.vercel.app/');
     expect(productTodayUrl({ key: 'shop' })).toBeNull();
+    // A product with its own repository says where it runs: that wins over its preview of main.
+    expect(productTodayUrl({ key: 'admin-app', preview: 'https://app-git-{branch}-acme.vercel.app', production: 'https://app.acme.com' })).toBe('https://app.acme.com/');
+    expect(productProduction({ key: 'admin', production: undefined }, { admin: today })).toBe(`${today}/`);
+    expect(productProduction({ key: 'shop' }, { admin: today })).toBeNull();
     expect(notesOnly(['.bridge/explorations/a.md'])).toBe(true);
     expect(notesOnly(['.bridge/explorations/a.md', 'apps/admin/x.tsx'])).toBe(false);
     expect(notesOnly([])).toBe(false);
