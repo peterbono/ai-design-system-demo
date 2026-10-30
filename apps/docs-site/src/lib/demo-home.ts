@@ -130,7 +130,16 @@ export function leadQueue(pulls: DemoPull[], suggestions: DemoSuggestion[], now:
  * the lead's queue (leadQueue) and live on Changes. `previews` holds the explored screens read so far; the sample
  * team's come with the site (lib/demo.ts SAMPLE_EXPLORATION_PREVIEWS).
  */
-export function teamExplorations(pulls: DemoPull[], opts: LeadOptions & { products?: readonly ProductConfig[]; previews?: Map<number, ThumbSpec>; sample?: boolean } = {}): ExplorationCard[] {
+export function teamExplorations(
+  pulls: DemoPull[],
+  opts: LeadOptions & {
+    products?: readonly ProductConfig[];
+    previews?: Map<number, ThumbSpec>;
+    sample?: boolean;
+    /** The changed files of a running exploration (undefined while read): its card says "Not started" or "Exploring". */
+    files?: (p: DemoPull) => readonly string[] | null | undefined;
+  } = {},
+): ExplorationCard[] {
   return homeExplorations(
     pulls.filter((p) => !isBotPull(p)),
     {
@@ -140,6 +149,7 @@ export function teamExplorations(pulls: DemoPull[], opts: LeadOptions & { produc
         const seeded = opts.sample ? sampleExplorationPreview(p.head?.ref) : null;
         return seeded ? { kind: 'screen', src: seeded } : opts.previews?.get(p.number);
       },
+      ...(opts.files ? { files: opts.files } : {}),
     },
   );
 }
