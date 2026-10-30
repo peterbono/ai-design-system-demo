@@ -300,6 +300,96 @@ describe('missingPieces', () => {
     assert.match(c!.summary, /comes from @mui\/material/);
   });
 
+  // The wishlist heart from peterbono/bridge-demo-shop#1: the heart fills when pressed through CSS on a class the
+  // IconButton carries, tokens and keywords only, next to a hand-picked colour inline.
+  const WISHLIST_TSX_BEFORE = "import { Card } from '@bridge-ds/react';\nexport const P = () => <Card>Tote</Card>;\n";
+  const WISHLIST_TSX = `import { Card, IconButton, Tooltip } from '@bridge-ds/react';
+import { Heart } from 'lucide-react';
+export const P = ({ saved, toggle }: { saved: boolean; toggle: () => void }) => (
+  <div className="product-card-wrap">
+    <Card>Tote</Card>
+    <Tooltip content="Save">
+      <IconButton
+        icon={Heart}
+        label="Save"
+        pressed={saved}
+        onClick={toggle}
+        className="product-wishlist"
+        style={saved ? { color: '#E11D48' } : undefined}
+      />
+    </Tooltip>
+  </div>
+);
+`;
+  const WISHLIST_CSS_BEFORE = 'body {\n  margin: 0;\n}\n';
+  const WISHLIST_CSS = `${WISHLIST_CSS_BEFORE}
+.product-card-wrap {
+  position: relative;
+}
+
+.product-wishlist {
+  position: absolute;
+  inset-block-start: var(--space-3);
+  inset-inline-end: var(--space-3);
+}
+
+/* Saved: the heart fills. IconButton's pressed look only tints the border. */
+.product-wishlist[aria-pressed='true'] svg {
+  fill: currentColor;
+}
+`;
+
+  test('a token-only CSS restyle of a library component in a state is a piece, named from the state', () => {
+    const r = missingPieces({
+      ds: ds(),
+      set: loaded().set,
+      files: [
+        { path: 'src/pages/ProductList.tsx', before: WISHLIST_TSX_BEFORE, after: WISHLIST_TSX },
+        { path: 'src/app.css', before: WISHLIST_CSS_BEFORE, after: WISHLIST_CSS },
+      ],
+    });
+    const restyle = r.pieces.find((p) => p.restyle);
+    assert.ok(restyle, `a restyle piece: ${r.pieces.map((p) => p.title).join(', ')}`);
+    assert.equal(restyle.title, 'IconButton: restyled when pressed');
+    assert.equal(restyle.id, 'iconbutton-pressed-restyle');
+    assert.equal(restyle.kind, 'variant');
+    assert.equal(restyle.component, 'IconButton');
+    assert.equal(restyle.aspect, 'state');
+    assert.deepEqual(restyle.values, [{ category: 'color', property: 'fill', value: 'currentColor', part: 'icon' }]);
+    assert.deepEqual(restyle.restyle, { state: 'pressed', selector: ".product-wishlist[aria-pressed='true'] svg" });
+    assert.equal(restyle.nearest, undefined);
+    assert.equal(restyle.summary, 'IconButton restyled from outside the library when pressed, tokens only (icon fill currentColor). The library IconButton has no look for this state yet.');
+    assert.deepEqual(restyle.where, [{ file: 'src/app.css', line: 17 }]);
+    // The hand-picked colour stays its own piece, without the restyle mark.
+    const tone = r.pieces.find((p) => p.title === 'IconButton: wishlist tone');
+    assert.ok(tone, 'the hand-picked colour is still a variant');
+    assert.equal(tone.restyle, undefined);
+    assert.deepEqual(tone.values.map((v) => v.value), ['#E11D48']);
+    // Layout of the wrapper and of the button (position, inset) is not a piece.
+    assert.equal(r.pieces.length, 2, r.pieces.map((p) => p.title).join(', '));
+  });
+
+  test('layout around a library component alone is not a piece; its own look without a state is', () => {
+    const tsx = "import { Button } from '@bridge-ds/react';\nexport const B = () => <Button className={cx('cta-big', x)}>Buy</Button>;\n";
+    const layout = missingPieces({ ds: ds(), files: [{ path: 'b.tsx', before: null, after: tsx }, { path: 'b.css', before: null, after: '.cta-big {\n  margin-block-start: var(--space-4);\n  align-self: end;\n}\n' }] });
+    assert.deepEqual(layout.pieces, []);
+    const look = missingPieces({ ds: ds(), files: [{ path: 'b.tsx', before: null, after: tsx }, { path: 'b.css', before: null, after: '.cta-big {\n  margin: 0;\n  border-radius: var(--radius-pill);\n}\n' }] });
+    assert.deepEqual(look.pieces.map((p) => [p.title, p.aspect, p.values.map((v) => v.property)]), [['Button: big restyle', 'shape', ['border-radius']]]);
+  });
+
+  test('a token-only inline style on a library component, tied to its pressed prop, is a restyle when pressed', () => {
+    const after = "import { IconButton } from '@bridge-ds/react';\nexport const H = ({ on }: { on: boolean }) => (\n  <IconButton label=\"Save\" pressed={on} style={on ? { color: 'var(--color-feedback-danger-icon)' } : undefined} />\n);\n";
+    const r = missingPieces({ ds: ds(), files: [{ path: 'h.tsx', before: null, after }] });
+    assert.deepEqual(r.pieces.map((p) => [p.title, p.values.map((v) => `${v.property} ${v.value}`)]), [['IconButton: restyled when pressed', ['color var(--color-feedback-danger-icon)']]]);
+  });
+
+  test('restyles the branch did not add, and rules on elements outside the library, are left out', () => {
+    const tsx = "import { IconButton } from '@bridge-ds/react';\nexport const H = () => <IconButton label=\"Save\" className=\"fav\" />;\nexport const D = () => <div className=\"box\" />;\n";
+    const css = ".fav[aria-pressed='true'] svg {\n  fill: currentColor;\n}\n";
+    const r = missingPieces({ ds: ds(), files: [{ path: 'h.tsx', before: tsx, after: tsx }, { path: 'h.css', before: css, after: `${css}.box:hover {\n  background: var(--color-surface-raised);\n}\n` }] });
+    assert.deepEqual(r.pieces, []);
+  });
+
   test('removed files and files outside the audit are not read', () => {
     const r = missingPieces({ ds: ds(), files: [{ path: 'a.css', before: '.a{color:#c2410c}', after: null }, { path: 'README.md', before: null, after: '#c2410c' }] });
     assert.deepEqual(r, { pieces: [], fixes: [], files: 0 });

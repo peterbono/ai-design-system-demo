@@ -394,9 +394,32 @@ export function isHeldExploration(p: { state?: string | undefined; draft?: boole
 /** How a developer takes an exploration: fetch, then check out its branch. */
 export const explorationTakeCommands = (branch: string): [string, string] => ['git fetch origin', `git checkout ${branch}`];
 
-/** What developers read next to those commands: a starting point, never code ready to ship. */
-export const EXPLORATION_STARTING_POINT =
-  "A starting point, not ready to ship: Claude's prototype code is not reviewed or tested. Continue on this branch: its pull request already exists, so Bridge follows your pushes, and the merge reads as shipped.";
+const CONTINUE = 'Continue on this branch: its pull request already exists, so Bridge follows your pushes, and the merge reads as shipped.';
+
+/** What developers read next to those commands, when nothing is known about the branch checks: a starting point. */
+export const EXPLORATION_STARTING_POINT = `A starting point, not ready to ship: nobody has reviewed Claude's prototype code yet. ${CONTINUE}`;
+
+/** The branch checks at its head, folded into one state (GitHubClient.getChecks). */
+export type ExplorationChecks = 'success' | 'failure' | 'pending' | 'none';
+
+/**
+ * The starting point note, true to the branch checks: passing checks are said as such (the code is still not
+ * reviewed), failing or missing checks too. Without a state it is EXPLORATION_STARTING_POINT.
+ */
+export function explorationStartingPoint(checks?: ExplorationChecks | null | undefined): string {
+  switch (checks) {
+    case 'success':
+      return `A starting point: its checks pass, but nobody has reviewed Claude's prototype code yet. ${CONTINUE}`;
+    case 'failure':
+      return `A starting point, not ready to ship: some checks fail on this branch and nobody has reviewed Claude's prototype code yet. ${CONTINUE}`;
+    case 'pending':
+      return `A starting point, not ready to ship: its checks are still running and nobody has reviewed Claude's prototype code yet. ${CONTINUE}`;
+    case 'none':
+      return `A starting point, not ready to ship: no checks ran on this branch and nobody has reviewed Claude's prototype code yet. ${CONTINUE}`;
+    default:
+      return EXPLORATION_STARTING_POINT;
+  }
+}
 
 export interface DoneExploringPlan {
   /** Labels to remove (the exploration label) and to add (ready-for-devs). */
@@ -437,13 +460,13 @@ const DEV_SECTION = '### For developers';
  * section (the two commands and the starting point note), and the hidden block records when, and on which head once
  * known. Calling it again replaces the section and the block.
  */
-export function withDoneExploring(body: string | null | undefined, done: { branch: string; doneAt: string; doneSha?: string | undefined }): string {
+export function withDoneExploring(body: string | null | undefined, done: { branch: string; doneAt: string; doneSha?: string | undefined; checks?: ExplorationChecks | null | undefined }): string {
   const e = parseExplorationBody(body);
   const [fetch, checkout] = explorationTakeCommands(done.branch);
   const section = [
     DEV_SECTION,
     '',
-    `**Done exploring on ${done.doneAt.slice(0, 10)}.** ${EXPLORATION_STARTING_POINT}`,
+    `**Done exploring on ${done.doneAt.slice(0, 10)}.** ${explorationStartingPoint(done.checks)}`,
     '',
     '```sh',
     fetch,

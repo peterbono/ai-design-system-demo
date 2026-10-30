@@ -22,7 +22,7 @@ import type { TokenEdit } from './token-edits';
 export type PieceKind = 'token' | 'variant' | 'component';
 
 /** What a variant changes on its component, in designer words. */
-export type PieceAspect = 'tone' | 'shape' | 'size' | 'style';
+export type PieceAspect = 'tone' | 'shape' | 'size' | 'style' | 'state';
 
 export interface PieceValue {
   /** Audit category: color, radius, spacing... */
@@ -31,7 +31,12 @@ export interface PieceValue {
   property?: string | undefined;
   /** As written: "#c2410c", "10px". */
   value: string;
+  /** The part of the component the value lands on, in plain words: "icon" for `.wishlist svg`. */
+  part?: string | undefined;
 }
+
+/** How a request names a value: "fill (icon)", "background-color", "color". */
+export const pieceValueField = (v: PieceValue): string => `${v.property ?? v.category}${v.part ? ` (${v.part})` : ''}`;
 
 export interface PieceNearest {
   /** Token path of the closest library value: color.feedback.danger.bg. */
@@ -62,6 +67,12 @@ export interface MissingPiece {
   nearest?: PieceNearest | undefined;
   /** Where the branch writes it, first places only. */
   where: { file: string; line: number }[];
+  /**
+   * Set when the branch restyles a library component from outside (its CSS or style, through a class or a state
+   * selector) using only tokens or keywords: no hand-picked value, but a look or a state the component lacks. Pieces
+   * built from hand-picked values leave it out.
+   */
+  restyle?: { state?: string | undefined; selector: string } | undefined;
   /** Token pieces: the token the library branch would add (one value, every file the closest token lives in). */
   token?: { path: string; type: string; value: string; files: string[] } | undefined;
 }
@@ -194,6 +205,8 @@ export interface NeededBy {
   /** The closest thing the library has today, so a reviewer can suggest it instead: "danger". */
   nearest?: string | undefined;
   nearestToken?: string | undefined;
+  /** Its value, as the audit resolved it: "#c3184c". */
+  nearestValue?: string | undefined;
   /**
    * "owner/name" when the product branch lives in the product's own repository: the request is filed in the design
    * system repository, so "#12" alone would point at the wrong pull request there.
@@ -207,7 +220,8 @@ const prRef = (b: { pr: number; repo?: string | undefined }) => `${b.repo ? b.re
 /** "Needed by" for a library branch body: one line people read, one hidden block tools read. */
 export function neededBySection(n: NeededBy): string {
   const who = n.author ? ` for @${n.author}` : '';
-  const near = n.nearest ? ` The closest the library has today is ${n.nearest}${n.nearestToken ? ` (\`${n.nearestToken}\`)` : ''}.` : '';
+  const detail = [n.nearestToken ? `\`${n.nearestToken}\`` : '', n.nearestValue ?? ''].filter(Boolean).join(', ');
+  const near = n.nearest ? ` The closest the library has today is ${n.nearest}${detail ? ` (${detail})` : ''}.` : '';
   return [`**Needed by:** [${n.title}](${n.url}) (${prRef(n)}) in ${n.productName}${who}.${near}`, '', hiddenJson(NEEDED_MARK, n)].join('\n');
 }
 
@@ -250,6 +264,13 @@ export type LibraryBranchPlan =
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+/**
+ * The piece summary without its "closest in the library" sentence: every library branch and request carries the
+ * "Needed by" line, which says it once with the token and its value.
+ */
+const withoutNear = (summary: string) => summary.replace(/\s*(?:It looks a lot like|The closest in the library is) .*?\.(?=\s|$)/, '').trim();
+
+
 /** "Admin demo needs it for "Billing screen with overdue invoices"". */
 const forLine = (b: ProductBranchRef) => `${b.productName} needs it for "${b.title.replace(/"/g, "'")}" (${prRef(b)})`;
 
@@ -272,10 +293,10 @@ export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef,
     ...(branch.author ? { author: branch.author } : {}),
     piece: piece.id,
     pieceTitle: piece.title,
-    ...(piece.nearest ? { nearest: piece.nearest.label, nearestToken: piece.nearest.token } : {}),
+    ...(piece.nearest ? { nearest: piece.nearest.label, nearestToken: piece.nearest.token, nearestValue: piece.nearest.value } : {}),
     ...(branch.repo ? { repo: branch.repo } : {}),
   };
-  const near = piece.nearest ? ` The closest the library has today is ${piece.nearest.label} (${piece.nearest.token}, ${piece.nearest.value}).` : '';
+  const said = `${forLine(branch)}: ${withoutNear(piece.summary)}`;
   if (piece.kind === 'token' && piece.token) {
     const t = piece.token;
     const files = t.files.length ? t.files : [undefined];
@@ -287,34 +308,43 @@ export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef,
       description: `${cap(piece.name)}: ${forLine(branch)}.${files.length > 1 ? ' Same value in every theme: review it in each.' : ''}`,
       ...(file ? { file } : {}),
     }));
-    return { kind: 'token-change', title: `Add ${t.path}`, summary: `${forLine(branch)}: ${piece.summary}${near}`, edits, neededBy };
+    return { kind: 'token-change', title: `Add ${t.path}`, summary: said, edits, neededBy };
   }
   if (piece.kind === 'variant' && piece.component && opts.mode === 'suggest') {
     const request: ComponentChangeRequest = {
       component: piece.component,
       kind: 'new-variant',
       title: piece.title,
-      summary: `${forLine(branch)}: ${piece.summary}${near}`,
-      changes: piece.values.slice(0, 6).map((v) => ({ field: v.property ?? v.category, after: v.value })),
+      summary: said,
+      changes: piece.values.slice(0, 6).map((v) => ({ field: pieceValueField(v), after: v.value })),
       source: opts.source ?? 'mcp',
       ...(opts.requestedBy ? { requestedBy: opts.requestedBy } : {}),
     };
     return { kind: 'request', title: piece.title, request, neededBy };
   }
   if (piece.kind === 'variant' && piece.component) {
-    const values = piece.values.map((v) => `${v.property ?? v.category} ${v.value}`).join(', ');
+    const values = piece.values.map((v) => `${pieceValueField(v)} ${v.value}`).join(', ');
+    const r = piece.restyle;
+    const what = r?.state ? `a look when ${r.state}` : `${/^[aeiou]/i.test(piece.name) ? 'an' : 'a'} ${piece.name} ${piece.aspect ?? 'style'}`;
     const exploration: Exploration = {
       name: piece.title,
-      purpose: `${forLine(branch)}: ${/^[aeiou]/i.test(piece.name) ? 'an' : 'a'} ${piece.name} ${piece.aspect ?? 'style'} on ${piece.component} (${values}).${near}`,
+      purpose: `${forLine(branch)}: ${what} on ${piece.component} (${values}).`,
       useCase: 'terminal',
       experimental: [piece.title],
       source: opts.source === 'figma' ? 'figma' : (opts.source ?? 'mcp'),
     };
-    const brief = [
-      `Add the ${piece.name} ${piece.aspect ?? 'style'} to ${piece.component} in the library, on this exploration branch.`,
-      `The product branch writes it by hand: ${values}. Express it with tokens (a component or semantic token per value), add it to the component's props, docs and examples, and keep every existing ${piece.component} unchanged.`,
-      piece.nearest ? `Say in the pull request why ${piece.nearest.label} is not enough, or recommend it instead.` : '',
-    ]
+    const brief = (
+      r
+        ? [
+            `Add ${what} to ${piece.component} in the library, on this exploration branch.`,
+            `The product branch restyles ${piece.component} from outside with tokens (\`${r.selector}\`: ${values}). Build it into the component (its own state style or a prop, on component tokens), add it to the docs and examples, and keep every existing ${piece.component} unchanged.`,
+          ]
+        : [
+            `Add the ${piece.name} ${piece.aspect ?? 'style'} to ${piece.component} in the library, on this exploration branch.`,
+            `The product branch writes it by hand: ${values}. Express it with tokens (a component or semantic token per value), add it to the component's props, docs and examples, and keep every existing ${piece.component} unchanged.`,
+            piece.nearest ? `Say in the pull request why ${piece.nearest.label} is not enough, or recommend it instead.` : '',
+          ]
+    )
       .filter(Boolean)
       .join(' ');
     return { kind: 'exploration', title: piece.title, exploration, neededBy, brief };
@@ -324,8 +354,8 @@ export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef,
     component: name,
     kind: 'new-component',
     title: `Add ${name}`,
-    summary: `${forLine(branch)}: ${piece.summary}${near}`,
-    changes: piece.values.slice(0, 6).map((v) => ({ field: v.property ?? v.category, after: v.value })),
+    summary: said,
+    changes: piece.values.slice(0, 6).map((v) => ({ field: pieceValueField(v), after: v.value })),
     source: opts.source ?? 'mcp',
     ...(opts.requestedBy ? { requestedBy: opts.requestedBy } : {}),
   };
@@ -343,26 +373,27 @@ export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef,
  */
 export function pieceRequest(piece: MissingPiece, branch: ProductBranchRef, opts: { previewUrl?: string | null | undefined; source?: ComponentChangeRequest['source']; requestedBy?: string | undefined } = {}): { request: ComponentChangeRequest; neededBy: NeededBy } {
   const plan = libraryBranchPlan(piece, branch, { ...(opts.source ? { source: opts.source } : {}), ...(opts.requestedBy ? { requestedBy: opts.requestedBy } : {}), mode: 'suggest' });
-  const near = piece.nearest ? ` The closest the library has today is ${piece.nearest.label} (${piece.nearest.token}, ${piece.nearest.value}).` : '';
+  // The closest library value is said once, in the "Needed by" line above the summary.
+  const own = `${forLine(branch)}: ${withoutNear(piece.summary)}`;
   const context = opts.previewUrl ? ` See it in context in the exploration's preview: ${opts.previewUrl}` : ` See it in context in the exploration: ${branch.url}`;
   const base = {
     source: opts.source ?? 'mcp',
     ...(opts.requestedBy ? { requestedBy: opts.requestedBy } : {}),
-    changes: piece.values.slice(0, 6).map((v) => ({ field: v.property ?? v.category, after: v.value })),
+    changes: piece.values.slice(0, 6).map((v) => ({ field: pieceValueField(v), after: v.value })),
   } as const;
   let request: ComponentChangeRequest;
-  if (plan.kind === 'request') request = { ...plan.request, summary: `${plan.request.summary}${context}` };
+  if (plan.kind === 'request') request = { ...plan.request, summary: `${own}${context}` };
   else if (piece.kind === 'token' && piece.token) {
     request = {
       ...base,
       component: 'Tokens',
       kind: 'other',
       title: `Add ${piece.token.path}`,
-      summary: `${forLine(branch)}: ${piece.summary}${near} Proposed: ${piece.token.path} = ${piece.token.value}, beside the closest token.${context}`,
+      summary: `${own} Proposed: ${piece.token.path} = ${piece.token.value}, beside the closest token.${context}`,
       changes: [{ field: piece.token.path, after: piece.token.value }],
     };
   } else {
-    request = { ...base, component: piece.component ?? cap(piece.name), kind: piece.component ? 'new-variant' : 'new-component', title: piece.title, summary: `${forLine(branch)}: ${piece.summary}${near}${context}` };
+    request = { ...base, component: piece.component ?? cap(piece.name), kind: piece.component ? 'new-variant' : 'new-component', title: piece.title, summary: `${own}${context}` };
   }
   return { request, neededBy: plan.neededBy };
 }

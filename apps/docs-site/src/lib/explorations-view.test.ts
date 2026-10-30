@@ -215,7 +215,7 @@ describe('done exploring and archive', () => {
     const t = takeItLines('explore/pill-buttons');
     expect(t.commands).toEqual(['git fetch origin', 'git checkout explore/pill-buttons']);
     expect(t.note).toMatch(/starting point, not ready to ship/);
-    expect(t.note).toMatch(/not reviewed or tested/);
+    expect(t.note).toMatch(/nobody has reviewed/);
   });
 });
 

@@ -113,6 +113,13 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       for (const q of r.requests) io.print(`${r.status === 'dry-run' ? 'Would request' : 'Requested'}: ${q.title}${q.number ? ` #${q.number} ${q.url}` : ''}`);
       for (const q of r.alreadySent) io.print(`Already sent: ${q.piece} #${q.number}`);
       for (const q of r.notProposed) io.print(`Not proposed: ${q.id} (${q.title})`);
+      if (!r.requests.length) {
+        // Say it when nothing goes to the DS lead: no piece picked, or the exploration never checked against the library.
+        const say = r.status === 'dry-run' ? 'No piece would be sent' : 'No piece was sent';
+        if (!r.checked) io.print(`${say} to the DS lead: this exploration was not checked against the library yet. Run bridge pieces ${r.ref} --record to find them, then bridge explore done ${r.ref} --piece <id>.`);
+        else if (r.notProposed.length) io.print(`${say} to the DS lead: none picked. Send one later with bridge explore done ${r.ref} --piece <id>.`);
+        else if (!r.alreadySent.length) io.print(`${say} to the DS lead: the last check found nothing missing from the library.`);
+      }
       io.print(`\nFor developers: ${r.forDevelopers.take.join(' && ')}\n${r.forDevelopers.note}`);
       for (const w of r.warnings) io.error(`Warning: ${w}`);
       io.print(r.url);

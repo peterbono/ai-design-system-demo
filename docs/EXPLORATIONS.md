@@ -146,14 +146,17 @@ one.
 - **Done exploring** (Studio, `bridge explore done <name>`, Claude `bridge_promote_exploration`; `bridge explore
   promote` is the old name and does the same): Bridge lists the new pieces the last check found (`bridge pieces <n>
   --record`, `bridge_missing_pieces`): a new token near the closest one, a variant such as "Badge: overdue tone", a
-  new component. Each piece the designer ticks becomes a request for the DS lead (an issue labeled
+  library component restyled with tokens only (CSS on a class it carries or on a state such as `[aria-pressed]`:
+  "IconButton: restyled when pressed"; layout around it is not a piece), a new component. When none is picked, or the
+  exploration was never checked, Bridge says so. Each piece the designer ticks becomes a request for the DS lead (an issue labeled
   `component-change` and `needed-by-product`, with the "Needed by" block and a link to the exploration's preview);
   unticked pieces are not proposed. Then Bridge removes the exploration note from the branch, swaps the
   `exploration` label for `ready-for-devs`, and rewrites the body with a **For developers** section. Nothing is
   closed, merged or marked ready for review: the pull request stays open, so its preview link keeps working. Said
   again later, it only sends the newly ticked pieces.
-- **For developers**: `git fetch origin` then `git checkout explore/<name>`. It is a **starting point**: Claude's
-  prototype code is not reviewed or tested, never "ready to ship". Developers continue on that branch; its pull request
+- **For developers**: `git fetch origin` then `git checkout explore/<name>`. It is a **starting point**: nobody has
+  reviewed Claude's prototype code yet, and the note says what the branch checks did (they pass, fail, still run, or
+  none ran), never "ready to ship". Developers continue on that branch; its pull request
   already exists, so Bridge follows the pushes and the merge. Studio keeps this in a folded "For developers" section,
   never in the designer's flow.
 - **Archive** (Studio, `bridge explore archive|unarchive <name>`, `bridge_archive_exploration`): the `archived` label
