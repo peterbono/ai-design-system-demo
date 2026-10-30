@@ -33,6 +33,8 @@ import {
   promotionPlan,
   requestBrief,
   startExplorationOnGitHub,
+  labelExploration,
+  isUnlabeledExploration,
   type ComponentChangeRequest,
   type FetchLike,
 } from '../src/index';
@@ -583,6 +585,36 @@ describe('explorations on GitHub', () => {
     const gh = fakeGitHub();
     await startExplorationOnGitHub(gh.client(), { name: 'Billing screen', purpose: 'Overdue invoices.' }, { ...settings, labels: ['product: admin'] });
     expect(gh.pulls[0].labels.map((l: any) => l.name)).toEqual(['exploration', 'product: admin']);
+  });
+
+  it('labels: exploration on its own and retried, a refused product label never takes it with it, the rest reported', async () => {
+    const calls: string[][] = [];
+    let refuse = 2;
+    const flaky = { addLabels: async (_n: number, ls: string[]) => (calls.push(ls), ls.includes('exploration') ? refuse-- <= 0 : false) };
+    expect(await labelExploration(flaky, 7, ['product: shop'], 0)).toEqual(['product: shop']);
+    expect(calls).toEqual([['exploration'], ['exploration'], ['exploration'], ['product: shop']]);
+    const down = { addLabels: async () => false };
+    expect(await labelExploration(down, 7, [], 0)).toEqual(['exploration']);
+    const ok = { addLabels: async () => true };
+    expect(await labelExploration(ok, 7, ['product: admin', 'exploration'], 0)).toEqual([]);
+  });
+
+  it('a running exploration whose label is missing still runs: open draft on explore/* or with the block', () => {
+    const block = '<!-- bridge-exploration {"name":"create a scenario","slug":"create-a-scenario","source":"studio"} -->';
+    const unlabeled = { state: 'open', draft: true, labels: [], headRef: 'explore/create-a-scenario', body: block };
+    expect(isUnlabeledExploration(unlabeled)).toBe(true);
+    expect(explorationStatus(unlabeled)).toBe('active');
+    expect(isHeldExploration({ state: 'open', draft: true, labels: [], head: { ref: 'explore/create-a-scenario' } })).toBe(true);
+    expect(isUnlabeledExploration({ ...unlabeled, headRef: 'bridge/x' })).toBe(true);
+    expect(isUnlabeledExploration({ ...unlabeled, body: '' })).toBe(true);
+    // Promoted the older way (ready for review), archived, done exploring, closed, or not an exploration: not running.
+    expect(isUnlabeledExploration({ ...unlabeled, draft: false })).toBe(false);
+    expect(explorationStatus({ ...unlabeled, draft: false })).toBe('promoted');
+    expect(isUnlabeledExploration({ ...unlabeled, labels: ['archived'] })).toBe(false);
+    expect(isUnlabeledExploration({ ...unlabeled, labels: ['ready-for-devs'] })).toBe(false);
+    expect(isUnlabeledExploration({ ...unlabeled, state: 'closed' })).toBe(false);
+    expect(isUnlabeledExploration({ state: 'open', draft: true, labels: [], headRef: 'bridge/x', body: 'plain draft' })).toBe(false);
+    expect(isHeldExploration({ state: 'open', draft: true, labels: [], head: { ref: 'bridge/x' } })).toBe(false);
   });
 
   it('start for a request: the draft pull request lists the request it answers', async () => {

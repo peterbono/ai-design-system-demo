@@ -24,6 +24,7 @@ import {
   productRepos,
   isActiveExploration,
   isHeldExploration,
+  isUnlabeledExploration,
   isExplorationPull,
   resolveBranchPreviews,
   type BranchPreview,
@@ -193,13 +194,14 @@ export function toSummary(p: ExplorationPullLike): PullRequestSummary {
 export const isExploration = (p: ExplorationPullLike) => isExplorationPull({ state: p.state, labels: p.labels, headRef: p.head.ref, body: p.body });
 
 /** True while the pull request is a running exploration (open, label on): it stays out of In review. */
-export const isRunningExploration = (p: Pick<ExplorationPullLike, 'state' | 'labels'>) => p.state === 'open' && isActiveExploration(p.labels);
+export const isRunningExploration = (p: Pick<ExplorationPullLike, 'state' | 'labels'> & Partial<Pick<ExplorationPullLike, 'draft' | 'head' | 'body'>>) =>
+  p.state === 'open' && (isActiveExploration(p.labels) || isUnlabeledExploration({ state: p.state, draft: p.draft, labels: p.labels, headRef: p.head?.ref, body: p.body }));
 
 /**
  * The open explorations the Changes list shows under their own status, out of In review: running, or with the
  * developers while still a draft (core isHeldExploration). Archived ones wait behind the Archived filter.
  */
-export const isListedExploration = (p: Pick<ExplorationPullLike, 'state' | 'labels' | 'draft'>) => isHeldExploration(p) && !isArchivedExploration(p.labels);
+export const isListedExploration = (p: Pick<ExplorationPullLike, 'state' | 'labels' | 'draft'> & Partial<Pick<ExplorationPullLike, 'head' | 'body'>>) => isHeldExploration(p) && !isArchivedExploration(p.labels);
 
 /** An open archived exploration: listed only under the Archived filter. */
 export const isArchivedOpen = (p: Pick<ExplorationPullLike, 'state' | 'labels'>) => p.state === 'open' && isArchivedExploration(p.labels);

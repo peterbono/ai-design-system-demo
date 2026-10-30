@@ -268,6 +268,14 @@ export function initChanges() {
   });
 
   window.addEventListener('popstate', route);
+  // A change that turns out to be an exploration (scripts/reviews.ts openPr): its own page, at its own address.
+  document.addEventListener('bridge:open-exploration', (e) => {
+    const n = Number((e as CustomEvent<{ number: number }>).detail?.number);
+    if (!n) return;
+    e.preventDefault();
+    history.replaceState({ exploration: n, product: null }, '', `?exploration=${n}`);
+    route();
+  });
   // What the viewer may do on a suggestion depends on who is connected.
   onViewerChange(() => {
     const sg = Number(new URLSearchParams(location.search).get('suggestion'));

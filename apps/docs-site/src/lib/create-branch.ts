@@ -47,6 +47,15 @@ export function featureName(sentence: string): string {
   return (at > 20 ? cut.slice(0, at) : s.slice(0, MAX_NAME)).trim();
 }
 
+/**
+ * What the feature sentence adds as the exploration's purpose: nothing when its name already says all of it (the
+ * purpose is optional, never the name again), the whole sentence when the name had to be cut.
+ */
+export function featurePurpose(sentence: string): string {
+  const s = sentence.trim().replace(/\s+/g, ' ');
+  return featureName(s) === s.replace(/[.!?]+$/, '') ? '' : s;
+}
+
 export interface FeatureForm {
   product: string | null;
   sentence: string;

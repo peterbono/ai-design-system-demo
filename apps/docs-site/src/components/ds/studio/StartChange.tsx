@@ -38,6 +38,7 @@ import {
   claudePrompt,
   featureHref,
   featureName,
+  featurePurpose,
   featureProblems,
   featureProducts,
   featureRepo,
@@ -207,7 +208,7 @@ export default function StartChange({ components, appearance = 'menu', explorati
       const author = session.currentViewer()?.login;
       const name = featureName(sentence);
       const cfg = explorationsConfig();
-      const e = { name, purpose: sentence.trim(), useCase: 'terminal' as const, ...(author ? { author } : {}), ...(key ? { jira: key } : {}) };
+      const e = { name, purpose: featurePurpose(sentence), useCase: 'terminal' as const, ...(author ? { author } : {}), ...(key ? { jira: key } : {}) };
       const labels = productMarks(products, p).labels;
       const repo = inLibrary ? null : featureRepo(p, `${cfg.owner}/${cfg.repo}`);
       const r = repo

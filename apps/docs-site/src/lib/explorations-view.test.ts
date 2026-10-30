@@ -59,7 +59,8 @@ function issue(n: number, exploration?: string): IssueLike {
 describe('explorations view', () => {
   it('rows: explorations only, running first, with install, previews and linked requests', () => {
     const normal: ExplorationPullLike = { ...pull(9), title: 'feat: x', body: 'Closes #1', labels: [], head: { ref: 'agent/x', sha: 'abc' } };
-    const promoted = pull(3, { name: 'Dense tables', labels: [{ name: 'tier: 2' }] });
+    // Promoted the older way: label off and marked ready for review (a draft without its label still runs).
+    const promoted = pull(3, { name: 'Dense tables', labels: [{ name: 'tier: 2' }], draft: false });
     const rows = explorationRows([normal, pull(1, { name: 'Pill buttons' }), promoted, pull(2, { name: 'Warm neutrals' }), pull(2)], cfg, { issues: [issue(40, 'explore/pill-buttons'), issue(41), issue(42, 'explore/other')] });
     expect(rows.map((r) => [r.number, r.status, r.statusLabel])).toEqual([
       [2, 'active', 'Running'],
@@ -90,6 +91,11 @@ describe('explorations view', () => {
     expect(isRunningExploration({ state: 'open', labels: [{ name: 'exploration' }] })).toBe(true);
     expect(isRunningExploration({ state: 'open', labels: [{ name: 'tier: 2' }] })).toBe(false);
     expect(isRunningExploration({ state: 'closed', labels: ['exploration'] })).toBe(false);
+    // Its label missing (the label call failed when Studio started it): still a running exploration, never a change.
+    const unlabeled = { state: 'open', labels: [], draft: true, head: { ref: 'explore/create-a-scenario', sha: 'a' }, body: '' };
+    expect(isRunningExploration(unlabeled)).toBe(true);
+    expect(isListedExploration(unlabeled)).toBe(true);
+    expect(isListedExploration({ ...unlabeled, head: { ref: 'bridge/x', sha: 'a' } })).toBe(false);
     expect(tierSlot([{ name: 'exploration' }], 3)).toBe('Exploration (not mergeable)');
     expect(tierSlot([], 2)).toBe('Tier 2');
     expect(tierSlot([], null)).toBe('Tier not set');

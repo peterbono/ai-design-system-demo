@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, productMarks, productOfBranch, type ProductConfig } from '@bridge-ds/core';
-import { askAdmin, claudePrompt, featureHref, featureName, featureProblems, featureProducts, featureRepo, firstStep, initialProduct, productParam, productRepoBlockedLine } from './create-branch';
+import { askAdmin, claudePrompt, featureHref, featureName, featurePurpose, featureProblems, featureProducts, featureRepo, firstStep, initialProduct, productParam, productRepoBlockedLine } from './create-branch';
 
 const THREE: ProductConfig[] = [
   { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
@@ -40,6 +40,13 @@ describe('create branch, product first', () => {
     expect(n.length).toBeLessThanOrEqual(60);
     expect(long.startsWith(n)).toBe(true);
     expect(n.endsWith(' ')).toBe(false);
+  });
+
+  it('never copies the name into the purpose: the sentence is the purpose only when the name had to be cut', () => {
+    expect(featurePurpose('create a scenario')).toBe('');
+    expect(featurePurpose('  Billing screen with overdue invoices. ')).toBe('');
+    const long = 'A billing screen that lists every overdue invoice with reminders and a bulk pay action';
+    expect(featurePurpose(long)).toBe(long);
   });
 
   it('says how to fix each field', () => {

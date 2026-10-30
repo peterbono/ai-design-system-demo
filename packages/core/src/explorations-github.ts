@@ -45,6 +45,8 @@ export interface ExplorationSettings {
   labels?: string[] | undefined;
   /** Started in a product's own repository (productRepoOf): what its draft pull request body says instead of the library's. */
   inProduct?: ExplorationPrContext['inProduct'];
+  /** Wait between label retries, in ms (tests pass 0). */
+  retryMs?: number | undefined;
 }
 
 /** The first commit message of an exploration branch: the purpose only when one was given. */
@@ -175,6 +177,11 @@ export interface StartedExploration {
   /** Just started: the snapshot is not built yet. `explorationTestBuildOnGitHub` reads the command once it is. */
   tryIt: ExplorationTryIt;
   previews: { app: string; label: string; url: string }[];
+  /**
+   * Labels GitHub refused even after retries (labelExploration). The pull request exists: lists still read it as an
+   * exploration (isUnlabeledExploration) and Studio puts `exploration` back; callers say it in one line.
+   */
+  labelsMissing?: string[];
 }
 
 /**
@@ -200,7 +207,7 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
   const ctx = { owner: gh.owner, repo: gh.name, packages: s.packages, apps: s.apps, ...(s.requests?.length ? { requests: s.requests } : {}), ...(s.inProduct ? { inProduct: s.inProduct } : {}) };
   const title = full.jira ? `${full.jira.trim().toUpperCase()} ${explorationPrTitle(full)}` : explorationPrTitle(full);
   const pr = await x.createPullRequest({ title, head: branch, base: s.base, body: explorationPrBody(full, ctx), draft: true });
-  await x.addLabels(pr.number, [EXPLORATION_LABEL, ...(s.labels ?? [])]);
+  const labelsMissing = await labelExploration(x, pr.number, s.labels ?? [], s.retryMs);
   // The number exists now: the body gets the install command.
   await x.updatePullRequest(pr.number, { body: explorationPrBody(full, { ...ctx, pr: pr.number }) }).catch(() => undefined);
   return {
@@ -211,7 +218,26 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
     commit: commit.sha,
     tryIt: { state: 'building' },
     previews: previewLinks(s.apps, { branch, pr: pr.number, sha: commit.sha }),
+    ...(labelsMissing.length ? { labelsMissing } : {}),
   };
+}
+
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Labels a new exploration: `exploration` on its own first, tried three times (GitHub sometimes refuses a label on a
+ * pull request created a moment ago), then the other labels in one more call. A label that does not exist yet (a
+ * product's) can fail on its own without taking `exploration` with it. Returns the labels still missing.
+ */
+export async function labelExploration(gh: Pick<GitHubClient, 'addLabels'>, pr: number, extra: readonly string[], retryMs = 600): Promise<string[]> {
+  let labeled = false;
+  for (let i = 0; i < 3 && !labeled; i++) {
+    if (i) await wait(retryMs * i);
+    labeled = await gh.addLabels(pr, [EXPLORATION_LABEL]);
+  }
+  const more = extra.filter((l) => l !== EXPLORATION_LABEL);
+  const moreOk = more.length ? await gh.addLabels(pr, more) : true;
+  return [...(labeled ? [] : [EXPLORATION_LABEL]), ...(moreOk ? [] : more)];
 }
 
 /** Whether Bridge can open an exploration in a product's own repository with this token, and from which branch. */
