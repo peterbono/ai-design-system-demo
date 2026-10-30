@@ -2,7 +2,7 @@
 // token the person passed on purpose: GITHUB_TOKEN or BRIDGE_GITHUB_TOKEN in the environment, --token, or their gh
 // sign-in when they add --use-gh-auth. A read may borrow the gh sign-in, says so in one line on stderr, and that
 // context refuses any write before it leaves.
-import { BridgeContext } from '@bridge-ds/mcp';
+import { BridgeContext, linkedOptions } from '@bridge-ds/mcp';
 import type { RequestIO } from './request.js';
 
 export interface AuthArgs {
@@ -56,8 +56,10 @@ export function chooseToken(a: AuthArgs, io: RequestIO, access: Access): { token
 export async function cliContext(root: string, io: RequestIO, a: AuthArgs, access: Access): Promise<BridgeContext> {
   const { token, origin } = chooseToken(a, io, access);
   const borrowed = origin === 'gh' && !a.flags['use-gh-auth'];
+  // Inside a connected product repository (.bridge/product.json): the design system it names, from GitHub.
+  const place = await linkedOptions(root);
   return BridgeContext.create({
-    root,
+    ...place,
     ...(token ? { token } : {}),
     ...(io.fetch ? { fetch: io.fetch } : {}),
     ...(borrowed ? { readOnly: READ_ONLY_REFUSAL } : {}),

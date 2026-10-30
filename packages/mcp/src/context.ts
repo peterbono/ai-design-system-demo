@@ -28,6 +28,13 @@ export interface ContextOptions {
   surface?: 'mcp' | 'cli';
   /** How a person adds a token where Bridge runs, for the rate-limit message. Default: the MCP server's environment. */
   tokenHint?: string;
+  /**
+   * Remote mode run inside a connected product repository (`.bridge/product.json`, product-link.ts): that checkout,
+   * which continuing one of its explorations switches to the branch when safe.
+   */
+  workTree?: string;
+  /** The product key of that repository: new work and a bare reference (#12) default to it. */
+  product?: string;
 }
 
 /** Whether a request only reads: GET and HEAD, and GraphQL queries (POST /graphql without a mutation). */
@@ -150,6 +157,16 @@ export class BridgeContext {
     return client(repo, this.opts, rules);
   }
 
+  /** The local checkout Bridge may switch branches in: the repo root in local mode, the connected product checkout in remote mode. */
+  get checkout(): string | undefined {
+    return this.mode === 'local' ? (this.isGit ? this.root : undefined) : this.opts.workTree;
+  }
+
+  /** The product of the connected product repository Bridge runs in (`.bridge/product.json`), if any. */
+  get product(): string | undefined {
+    return this.opts.product;
+  }
+
   get canWriteRemote(): boolean {
     return Boolean(this.opts.token) && !this.opts.readOnly;
   }
@@ -160,7 +177,8 @@ export class BridgeContext {
   }
 
   describe(): string {
-    return `${this.mode === 'local' ? `local repo ${this.root}${this.isGit ? '' : ' (not a git repo)'}` : `GitHub ${this.source.label}`}. ${this.access()}`;
+    const linked = this.mode === 'remote' && this.opts.workTree ? `, from the ${this.opts.product ?? 'product'} checkout ${this.opts.workTree}` : '';
+    return `${this.mode === 'local' ? `local repo ${this.root}${this.isGit ? '' : ' (not a git repo)'}` : `GitHub ${this.source.label}${linked}`}. ${this.access()}`;
   }
 
   /**

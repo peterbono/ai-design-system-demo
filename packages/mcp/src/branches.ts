@@ -455,6 +455,10 @@ export async function resolveProduct(ctx: BridgeContext, name?: string | undefin
     if (!p) throw new Error(`Unknown product "${name}". Pick one of: ${products.map((x) => `${x.key} (${x.name})`).join(', ')}. Products are listed in bridge.config.json "products".`);
     return p;
   }
+  // Inside a connected product repository (.bridge/product.json): that product.
+  const linked = ctx.product ? findProduct(products, ctx.product) : undefined;
+  if (ctx.product && !linked) throw new Error(`.bridge/product.json names the product "${ctx.product}", which ${products.length ? `is not in the design system's bridge.config.json "products" (${products.map((x) => x.key).join(', ')})` : 'the design system does not list'}. Run \`bridge connect --product <key>\` again with one of them.`);
+  if (linked) return linked;
   return (await productHere(ctx, config)).product;
 }
 

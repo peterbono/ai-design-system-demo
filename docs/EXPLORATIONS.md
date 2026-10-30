@@ -137,7 +137,8 @@ three events.
 The line reads `Continue Bridge exploration #12 "Name" in Admin demo and use the Bridge library.`, or
 `claude "Continue Bridge exploration #12"` in a terminal (`shop#12` for a product with its own repository). Claude
 resolves it with `bridge_continue_exploration` (`bridge explore continue #12` in the CLI): it switches a clean
-checkout of the right repository to the branch, then starts by saying where it stands. At the start of a session,
+checkout of the right repository to the branch, then starts by saying where it stands. For a product with its own
+repository, that checkout is the product's, connected once with `bridge connect` (below). At the start of a session,
 Claude mentions your running explorations once (`bridge_list_explorations` with `mine: true`) and offers to continue
 one.
 
@@ -172,7 +173,27 @@ bridge explore list --archived
 
 ### In a product's own repository
 
-An exploration created in a product repository (`products[].repo`) lives there for good, and Bridge follows it there:
+An exploration created in a product repository (`products[].repo`) lives there for good, and Bridge follows it there.
+
+**Connect the product repository once.** Inside a checkout of it, run:
+
+```sh
+npx @bridge-ds/cli connect --ds peterbono/ai-design-system-demo     # --product shop when its origin is not the product's repo
+```
+
+It writes three small files and prints what changed: `.mcp.json` (the Bridge MCP server for the design system, the
+same `npx -y @bridge-ds/mcp --repo <owner/name>` designers add), `.bridge/product.json` (the design system repository
+and the product key) and a short Bridge section in `CLAUDE.md` (`AGENTS.md` when the repository only has that one,
+created when neither exists) that tells Claude to build with the library through the MCP server, that exploring needs no
+brief, and that the designer picks the pieces at the end. It also keeps the link in the clone's git config, so a branch
+made before the files are committed still works. Running it again changes only what differs, keeps your own content
+and leaves another `bridge` server in `.mcp.json` alone (`--force` replaces it). Commit the files: from then on
+`bridge explore list|continue|start|done` and `bridge pieces` work inside the product repository, read the design
+system from GitHub (no token files needed there) and default to that product, so `bridge explore continue #12` is
+`shop#12` and checks the branch out in that checkout (`git fetch`, then switch; never over uncommitted changes, it says
+so instead). Claude Code started there gets the same tools and rules.
+
+What Bridge does with it:
 
 - **Lists.** Studio (Changes, the home, Being built), `bridge explore list` and `bridge_list_explorations` read the
   open `explore/*` pull requests of each product repository too: one read per repository, cached like the design
