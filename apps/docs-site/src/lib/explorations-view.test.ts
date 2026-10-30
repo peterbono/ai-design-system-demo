@@ -26,6 +26,7 @@ import {
   useCaseHint,
   USE_CASE_EMPTY_HINT,
   tryItFromComments,
+  unreadableExplorationLine,
 } from './explorations-view';
 import { jargonIn } from './vocabulary';
 import type { IssueLike } from './requests-view';
@@ -222,3 +223,13 @@ function piece(id: string, title: string): MissingPiece {
   return { id, kind: 'variant', title, summary: 'Summary.', name: 'overdue', component: 'Badge', values: [], where: [] };
 }
 
+
+describe('unreadableExplorationLine', () => {
+  it('tells a signed-out visitor of a product exploration to sign in', () => {
+    expect(unreadableExplorationLine(1, 'Demo shop', { product: true, signedOut: true })).toBe('#1 is not an exploration in Demo shop, or it cannot be read right now. Signed out, Bridge only shows explorations of public products: sign in to see it.');
+  });
+  it('says nothing about signing in when signed in or in the design system repository', () => {
+    expect(unreadableExplorationLine(1, 'Demo shop', { product: true, signedOut: false })).toBe('#1 is not an exploration in Demo shop, or it cannot be read right now.');
+    expect(unreadableExplorationLine(12, 'acme/ds', { product: false, signedOut: true })).toBe('#12 is not an exploration in acme/ds, or it cannot be read right now.');
+  });
+});
