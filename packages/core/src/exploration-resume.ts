@@ -124,7 +124,10 @@ export interface BranchCommitLike {
 export interface ActivityEvent {
   /** "claude" for Claude's work, else the person's login (or git name). */
   who: string;
+  /** Claude alone: a Claude account, or Claude's trailer with no person as the author (a bot or none). */
   claude: boolean;
+  /** A person's commit Claude co-wrote (its co-author trailer or footer): shown as "Florian with Claude". */
+  withClaude?: boolean;
   /** After the actor: "added row selection to the Orders table". */
   text: string;
   at: string;
@@ -155,10 +158,30 @@ const PAST: Record<string, string> = {
   wire: 'wired',
 };
 
-/** True when Claude wrote the commit: its co-author trailer, the Claude Code footer, or a Claude account. */
-export function isClaudeCommit(c: BranchCommitLike): boolean {
+/** True when the commit carries Claude's co-author trailer or the Claude Code footer. */
+export function isClaudeAssisted(c: BranchCommitLike): boolean {
   const m = c.commit.message;
-  return /co-authored-by:\s*claude/i.test(m) || /generated with \[?claude/i.test(m) || /claude/i.test(c.author?.login ?? '') || /^claude\b/i.test(c.commit.author?.name ?? '');
+  return /co-authored-by:\s*claude/i.test(m) || /generated with \[?claude/i.test(m);
+}
+
+const isClaudeAccount = (c: BranchCommitLike): boolean => /claude/i.test(c.author?.login ?? '') || /^claude\b/i.test(c.commit.author?.name ?? '');
+const isBot = (name: string): boolean => /\[bot\]$|^github-actions\b|-bot$/i.test(name);
+
+/** The person who authored the commit (GitHub login, else git name), or null for a bot, Claude or nobody. */
+export function humanAuthorOf(c: BranchCommitLike): string | null {
+  if (isClaudeAccount(c)) return null;
+  const login = c.author?.login?.trim();
+  if (login) return isBot(login) ? null : login;
+  const name = c.commit.author?.name?.trim();
+  return name && !isBot(name) ? name : null;
+}
+
+/**
+ * True when Claude alone wrote the commit: a Claude account, or Claude's trailer on a commit no person authored (a
+ * bot, or no author). A person's commit with Claude's trailer is theirs, made with Claude (isClaudeAssisted).
+ */
+export function isClaudeCommit(c: BranchCommitLike): boolean {
+  return isClaudeAccount(c) || (isClaudeAssisted(c) && !humanAuthorOf(c));
 }
 
 /** True for the commit Bridge writes when it starts an exploration (only the note file). */
@@ -193,7 +216,9 @@ export function explorationActivity(input: { commits: readonly BranchCommitLike[
   const events: ActivityEvent[] = commits
     .map((c) => {
       const claude = isClaudeCommit(c);
-      return { who: claude ? 'claude' : (c.author?.login ?? c.commit.author?.name ?? input.author), claude, text: subjectWords(c.commit.message.split('\n')[0]!), at: dateOf(c), sha: c.sha };
+      const withClaude = !claude && isClaudeAssisted(c);
+      const who = claude ? 'claude' : (humanAuthorOf(c) ?? input.author);
+      return { who, claude, ...(withClaude ? { withClaude } : {}), text: subjectWords(c.commit.message.split('\n')[0]!), at: dateOf(c), sha: c.sha };
     })
     .sort((a, b) => b.at.localeCompare(a.at));
   const start = input.commits.find(isStartCommit);
@@ -206,11 +231,11 @@ export function explorationActivity(input: { commits: readonly BranchCommitLike[
  * The line under the title once something changed: who changed what, from the branch files when they name screens
  * or components ("changed Orders table and Bulk actions bar"), else the latest commit in words. Null before any change.
  */
-export function lastActivity(input: { commits: readonly BranchCommitLike[]; files: readonly string[] | null | undefined; author: string }): { who: string; claude: boolean; text: string; at: string } | null {
+export function lastActivity(input: { commits: readonly BranchCommitLike[]; files: readonly string[] | null | undefined; author: string }): { who: string; claude: boolean; withClaude?: boolean; text: string; at: string } | null {
   const latest = explorationActivity({ commits: input.commits, author: input.author }).find((e) => e.text !== 'started the exploration');
   if (!latest) return null;
   const things = changedThings(input.files ?? []);
-  return { who: latest.who, claude: latest.claude, text: things.length ? `changed ${listThings(things)}` : latest.text, at: latest.at };
+  return { who: latest.who, claude: latest.claude, ...(latest.withClaude ? { withClaude: true } : {}), text: things.length ? `changed ${listThings(things)}` : latest.text, at: latest.at };
 }
 
 /** "just now", "5 min ago", "2 h ago", "Yesterday", "3 days ago", then the date ("Oct 12"). */
@@ -239,6 +264,13 @@ export function startedWhen(iso: string, now: Date = new Date()): string {
   return t.toLocaleDateString('en', { month: 'short', day: 'numeric', ...(t.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
 }
 
+/** The actor in words: "Claude", "Florian", or "Florian with Claude" when Claude co-wrote a person's change. */
+export function actorName(e: Pick<ActivityEvent, 'who' | 'claude' | 'withClaude'>, names?: Record<string, string>): string {
+  if (e.claude) return 'Claude';
+  const n = names?.[e.who] ?? e.who;
+  return e.withClaude ? `${n} with Claude` : n;
+}
+
 /**
  * Where it stands, in one or two plain sentences, for Claude to say first when the designer continues it. No
  * technical words: no branch, commit or pull request.
@@ -248,7 +280,7 @@ export function whereItStands(input: { name: string; stage: 'not-started' | 'exp
   if (input.stage === 'handed') return `"${input.name}" is ${input.statusLabel ? input.statusLabel.toLowerCase() : 'with the developers'}.`;
   const things = changedThings(input.files ?? []);
   const latest = input.events.find((e) => e.text !== 'started the exploration');
-  const who = (e: ActivityEvent) => (e.claude ? 'Claude' : (input.names?.[e.who] ?? e.who));
+  const who = (e: ActivityEvent) => actorName(e, input.names);
   const so = things.length ? `So far it changes ${listThings(things, 3)}.` : 'Something changed already.';
   return latest ? `${so} Last: ${who(latest)} ${latest.text}, ${shortAgo(latest.at, input.now).toLowerCase()}.` : so;
 }

@@ -2,7 +2,7 @@
 // pure view rules over @bridge-ds/core's exploration-resume words. Not started: the Continue in Claude panel and an
 // empty "Your preview" frame. Exploring: the preview, the last activity in words, Done exploring, the last 3 events.
 // Later states keep their own pages. No DOM, no fetch: tested in exploration-page.test.ts.
-import { continueLines, explorationActivity, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
+import { continueLines, explorationActivity, humanAuthorOf, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
 
 /** A person or Claude on the page: the login (for the face), the name to show, and whether it is Claude. */
 export interface PageFace {
@@ -15,8 +15,26 @@ export interface PageFace {
 /** GitHub's public photo of an account (no API read); none for an email or Claude. */
 export const avatarOf = (login: string): string | null => (/^[A-Za-z0-9-]+(\[bot\])?$/.test(login) && !/\[bot\]$/.test(login) ? `https://github.com/${login}.png?size=64` : null);
 
-export const faceOf = (who: string, claude: boolean, names: Record<string, string> = {}): PageFace =>
-  claude ? { login: 'claude', name: 'Claude', agent: true, avatar: null } : { login: who, name: names[who] ?? who, agent: false, avatar: avatarOf(who) };
+/** The face of an actor; a person's change Claude co-wrote reads "Florian with Claude" with the person's photo. */
+export const faceOf = (who: string, claude: boolean, names: Record<string, string> = {}, withClaude = false): PageFace =>
+  claude
+    ? { login: 'claude', name: 'Claude', agent: true, avatar: null }
+    : { login: who, name: `${names[who] ?? who}${withClaude ? ' with Claude' : ''}`, agent: false, avatar: avatarOf(who) };
+
+/**
+ * Display names readable without signing in: the git author name of each person's commits, when it is not the login
+ * itself (or Claude). A signed-out visitor then reads "Florian", not "peterbono"; the login stays the fallback.
+ */
+export function gitNamesOf(commits: readonly BranchCommitLike[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const c of commits) {
+    const login = c.author?.login?.trim();
+    const name = c.commit.author?.name?.trim();
+    if (!login || !name || out[login] || humanAuthorOf(c) !== login) continue;
+    if (name.toLowerCase() !== login.toLowerCase() && !/claude/i.test(name)) out[login] = name;
+  }
+  return out;
+}
 
 /** "Started by" line after the name: " · Admin demo · today". */
 export const startedTail = (productName: string, startedAt: string | null | undefined, now?: Date): string => [productName, startedAt ? startedWhen(startedAt, now) : ''].filter(Boolean).join(' · ');
@@ -30,13 +48,13 @@ export interface ActivityRow {
 
 /** The last 3 events: Claude's and people's changes, then "started the exploration" when it fits. */
 export function activityRows(input: { commits: readonly BranchCommitLike[]; author: string; startedAt?: string | null | undefined; names?: Record<string, string>; now?: Date }): ActivityRow[] {
-  return explorationActivity({ commits: input.commits, author: input.author, startedAt: input.startedAt, limit: 3 }).map((e) => ({ who: faceOf(e.who, e.claude, input.names), text: e.text, when: shortAgo(e.at, input.now) }));
+  return explorationActivity({ commits: input.commits, author: input.author, startedAt: input.startedAt, limit: 3 }).map((e) => ({ who: faceOf(e.who, e.claude, input.names, e.withClaude), text: e.text, when: shortAgo(e.at, input.now) }));
 }
 
 /** "Claude changed Orders table and Bulk actions bar, 2 h ago": the line under the title once something changed. */
 export function headlineOf(input: { commits: readonly BranchCommitLike[]; files: readonly string[] | null; author: string; names?: Record<string, string>; now?: Date }): ActivityRow | null {
   const last = lastActivity({ commits: input.commits, files: input.files, author: input.author });
-  return last ? { who: faceOf(last.who, last.claude, input.names), text: last.text, when: shortAgo(last.at, input.now) } : null;
+  return last ? { who: faceOf(last.who, last.claude, input.names, last.withClaude), text: last.text, when: shortAgo(last.at, input.now) } : null;
 }
 
 /** The two lines of the Continue in Claude panel. */
@@ -56,4 +74,18 @@ export function libraryPreviewApp(files: readonly string[] | null | undefined, a
 }
 
 /** The Done exploring card: what its button does for this viewer (never a technical blocker). */
-export type DoneAction = { kind: 'run' } | { kind: 'connect'; label: string } | { kind: 'demo' } | { kind: 'note'; text: string } | null;
+export type DoneAction = { kind: 'run' } | { kind: 'demo' } | { kind: 'note'; text: string } | null;
+
+/**
+ * Who sees the Done exploring card. A signed-out visitor or a viewer without write access to the repository (a PM, a
+ * stakeholder) gets no card at all: they keep the preview, the line to continue and the activity. A signed-in person
+ * with access who cannot keep it reads who can (`keeperNote`); the person who started it or a reviewer runs it.
+ * `write`: null when unknown (a product's own repository), which leaves the decision to `keeper`.
+ */
+export function doneActionFor(v: { direct: boolean; demo: boolean; connected: boolean; write: boolean | null; keeper: boolean; keeperNote: string; productNote?: string | null }): DoneAction {
+  if (!v.direct) return null;
+  if (v.productNote) return { kind: 'note', text: v.productNote };
+  if (!v.connected) return v.demo ? { kind: 'demo' } : null;
+  if (v.write === false) return null;
+  return v.keeper ? { kind: 'run' } : { kind: 'note', text: v.keeperNote };
+}

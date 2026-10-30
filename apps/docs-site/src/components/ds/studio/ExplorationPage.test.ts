@@ -108,9 +108,27 @@ describe('ExplorationPage, exploring (X2)', () => {
   });
 
   it('without a build yet: the button waits and says why in words', () => {
-    paint({ ...exploring, previewUrl: null, previewNote: 'Preview is building' });
+    paint({ ...exploring, previewUrl: null, previewNote: 'Your preview appears a few minutes after each change.' });
     expect((screen.getByRole('button', { name: 'Open the preview' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText('Preview is building')).toBeTruthy();
+    expect(screen.getByText(/appears a few minutes after/)).toBeTruthy();
+  });
+
+  it('while the preview builds: a busy status at full contrast, not a greyed-out button', async () => {
+    const { container } = paint({ ...exploring, previewUrl: null, previewNote: 'Preview is building', previewBuilding: true });
+    const b = screen.getByRole('button', { name: 'Preview is building' });
+    expect(b.getAttribute('aria-busy')).toBe('true');
+    expect(b.hasAttribute('data-loading')).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Open the preview' })).toBeNull();
+    expect(screen.getAllByText('Preview is building')).toHaveLength(1);
+    await expectNoAxeViolations(container);
+  });
+
+  it('a signed-out visitor or a viewer without write access sees no Done exploring card', () => {
+    paint({ ...exploring, done: null });
+    expect(screen.queryByRole('heading', { name: 'Happy with it?' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /done exploring/i })).toBeNull();
+    expect(screen.getByRole('link', { name: /Open the preview/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Continue in Claude/ })).toBeTruthy();
   });
 
   it('a viewer who cannot keep it reads who can, never a GitHub error', () => {

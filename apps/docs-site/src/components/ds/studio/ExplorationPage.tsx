@@ -37,6 +37,8 @@ export interface ExplorationPageProps {
   /** X2: the branch's own build; null while it has none (the note says why in words). */
   previewUrl: string | null;
   previewNote: string | null;
+  /** X2: the preview is building: the button reads "Preview is building" with a spinner, at full contrast. */
+  previewBuilding?: boolean;
   /** X2: a captured image of the change (the visual impact's after shot), else a neutral frame. */
   thumb: string | null;
   /** X2: the last 3 events; null while read. */
@@ -111,10 +113,6 @@ function DoneCard({ p }: { p: ExplorationPageProps }) {
       <p>Pick what the library should keep. The preview stays for everyone.</p>
       {d.kind === 'note' ? (
         <p className="xp-muted">{d.text}</p>
-      ) : d.kind === 'connect' ? (
-        <Button variant="inverse" size="md" className="xp-done-btn" data-gh-open="" data-demo-write="keep an exploration">
-          {d.label}
-        </Button>
       ) : d.kind === 'demo' ? (
         <Button variant="inverse" size="md" className="xp-done-btn" data-demo-write="keep an exploration">
           Done exploring
@@ -266,6 +264,11 @@ export function ExplorationPage(p: ExplorationPageProps) {
                 <ButtonLink variant="primary" size="lg" href={p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
                   Open the preview
                 </ButtonLink>
+              ) : p.previewBuilding ? (
+                // A status, not a dead control: Button's loading state keeps the primary colors (no disabled grey).
+                <Button variant="primary" size="lg" loading>
+                  Preview is building
+                </Button>
               ) : (
                 <Button variant="primary" size="lg" disabled aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
                   Open the preview
@@ -273,7 +276,7 @@ export function ExplorationPage(p: ExplorationPageProps) {
               )}
               <ContinueButton p={p} line={p.lines.app} say={setSaid} variant="secondary" />
             </div>
-            {p.previewNote && (
+            {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
               <p className="xp-muted xp-note" id="xp-preview-note">
                 {p.previewNote}
               </p>

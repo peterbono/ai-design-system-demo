@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  actorName,
   changedThings,
   continueLines,
   explorationActivity,
   explorationStage,
+  humanAuthorOf,
+  isClaudeAssisted,
+  isClaudeCommit,
   lastActivity,
   listThings,
   parseContinueLine,
@@ -86,23 +90,32 @@ describe('activity', () => {
     commit('b', 'feat: add row selection to the Orders table\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>', '2026-10-30T11:50:00Z'),
     commit('c', 'feat: add a Bulk actions bar\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>', '2026-10-30T12:00:00Z'),
   ];
-  it('lists the newest first, Claude named, the start last', () => {
+  it('lists the newest first, the person credited with Claude, the start last', () => {
     const ev = explorationActivity({ commits, author: 'florian', limit: 3 });
-    expect(ev.map((e) => [e.who, e.text])).toEqual([
-      ['claude', 'added a Bulk actions bar'],
-      ['claude', 'added row selection to the Orders table'],
-      ['florian', 'started the exploration'],
+    expect(ev.map((e) => [actorName(e, { florian: 'Florian' }), e.text])).toEqual([
+      ['Florian with Claude', 'added a Bulk actions bar'],
+      ['Florian with Claude', 'added row selection to the Orders table'],
+      ['Florian', 'started the exploration'],
     ]);
   });
+  it('credits Claude alone when no person authored the commit', () => {
+    const bot = { sha: 'x', commit: { message: 'feat: add x\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>', author: { name: 'bridge-ds[bot]', date: '2026-10-30T12:00:00Z' } }, author: { login: 'bridge-ds[bot]' } };
+    const anon = { sha: 'y', commit: { message: 'feat: add y\n\nCo-Authored-By: Claude <noreply@anthropic.com>', author: { date: '2026-10-30T12:00:00Z' } } };
+    const account = { sha: 'z', commit: { message: 'feat: add z', author: { name: 'Claude', date: '2026-10-30T12:00:00Z' } }, author: null };
+    expect([bot, anon, account].map(isClaudeCommit)).toEqual([true, true, true]);
+    expect(isClaudeCommit(commits[1]!)).toBe(false);
+    expect(isClaudeAssisted(commits[1]!)).toBe(true);
+    expect(humanAuthorOf(commits[1]!)).toBe('florian');
+  });
   it('says the last change from the files when they name things', () => {
-    expect(lastActivity({ commits, files: ['apps/admin/src/OrdersTable.tsx', 'apps/admin/src/BulkActionsBar.tsx'], author: 'florian' })).toMatchObject({ claude: true, text: 'changed Orders table and Bulk actions bar' });
+    expect(lastActivity({ commits, files: ['apps/admin/src/OrdersTable.tsx', 'apps/admin/src/BulkActionsBar.tsx'], author: 'florian' })).toMatchObject({ who: 'florian', claude: false, withClaude: true, text: 'changed Orders table and Bulk actions bar' });
     expect(lastActivity({ commits, files: ['apps/admin/src/lib/x.ts'], author: 'florian' })?.text).toBe('added a Bulk actions bar');
     expect(lastActivity({ commits: commits.slice(0, 1), files: [], author: 'florian' })).toBeNull();
   });
   it('says where it stands without technical words', () => {
     const events = explorationActivity({ commits, author: 'florian' });
     const s = whereItStands({ name: 'Orders', stage: 'exploring', events, files: ['apps/admin/src/OrdersTable.tsx'], now: NOW });
-    expect(s).toBe('So far it changes Orders table. Last: Claude added a Bulk actions bar, 2 h ago.');
+    expect(s).toBe('So far it changes Orders table. Last: florian with Claude added a Bulk actions bar, 2 h ago.');
     expect(s).not.toMatch(/commit|branch|pull request/);
     expect(whereItStands({ name: 'Orders', stage: 'not-started', events: [], files: [] })).toBe('"Orders" is started but nothing is built yet.');
   });

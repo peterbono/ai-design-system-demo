@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BranchCommitLike } from '@bridge-ds/core';
-import { activityRows, avatarOf, faceOf, headlineOf, libraryPreviewApp, pageLines, startedTail } from './exploration-page';
+import { activityRows, avatarOf, doneActionFor, faceOf, gitNamesOf, headlineOf, libraryPreviewApp, pageLines, startedTail } from './exploration-page';
 
 const NOW = new Date('2026-10-30T14:00:00Z');
 const c = (sha: string, message: string, date: string, login = 'florian'): BranchCommitLike => ({ sha, commit: { message, author: { name: login, date } }, author: { login } });
@@ -20,6 +20,30 @@ describe('exploration page model', () => {
     expect(avatarOf('github-actions[bot]')).toBeNull();
   });
 
+  it('credits Claude alone only when no person authored the commit', () => {
+    const bot = { sha: 'x', commit: { message: `feat: add a toolbar${CLAUDE}`, author: { name: 'bridge-ds[bot]', date: '2026-10-30T12:00:00Z' } }, author: { login: 'bridge-ds[bot]' } };
+    expect(activityRows({ commits: [bot], author: 'florian', now: NOW })[0]!.who).toMatchObject({ name: 'Claude', agent: true });
+    expect(activityRows({ commits: [c('y', 'feat: add a toolbar', '2026-10-30T12:00:00Z', 'claude')], author: 'florian', now: NOW })[0]!.who.agent).toBe(true);
+  });
+
+  it('reads display names from the commits for a signed-out visitor, the login as fallback', () => {
+    const named: BranchCommitLike = { sha: 'n', commit: { message: 'chore(explore): start X', author: { name: 'Florian', date: '2026-10-30T12:00:00Z' } }, author: { login: 'peterbono' } };
+    const same: BranchCommitLike = { sha: 's', commit: { message: 'feat: x', author: { name: 'dana', date: '2026-10-30T12:00:00Z' } }, author: { login: 'dana' } };
+    expect(gitNamesOf([same, named])).toEqual({ peterbono: 'Florian' });
+    expect(faceOf('dana', false, gitNamesOf([same])).name).toBe('dana');
+  });
+
+  it('shows Done exploring only to people who can keep it', () => {
+    const v = { direct: true, demo: false, connected: true, write: true, keeper: true, keeperNote: 'Florian or a reviewer says when it is done exploring.' };
+    expect(doneActionFor(v)).toEqual({ kind: 'run' });
+    expect(doneActionFor({ ...v, connected: false })).toBeNull();
+    expect(doneActionFor({ ...v, connected: false, demo: true })).toEqual({ kind: 'demo' });
+    expect(doneActionFor({ ...v, write: false })).toBeNull();
+    expect(doneActionFor({ ...v, keeper: false })).toEqual({ kind: 'note', text: v.keeperNote });
+    expect(doneActionFor({ ...v, direct: false })).toBeNull();
+    expect(doneActionFor({ ...v, productNote: 'Ask a Shop developer.' })).toEqual({ kind: 'note', text: 'Ask a Shop developer.' });
+  });
+
   it('says who started it, where and when', () => {
     expect(startedTail('Admin demo', '2026-10-30T09:00:00Z', NOW)).toBe('Admin demo · today');
     expect(startedTail('Admin demo', null)).toBe('Admin demo');
@@ -27,11 +51,12 @@ describe('exploration page model', () => {
 
   it('lists the last 3 events, newest first', () => {
     const rows = activityRows({ commits, author: 'florian', startedAt: '2026-10-29T10:00:00Z', names: { florian: 'Florian', dana: 'Dana' }, now: NOW });
-    expect(rows.map((r) => `${r.who.name} ${r.text}, ${r.when}`)).toEqual(['Claude added a Bulk actions bar: Mark shipped, Export, Cancel, 2 h ago', 'Dana tweaked the empty state copy, 2 h ago', 'Claude added row selection to the Orders table, 2 h ago']);
+    expect(rows.map((r) => `${r.who.name} ${r.text}, ${r.when}`)).toEqual(['Florian with Claude added a Bulk actions bar: Mark shipped, Export, Cancel, 2 h ago', 'Dana tweaked the empty state copy, 2 h ago', 'Florian with Claude added row selection to the Orders table, 2 h ago']);
+    expect(rows[0]!.who).toMatchObject({ login: 'florian', agent: false, avatar: 'https://github.com/florian.png?size=64' });
   });
 
   it('says the last change from the files, else from the latest commit; nothing before the first change', () => {
-    expect(headlineOf({ commits, files: ['apps/admin/src/OrdersTable.tsx', 'apps/admin/src/BulkActionsBar.tsx'], author: 'florian', now: NOW })).toMatchObject({ who: { name: 'Claude' }, text: 'changed Orders table and Bulk actions bar', when: '2 h ago' });
+    expect(headlineOf({ commits, files: ['apps/admin/src/OrdersTable.tsx', 'apps/admin/src/BulkActionsBar.tsx'], author: 'florian', now: NOW })).toMatchObject({ who: { name: 'florian with Claude', agent: false }, text: 'changed Orders table and Bulk actions bar', when: '2 h ago' });
     expect(headlineOf({ commits, files: ['apps/admin/src/lib/x.ts'], author: 'florian', now: NOW })?.text).toBe('added a Bulk actions bar: Mark shipped, Export, Cancel');
     expect(headlineOf({ commits: commits.slice(0, 1), files: ['.bridge/explorations/orders.md'], author: 'florian' })).toBeNull();
   });

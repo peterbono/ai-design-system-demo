@@ -17,7 +17,7 @@ describe('explorations on GitHub', () => {
     const gh = fakeGitHub('acme', 'ds', files());
     const ro = await BridgeContext.create({ repo: 'acme/ds', fetch: gh.fetch });
     const dry = (await explorations.startExploration(ro, { name: 'Pill buttons', purpose: 'Do rounder buttons feel friendlier in checkout?', useCase: 'user-test', dryRun: true })) as any;
-    expect(dry).toMatchObject({ status: 'dry-run', branch: 'explore/pill-buttons', title: 'Exploration: pill buttons', label: 'exploration' });
+    expect(dry).toMatchObject({ status: 'dry-run', branch: 'explore/pill-buttons', title: 'Exploration: Pill buttons', label: 'exploration' });
     expect(dry.note.path).toBe('.bridge/explorations/pill-buttons.md');
     await expect(explorations.startExploration(ro, { name: 'Pill buttons', purpose: 'x' })).rejects.toThrow(/GITHUB_TOKEN/);
     await expect(explorations.startExploration(ro, { name: '', purpose: '' })).rejects.toThrow(/Name the exploration/);
@@ -31,7 +31,7 @@ describe('explorations on GitHub', () => {
     expect(r.install).toMatchObject({ state: 'building', command: null });
     expect(JSON.stringify(r)).not.toContain('pkg.pr.new');
     expect(r.next).toContain('"branch": "explore/pill-buttons"');
-    expect(gh.pulls[0]).toMatchObject({ draft: true, base: { ref: 'main' }, title: 'Exploration: pill buttons' });
+    expect(gh.pulls[0]).toMatchObject({ draft: true, base: { ref: 'main' }, title: 'Exploration: Pill buttons' });
     expect(gh.pulls[0]!.labels.map((l: any) => l.name)).toEqual(['exploration']);
     expect(gh.fileAt('explore/pill-buttons', '.bridge/explorations/pill-buttons.md')).toContain('Do rounder buttons');
     expect(gh.fileAt('main', '.bridge/explorations/pill-buttons.md')).toBeUndefined();
@@ -233,9 +233,9 @@ describe('continue an exploration', () => {
     await client.commitToBranch({ branch: 'explore/orders-bulk-actions', message: 'feat: add a Bulk actions bar\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>', files: [{ path: 'apps/admin/src/BulkActionsBar.tsx', content: 'export {}\n' }] });
     const then = (await explorations.continueExploration(ctx, { ref: '#1' })) as any;
     expect(then.stage).toBe('exploring');
-    expect(then.activity[0]).toMatchObject({ who: 'Claude', what: 'added a Bulk actions bar' });
+    expect(then.activity[0]).toMatchObject({ who: 'owner with Claude', what: 'added a Bulk actions bar' });
     expect(then.activity.at(-1)).toMatchObject({ what: 'started the exploration' });
-    expect(then.whereItStands).toMatch(/^So far it changes Bulk actions bar\. Last: Claude added a Bulk actions bar/);
+    expect(then.whereItStands).toMatch(/^So far it changes Bulk actions bar\. Last: owner with Claude added a Bulk actions bar/);
     expect(then.whereItStands).not.toMatch(/commit|pull request|—/);
   });
 

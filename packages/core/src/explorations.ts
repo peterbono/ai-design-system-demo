@@ -19,7 +19,7 @@
 
 import type { BridgeConfig } from './config';
 import { slugify } from './pr-composer';
-import { previewLinks, previewUrl, readPreviewComment, type PreviewApps } from './previews';
+import { previewUrl, readPreviewComment, resolveBranchPreviews, type PreviewApps } from './previews';
 import { classifyRisk, type ChangedFile, type RiskTier } from './risk';
 
 /** Every exploration pull request carries this label while it is an exploration. */
@@ -96,11 +96,14 @@ export interface Exploration {
 const MARK = 'bridge-exploration';
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** "Denser data tables!" -> "denser-data-tables". Up to 40 characters, cut at a word boundary. Empty when nothing is left. */
+/** Longest slug: a name is under 60 characters (explorationProblems), so a valid name is never cut mid-phrase. */
+export const EXPLORATION_SLUG_MAX = 60;
+
+/** "Denser data tables!" -> "denser-data-tables". Up to 60 characters, cut at a word boundary. Empty when nothing is left. */
 export function explorationSlug(name: string): string {
   const s = name.trim().replace(/^explore\//i, '');
   if (!/[a-z0-9]/i.test(s)) return '';
-  return slugify(s, 40);
+  return slugify(s, EXPLORATION_SLUG_MAX);
 }
 
 /** `explore/<slug>` for a name, a slug or a branch name. */
@@ -210,10 +213,19 @@ export interface ExplorationPrContext {
   inProduct?: { name: string; library: string; preview?: string | undefined } | undefined;
 }
 
-/** Draft pull request title: "Exploration: denser data tables". */
+/**
+ * Draft pull request title: "Exploration: Denser data tables". The name keeps its casing as typed; a name that already
+ * starts with "Exploration:" is not prefixed twice, and a colon inside the name becomes a comma so the title has one
+ * ("Exploration page: pick up" -> "Exploration: Exploration page, pick up").
+ */
 export function explorationPrTitle(e: Pick<Exploration, 'name'>): string {
-  const n = e.name.trim().replace(/\.$/, '');
-  return `Exploration: ${n.charAt(0).toLowerCase()}${n.slice(1)}`;
+  const n = e.name
+    .trim()
+    .replace(/\.$/, '')
+    .replace(/^exploration\s*:\s*/i, '')
+    .replace(/\s*:\s+/g, ', ')
+    .trim();
+  return `Exploration: ${n}`;
 }
 
 /**
@@ -264,8 +276,10 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
       'In the product repo, on a branch that deploys to staging (production keeps the released version), install the snapshot with the command in the "Try this exploration in your product" comment below. It appears a few minutes after each push and always matches the latest commit.',
     );
     lines.push('', '### Previews', '');
-    const links = previewLinks(ctx.apps, { branch, ...(ctx.pr ? { pr: ctx.pr } : {}) });
-    if (links.length) lines.push('| App | Preview |', '| --- | --- |', ...links.map((l) => `| ${l.label} | ${l.url} |`));
+    // Every configured app gets a row. A long branch name makes Vercel shorten the link with a hash nobody can
+    // predict (previewUrl returns null): the row then points at the Vercel comment, it is not "not set up".
+    const links = resolveBranchPreviews(ctx.apps, { branch, ...(ctx.pr ? { pr: ctx.pr } : {}) });
+    if (links.length) lines.push('| App | Preview |', '| --- | --- |', ...links.map((l) => `| ${l.label} | ${l.url ?? 'Link in the Vercel comment on this pull request'} |`));
     else lines.push('Preview deploys are not set up: add `previews.apps` to `bridge.config.json` (docs/PREVIEWS.md).');
   }
   lines.push(
