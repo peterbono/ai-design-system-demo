@@ -20,7 +20,9 @@ import {
   isDirty,
   isEmptyValue,
   keepDrafts,
+  pendingDraftsNote,
   pendingSections,
+  sendStateFor,
   replaceSelection,
   restoreMeta,
   sectionsToFill,
@@ -156,6 +158,28 @@ describe('Claude drafts', () => {
     expect(docsToSend(kept)).toMatchObject({ draftedBy: 'claude', needsReview: false });
     expect(docsToSend(kept).draftedSections).toBeUndefined();
     expect(discardDrafts(s, ['whenNotToUse']).docs.whenNotToUse).toEqual([]);
+  });
+
+  it('publishing a file Claude drafted marks it reviewed: the lead who publishes is the review', () => {
+    // The VisuallyHidden case: a whole file drafted by Claude, waiting for review, published as is.
+    const file: ComponentDocsJson = { ...base, whenNotToUse: ['Drafted.'], draftedBy: 'claude', needsReview: true };
+    const s = initEdit(file);
+    expect(pendingSections(s).length).toBeGreaterThan(0);
+    const published = docsToSend(sendStateFor(s, true));
+    expect(published).toMatchObject({ draftedBy: 'claude', needsReview: false });
+    expect(published.draftedSections).toBeUndefined();
+    expect(isDirty(sendStateFor(s, true))).toBe(true);
+    // Send for review leaves them pending: the reviewers in Changes are asked for them.
+    expect(docsToSend(sendStateFor(s, false))).toMatchObject({ needsReview: true });
+    expect(sendStateFor(s, false)).toBe(s);
+  });
+
+  it('says what happens to the pending drafts on send', () => {
+    expect(pendingDraftsNote(0, true)).toBeNull();
+    expect(pendingDraftsNote(1, false)).toBe('1 Claude draft is not reviewed yet. They go out marked for review.');
+    expect(pendingDraftsNote(1, true)).toBe('Publishing keeps the Claude draft as it is and marks it reviewed.');
+    expect(pendingDraftsNote(7, true)).toBe('Publishing keeps the 7 Claude drafts as they are and marks them reviewed.');
+    expect(pendingDraftsNote(7, true)).not.toMatch(/\u2014/);
   });
 
   it('survives a reload through its meta', () => {

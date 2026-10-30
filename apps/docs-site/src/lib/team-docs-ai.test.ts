@@ -54,7 +54,7 @@ describe('a team component in edit mode', () => {
   it('opens guidance Claude drafted in its Library page edit mode, not on GitHub', () => {
     const drafted = { ...button, docs: { ...button.docs, needsReview: true } };
     const rows = teamGuidance({ owner: 'acme', repo: 'ds', sha: 'a'.repeat(40), model: { components: { list: [drafted] } } as never });
-    expect(rows).toEqual([{ name: 'Button', href: '/library/acme/ds/components/button/?edit=1', since: null }]);
+    expect(rows).toEqual([{ name: 'Button', slug: 'button', href: '/library/acme/ds/components/button/?edit=1', since: null }]);
   });
 });
 

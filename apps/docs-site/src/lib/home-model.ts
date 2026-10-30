@@ -12,7 +12,8 @@
 // Every value comes from GitHub (pull requests, their timeline and reviews) or from the repo at build time (usage
 // guidance, contrast, adoption, the changelog). Nothing here is guessed.
 import type { ThumbSpec } from './branch-thumb';
-import { VOCAB } from './vocabulary';
+import { isDocsProposalBranch, PUBLISH_ROUTE_COPY } from '@bridge-ds/core';
+import { STATUS_WORDS, VOCAB } from './vocabulary';
 import { isClaudeLogin } from './people';
 import { studioHref } from './team-path';
 
@@ -377,19 +378,63 @@ export function changeNeed(c: ChangeFacts, now: number): NeedRow {
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** A usage guidance draft by Claude: one row per component, waiting since the draft landed on main. */
-export function guidanceNeed(g: { name: string; href: string; since: string | null }, now: number): NeedRow {
+/** A usage guidance draft by Claude, as the home reads it (the component's slug finds its open change). */
+export interface GuidanceDraft {
+  name: string;
+  slug?: string;
+  href: string;
+  since: string | null;
+}
+
+/**
+ * The open change that carries a guidance draft (its docs proposal, core isDocsProposalBranch): `onItsWay` when it
+ * ships by itself (published by a lead, Bridge armed its merge), else it waits for a review in Changes.
+ */
+export interface GuidanceChange {
+  number: number;
+  onItsWay: boolean;
+}
+
+/**
+ * The open docs proposal of a draft, from the open pull requests the home already read. `onItsWay` answers from the
+ * change's status once read (PullStatus autoShip); until then an armed merge (auto_merge) says it.
+ */
+export function guidanceChangeOf(
+  g: Pick<GuidanceDraft, 'name' | 'slug'>,
+  pulls: readonly { number: number; head: { ref: string }; auto_merge?: unknown }[],
+  onItsWay: (number: number) => boolean | undefined = () => undefined,
+): GuidanceChange | null {
+  const p = pulls.find((x) => isDocsProposalBranch(x.head.ref, { name: g.name, slug: g.slug }));
+  if (!p) return null;
+  return { number: p.number, onItsWay: onItsWay(p.number) ?? Boolean(p.auto_merge) };
+}
+
+/**
+ * A usage guidance draft by Claude: one row per component, waiting since the draft landed on main. Once someone sent
+ * it (an open change carries it), it no longer waits on the viewer: published, it is on its way to the library; sent
+ * for review, it is in review like any other change.
+ */
+export function guidanceNeed(g: GuidanceDraft, now: number, change: GuidanceChange | null = null): NeedRow {
+  const base = { key: `guidance-${g.name}`, kind: 'guidance' as const, title: `${g.name} usage guidance`, person: CLAUDE, thumb: { kind: 'text' as const } };
+  if (change) {
+    return {
+      ...base,
+      href: changeHref(change.number),
+      number: change.number,
+      line: change.onItsWay ? PUBLISH_ROUTE_COPY.shipped.sentence : `Sent for review in a ${VOCAB.branch}`,
+      since: null,
+      waitsOnYou: false,
+      pill: { label: change.onItsWay ? PUBLISH_ROUTE_COPY.shipped.label : STATUS_WORDS.inReview, tone: 'neutral' },
+      action: 'Open',
+    };
+  }
   return {
-    key: `guidance-${g.name}`,
-    kind: 'guidance',
-    title: `${g.name} usage guidance`,
+    ...base,
     href: g.href,
-    person: CLAUDE,
     line: `${CLAUDE.name} drafted it from the code`,
     since: g.since,
     waitsOnYou: true,
     pill: g.since ? { label: waitingLabel(g.since, now), tone: 'warning' } : null,
-    thumb: { kind: 'text' },
   };
 }
 

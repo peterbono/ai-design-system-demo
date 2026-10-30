@@ -27,6 +27,7 @@ import {
   changeNeed,
   joinNeed,
   contrastNeed,
+  guidanceChangeOf,
   guidanceNeed,
   isOnlyReviewer,
   person,
@@ -35,6 +36,7 @@ import {
   waitingSince,
   type BranchCard,
   type ChangeFacts,
+  type GuidanceDraft,
   type NeedRow,
   type Person,
   type TimelineEvent,
@@ -52,11 +54,13 @@ export interface HomePull extends QueuePullFull {
   head: { ref: string; sha: string };
   /** Closed ones only: when it was merged (a kept exploration). */
   merged_at?: string | null;
+  /** Bridge armed its merge (a lead published it): it ships by itself once the checks pass. */
+  auto_merge?: unknown;
 }
 
 /** Build-time facts the page passes in (repo data, not GitHub). */
 export interface HomeStatic {
-  guidance: { name: string; href: string; since: string | null }[];
+  guidance: GuidanceDraft[];
   contrastFail: number;
 }
 
@@ -245,10 +249,13 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   let reviewer = rightNow();
   // People asking to join: admins only, read next to the branches.
   let joins: NeedRow[] = [];
+  // The open changes, once read: a guidance draft someone already sent (published or in review) no longer waits on you.
+  let open: HomePull[] = [];
+  let onItsWay: (n: number) => boolean | undefined = () => undefined;
   // Library checks and guidance drafts wait on the reviewers, not on someone who cannot approve them.
   const staticNeeds = (): NeedRow[] => {
     const f = facts();
-    return [...joins, ...(reviewer ? [...(contrastNeed(f.contrastFail) ? [contrastNeed(f.contrastFail)!] : []), ...f.guidance.map((g) => guidanceNeed(g, now))] : [])];
+    return [...joins, ...(reviewer ? [...(contrastNeed(f.contrastFail) ? [contrastNeed(f.contrastFail)!] : []), ...f.guidance.map((g) => guidanceNeed(g, now, guidanceChangeOf(g, open, onItsWay)))] : [])];
   };
   const empty: HomeData = { viewer, loading: true, settled: false, failed: null, needs: [], branches: [], explorations: [], decisions: 0, reviewer };
   if (!viewer || !hasWorkingToken()) {
@@ -276,6 +283,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     repaint();
     return;
   }
+  open = pulls;
   await loadTeams();
   reviewer = rightNow();
   // Suggestions wait next to branches: read in parallel, painted when they land.
@@ -299,6 +307,11 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     .catch(() => (closed = []));
   const shots = new Map<number, ThumbSpec>();
   const statuses = new Map<number, PullStatus | null>(queue.map((p) => [p.number, null]));
+  // Read once the change's status is: it ships by itself until a check fails (PullStatus autoShip).
+  onItsWay = (n) => {
+    const st = statuses.get(n);
+    return st ? Boolean(st.autoShip) : undefined;
+  };
   const timelines = new Map<number, TimelineEvent[] | null>();
   const resolved = new Map<number, ThumbSpec>();
   const persons = new Map<string, Person>();
@@ -333,6 +346,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   const paint = () => {
     const cls = classify();
     const needs: NeedRow[] = [...staticNeeds()];
+    const asked = new Set<number>();
     for (const x of cls) {
       if (!x.task) continue;
       const p = x.pull;
@@ -358,7 +372,10 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
         onlyReviewer: x.onlyReviewer,
       };
       needs.push(changeNeed(facts, now));
+      asked.add(p.number);
     }
+    // A guidance draft whose change already has its own row (a review waits on you) shows once, as that change.
+    for (let i = needs.length - 1; i >= 0; i--) if (needs[i]!.kind === 'guidance' && needs[i]!.number && asked.has(needs[i]!.number!)) needs.splice(i, 1);
     // Explorations are the home's cards; the viewer's library changes are counted under them (Changes lists them).
     // The team's: a contributor's home keeps only their own (home by role, lib/home-explorations explorationsFor).
     const explorations = homeExplorations([...pulls, ...closed], {
