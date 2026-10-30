@@ -6,7 +6,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { productsOf, productRepoOf, type ProductConfig } from '@bridge-ds/core';
+import { CHANGE_MARKER_RULE, productsOf, productRepoOf, type ProductConfig } from '@bridge-ds/core';
 import { git, originRepo } from '@bridge-ds/core/node';
 import { BridgeContext, GIT_CONFIG_KEYS, PRODUCT_POINTER, parseProductPointer, type ProductPointer } from '@bridge-ds/mcp';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
@@ -50,6 +50,7 @@ export function bridgeSection(x: { designSystem: string; product: ProductConfig 
     '- Explorations are free: when the designer wants to try something, start one with `bridge_start_exploration`, named from their words. No brief, no purpose needed.',
     `- "Continue Bridge exploration #12" (or ${key}#12): call \`bridge_continue_exploration\`. It switches this checkout to the \`explore/<name>\` branch when nothing is uncommitted, and says where it stands: start your answer with that.`,
     '- Work, commit and push on that branch. Never open a pull request to main from it, and never change the library from here.',
+    `- ${CHANGE_MARKER_RULE}`,
     '- At the end, the designer picks the pieces the library should get: `bridge_missing_pieces`, then Done exploring (`bridge_promote_exploration`) with the pieces they chose.',
     SECTION_END,
   ].join('\n');

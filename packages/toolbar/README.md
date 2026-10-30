@@ -2,10 +2,19 @@
 
 The Bridge toolbar for a product built with the Bridge design system. Bridge Studio opens the product with
 `?bridge=<change>` ("Try it in the product"); the toolbar then lets anyone browse the real product and flip between
-**Live product** (before) and **This change** (after), with **Show what changed** for token changes.
+**Live product** (before) and **This change** (after), with **Show what changed**.
 
 - **Code changes** (an exploration in the product's repository, a feature branch): Before is the product in
-  production, After is the branch's preview. Flipping keeps the screen and the scroll position.
+  production, After is the branch's preview. Flipping keeps the screen and the scroll position. Production is another
+  origin, so the toolbar cannot measure the difference: the change marks each new or changed area of the UI with
+  `data-bridge-change="<short plain label>"` on its outermost element (Bridge tells Claude to, in every exploration).
+  On This change those areas are outlined, counted ("1 changed", "1 / 3 changed") and stepped through like token
+  changes, with Isolate, and the Changes list names them. On Live product the bar says how many wait on This change
+  ("1 changed on This change"). A change that marks nothing says so.
+
+  ```tsx
+  <div role="status" data-bridge-change="Orders waiting to ship alert">30 orders are waiting to ship</div>
+  ```
 - **Token changes** of the design system: the live tokens swap in without a reload. As soon as the toolbar is open,
   every surface that differs is outlined and counted in the bar ("13 changed", then "2 / 13 changed"). Previous and Next scroll to each one
   in reading order and outline it stronger than the others; Isolate dims the rest of the page (Esc turns it off). The

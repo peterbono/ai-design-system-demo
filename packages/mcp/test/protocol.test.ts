@@ -116,6 +116,8 @@ describe('MCP over stdio', () => {
     ]);
     expect(client.getInstructions()).toMatch(/never writes to main/);
     expect(client.getInstructions()).toMatch(/Bridge never writes to the default branch/);
+    // Explorations mark what they change, so the Bridge toolbar can point at it.
+    expect(client.getInstructions()).toContain('data-bridge-change="<short plain label>"');
   });
 
   it('says what it may write in the same words in its instructions and bridge_get_config (no token: read-only on GitHub)', async () => {

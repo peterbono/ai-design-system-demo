@@ -6,10 +6,12 @@
 // Changes list) run on the product in production: their combined tokens are applied live (useTogether), each change can
 // be switched off, and Before/After and "Show what changed" work on what is switched on.
 // The changes of a screen are outlined as soon as the toolbar is open, counted in the bar ("3 changes") and stepped
-// through with Previous and Next; Isolate dims everything else, and B flips sides in place.
+// through with Previous and Next; Isolate dims everything else, and B flips sides in place. A code change cannot be
+// measured (its live side is another origin): its exploration marks each new or changed area with data-bridge-change,
+// and This change outlines, counts and steps through those areas the same way (markers.ts).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Badge, Button, ButtonGroup, Checkbox, Icon, IconButton, Kbd, Link, Popover, PopoverContent, PopoverTrigger, ThemeProvider, Tooltip } from '@bridge-ds/react';
-import { Check, ChevronUp, GripVertical, Info, ListChecks, Minimize2 } from 'lucide-react';
+import { Check, ChevronUp, GripVertical, Info, ListChecks, Minimize2, ScanSearch } from 'lucide-react';
 import { loadChange, type ChangeFacts } from './github';
 import { loadBuild } from './config';
 import type { BridgeToolbarProps } from './BridgeToolbar';
@@ -21,6 +23,7 @@ import {
   dockAt,
   isFlipKey,
   liveTokensUrl,
+  MARKS_PARAM,
   noVisibleDifference,
   OPEN_KEY,
   PARAM,
@@ -55,6 +58,8 @@ import { EMPTY_LINE, isKey, surfaceLine } from './diff';
 import { isPage, rendered, shownRect } from './outline';
 import { changeCount, elsewhereLine, isEscape, positionLabel, readingOrder, stepAnnouncement, stepTo } from './navigate';
 import { useChangedElements } from './useChangedElements';
+import { useMarkedChanges } from './useMarkedChanges';
+import { NO_MARKS_LINE, readMarks, waitingText } from './markers';
 import { ChangeOutlines, type Shown } from './ChangeOutlines';
 import { ChangeNav } from './ChangeNav';
 import { PIN_ATTR, PIN_CLASS, usePinnedBridgeTokens } from './pin';
@@ -347,6 +352,9 @@ function Toolbar({
   const outlines = outlinePick ?? open;
   const toggleOutlines = useCallback(() => setOutlinePick((p) => !(p ?? open)), [open]);
   const canOutline = facts?.mode === 'tokens' && (facts.tokens.length ?? 0) > 0;
+  // A code change: the areas its exploration marks, on This change (the preview). Live product has none of them.
+  const isCode = !tg && Boolean(facts) && facts!.mode !== 'tokens';
+  const canMark = isCode && side === 'after';
   const live = useLiveSheet(liveUrl, outlines && canOutline, side === 'before' && facts?.mode === 'tokens');
   const onePairs = usePairs(tg ? null : facts, liveUrl, brand, side === 'before');
   const pairs: Pair[] = tg ? (T?.pairs ?? []) : onePairs;
@@ -363,12 +371,18 @@ function Toolbar({
     screenKey,
     tg ? 'after' : 'before',
   );
+  // Read while on This change, outlines on or off: the Changes list and the count carried to Live product need them.
+  const marks = useMarkedChanges(canMark, screenKey);
+  const marksOn = outlines && canMark && Boolean(marks?.length);
+  // What is outlined, counted and stepped through: the measured token changes, or the marked areas of a code change.
+  const showing = outlinesOn || marksOn;
+  const found = outlinesOn ? (diff?.surfaces ?? null) : marksOn ? marks : null;
   const nameOf = (v: string) => facts?.tokens.find((t) => t.cssVar === v)?.name ?? v;
   // What the outlines draw (visible surfaces) and where: the count and the boxes the toolbar keeps clear of.
   const [shown, setShown] = useState<Shown>({ count: 0, obstacles: [] });
   const setShownStable = useCallback((next: Shown) => setShown((p) => (JSON.stringify(p) === JSON.stringify(next) ? p : next)), []);
   const outlineBoxes = useRef<Rect[]>([]);
-  outlineBoxes.current = outlinesOn ? shown.obstacles : [];
+  outlineBoxes.current = showing ? shown.obstacles : [];
   // The list row a person points at (its surface shows its chip and a stronger outline), the brief chip flash when
   // outlines turn on (none with reduced motion), and the Changes sheet.
   const [emphasis, setEmphasis] = useState<number | null>(null);
@@ -383,14 +397,14 @@ function Toolbar({
   const reduced = useMedia('(prefers-reduced-motion: reduce)');
   usePinnedBridgeTokens(liveTokensUrl(build), theme);
   useEffect(() => {
-    if (!outlinesOn || reduced) {
+    if (!showing || reduced) {
       setFlash(false);
       return;
     }
     setFlash(true);
     const id = window.setTimeout(() => setFlash(false), 1500);
     return () => window.clearTimeout(id);
-  }, [outlinesOn, reduced]);
+  }, [showing, reduced]);
   useEffect(() => {
     if (!sheetOpen) setEmphasis(null);
   }, [sheetOpen]);
@@ -409,6 +423,15 @@ function Toolbar({
   useEffect(() => {
     if (shownIn && theme !== shownIn) setShownIn(null);
   }, [theme, shownIn]);
+
+  // How many areas this change marks on this screen, carried from This change: Live product says they wait there.
+  const waiting = useMemo(() => (isCode && side === 'before' ? readMarks(window.location.search, hash, session()) : null), [isCode, side, hash]);
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has(MARKS_PARAM)) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete(MARKS_PARAM);
+    window.history.replaceState(window.history.state, '', url);
+  }, []);
 
   // A side switch carried the scroll position: restore it once the screen has its height, then tidy the address.
   useEffect(() => {
@@ -437,17 +460,17 @@ function Toolbar({
       }
       const here = { search: window.location.search, hash: window.location.hash };
       if (next === 'before' && build.production) {
-        window.location.assign(sameScreenOn(build.production, here, { change, returnTo: window.location.origin, scroll: window.scrollY }));
+        window.location.assign(sameScreenOn(build.production, here, { change, returnTo: window.location.origin, scroll: window.scrollY, marks: marks?.length ?? null }));
       } else if (next === 'after' && returnTo) {
         window.location.assign(sameScreenOn(returnTo, here, { change, scroll: window.scrollY }));
       }
     },
-    [side, facts, build, change, returnTo],
+    [side, facts, build, change, returnTo, marks],
   );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (canOutline && !noDiff && isKey(e, 'c')) {
+      if (((canOutline && !noDiff) || (canMark && marks?.length)) && isKey(e, 'c')) {
         e.preventDefault();
         toggleOutlines();
         return;
@@ -458,7 +481,7 @@ function Toolbar({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [choose, side, canOutline, noDiff, toggleOutlines]);
+  }, [choose, side, canOutline, canMark, marks, noDiff, toggleOutlines]);
   // Escape turns Isolate off, also from the bar's own controls (their tooltip stops Escape before it bubbles).
   useEffect(() => {
     if (!isolate) return;
@@ -504,7 +527,7 @@ function Toolbar({
       window.removeEventListener('hashchange', measure);
       document.body.style.paddingBottom = '';
     };
-  }, [dock, open, facts, shown, outlinesOn]);
+  }, [dock, open, facts, shown, showing]);
 
   const toggleOpen = (next: boolean) => {
     setOpen(next);
@@ -562,8 +585,8 @@ function Toolbar({
   // Screens share one shop and theme most of the time: say it once in the sheet's header.
   const shared = screens?.length && screens.every((s) => s.tenant === screens[0]!.tenant && s.theme === screens[0]!.theme) ? screens[0]! : null;
   const shopOf = (t: string) => shops.find((x) => x.id === t)?.name ?? t;
-  const surfaces = useMemo(() => (outlinesOn ? (diff?.surfaces ?? []) : []), [outlinesOn, diff]);
-  const shownCount = outlinesOn && diff ? shown.count : null;
+  const surfaces = useMemo(() => found ?? [], [found]);
+  const shownCount = showing && found ? shown.count : null;
   // Every changed surface that shows on this screen, in view or further down, in reading order: what the bar counts
   // and what Previous and Next step through (indexes into surfaces).
   const order = useMemo(() => {
@@ -575,13 +598,13 @@ function Toolbar({
     });
     return readingOrder(places).map((k) => on[k]!.i);
   }, [surfaces]);
-  const total = outlinesOn && diff ? order.length : null;
+  const total = showing && found ? order.length : null;
   const current = position !== null ? (order[position] ?? null) : null;
   // A new screen, theme or shop starts over; so do outlines turned off. Isolate needs something to isolate.
   useEffect(() => {
     setPosition(null);
     setAnnounce('');
-  }, [screenKey, outlinesOn]);
+  }, [screenKey, showing]);
   useEffect(() => {
     if (position !== null && position >= order.length) setPosition(null);
   }, [order.length, position]);
@@ -614,6 +637,10 @@ function Toolbar({
       <Button variant="ghost" size="md" onClick={fixNoDiff} className={styles.noteAction}>
         {noDiff.kind === 'theme' ? `Switch to ${noDiff.touched}` : `Switch to ${brandName(shops, noDiff.touched)}`}
       </Button>
+    </p>
+  ) : open && canMark && marks?.length === 0 ? (
+    <p className={styles.note} role="status">
+      {NO_MARKS_LINE}
     </p>
   ) : (outlinesOn || side === 'before') && live.state === 'error' ? (
     <p className={styles.note} role="status">
@@ -665,20 +692,26 @@ function Toolbar({
   // One row per role in the Changes sheet ("Brand primary", "Link"), its most visible step's swatch first.
   const roleGroups = [...visiblePairs.reduce((m, p) => m.set(p.token.name, [...(m.get(p.token.name) ?? []), p]), new Map<string, Pair[]>())].map(([name, list]) => ({ name, pairs: list }));
 
-  // Show what changed: token changes only. A code change's live side is another origin (the production admin), whose
-  // styles this page cannot read, so there is nothing reliable to compare: no outlines, no count. Muted where the
-  // change shows nothing (dark for a light-only change). Token changes keep the same elements on both sides, so the
-  // outlines, the position and Isolate hold when the person flips to Live product.
+  // Show what changed. Token changes are measured: muted where the change shows nothing (dark for a light-only change),
+  // and they keep the same elements on both sides, so the outlines, the position and Isolate hold when the person flips
+  // to Live product. A code change's live side is another origin (the production admin), whose page this one cannot
+  // read: This change outlines the areas its exploration marks, and Live product says how many wait there.
   const tokenNames = (facts?.tokens ?? []).map((t) => t.name);
-  const summary = shownCount === null ? null : surfaceLine(diff!.surfaces.flatMap((s) => s.roots.map(nameOf)), total ?? shownCount);
-  const countText = !outlinesOn ? 'Show what changed' : total === null ? 'Finding changes' : total === 0 ? 'Nothing changed here' : position !== null ? positionLabel(position, total) : changeCount(total);
-  const toggleTip = outlinesOn ? `${summary ? `${summary}. ` : ''}Press C to hide the outlines.` : `Outline what ${tokenNames.length === 1 ? tokenNames[0] : 'this change'} changes on this screen. Press C.`;
-  const nav = canOutline ? (
+  const markNames = (marks ?? []).map((m) => m.label);
+  const summary =
+    shownCount === null
+      ? null
+      : marksOn
+        ? `Marked by this change: ${markNames.slice(0, 3).join(', ')}${markNames.length > 3 ? ` and ${markNames.length - 3} more` : ''}`
+        : surfaceLine(diff!.surfaces.flatMap((s) => s.roots.map(nameOf)), total ?? shownCount);
+  const countText = !showing ? 'Show what changed' : total === null ? 'Finding changes' : total === 0 ? 'Nothing changed here' : position !== null ? positionLabel(position, total) : changeCount(total);
+  const toggleTip = showing ? `${summary ? `${summary}. ` : ''}Press C to hide the outlines.` : `Outline what ${tokenNames.length === 1 ? tokenNames[0] : 'this change'} changes on this screen. Press C.`;
+  const nav = canOutline || (canMark && marks?.length) ? (
     <ChangeNav
       countText={countText}
       tip={toggleTip}
-      outlinesOn={outlinesOn}
-      disabled={Boolean(noDiff)}
+      outlinesOn={showing}
+      disabled={canOutline && Boolean(noDiff)}
       total={total}
       isolate={isolateOn}
       announce={announce}
@@ -686,6 +719,15 @@ function Toolbar({
       onStep={step}
       onIsolate={setIsolate}
     />
+  ) : isCode && side === 'before' && waiting !== 0 ? (
+    // Live product: the marked areas are on This change. The count when the switch carried it, else where to look.
+    <div className={styles.nav}>
+      <Tooltip className={PIN_CLASS} content={<>Go to This change to see {waiting === 1 ? 'it' : 'them'} outlined. <Kbd keys="B" size="sm" /> flips sides.</>}>
+        <Button variant="secondary" size="md" iconStart={ScanSearch} disabled={!canFlip} onClick={() => choose('after')} className={styles.countButton}>
+          {waitingText(waiting)}
+        </Button>
+      </Tooltip>
+    </div>
   ) : null;
   const shownSurfaces = surfaces.map((s, i) => ({ s, i })).filter(({ s }) => shownRect(s.el));
   const focusSurface = (i: number) => {
@@ -696,6 +738,30 @@ function Toolbar({
     if (order.includes(i)) setPosition(order.indexOf(i));
   };
   const tokensOf = (x: { roots: string[] }) => [...new Set(x.roots.map(nameOf))].join(', ');
+  // A marked area from the Changes list: outlines on (it is the point of clicking it), then the same as a surface.
+  const focusMark = (i: number) => {
+    const el = marks?.[i]?.el;
+    if (!el) return;
+    if (!marksOn) setOutlinePick(true);
+    if (!isPage(el)) el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+    setEmphasis(i);
+    if (order.includes(i)) setPosition(order.indexOf(i));
+  };
+
+  // The sheet's last line when the screens are not measured: changes tried together, a code change, or a token change.
+  const footLine = tg
+    ? facts
+      ? 'Screens are measured per change, not for this mix. Show what changed outlines this screen.'
+      : 'Reading the changes.'
+    : !facts
+      ? 'Reading the change.'
+      : isCode
+        ? side === 'before'
+          ? 'What this change adds or changes is outlined on This change.'
+          : marks?.length
+            ? null
+            : NO_MARKS_LINE
+        : 'The screens this change affects are not measured yet.';
 
   const sides = (
     <ButtonGroup appearance="attached" aria-label="Compare" className={styles.sides}>
@@ -737,7 +803,7 @@ function Toolbar({
       style={place.lift ? { paddingBottom: `${place.lift}px` } : undefined}
     >
       {/* Before the bar in the document, so the bar paints above the outlines and the Isolate scrim. */}
-      {outlinesOn && surfaces.length ? (
+      {showing && surfaces.length ? (
         <ChangeOutlines
           surfaces={surfaces}
           theme={theme}
@@ -747,6 +813,17 @@ function Toolbar({
           bar={() => root.current?.getBoundingClientRect() ?? null}
           onShown={setShownStable}
           tip={(s) => {
+            // A marked area: its label, and that this change added or changed it.
+            if (marksOn) {
+              return (
+                <span className={styles.tip}>
+                  <span className={styles.tipText}>
+                    <span>{s.label}</span>
+                    <span className={styles.tipStep}>New or changed in this change</span>
+                  </span>
+                </span>
+              );
+            }
             // This surface's own before and after (its computed colour), and the token whose value it now shows.
             const prop = s.props.find((p) => /^rgb/.test(p.before) && /^rgb/.test(p.after));
             const token = prop ? visiblePairs.find((p) => p.color && toHex(p.after) === toHex(prop.after) && toHex(p.before) === toHex(prop.before)) : null;
@@ -779,6 +856,7 @@ function Toolbar({
         aria-label={`Bridge: ${label}, ${title}`}
         data-side={side}
         data-diff-ms={outlinesOn ? diff?.ms : undefined}
+        data-marks={canMark ? (marks?.length ?? undefined) : undefined}
         data-diff-count={shownCount ?? undefined}
         data-diff-total={total ?? undefined}
         data-diff-elements={outlinesOn ? diff?.elements.length : undefined}
@@ -864,6 +942,33 @@ function Toolbar({
                           {T.result.unpicked.join(', ')}: the change you picked in Studio is off, so the first one listed sets {T.result.unpicked.length === 1 ? 'it' : 'them'}.
                         </p>
                       ) : null}
+                    </section>
+                  ) : null}
+                  {canMark && marks?.length ? (
+                    <section className={styles.sheetSection} aria-label={`Changed here, ${marks.length}`}>
+                      <p className={styles.sectionTitle}>Changed here · {marks.length}</p>
+                      <ul className={styles.rows}>
+                        {marks.map((m, i) => (
+                          <li key={i}>
+                            <Button
+                              variant="ghost"
+                              size="md"
+                              fullWidth
+                              className={styles.row}
+                              data-emphasis={(marksOn && emphasis === i) || undefined}
+                              onMouseEnter={() => marksOn && setEmphasis(i)}
+                              onMouseLeave={() => setEmphasis((e) => (e === i ? null : e))}
+                              onFocus={() => marksOn && setEmphasis(i)}
+                              onBlur={() => setEmphasis((e) => (e === i ? null : e))}
+                              onClick={() => focusMark(i)}
+                            >
+                              <span className={styles.rowText}>
+                                <span className={styles.rowName}>{m.label}</span>
+                              </span>
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
                     </section>
                   ) : null}
                   {outlinesOn && shownSurfaces.length ? (
@@ -963,15 +1068,7 @@ function Toolbar({
                     </Link>
                   </div>
                   {screens === null ? (
-                    <p className={`${styles.note} ${styles.sheetFoot}`}>
-                      {tg
-                        ? facts
-                          ? 'Screens are measured per change, not for this mix. Show what changed outlines this screen.'
-                          : 'Reading the changes.'
-                        : facts
-                          ? 'The screens this change affects are not measured yet.'
-                          : 'Reading the change.'}
-                    </p>
+                    footLine ? <p className={`${styles.note} ${styles.sheetFoot}`}>{footLine}</p> : null
                   ) : screens.length === 0 ? (
                     <p className={`${styles.note} ${styles.sheetFoot}`}>No admin screen changes. Component examples may still change: Studio lists them.</p>
                   ) : null}

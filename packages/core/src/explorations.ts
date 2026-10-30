@@ -646,6 +646,16 @@ export function explorationShareMessage(input: { name: string; branch: string; u
 }
 
 /**
+ * The attribute an exploration puts on each new or changed area of the product's UI, its value a short plain label.
+ * The Bridge toolbar (@bridge-ds/toolbar) outlines, counts and steps through these areas on the change's preview: a
+ * code change cannot be measured against production, so this is how the toolbar points at what changed.
+ */
+export const CHANGE_MARKER_ATTR = 'data-bridge-change';
+
+/** The one instruction Claude gets about it, wherever it is told how to explore. No em dash: it is copied as is. */
+export const CHANGE_MARKER_RULE = `Mark each new or changed area of the UI with ${CHANGE_MARKER_ATTR}="<short plain label>" on its outermost element (${CHANGE_MARKER_ATTR}="Orders waiting to ship alert"), so the Bridge toolbar can point at it.`;
+
+/**
  * The rules Claude follows on an exploration branch (request briefs, docs drafts, token edits with a target branch):
  * work there, never on main, and never open a pull request to main: the exploration's draft pull request is the place.
  */

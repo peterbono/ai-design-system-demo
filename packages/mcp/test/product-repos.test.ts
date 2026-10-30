@@ -146,6 +146,7 @@ describe('explorations in a product repository', () => {
     // The next step stays in the product repository: no token proposal on a branch the design system does not have.
     expect(resumed.next).toContain(`in a checkout of acme/shop`);
     expect(resumed.next).toContain('bridge_missing_pieces');
+    expect(resumed.next).toContain('so the Bridge toolbar can point at it');
     expect(resumed.next).not.toContain('bridge_propose');
 
     await pieces.missingPiecesOp(ctx, { pr: 'shop#1', record: true });

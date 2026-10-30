@@ -139,6 +139,7 @@ describe('connect merges', () => {
     const old = `# Mine\n\n${SECTION_START}\nold\n${SECTION_END}\n\nAfter.\n`;
     expect(mergeSection(old, section)).toBe(`# Mine\n\n${section}\n\nAfter.\n`);
     expect(mergeSection(null, section)).toBe(`${section}\n`);
+    expect(section).toContain('- Mark each new or changed area of the UI with data-bridge-change="<short plain label>"');
     expect(mergeMcpJson(null, 'acme/ds').change).toBe('created');
     expect(() => mergeMcpJson('{', 'acme/ds')).toThrow(/not valid JSON/);
   });
