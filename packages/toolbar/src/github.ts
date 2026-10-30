@@ -1,8 +1,9 @@
-// What the toolbar knows about a change, read anonymously from the public repository: its title and head commit, its
-// files (token change or code change, and which themes and brands its tokens touch), how far live has moved on since
-// it started, and the visual impact manifest of that commit. At most six API reads per change and session (GitHub
-// allows 60 an hour without a token), kept in sessionStorage. The manifest is looked up in the tree first, so a
-// change without one never shows a failed request.
+// What the toolbar knows about a change, read from the public repository through Bridge's read proxy (reads.ts; GitHub
+// directly when Bridge refuses): its title and head commit, its files (token change or code change, and which themes
+// and brands its tokens touch), how far live has moved on since it started, and the visual impact manifest of that
+// commit. At most six API reads per change and session, kept in sessionStorage. The manifest is looked up in the tree
+// first, so a change without one never shows a failed request.
+import { DEFAULT_PROXY, githubReads, type Reads } from './reads';
 import { changedScreens, changeMode, readableTitle, tokenChanges, type BridgeBuild, type ChangeMode, type ManifestShot, type Screen, type TokenChange } from './session';
 
 export interface ChangeFacts {
@@ -21,7 +22,6 @@ export interface ChangeFacts {
   screens: Screen[] | null;
 }
 
-const API = 'https://api.github.com';
 const VISUAL_BRANCH = 'bridge-visual';
 const cacheKey = (n: number) => `bridge-admin:facts:v3:${n}`;
 
@@ -33,25 +33,27 @@ function session(): Storage | null {
   }
 }
 
-async function json<T>(url: string): Promise<T> {
-  const r = await fetch(url, { headers: url.startsWith(API) ? { Accept: 'application/vnd.github+json' } : {} });
-  if (!r.ok) throw new Error(r.status === 403 || r.status === 429 ? 'GitHub limits reads without an account to 60 an hour. Try again later.' : `GitHub answered ${r.status}.`);
-  return (await r.json()) as T;
+/** The reads of a build: Bridge's proxy for its design system (the product's repository is one it lists), else GitHub. */
+export function readsOf(build: Pick<BridgeBuild, 'owner' | 'repo' | 'ds' | 'proxy'>): Reads {
+  return githubReads({ team: build.ds ?? `${build.owner}/${build.repo}`, proxy: build.proxy === undefined ? DEFAULT_PROXY : build.proxy });
 }
 
 type Tree = { tree: { path: string; type: string; sha: string }[] };
 
 /** The manifest of pr-<n>/<sha>/ on the visual impact branch, or null when that folder does not exist. */
-async function readManifest(R: string, raw: string, n: number, sha: string): Promise<{ shots?: ManifestShot[] } | null> {
-  const root = await json<Tree>(`${R}/git/trees/${VISUAL_BRANCH}`).catch(() => null);
+async function readManifest(gh: Reads, build: Pick<BridgeBuild, 'owner' | 'repo'>, R: string, n: number, sha: string): Promise<{ shots?: ManifestShot[] } | null> {
+  const root = await gh.api<Tree>(`${R}/git/trees/${VISUAL_BRANCH}`).catch(() => null);
   const pr = root?.tree.find((e) => e.path === `pr-${n}` && e.type === 'tree');
   if (!pr) return null;
-  const commits = await json<Tree>(`${R}/git/trees/${pr.sha}`).catch(() => null);
+  const commits = await gh.api<Tree>(`${R}/git/trees/${pr.sha}`).catch(() => null);
   if (!commits?.tree.some((e) => e.path === sha && e.type === 'tree')) return null;
-  return json<{ shots?: ManifestShot[] }>(`${raw}/${VISUAL_BRANCH}/pr-${n}/${sha}/manifest.json`).catch(() => null);
+  return gh
+    .file(build.owner, build.repo, VISUAL_BRANCH, `pr-${n}/${sha}/manifest.json`)
+    .then((t) => JSON.parse(t) as { shots?: ManifestShot[] })
+    .catch(() => null);
 }
 
-export async function loadChange(build: Pick<BridgeBuild, 'owner' | 'repo'>, n: number): Promise<ChangeFacts> {
+export async function loadChange(build: Pick<BridgeBuild, 'owner' | 'repo' | 'ds' | 'proxy'>, n: number, gh: Reads = readsOf(build)): Promise<ChangeFacts> {
   const store = session();
   try {
     const cached = store?.getItem(cacheKey(n));
@@ -59,16 +61,19 @@ export async function loadChange(build: Pick<BridgeBuild, 'owner' | 'repo'>, n: 
   } catch {
     // A broken cache entry is read again from GitHub.
   }
-  const R = `${API}/repos/${build.owner}/${build.repo}`;
-  const raw = `https://raw.githubusercontent.com/${build.owner}/${build.repo}`;
+  const R = `/repos/${build.owner}/${build.repo}`;
   const [pull, files] = await Promise.all([
-    json<{ number: number; title: string; html_url: string; head: { sha: string }; base: { ref: string; sha: string } }>(`${R}/pulls/${n}`),
-    json<{ filename: string; status: string; previous_filename?: string }[]>(`${R}/pulls/${n}/files?per_page=100`),
+    gh.api<{ number: number; title: string; html_url: string; head: { sha: string }; base: { ref: string; sha: string } }>(`${R}/pulls/${n}`),
+    gh.api<{ filename: string; status: string; previous_filename?: string }[]>(`${R}/pulls/${n}/files?per_page=100`),
   ]);
   // Token files at the base and the head of the change: the real diff, token by token. Added files have no base and
   // removed ones no head, so neither is asked for.
   const tokenFiles = files.filter((f) => f.filename.endsWith('.tokens.json')).slice(0, 8);
-  const version = (sha: string, path: string) => json<unknown>(`${raw}/${sha}/${path}`).catch(() => null);
+  const version = (sha: string, path: string) =>
+    gh
+      .file(build.owner, build.repo, sha, path)
+      .then((t) => JSON.parse(t) as unknown)
+      .catch(() => null);
   const tokenReads = Promise.all(
     tokenFiles.map(async (f) =>
       tokenChanges(
@@ -79,8 +84,8 @@ export async function loadChange(build: Pick<BridgeBuild, 'owner' | 'repo'>, n: 
     ),
   );
   const [compare, manifest, tokens] = await Promise.all([
-    json<{ behind_by?: number }>(`${R}/compare/${encodeURIComponent(pull.base.ref)}...${pull.head.sha}`).catch(() => null),
-    readManifest(R, raw, n, pull.head.sha),
+    gh.api<{ behind_by?: number }>(`${R}/compare/${encodeURIComponent(pull.base.ref)}...${pull.head.sha}`).catch(() => null),
+    readManifest(gh, build, R, n, pull.head.sha),
     tokenReads,
   ]);
   const names = files.map((f) => f.filename);
@@ -107,7 +112,7 @@ export async function loadChange(build: Pick<BridgeBuild, 'owner' | 'repo'>, n: 
 // Changes tried together (`?bridge=101,118,120`): no preview holds all of them, so the toolbar runs on the production
 // admin and applies their token edits live. For each change: its title and version (one read), one compare against
 // the library (the files it edits since it started, and where it started), then its token files at its start and now
-// from raw.githubusercontent.com (no API read). Two API reads per change.
+// (contents at a commit, kept for good by Bridge). Two API reads per change.
 
 export interface TogetherFacts {
   number: number;
@@ -121,7 +126,7 @@ export interface TogetherFacts {
 
 const togetherKey = (n: number) => `bridge-admin:together:v1:${n}`;
 
-export async function loadTogetherChange(build: Pick<BridgeBuild, 'owner' | 'repo' | 'defaultBranch' | 'tokensRoot'>, n: number): Promise<TogetherFacts> {
+export async function loadTogetherChange(build: Pick<BridgeBuild, 'owner' | 'repo' | 'defaultBranch' | 'tokensRoot' | 'ds' | 'proxy'>, n: number, gh: Reads = readsOf(build)): Promise<TogetherFacts> {
   const store = session();
   try {
     const cached = store?.getItem(togetherKey(n));
@@ -129,10 +134,9 @@ export async function loadTogetherChange(build: Pick<BridgeBuild, 'owner' | 'rep
   } catch {
     // A broken cache entry is read again from GitHub.
   }
-  const R = `${API}/repos/${build.owner}/${build.repo}`;
-  const raw = `https://raw.githubusercontent.com/${build.owner}/${build.repo}`;
-  const pull = await json<{ number: number; title: string; html_url: string; head: { sha: string }; base: { ref: string } }>(`${R}/pulls/${n}`);
-  const compare = await json<{ merge_base_commit?: { sha: string } | null; files?: { filename: string; status: string; previous_filename?: string }[] }>(
+  const R = `/repos/${build.owner}/${build.repo}`;
+  const pull = await gh.api<{ number: number; title: string; html_url: string; head: { sha: string }; base: { ref: string } }>(`${R}/pulls/${n}`);
+  const compare = await gh.api<{ merge_base_commit?: { sha: string } | null; files?: { filename: string; status: string; previous_filename?: string }[] }>(
     `${R}/compare/${encodeURIComponent(build.defaultBranch ?? pull.base.ref)}...${pull.head.sha}`,
   );
   const files = compare.files ?? [];
@@ -143,8 +147,7 @@ export async function loadTogetherChange(build: Pick<BridgeBuild, 'owner' | 'rep
   const start = compare.merge_base_commit?.sha;
   let source: TogetherFacts['source'] = null;
   if (tokenOnly && start) {
-    const text = (sha: string, path: string) =>
-      fetch(`${raw}/${sha}/${path.split('/').map(encodeURIComponent).join('/')}`).then((r) => (r.ok ? r.text() : Promise.reject(new Error(`GitHub answered ${r.status}.`))));
+    const text = (sha: string, path: string) => gh.file(build.owner, build.repo, sha, path);
     const mine = files.filter((f) => f.filename.startsWith(root) && f.filename.endsWith('.tokens.json'));
     const src = { number: n, base: {} as Record<string, string | undefined>, head: {} as Record<string, string | undefined>, files: mine.map((f) => f.filename.slice(root.length)) };
     await Promise.all(

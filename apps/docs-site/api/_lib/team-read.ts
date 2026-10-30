@@ -37,6 +37,11 @@
 //     the public demo teams (PUBLIC_TEAMS, and only while GitHub says the repository is public). `collaborators`
 //     only for members.
 //   - the token never leaves the server; no request header of the browser is passed on (Accept is re-validated).
+//   - another origin (a product's page with the Bridge toolbar) may read gh= and blobs= of a public demo team and its
+//     public product repositories, as a visitor: every cookie is ignored, and the answer carries
+//     Access-Control-Allow-Origin for that origin only (never credentials) when the team's bridge.config.json names
+//     it (previews.production, previews.apps, products[].production and .preview, `{branch}` one host label part) or
+//     it is a local dev server (http://localhost). Writes keep their CSRF rule (same origin, X-Bridge-Contribute).
 //
 // Cache (Upstash Redis, keys under bridge:read:):
 //   bridge:read:get:<repo>:<sha256(accept url)>   { status, etag, type, link, body, at }  a GET answer; fresh for
@@ -45,7 +50,8 @@
 //   bridge:read:blob:<repo>:<sha>                 a blob's text (content-addressed), BLOB_KEEP_S
 //   bridge:read:change:<repo>:<number>:<sha>      the reads of one change's status { at, reads }, shared by the
 //                                                 team's members while fresh (FRESH_MS, and no write since)
-//   bridge:read:products:<repo>                  the product repositories its bridge.config.json lists, PRODUCTS_KEEP_S
+//   bridge:read:products:<repo>                  { repos, origins }: the product repositories and the origins of the
+//                                                 pages and products its bridge.config.json lists, PRODUCTS_KEEP_S
 //   bridge:read:user:<login>                      a public profile { login, name, avatar_url, type } or "null", USER_KEEP_S
 //                                                 (public data, shared by every team)
 //   bridge:read:wrote:<repo>                      when a write went through Bridge (api/contribute): older answers
@@ -341,54 +347,123 @@ export async function isPublicRepo(ctx: ReadCtx, owner: string, repo: string): P
 // ---------------------------------------------------------------------------------------------------------------
 // Product repositories of a team
 
-/** How long the team's list of product repositories is kept. */
+/** How long the team's list of product repositories (and the origins of its products) is kept. */
 export const PRODUCTS_KEEP_S = 5 * 60;
 export const productsKey = (team: string) => `bridge:read:products:${team.toLowerCase()}`;
 const REPO_FULL = /^[\w.-]+\/[\w.-]+$/;
 
+/** What Bridge reads of a team's bridge.config.json for its reads: product repositories and product origins. */
+export interface TeamReadConfig {
+  /** Product repositories ("owner/name", lower case), never the team's own. */
+  repos: string[];
+  /** Origin templates of the team's pages and products (https, `{branch}` in the host for previews). */
+  origins: string[];
+}
+
 /**
- * The product repositories ("owner/name", lower case) the team's bridge.config.json lists (products[].repo), never
- * the team's own repository. Read on the default branch with the team's read token, kept PRODUCTS_KEEP_S. A team
- * without the file lists none; a read that fails lists none and is not kept.
+ * The https origins a config names for its apps and products: previews.production.*, previews.apps.* and
+ * products[].production / products[].preview. A preview template keeps `{branch}` (one host label part).
  */
-export async function productReposOf(ctx: ReadCtx, owner: string, repo: string): Promise<string[]> {
+export function originTemplatesOf(config: unknown): string[] {
+  const c = (config && typeof config === 'object' ? config : {}) as {
+    previews?: { apps?: Record<string, unknown>; production?: Record<string, unknown> };
+    products?: unknown;
+  };
+  const urls: unknown[] = [...Object.values(c.previews?.production ?? {}), ...Object.values(c.previews?.apps ?? {})];
+  if (Array.isArray(c.products)) for (const p of c.products) if (p && typeof p === 'object') urls.push((p as { production?: unknown }).production, (p as { preview?: unknown }).preview);
+  const out = new Set<string>();
+  for (const u of urls) {
+    if (typeof u !== 'string') continue;
+    const m = /^https:\/\/([a-z0-9.{}-]+)(?::\d+)?(?:[/?#]|$)/i.exec(u.trim());
+    if (!m || !/^[a-z0-9-]+(?:\{branch\}[a-z0-9-]*)?(?:\.[a-z0-9-]+)+$/i.test(m[1]!)) continue;
+    out.add(`https://${m[1]!.toLowerCase()}`);
+  }
+  return [...out];
+}
+
+/** A branch as Vercel puts it in a preview host: lower case letters, digits and dashes. */
+const BRANCH_LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+/** A page on this computer (a product's dev server): it only ever reads what any visitor of a public team reads. */
+const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
+
+/** Whether `origin` (exactly as the browser sends it) is one of `templates`, or a local dev server. */
+export function originAllowed(origin: string, templates: readonly string[]): boolean {
+  if (LOCAL_ORIGIN.test(origin)) return true;
+  const o = origin.toLowerCase();
+  return templates.some((t) => {
+    if (!t.includes('{branch}')) return o === t;
+    const [pre, post] = t.split('{branch}') as [string, string];
+    const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`^${esc(pre)}${BRANCH_LABEL}${esc(post)}$`).test(o);
+  });
+}
+
+/**
+ * The product repositories and product origins the team's bridge.config.json lists. Read on the default branch with
+ * the team's read token, kept PRODUCTS_KEEP_S. A team without the file lists none; a read that fails lists none and is
+ * not kept.
+ */
+export async function teamReadConfigOf(ctx: ReadCtx, owner: string, repo: string): Promise<TeamReadConfig> {
   const full = `${owner}/${repo}`.toLowerCase();
   const kept = await ctx.redis.cmd('GET', productsKey(full));
   if (typeof kept === 'string') {
     try {
-      const list = JSON.parse(kept) as unknown;
-      if (Array.isArray(list)) return list.filter((x): x is string => typeof x === 'string');
+      const v = JSON.parse(kept) as Partial<TeamReadConfig>;
+      // An entry kept before origins were listed is read again.
+      if (v && Array.isArray(v.repos) && Array.isArray(v.origins)) {
+        return { repos: v.repos.filter((x): x is string => typeof x === 'string'), origins: v.origins.filter((x): x is string => typeof x === 'string') };
+      }
     } catch {
       /* read it again */
     }
   }
+  const none: TeamReadConfig = { repos: [], origins: [] };
   // Deny by default: a config Bridge cannot read now (no app, GitHub busy or down) lists nothing, and is not kept.
   const token = await ctx.token(owner, repo).catch(() => null);
-  if (!token) return [];
+  if (!token) return none;
   const res = await upstream(ctx, `${API}/repos/${owner}/${repo}/contents/bridge.config.json`, token, 'application/vnd.github.raw', null).catch(() => null);
-  if (!res || (res.status !== 200 && res.status !== 404)) return [];
-  let list: string[] = [];
+  if (!res || (res.status !== 200 && res.status !== 404)) return none;
+  let out = none;
   if (res.status === 200) {
     try {
       const config = JSON.parse(await res.text()) as { products?: unknown };
-      if (Array.isArray(config.products)) {
-        list = [
-          ...new Set(
-            config.products
-              .map((p) => (p && typeof p === 'object' ? (p as { repo?: unknown }).repo : undefined))
-              .filter((r): r is string => typeof r === 'string' && REPO_FULL.test(r.trim()))
-              .map((r) => r.trim().toLowerCase())
-              .filter((r) => r !== full),
-          ),
-        ];
-      }
+      const repos = Array.isArray(config.products)
+        ? [
+            ...new Set(
+              config.products
+                .map((p) => (p && typeof p === 'object' ? (p as { repo?: unknown }).repo : undefined))
+                .filter((r): r is string => typeof r === 'string' && REPO_FULL.test(r.trim()))
+                .map((r) => r.trim().toLowerCase())
+                .filter((r) => r !== full),
+            ),
+          ]
+        : [];
+      out = { repos, origins: originTemplatesOf(config) };
     } catch {
-      list = [];
+      out = none;
     }
   }
-  await ctx.redis.cmd('SET', productsKey(full), JSON.stringify(list), 'EX', PRODUCTS_KEEP_S);
-  return list;
+  await ctx.redis.cmd('SET', productsKey(full), JSON.stringify(out), 'EX', PRODUCTS_KEEP_S);
+  return out;
 }
+
+/**
+ * The product repositories ("owner/name", lower case) the team's bridge.config.json lists (products[].repo), never
+ * the team's own repository (teamReadConfigOf).
+ */
+export async function productReposOf(ctx: ReadCtx, owner: string, repo: string): Promise<string[]> {
+  return (await teamReadConfigOf(ctx, owner, repo)).repos;
+}
+
+/**
+ * Headers that let a page of another origin read a GET answer: that origin only, never credentials. Only given to an
+ * origin the team's config names (originAllowed), and only on reads that ignored every cookie (a visitor's read).
+ */
+export const corsHeaders = (origin: string): Record<string, string> => ({
+  'Access-Control-Allow-Origin': origin,
+  'Access-Control-Expose-Headers': 'ETag, Link, X-Bridge-Cache',
+  Vary: 'Origin',
+});
 
 /** The Bridge app is not on a product repository: the page leaves that product out, the team's reads go on. */
 export const PRODUCT_MISSING = 'product_missing';

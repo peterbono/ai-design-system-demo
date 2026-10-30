@@ -574,3 +574,80 @@ describe('team reads: a product repository of the team', () => {
     expect(s.w.calls.some((c) => c.method !== 'GET')).toBe(false);
   });
 });
+
+describe('team reads: from another origin (the Bridge toolbar in a product)', () => {
+  const SHOP = 'peterbono/bridge-demo-shop';
+  const PROD = 'https://shop.example.com';
+  const PREVIEW = 'https://shop-git-{branch}-acme-projects.vercel.app';
+  const demoConfig = {
+    [DEMO]: JSON.stringify({
+      previews: { apps: { admin: 'https://admin-git-{branch}-acme-projects.vercel.app' }, production: { docs: ORIGIN, admin: 'https://demo.example.com' } },
+      products: [{ key: 'shop', name: 'Shop', repo: SHOP, preview: PREVIEW, production: `${PROD}/` }],
+    }),
+  };
+  const from = (origin: string, extra: Record<string, string> = {}) => ({ origin, 'sec-fetch-site': 'cross-site', ...extra });
+
+  it('a page the config names reads a public demo team and its public product, with CORS for that origin only, no credentials', async () => {
+    const s = setup({ configs: demoConfig, private: { [DEMO]: false, [SHOP]: false } });
+    for (const origin of ['https://demo.example.com', PROD, 'https://shop-git-explore-das-355771-acme-projects.vercel.app', 'https://admin-git-main-acme-projects.vercel.app', 'http://localhost:5180']) {
+      const r = await s.read(`${D}/pulls/1`, '', DEMO, from(origin));
+      expect(r.status, origin).toBe(200);
+      expect(r.headers.get('access-control-allow-origin')).toBe(origin);
+      expect(r.headers.get('access-control-allow-credentials')).toBeNull();
+      expect(r.headers.get('vary')).toBe('Origin');
+    }
+    const p = await s.read(`/repos/${SHOP}/pulls/1/files?per_page=100`, '', DEMO, from(PROD));
+    expect(p.status).toBe(200);
+    expect(p.headers.get('access-control-allow-origin')).toBe(PROD);
+    // The config is read once for every origin.
+    expect(gets(s.w, `${D}/contents/bridge.config.json`)).toBe(1);
+  });
+
+  it('refuses an origin the config does not name, without CORS headers and without reading GitHub', async () => {
+    const s = setup({ configs: demoConfig });
+    for (const origin of ['https://evil.example', 'https://shop-git-x.evil-acme-projects.vercel.app', 'https://shop-git-a.b-acme-projects.vercel.app', 'http://shop.example.com', 'https://shop.example.com.evil.example']) {
+      const r = await s.read(`${D}/pulls/1`, '', DEMO, from(origin));
+      expect(r.status, origin).toBe(403);
+      expect((await r.json()).error).toBe('origin');
+      expect(r.headers.get('access-control-allow-origin')).toBeNull();
+    }
+    expect(s.w.calls.some((c) => c.path.startsWith(`${D}/pulls`))).toBe(false);
+  });
+
+  it('reads as a visitor whatever cookie the browser sends: a private team or a members-only resource stays closed', async () => {
+    const s = setup({ configs: { ...demoConfig, [TEAM]: demoConfig[DEMO]! } });
+    const cookie = await s.member();
+    const team = await s.read(`${P}/pulls`, cookie, TEAM, from(PROD));
+    expect(team.status).toBe(401);
+    expect(team.headers.get('access-control-allow-origin')).toBeNull();
+    const collab = await s.read(`${D}/collaborators`, cookie, DEMO, from(PROD));
+    expect(collab.status).toBe(403);
+  });
+
+  it('serves gh= and blobs= only: no member facts, people or change status, and writes keep the CSRF rule', async () => {
+    const s = setup({ configs: demoConfig, blobs: { [SHA('a')]: 'x' } });
+    const blob = await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${DEMO}&blobs=${SHA('a')}`, { headers: { host: HOST, ...from(PROD) } }), ENV, s.deps);
+    expect(blob.status).toBe(200);
+    expect(blob.headers.get('access-control-allow-origin')).toBe(PROD);
+    for (const q of ['', '&mine=1', '&members=1', '&users=dana', `&changes=1:${SHA('a')}`]) {
+      const r = await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${DEMO}${q}`, { headers: { host: HOST, ...from(PROD) } }), ENV, s.deps);
+      expect(r.status, q).toBe(403);
+      expect(r.headers.get('access-control-allow-origin')).toBeNull();
+    }
+    const write = await handleContribute(
+      new Request(`${ORIGIN}/api/contribute?repo=${DEMO}&gh=${encodeURIComponent(`${D}/issues`)}`, { method: 'POST', headers: { host: HOST, 'x-bridge-contribute': '1', 'content-type': 'application/json', ...from(PROD) }, body: '{}' }),
+      ENV,
+      s.deps,
+    );
+    expect(write.status).toBe(403);
+    expect(write.headers.get('access-control-allow-origin')).toBeNull();
+    expect(s.w.calls.some((c) => c.method !== 'GET')).toBe(false);
+  });
+
+  it('a same-origin read (Studio) gets no CORS headers', async () => {
+    const s = setup({ configs: demoConfig });
+    const r = await s.read(`${D}/pulls/1`, '', DEMO, { origin: ORIGIN, 'sec-fetch-site': 'same-origin' });
+    expect(r.status).toBe(200);
+    expect(r.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});

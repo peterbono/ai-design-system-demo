@@ -550,6 +550,15 @@ instead of one request per file.
   product out of its lists without marking the team's reads down (Settings says it). A visitor of a public demo team
   also needs the product repository to be public. Writes to a product repository never go through Bridge: people
   signed in with GitHub write there with their own token.
+- **Other origins** (the Bridge toolbar, `@bridge-ds/toolbar`, in a product): a `GET` of `gh=` or `blobs=` from a
+  page of another origin reads as a visitor of a public demo team, whatever cookie the browser sends, and gets
+  `Access-Control-Allow-Origin` for that origin only (with `Vary: Origin`, never `Access-Control-Allow-Credentials`)
+  when the team's `bridge.config.json` names it: `previews.production.*`, `previews.apps.*`, `products[].production`
+  and `products[].preview` (`{branch}` matches one host label part, as Vercel names a branch preview), kept with the
+  product repositories in `bridge:read:products:<team>`; a local dev server (`http://localhost:<port>`) too. Any other
+  origin, a private team, or anything but `gh=` and `blobs=` answers 403 `origin` (401 for a private team) without
+  CORS headers. The toolbar sends simple requests (`Accept` only, no credentials): no preflight. Writes keep the CSRF
+  rule above.
 
 ### Cache and limits
 

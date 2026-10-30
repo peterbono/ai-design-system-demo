@@ -15,6 +15,12 @@ export interface BridgeToolbarProps {
   studio?: string | null;
   production?: string | null;
   preview?: string | null;
+  /**
+   * Bridge's origin, whose read proxy serves the toolbar's GitHub reads (no limit of 60 an hour per visitor). Default
+   * production Bridge (https://bridge.floriangouloubi.com); null reads GitHub directly. GitHub directly anyway when
+   * Bridge refuses or cannot be reached.
+   */
+  proxy?: string | null;
   /** The deploy environment ("production", "preview"), when the host tells it at build time (VERCEL_ENV). */
   deployEnv?: string | null;
   /** Every fact at once, read at build time: no config read at run time (the Admin demo passes it). */

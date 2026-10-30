@@ -47,5 +47,10 @@ live tokens). `bridge connect` prints this line with your values.
 | `scope` | A hook returning `{ theme, brand, density, shop, set }` when your app keeps theme and shop in state. Default: the `data-theme`, `data-brand` and `data-density` attributes `ThemeProvider asRoot` puts on `<html>`. |
 | `shops` | `{ id, name, brand }[]` of a multi-brand product, for the screens list and "Switch to <shop>". |
 | `together` | A loader of the latest library's token files (`togetherBase` from `@bridge-ds/toolbar/together`), so Studio's "Try them together" runs on your production. |
+| `proxy` | Bridge's origin, whose read proxy serves the toolbar's GitHub reads. Default `https://bridge.floriangouloubi.com`; `null` reads GitHub directly. |
 
-Reads are anonymous (public repositories): at most a few GitHub API reads per change and session.
+Reads go through Bridge's read proxy (`<proxy>/api/contribute?repo=<ds>&gh=<path>`: allow-listed, cached, read-only
+on the server), so visitors never meet GitHub's limit of 60 anonymous reads an hour. Bridge serves a public design
+system and the public product repositories its `bridge.config.json` lists, to the origins that config names
+(`production` and `preview` of each product, and localhost). When Bridge refuses or cannot be reached, the toolbar
+reads GitHub directly (anonymous, public repositories): at most a few API reads per change and session.
