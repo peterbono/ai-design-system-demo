@@ -187,6 +187,13 @@
   gap: var(--space-6);
 }
 
+/* X2: "Open the preview" and "Continue in Claude" read as one group: one row of two equal buttons under the frame,
+   stacked on phones. A grid, so each button fills its cell (Button itself never grows in a flex row). */
+.xp-preview-acts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .xp-continue .xp-claude {
   flex: none;
   margin-inline-end: var(--space-1-5);
@@ -375,6 +382,10 @@
 
   .xp-acts > * {
     flex: 1 1 100%;
+  }
+
+  .xp-preview-acts {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .xp-dev-row {

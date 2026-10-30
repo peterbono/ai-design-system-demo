@@ -96,19 +96,22 @@ describe('ExplorationPage, exploring (X2)', () => {
     expect(screen.queryByRole('heading', { name: 'Nothing built yet' })).toBeNull();
   });
 
-  it('Try it in the product opens the product with the Bridge toolbar, next to Open the preview', () => {
+  it('Open the preview opens the product with the Bridge toolbar when it has one; no second preview button', () => {
     paint({ ...exploring, tryUrl: 'https://bridge-admin-git-explore.example.com/?bridge=611' });
-    const links = screen.getAllByRole('link').map((l) => l.textContent);
-    expect(links.indexOf('Try it in the product')).toBe(links.findIndex((t) => /Open the preview/.test(t ?? '')) + 1);
-    expect(screen.getByRole('link', { name: 'Try it in the product' }).getAttribute('href')).toBe('https://bridge-admin-git-explore.example.com/?bridge=611');
+    expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://bridge-admin-git-explore.example.com/?bridge=611');
+    expect(screen.queryByRole('link', { name: /Try it in the product/ })).toBeNull();
+    const acts = screen.getByRole('link', { name: /Open the preview/ }).parentElement!;
+    expect(within(acts).getByRole('button', { name: /Continue in Claude/ })).toBeTruthy();
+    expect(acts.children).toHaveLength(2);
   });
 
-  it('no Try it in the product without a toolbar link, or before the preview exists', () => {
+  it('without a toolbar link it opens the plain preview, and before the preview exists it waits', () => {
     paint(exploring);
-    expect(screen.queryByRole('link', { name: 'Try it in the product' })).toBeNull();
+    expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://bridge-admin-git-explore.example.com/');
     cleanup();
     paint({ ...exploring, previewUrl: null, tryUrl: 'https://x.example.com/?bridge=611', previewNote: 'Your preview appears a few minutes after each change.' });
-    expect(screen.queryByRole('link', { name: 'Try it in the product' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Open the preview/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Try it in the product/ })).toBeNull();
   });
 
   it('shows the Done exploring card and the last 3 events', () => {

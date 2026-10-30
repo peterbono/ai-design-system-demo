@@ -3,8 +3,9 @@
 //   yet" panel with the line to paste in Claude (Claude app or Terminal), "Continue in Claude" (copies the line),
 //   "See the product today", and an empty "Your preview" frame.
 // - X2, exploring: "Exploring", who changed what and when, the preview (a captured image when Bridge has one, else a
-//   neutral frame) with "Open the preview", "Try it in the product" (the product with the Bridge toolbar, Before and
-//   After) and "Continue in Claude", the Harbor card "Happy with it?" (Done exploring), and the last 3 events.
+//   neutral frame) with one group of actions: "Open the preview" (with the Bridge toolbar, Before and After, when the
+//   product supports it) and "Continue in Claude", the Harbor card "Happy with it?" (Done exploring), and the last 3
+//   events.
 // The "..." menu holds Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
 // over lib/exploration-page.ts. Styles: styles/exploration-page.css.
 import { useState } from 'react';
@@ -38,7 +39,8 @@ export interface ExplorationPageProps {
   previewUrl: string | null;
   /**
    * X2: the same build opened with the Bridge toolbar (`?bridge=<n>`): Live product and This change on the same screen.
-   * Null for the library's apps and for a product without a production URL (no Before to flip to).
+   * "Open the preview" opens it instead of the plain build when set. Null for the library's apps and for a product
+   * without a production URL (no Before to flip to).
    */
   tryUrl?: string | null;
   previewNote: string | null;
@@ -264,9 +266,10 @@ export function ExplorationPage(p: ExplorationPageProps) {
             ) : (
               <EmptyFrame label={null} />
             )}
-            <div className="xp-acts">
+            <div className="xp-acts xp-preview-acts">
               {p.previewUrl ? (
-                <ButtonLink variant="primary" size="lg" href={p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
+                // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
+                <ButtonLink variant="primary" size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
                   Open the preview
                 </ButtonLink>
               ) : p.previewBuilding ? (
@@ -278,13 +281,6 @@ export function ExplorationPage(p: ExplorationPageProps) {
                 <Button variant="primary" size="lg" disabled aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
                   Open the preview
                 </Button>
-              )}
-              {p.previewUrl && p.tryUrl && (
-                <Tooltip content="Flip between the live product and this exploration, on the same screen">
-                  <ButtonLink variant="secondary" size="lg" href={p.tryUrl} target="_blank" rel="noopener">
-                    Try it in the product
-                  </ButtonLink>
-                </Tooltip>
               )}
               <ContinueButton p={p} line={p.lines.app} say={setSaid} variant="secondary" />
             </div>
