@@ -1,6 +1,6 @@
 // Explorations and product branches that live in a product's own repository (bridge.config.json products[].repo),
 // for Claude and the CLI: a client per product repository with the same token, and which repository a reference
-// means. "shop#12", "peterbono/bridge-demo-shop#12", "shop:checkout-flow" and a pull request link name one in a
+// means. "admin-app#12", "peterbono/bridge-product-admin#12", "admin-app:checkout-flow" and a pull request link name one in a
 // product's repository; "12", "#12" and a plain name stay in the design system repository, and a plain name not found
 // there is looked up in the product repositories too. Run inside a connected product repository (.bridge/product.json),
 // "12", "#12" and a name mean that product's own explorations first. The reference rules are @bridge-ds/core's (parseExplorationRef).

@@ -42,8 +42,7 @@ the npm package, as on main; to try library changes that are not released yet, i
 branch (`npm i @bridge-ds/react@<snapshot>`, below). A product that is a folder of the design system repository (the
 Admin demo) and the demo workspace keep their explorations in the design system repository. Here, Product admin
 (`admin-app`, [peterbono/bridge-product-admin](https://github.com/peterbono/bridge-product-admin), a copy of the Admin
-demo built with the library from npm) and the Demo shop (`shop`,
-[peterbono/bridge-demo-shop](https://github.com/peterbono/bridge-demo-shop)) are products with their own repository:
+demo built with the library from npm) is a product with its own repository:
 their explorations are `explore/*` branches there, each with a Vercel preview. When Bridge cannot reach
 the product repository (Bridge not installed on it, or no write access), Studio's "Create branch" says so in one
 line with **Ask an admin to connect <product>** (it copies a message for an admin) and starts it in the design system
