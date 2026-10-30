@@ -7,7 +7,7 @@
 import { archiveExplorationOnGitHub, explorationStage, type BranchCommitLike, type ProductConfig } from '@bridge-ds/core';
 import { activityRows, doneActionFor, faceOf, gitNamesOf, headlineOf, libraryPreviewApp, pageLines, startedTail, type DoneAction } from '../lib/exploration-page';
 import { ARCHIVED_LINE, explorationKey, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
-import { developerLines, productCrumbs, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
+import { developerLines, productCrumbs, productProduction, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
 import { touchesVisuals } from '../lib/visual-impact';
 import { jiraKeyOf } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
@@ -115,6 +115,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       todayUrl: null,
       headline: null,
       previewUrl: null,
+      tryUrl: null,
       previewNote: null,
       thumb: null,
       activity: null,
@@ -158,9 +159,11 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const names = { ...gitNamesOf(commits), ...(await (connected() ? namesOf(logins) : publicName(r.author)).catch(() => ({}) as Record<string, string>)) };
   if (current?.key !== key) return;
   const preview = productPreviewOf(r, reported, app);
-  // The branch's own build: the Bridge toolbar on the product, the plain link on the library's apps.
-  const v = tryInProductView(preview, { tryUrl: isLibrary ? (u) => safeUrl(u) || null : withToolbar(r), todayUrl, files });
+  // The branch's own build, as is. Try it in the product opens the same build with the Bridge toolbar, for a product
+  // whose production Bridge knows (Live product, the Before side); never for the library's apps.
+  const v = tryInProductView(preview, { tryUrl: (u) => safeUrl(u) || null, todayUrl, files });
   const previewUrl = v.state === 'branch' ? v.url : v.state === 'today' ? todayUrl : null;
+  const tryUrl = v.state === 'branch' && v.url && !isLibrary && productProduction(product, own ? null : CFG.production) ? withToolbar(r)(v.url) : null;
   const previewBuilding = v.state === 'building';
   const previewNote = v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
   repaint(d, key, {
@@ -171,6 +174,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     headline: headlineOf({ commits, files, author: r.author, names }),
     activity: activityRows({ commits, author: r.author, startedAt: pull.created_at ?? null, names }),
     previewUrl,
+    tryUrl,
     previewNote,
     previewBuilding,
   });

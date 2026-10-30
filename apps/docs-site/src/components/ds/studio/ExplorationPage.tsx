@@ -3,8 +3,8 @@
 //   yet" panel with the line to paste in Claude (Claude app or Terminal), "Continue in Claude" (copies the line),
 //   "See the product today", and an empty "Your preview" frame.
 // - X2, exploring: "Exploring", who changed what and when, the preview (a captured image when Bridge has one, else a
-//   neutral frame) with "Open the preview" and "Continue in Claude", the Harbor card "Happy with it?" (Done
-//   exploring), and the last 3 events.
+//   neutral frame) with "Open the preview", "Try it in the product" (the product with the Bridge toolbar, Before and
+//   After) and "Continue in Claude", the Harbor card "Happy with it?" (Done exploring), and the last 3 events.
 // The "..." menu holds Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
 // over lib/exploration-page.ts. Styles: styles/exploration-page.css.
 import { useState } from 'react';
@@ -36,6 +36,11 @@ export interface ExplorationPageProps {
   headline: ActivityRow | null;
   /** X2: the branch's own build; null while it has none (the note says why in words). */
   previewUrl: string | null;
+  /**
+   * X2: the same build opened with the Bridge toolbar (`?bridge=<n>`): Live product and This change on the same screen.
+   * Null for the library's apps and for a product without a production URL (no Before to flip to).
+   */
+  tryUrl?: string | null;
   previewNote: string | null;
   /** X2: the preview is building: the button reads "Preview is building" with a spinner, at full contrast. */
   previewBuilding?: boolean;
@@ -274,7 +279,14 @@ export function ExplorationPage(p: ExplorationPageProps) {
                   Open the preview
                 </Button>
               )}
-              <ContinueButton p={p} line={p.lines.app} say={setSaid} variant="secondary" />
+              {p.previewUrl && p.tryUrl && (
+                <Tooltip content="Flip between the live product and this exploration, on the same screen">
+                  <ButtonLink variant="secondary" size="lg" href={p.tryUrl} target="_blank" rel="noopener">
+                    Try it in the product
+                  </ButtonLink>
+                </Tooltip>
+              )}
+              <ContinueButton p={p} line={p.lines.app} say={setSaid} variant="secondary" size="lg" />
             </div>
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
               <p className="xp-muted xp-note" id="xp-preview-note">

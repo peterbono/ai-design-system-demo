@@ -159,12 +159,20 @@ export interface TryInProductView {
 export const notesOnly = (files: readonly string[] | null | undefined): boolean => Boolean(files?.length) && files!.every((f) => f.startsWith('.bridge/'));
 
 /**
- * The product as it is today: its production URL (bridge.config.json previews.production, by product key), else its
- * preview pattern on the default branch. Null when neither is set up.
+ * The product in production: its own `production` (bridge.config.json products[]), else previews.production by its
+ * key. Null when neither is set: the Bridge toolbar then has no Live product to flip to.
  */
-export function productTodayUrl(product: Pick<ProductConfig, 'key' | 'preview'>, ctx: { production?: PreviewApps | null; defaultBranch?: string | null } = {}): string | null {
+export function productProduction(product: Pick<ProductConfig, 'key' | 'production'>, production?: PreviewApps | null): string | null {
+  return previewUrl(product.production ?? production?.[product.key as keyof PreviewApps], { branch: 'main' });
+}
+
+/**
+ * The product as it is today: its production URL (productProduction), else its preview pattern on the default branch.
+ * Null when neither is set up.
+ */
+export function productTodayUrl(product: Pick<ProductConfig, 'key' | 'preview' | 'production'>, ctx: { production?: PreviewApps | null; defaultBranch?: string | null } = {}): string | null {
   const ref = { branch: ctx.defaultBranch || 'main' };
-  return previewUrl(ctx.production?.[product.key as keyof PreviewApps], ref) ?? previewUrl(product.preview, ref);
+  return productProduction(product, ctx.production) ?? previewUrl(product.preview, ref);
 }
 
 /**

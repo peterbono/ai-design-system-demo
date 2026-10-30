@@ -96,6 +96,21 @@ describe('ExplorationPage, exploring (X2)', () => {
     expect(screen.queryByRole('heading', { name: 'Nothing built yet' })).toBeNull();
   });
 
+  it('Try it in the product opens the product with the Bridge toolbar, next to Open the preview', () => {
+    paint({ ...exploring, tryUrl: 'https://bridge-admin-git-explore.example.com/?bridge=611' });
+    const links = screen.getAllByRole('link').map((l) => l.textContent);
+    expect(links.indexOf('Try it in the product')).toBe(links.findIndex((t) => /Open the preview/.test(t ?? '')) + 1);
+    expect(screen.getByRole('link', { name: 'Try it in the product' }).getAttribute('href')).toBe('https://bridge-admin-git-explore.example.com/?bridge=611');
+  });
+
+  it('no Try it in the product without a toolbar link, or before the preview exists', () => {
+    paint(exploring);
+    expect(screen.queryByRole('link', { name: 'Try it in the product' })).toBeNull();
+    cleanup();
+    paint({ ...exploring, previewUrl: null, tryUrl: 'https://x.example.com/?bridge=611', previewNote: 'Your preview appears a few minutes after each change.' });
+    expect(screen.queryByRole('link', { name: 'Try it in the product' })).toBeNull();
+  });
+
   it('shows the Done exploring card and the last 3 events', () => {
     const onDone = vi.fn();
     paint({ ...exploring, onDone });
