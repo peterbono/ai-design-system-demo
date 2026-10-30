@@ -3,7 +3,11 @@
 // requests), each kept in sessionStorage for 5 minutes and shared by every reader of the page. The sample team of the
 // demo reads its sample data (lib/building-sample.ts) and never GitHub. Rules: lib/building-view.ts and
 // @bridge-ds/core build-requests.ts.
+// Being built also lists Claude's fixes (the fix sessions of the team's Claude, api/mcp ?view=sessions) as rows of the
+// same list, reconciled with the pull requests read here (lib/claude-connector fixRows). They stay out of `views`, so
+// the home line and "Figma is ahead" count build requests only.
 import { assembleBuildRequests, BUILD_REQUEST_LABEL, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient } from '@bridge-ds/core';
+import { fixRows, isLoginLike, parseSession, type FixRow, type Session } from '../lib/claude-connector';
 import { isSampleTeam } from '../lib/demo';
 import { BUILD_CACHE_MS, buildCacheKey, slimIssue, slimPull, toBuildIssue, toBuildPull, type RestIssue, type RestPull } from '../lib/building-view';
 import { sampleBuildData, SAMPLE_BUILDERS } from '../lib/building-sample';
@@ -23,6 +27,29 @@ export interface BuildData {
   nameOf: (login: string) => string;
   /** integrations.jira.baseUrl, for the Jira links. */
   jiraBase: string | null;
+  /** Claude's fixes, as rows of the list (none on the sample team, or when the site has no connector). */
+  fixes?: FixRow[];
+  /** The pull requests read, so the fixes can be read again while Claude works without reading GitHub again. */
+  pulls?: RestPull[];
+}
+
+const noRepoPage = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-no-repo');
+
+/** The team's fix sessions, or none (no connector here, signed out, the sample team). */
+async function readSessions(repo: string): Promise<Session[]> {
+  if (noRepoPage() || isSampleTeam(repo)) return [];
+  try {
+    const api = await import('./connector-api');
+    return (await api.listFixSessions(repo)).map(parseSession).filter((s): s is Session => Boolean(s));
+  } catch {
+    return [];
+  }
+}
+
+/** Claude's fixes read again (every 10 seconds while Claude works), against the pull requests already read. */
+export async function readFixes(data: Pick<BuildData, 'pulls' | 'nameOf' | 'sample'>): Promise<FixRow[]> {
+  if (data.sample) return [];
+  return fixRows(await readSessions(repoName()), data.pulls ?? [], Date.now(), data.nameOf);
 }
 
 const repoName = () => {
@@ -97,18 +124,21 @@ async function read(): Promise<BuildData> {
   }
   const R = `/repos/${repo}`;
   const issuePath = (label: string) => `${R}/issues?labels=${encodeURIComponent(label)}&state=all&per_page=100&sort=created&direction=desc`;
-  const [requests, builds, pulls] = await Promise.all([
+  const [requests, builds, pulls, sessions] = await Promise.all([
     list<RestIssue>(repo, 'requests', issuePath(REQUEST_LABEL), slimIssue),
     list<RestIssue>(repo, 'builds', issuePath(BUILD_REQUEST_LABEL), slimIssue),
     list<RestPull>(repo, 'pulls', `${R}/pulls?state=all&per_page=100&sort=updated&direction=desc`, slimPull),
+    readSessions(repo),
   ]);
   const seen = new Set<number>();
   // The issues list also answers pull requests carrying the label (a library branch from Figma): they come from the
   // pull request list instead.
   const issues = [...requests.data, ...builds.data].filter((i) => !i.pull_request && !seen.has(i.number) && seen.add(i.number));
   // Builders and senders by their profile names, as Branches shows them (people.ts), not by their GitHub login.
-  const logins = [...issues.flatMap((i) => [i.user?.login, ...(i.assignees ?? []).map((a) => a.login)]), ...pulls.data.map((p) => p.user?.login)].filter((l): l is string => Boolean(l));
-  const names = await lookUpNames(logins).catch(() => knownNames());
+  // Who asked Claude for a fix too (the connector grant's GitHub login): a name the server wrote stays as written.
+  const askers = sessions.flatMap((s) => s.steps.map((x) => x.by)).filter(isLoginLike);
+  const logins = [...issues.flatMap((i) => [i.user?.login, ...(i.assignees ?? []).map((a) => a.login)]), ...pulls.data.map((p) => p.user?.login), ...askers].filter((l): l is string => Boolean(l));
+  const names = await lookUpNames([...new Set(logins)]).catch(() => knownNames());
   const nameOf = (l: string) => personName(l, names);
   return {
     views: assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.data.map(toBuildPull), now, nameOf }),
@@ -117,6 +147,8 @@ async function read(): Promise<BuildData> {
     stale: requests.stale || builds.stale || pulls.stale,
     nameOf,
     jiraBase: jiraBase(),
+    fixes: fixRows(sessions, pulls.data, now, nameOf),
+    pulls: pulls.data,
   };
 }
 
