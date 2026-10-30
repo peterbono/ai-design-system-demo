@@ -28,7 +28,7 @@ describe('who keeps an exploration', () => {
     expect(canKeepExploration({ viewer: null, author: 'ana', reviewer: true, write: true })).toBe(false);
   });
   it('says who can, in designer words', () => {
-    expect(keepExplorationLine('ana')).toBe('Only @ana, who started it, or a reviewer can send it for review or close it.');
+    expect(keepExplorationLine('ana')).toBe('Only @ana, who started it, or a reviewer can say it is done exploring or archive it.');
     for (const t of [keepExplorationLine('ana'), READER_SUGGESTS]) expect(t).not.toMatch(/\b(PR|pull request|branch|merge|repo)\b|—/i);
   });
 });

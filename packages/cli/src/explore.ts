@@ -1,5 +1,6 @@
-// bridge explore: start, list, promote and close explorations (explore/<slug> branches with a draft pull request
-// labeled exploration, previews and snapshot packages for a product staging branch). See docs/EXPLORATIONS.md.
+// bridge explore: start, list, done (promote is its old name), archive and close explorations (explore/<slug> branches
+// with a draft pull request labeled exploration, previews and snapshot packages for a product staging branch). See
+// docs/EXPLORATIONS.md.
 import { EXPLORATION_STATUS_LABEL, EXPLORATION_USE_CASES } from '@bridge-ds/core';
 import { explorations } from '@bridge-ds/mcp';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
@@ -15,14 +16,21 @@ Usage:
                      repository when bridge.config.json gives it one (products[].repo), else in the design
                      system repository (--in-library: always there). Without a token, in a git repo: a local
                      branch only, nothing pushed. The purpose is optional
-  bridge explore list [--all] [--json]
-                     running and promoted explorations, with the preview links Vercel reports, the install
-                     command from the pull request (once the snapshot is built) and the requests implemented
-                     on each (--all: closed ones too)
-  bridge explore promote <name|#pr> [--dry-run] [--json]
-                     ready for review, tier labels, exploration label and note removed (never merges)
+  bridge explore list [--all] [--archived] [--json]
+                     running explorations and the ones with the developers, with the preview links Vercel
+                     reports, the install command from the pull request (once the snapshot is built) and the
+                     requests implemented on each (--all: closed ones too; --archived: only archived ones)
+  bridge explore done <name|#pr> [--piece <id> ...] [--dry-run] [--json]
+                     done exploring: each --piece (ids from bridge pieces) becomes a request for the DS lead
+                     with the preview link; the exploration label and note go, ready-for-devs comes, and
+                     developers continue on the branch. Never closes, merges or marks it ready
+                     (promote is the old name of done)
+  bridge explore archive <name|#pr> [--json]
+  bridge explore unarchive <name|#pr> [--json]
+                     hide it from the lists (the archived label) or bring it back; the pull request and
+                     its preview stay open
   bridge explore close <name|#pr> [--json]
-                     close it without merging; the branch stays
+                     close it without merging; the branch stays, the preview is removed (prefer archive)
 
 Work on one: git switch explore/<name>, then \`bridge propose --branch explore/<name> ...\`,
 \`bridge request implement <n> --branch explore/<name>\`, or Claude with the Bridge MCP server.
@@ -73,7 +81,7 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
     }
     case 'list': {
       const ctx = await context(root, io, a, 'read');
-      const r = await explorations.listExplorations(ctx, { state: has(a, 'all') ? 'all' : 'open' });
+      const r = await explorations.listExplorations(ctx, { state: has(a, 'all') ? 'all' : 'open', archived: has(a, 'archived') });
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
       io.print(r.summary);
       for (const x of r.explorations) {
@@ -88,17 +96,32 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       if (!r.explorations.length) io.print('Start one: bridge explore start "Pill buttons" --purpose "Do rounder buttons feel friendlier?"');
       return 0;
     }
+    case 'done':
     case 'promote': {
       const ref = a._.slice(2).join(' ').trim();
-      if (!ref) throw new RequestUsageError('Usage: bridge explore promote <name|#pr> [--dry-run]');
+      if (!ref) throw new RequestUsageError('Usage: bridge explore done <name|#pr> [--piece <id> ...] [--dry-run]');
       const ctx = await context(root, io, a, has(a, 'dry-run') ? 'read' : 'write');
-      const r = (await explorations.promoteExploration(ctx, { ref, dryRun: has(a, 'dry-run') })) as Record<string, any>;
+      const r = await explorations.doneExploring(ctx, { ref, pieces: a.flags.piece ?? [], dryRun: has(a, 'dry-run'), ...exploreSource(io.env) });
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
-      io.print(`${r.status === 'dry-run' ? 'Dry run: would promote' : 'Promoted'} #${r.number} "${r.title}" to review: Tier ${r.tier}.`);
-      io.print(`Labels: +${r.addLabels.join(', +')}, -${r.removeLabels.join(', -')}${r.removeFiles.length ? `. Removes ${r.removeFiles.join(', ')}` : ''}.`);
-      if (r.closes.length) io.print(`Closes requests #${r.closes.join(', #')} when it merges.`);
+      const lead = r.status === 'dry-run' ? 'Dry run: done exploring' : r.status === 'already-done' ? 'Already done exploring' : 'Done exploring';
+      io.print(`${lead} #${r.number} (${r.branch}). Nothing closed or merged: the preview stays.`);
+      if (r.labels) io.print(`Labels: +${r.labels.add.join(', +')}, -${r.labels.remove.join(', -')}${r.removeFiles.length ? `. Removes ${r.removeFiles.join(', ')}` : ''}.`);
+      for (const q of r.requests) io.print(`${r.status === 'dry-run' ? 'Would request' : 'Requested'}: ${q.title}${q.number ? ` #${q.number} ${q.url}` : ''}`);
+      for (const q of r.alreadySent) io.print(`Already sent: ${q.piece} #${q.number}`);
+      for (const q of r.notProposed) io.print(`Not proposed: ${q.id} (${q.title})`);
+      io.print(`\nFor developers: ${r.forDevelopers.take.join(' && ')}\n${r.forDevelopers.note}`);
       for (const w of r.warnings) io.error(`Warning: ${w}`);
       io.print(r.url);
+      return 0;
+    }
+    case 'archive':
+    case 'unarchive': {
+      const ref = a._.slice(2).join(' ').trim();
+      if (!ref) throw new RequestUsageError(`Usage: bridge explore ${sub} <name|#pr>`);
+      const ctx = await context(root, io, a, 'write');
+      const r = await explorations.archiveExploration(ctx, { ref, archived: sub === 'archive' });
+      if (json) return io.print(JSON.stringify(r, null, 2)), 0;
+      io.print(`${r.archived ? 'Archived' : 'Unarchived'} #${r.number} (${r.branch}). ${r.next} ${r.url}`);
       return 0;
     }
     case 'close': {
@@ -107,7 +130,7 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       const ctx = await context(root, io, a, 'write');
       const r = await explorations.closeExploration(ctx, { ref });
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
-      io.print(`Closed #${r.number} (${r.branch}). The branch stays; the preview prerelease is removed. ${r.url}`);
+      io.print(`Closed #${r.number} (${r.branch}). The branch stays; the preview prerelease is removed (archive keeps it). ${r.url}`);
       return 0;
     }
     default:

@@ -128,17 +128,31 @@ describe('explorations on GitHub', () => {
     expect(list.explorations[0]).toMatchObject({ number: 1, slug: 'pill-buttons', status: 'active', purpose: 'Rounder buttons.' });
     expect(list.explorations[0]!.requests.map((r) => r.number)).toEqual([req.number]);
 
-    const dry = (await explorations.promoteExploration(ctx, { ref: 'pill-buttons', dryRun: true })) as any;
-    expect(dry).toMatchObject({ status: 'dry-run', tier: 3, closes: [req.number] });
-    expect(gh.pulls[0]!.draft).toBe(true);
+    const dry = (await explorations.doneExploring(ctx, { ref: 'pill-buttons', dryRun: true })) as any;
+    expect(dry).toMatchObject({ status: 'dry-run', labels: { add: ['ready-for-devs'], remove: ['exploration'] }, requests: [] });
+    expect(gh.pulls[0]!.labels.map((l: any) => l.name)).toContain('exploration');
 
+    // The old tool name runs Done exploring: nothing closes, merges or turns ready for review.
     const done = (await explorations.promoteExploration(ctx, { ref: 'explore/pill-buttons' })) as any;
-    expect(done).toMatchObject({ status: 'promoted', number: 1, tier: 3, warnings: [] });
-    expect(gh.pulls[0]!.draft).toBe(false);
-    expect(gh.pulls[0]!.labels.map((l: any) => l.name).sort()).toEqual(['tier: 3', 'tokens']);
-    expect(gh.pulls[0]!.body).toContain(`Closes #${req.number}`);
+    expect(done).toMatchObject({ status: 'done-exploring', number: 1, exploration: 'ready', warnings: [] });
+    expect(done.forDevelopers.take).toEqual(['git fetch origin', 'git checkout explore/pill-buttons']);
+    expect(done.forDevelopers.note).toMatch(/starting point/);
+    expect(done.next).toMatch(/not checked against the library/);
+    expect(gh.pulls[0]!.draft).toBe(true);
+    expect(gh.pulls[0]!.state).toBe('open');
+    expect(gh.pulls[0]!.labels.map((l: any) => l.name)).toEqual(['ready-for-devs']);
+    expect(gh.pulls[0]!.body).toContain('### For developers');
     expect(gh.fileAt('explore/pill-buttons', '.bridge/explorations/pill-buttons.md')).toBeUndefined();
-    expect((await explorations.listExplorations(ctx, {})).summary).toBe('No exploration running.');
+    const after = await explorations.listExplorations(ctx, {});
+    expect(after.summary).toBe('No exploration running, 1 with the developers.');
+    expect(after.explorations[0]).toMatchObject({ number: 1, status: 'ready', archived: false });
+
+    // Archive keeps it open, out of the default list; unarchive brings it back.
+    expect(await explorations.archiveExploration(ctx, { ref: '#1' })).toMatchObject({ status: 'archived', number: 1 });
+    expect(gh.pulls[0]!.state).toBe('open');
+    expect((await explorations.listExplorations(ctx, {})).total).toBe(0);
+    expect((await explorations.listExplorations(ctx, { archived: true })).summary).toBe('1 archived exploration.');
+    expect(await explorations.archiveExploration(ctx, { ref: '#1', archived: false })).toMatchObject({ status: 'unarchived' });
   });
 
   it('list: the install command from the preview comment and the preview URLs Vercel reports, never guessed', async () => {
@@ -171,6 +185,7 @@ describe('explorations on GitHub', () => {
     await explorations.startExploration(ctx, { name: 'Dense tables', purpose: 'Compact rows.' });
     const ro = await BridgeContext.create({ repo: 'acme/ds', fetch: gh.fetch });
     await expect(explorations.promoteExploration(ro, { ref: 'dense-tables' })).rejects.toThrow(/GITHUB_TOKEN/);
+    await expect(explorations.archiveExploration(ro, { ref: 'dense-tables' })).rejects.toThrow(/GITHUB_TOKEN/);
     await expect(explorations.closeExploration(ro, { ref: 'dense-tables' })).rejects.toThrow(/GITHUB_TOKEN/);
     expect(await explorations.closeExploration(ctx, { ref: '#1' })).toMatchObject({ status: 'closed', number: 1, branch: 'explore/dense-tables' });
     expect(gh.pulls[0]!.state).toBe('closed');

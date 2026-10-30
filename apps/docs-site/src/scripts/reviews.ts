@@ -7,7 +7,7 @@
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
 import { figmaPushFor, tokenValuesFor } from './figma-push-read';
-import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_STATUS_LABEL, EXPLORATION_USE_CASES, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -110,7 +110,7 @@ import type { ActKind, BranchReviewProps, GuidanceView, PersonRef, TokenRowView,
 const MOTION_CHANGE = 'tokens:motion';
 import { lifecycleOfRow } from './status-filter';
 import { byLifecycle, LIFECYCLE, lifecycleTone, type Lifecycle } from '../lib/change-status';
-import { isRunningExploration, previewName, tryItCopy, tryItFromComments } from '../lib/explorations-view';
+import { isArchivedOpen, isListedExploration, previewName, tryItCopy, tryItFromComments } from '../lib/explorations-view';
 import type { BranchesListProps, ListRow } from '../components/ds/studio/BranchesList';
 import { conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
@@ -274,8 +274,10 @@ interface Row {
   state?: string;
   merged_at?: string | null;
   labels?: { name: string }[];
-  /** A running exploration: tried, never reviewed as is (status pill "Exploration"). */
+  /** An open exploration: tried, never reviewed as is (status pill "Exploration", or where it stands once done exploring). */
   exploration?: boolean;
+  /** The exploration's pill once done exploring: "Waiting for code", "Being built". */
+  explorationLabel?: string;
   /** A token push from Figma that ships by itself after the checks (PullStatus autoShip): "On its way to the library". */
   autoShip?: boolean;
   /** Design or developer work (lib/work-nature): title and labels first, then the changed files once read. */
@@ -307,12 +309,14 @@ const CLOSED_LIMIT = 30;
 /** The open rows last painted, the open explorations, and the recently closed ones once read. */
 let openRows: Row[] = [];
 let exploreRows: Row[] = [];
+/** Archived explorations (the `archived` label on their open pull request): only under the Archived line. */
+let archivedRows: Row[] = [];
 let closedRows: Row[] | null = null;
 let listLoading = true;
 
 /** The status pill of a row: its lifecycle in words, else who acts now (pr-status rowWho), the same tone rules. */
 function pillOf(r: Row, lifecycle: Lifecycle | 'exploration'): ListRow['pill'] {
-  if (lifecycle === 'exploration') return { label: 'Exploration', tone: 'neutral' };
+  if (lifecycle === 'exploration') return { label: r.explorationLabel ?? 'Exploration', tone: 'neutral' };
   // A branch opened from Figma before Claude drafted the code waits on a developer (decision RT-1).
   if (lifecycle === 'draft' && claudeStage(r.labels) === 'waiting') return { label: 'Waiting for a developer', tone: lifecycleTone(lifecycle) };
   if (lifecycle !== 'ready') return { label: LIFECYCLE[lifecycle].short, tone: lifecycleTone(lifecycle) };
@@ -412,6 +416,7 @@ function paintRows(rows: Row[], loading: boolean) {
   const props: BranchesListProps = {
     rows: [...sorted, ...(tier ? [] : exploreRows)].map(listRow),
     closed: closed ? closed.map(listRow) : null,
+    archived: tier ? [] : archivedRows.map(listRow),
     closedLimit: CLOSED_LIMIT,
     loading,
     viewer: listViewer(),
@@ -503,7 +508,14 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     allOpen = openPulls(f.data);
     // The review queue, and the running explorations listed with it under their own status.
     live = { pulls: reviewQueue(allOpen), staleAt: f.stale ? (f.cachedAt ?? new Date(0).toISOString()) : null };
-    exploreRows = allOpen.filter((p) => isRunningExploration({ state: p.state, labels: p.labels as never })).map((p) => ({ ...toRow(p, null), exploration: true }));
+    // Open explorations under their own status (running, or with the developers while a draft); archived ones wait
+    // behind the Archived line and stay out of every count.
+    const exploreRow = (p: Pull): Row => {
+      const s = explorationStatus({ state: p.state, labels: p.labels as never, headRef: p.head.ref, body: p.body, headSha: p.head.sha, draft: p.draft });
+      return { ...toRow(p, null), exploration: true, ...(s === 'active' ? {} : { explorationLabel: EXPLORATION_STATUS_LABEL[s] }) };
+    };
+    exploreRows = allOpen.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft })).map(exploreRow);
+    archivedRows = allOpen.filter((p) => isArchivedOpen({ state: p.state, labels: p.labels as never })).map(exploreRow);
   } catch (err) {
     failure = err;
   }

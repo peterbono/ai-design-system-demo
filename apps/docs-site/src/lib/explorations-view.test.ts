@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composeRequestIssue, explorationPrBody, previewComment } from '@bridge-ds/core';
+import { composeRequestIssue, explorationPrBody, previewComment, withDoneExploring, withPiecesRecord, type MissingPiece } from '@bridge-ds/core';
 import {
   branchFor,
   explorationRows,
@@ -16,8 +16,12 @@ import {
   explorationPreviews,
   previewRowCopy,
   explorationStateLine,
-  promoteAsk,
-  promotedLine,
+  doneExploringCopy,
+  doneLine,
+  donePieces,
+  isArchivedOpen,
+  isListedExploration,
+  takeItLines,
   purposeLine,
   useCaseHint,
   USE_CASE_EMPTY_HINT,
@@ -154,23 +158,67 @@ describe('designer words', () => {
       expect(jargonIn(useCaseHint(v))).toEqual([]);
     }
     expect(useCaseHint('')).toBe(USE_CASE_EMPTY_HINT);
-    for (const s of ['active', 'promoted', 'closed'] as const) expect(jargonIn(explorationStateLine(s))).toEqual([]);
+    for (const s of ['active', 'ready', 'building', 'shipped', 'promoted', 'closed'] as const) expect(jargonIn(explorationStateLine(s))).toEqual([]);
   });
 });
 
-describe('promoteAsk', () => {
-  it('names the design and tech approvers for a token or component change', () => {
-    expect(promoteAsk(3, { design: ['ana'], tech: ['@ben', 'cy'] })).toEqual({
-      who: '@ana (design) and @ben and @cy (tech) will be asked to approve.',
-      next: 'It moves to In review. Design and tech approve, then it can be added to the library.',
-    });
-    expect(promoteAsk(3, { design: ['ana'], tech: ['ana'] }).who).toBe('@ana will be asked to approve, for design and for tech.');
-    expect(promoteAsk(null, { design: [], tech: [] }).who).toBe('A design owner and a tech owner will be asked to approve.');
+describe('done exploring and archive', () => {
+  const handed = (n: number, over: Partial<ExplorationPullLike> = {}) => {
+    const base = pull(n, { name: `Handed ${n}` });
+    const body = withDoneExploring(base.body, { branch: base.head.ref, doneAt: '2026-10-30T10:00:00Z', doneSha: base.head.sha });
+    return { ...base, body, labels: [{ name: 'ready-for-devs' }], ...over };
+  };
+
+  it('rows: waiting for code, then being built once developers push, shipped once merged; archived ones out by default', () => {
+    const ready = handed(4);
+    const building = handed(5, { head: { ref: 'explore/handed-5', sha: 'newer' } });
+    const shipped = handed(6, { state: 'closed', merged_at: '2026-10-31T00:00:00Z' });
+    const archived = pull(7, { name: 'Old idea', labels: [{ name: 'exploration' }, { name: 'archived' }] });
+    const rows = explorationRows([ready, building, shipped, archived, pull(1)], cfg);
+    expect(rows.map((r) => [r.number, r.status, r.statusLabel])).toEqual([
+      [1, 'active', 'Running'],
+      [4, 'ready', 'Waiting for code'],
+      [5, 'building', 'Being built'],
+      [6, 'shipped', 'Shipped'],
+    ]);
+    expect(explorationRows([archived, pull(1)], cfg, { archived: 'only' }).map((r) => [r.number, r.archived])).toEqual([[7, true]]);
+    expect(explorationRows([archived], cfg, { archived: 'include' })).toHaveLength(1);
+    expect(explorationsSummary(rows)).toBe('1 exploration running, 2 with the developers.');
   });
 
-  it('asks one approval for Tier 1, design and tech from Tier 2 up', () => {
-    expect(promoteAsk(2, { design: ['ana'], tech: ['ben'] }).who).toMatch(/@ana \(design\).*@ben \(tech\)/);
-    expect(promoteAsk(1, { design: ['ana'], tech: ['ben'] })).toEqual({ who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it can be added to the library.' });
-    expect(promotedLine(64)).toBe('Promoted. #64 is in review now, waiting for its approvals.');
+  it('the Changes list keeps running and handed-off drafts as exploration rows, archived ones behind their filter', () => {
+    expect(isListedExploration({ state: 'open', labels: [{ name: 'exploration' }], draft: true })).toBe(true);
+    expect(isListedExploration({ state: 'open', labels: [{ name: 'ready-for-devs' }], draft: true })).toBe(true);
+    // Marked ready for review by its developers: a change like any other, in review.
+    expect(isListedExploration({ state: 'open', labels: [{ name: 'ready-for-devs' }], draft: false })).toBe(false);
+    expect(isListedExploration({ state: 'open', labels: [{ name: 'exploration' }, { name: 'archived' }], draft: true })).toBe(false);
+    expect(isArchivedOpen({ state: 'open', labels: [{ name: 'archived' }] })).toBe(true);
+    expect(isArchivedOpen({ state: 'closed', labels: [{ name: 'archived' }] })).toBe(false);
+  });
+
+  it('offers the pieces with no library side yet, and says what happens without branch words', () => {
+    const record = { checkedAt: '2026-10-30', pieces: [piece('badge-overdue-tone', 'Badge: overdue tone'), piece('color-c2410c', 'New color #C2410C')], links: [{ piece: 'color-c2410c', kind: 'request' as const, number: 9, url: 'u', title: 't', at: 'x' }] };
+    const found = donePieces(withPiecesRecord('Body', record));
+    expect(found).toEqual({ checked: true, pieces: [{ id: 'badge-overdue-tone', title: 'Badge: overdue tone', summary: 'Summary.' }], sent: 1 });
+    expect(donePieces('No record')).toEqual({ checked: false, pieces: [], sent: 0 });
+    const copy = doneExploringCopy({ checked: true, pieces: 1, sent: 1 });
+    expect(copy.description).toMatch(/Nothing closes/);
+    expect(copy.piecesLine).toMatch(/DS lead as a request, with a link to this preview/);
+    expect(doneExploringCopy({ checked: false, pieces: 0, sent: 0 }).piecesLine).toMatch(/Not checked/);
+    expect(doneExploringCopy({ checked: true, pieces: 0, sent: 0 }).piecesLine).toBeNull();
+    for (const t of [copy.description, copy.piecesLine!, doneLine(0), doneLine(2)]) expect(jargonIn(t)).toEqual([]);
+    expect(doneLine(1)).toBe('Done exploring. 1 piece went to your DS lead, and your developers take it from here.');
+  });
+
+  it('developers take it with fetch and checkout, as a starting point', () => {
+    const t = takeItLines('explore/pill-buttons');
+    expect(t.commands).toEqual(['git fetch origin', 'git checkout explore/pill-buttons']);
+    expect(t.note).toMatch(/starting point, not ready to ship/);
+    expect(t.note).toMatch(/not reviewed or tested/);
   });
 });
+
+function piece(id: string, title: string): MissingPiece {
+  return { id, kind: 'variant', title, summary: 'Summary.', name: 'overdue', component: 'Badge', values: [], where: [] };
+}
+

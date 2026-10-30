@@ -2,13 +2,18 @@
 // DOM, no fetch: unit tested in explorations-view.test.ts.
 //
 // An exploration is a draft pull request labeled `exploration` on an `explore/<slug>` branch (packages/core
-// explorations.ts). It ships to a product staging branch as a snapshot and is never merged as is: it is promoted to
-// review or closed. Color only says status, and every exploration status is neutral grey: running, promoted and
-// closed are states, not verdicts. The tier slot reads "Exploration (not mergeable)".
+// explorations.ts). It ships to a product staging branch as a snapshot and is never merged as is. It is a living
+// prototype: "Done exploring" hands it to the developers (waiting for code, then being built, then shipped) and
+// "Archive" hides it from the lists, both keeping its preview link alive. Color only says status, and every
+// exploration status is neutral grey: states, not verdicts. The tier slot reads "Exploration (not mergeable)".
 import {
+  EXPLORATION_STARTING_POINT,
   EXPLORATION_STATUS_LABEL,
   EXPLORATION_TIER_LABEL,
   EXPLORATION_USE_CASES,
+  explorationTakeCommands,
+  isArchivedExploration,
+  parsePiecesRecord,
   explorationBranch,
   explorationProblems,
   explorationSlug,
@@ -16,6 +21,7 @@ import {
   explorationTryIt,
   findPreviewComment,
   isActiveExploration,
+  isHeldExploration,
   isExplorationPull,
   resolveBranchPreviews,
   type BranchPreview,
@@ -72,6 +78,8 @@ export interface ExplorationRow {
   useCaseLabel: string | null;
   status: ExplorationStatus;
   statusLabel: string;
+  /** Archived (the `archived` label): out of the default lists and counts, its preview still alive. */
+  archived?: boolean;
   /** DS Badge tone: always neutral (grey). */
   tone: StatusTone;
   author: string;
@@ -111,6 +119,15 @@ export const isExploration = (p: ExplorationPullLike) => isExplorationPull({ sta
 /** True while the pull request is a running exploration (open, label on): it stays out of In review. */
 export const isRunningExploration = (p: Pick<ExplorationPullLike, 'state' | 'labels'>) => p.state === 'open' && isActiveExploration(p.labels);
 
+/**
+ * The open explorations the Changes list shows under their own status, out of In review: running, or with the
+ * developers while still a draft (core isHeldExploration). Archived ones wait behind the Archived filter.
+ */
+export const isListedExploration = (p: Pick<ExplorationPullLike, 'state' | 'labels' | 'draft'>) => isHeldExploration(p) && !isArchivedExploration(p.labels);
+
+/** An open archived exploration: listed only under the Archived filter. */
+export const isArchivedOpen = (p: Pick<ExplorationPullLike, 'state' | 'labels'>) => p.state === 'open' && isArchivedExploration(p.labels);
+
 /** Requests filed for an exploration branch (`exploration: explore/<slug>` in the request block). */
 export function linkedRequests(branch: string, rows: RequestRow[]): LinkedRequest[] {
   return rows
@@ -118,17 +135,26 @@ export function linkedRequests(branch: string, rows: RequestRow[]): LinkedReques
     .map((r) => ({ number: r.number, title: r.title, component: r.component, url: r.url, statusLabel: r.statusLabel, open: r.status === 'requested' || r.status === 'in-progress' }));
 }
 
-const ORDER: Record<ExplorationStatus, number> = { active: 0, promoted: 1, closed: 2 };
+const ORDER: Record<ExplorationStatus, number> = { active: 0, ready: 1, building: 2, promoted: 3, shipped: 4, closed: 5 };
 
-/** Rows for the list: running first, then promoted, then closed; newest activity first inside each. */
-export function explorationRows(pulls: ExplorationPullLike[], cfg: ExplorationsConfig, opts: { requests?: RequestRow[]; issues?: IssueLike[]; requestPulls?: RequestPullLike[] } = {}): ExplorationRow[] {
+/**
+ * Rows for the list: running first, then waiting for code, being built, promoted, shipped, closed; newest activity
+ * first inside each. Archived ones are left out unless `archived` is 'include' (a detail opened by link) or 'only'
+ * (the Archived filter).
+ */
+export function explorationRows(
+  pulls: ExplorationPullLike[],
+  cfg: ExplorationsConfig,
+  opts: { requests?: RequestRow[]; issues?: IssueLike[]; requestPulls?: RequestPullLike[]; archived?: 'exclude' | 'include' | 'only' } = {},
+): ExplorationRow[] {
   const reqs = opts.requests ?? (opts.issues?.length ? requestRows(opts.issues, opts.requestPulls ?? []) : []);
+  const archived = opts.archived ?? 'exclude';
   const seen = new Set<number>();
   return pulls
     .filter((p) => {
       if (seen.has(p.number)) return false;
       seen.add(p.number);
-      return isExploration(p);
+      return isExploration(p) && (archived === 'include' || (archived === 'only') === isArchivedExploration(p.labels));
     })
     .map((p) => {
       const s = explorationSummary(toSummary(p), cfg.owner, cfg.repo, { packages: cfg.packages, apps: cfg.apps });
@@ -143,6 +169,7 @@ export function explorationRows(pulls: ExplorationPullLike[], cfg: ExplorationsC
         useCaseLabel: EXPLORATION_USE_CASES.find((u) => u.value === s.useCase)?.label ?? null,
         status: s.status,
         statusLabel: EXPLORATION_STATUS_LABEL[s.status],
+        archived: s.archived,
         tone: 'neutral' as const,
         author: s.author,
         source: s.source ?? null,
@@ -156,12 +183,14 @@ export function explorationRows(pulls: ExplorationPullLike[], cfg: ExplorationsC
     .sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.updatedAt.localeCompare(a.updatedAt) || b.number - a.number);
 }
 
-/** "2 explorations running." Summary first; promoted ones that still wait for review are counted after. */
+/** "2 explorations running, 1 with the developers." Summary first; promoted ones that still wait for review after. */
 export function explorationsSummary(rows: Pick<ExplorationRow, 'status'>[]): string {
   const running = rows.filter((r) => r.status === 'active').length;
+  const handed = rows.filter((r) => r.status === 'ready' || r.status === 'building').length;
   const promoted = rows.filter((r) => r.status === 'promoted').length;
   const first = running ? `${running} ${running === 1 ? 'exploration' : 'explorations'} running` : 'No exploration running';
-  return promoted ? `${first}, ${promoted} promoted to review.` : `${first}.`;
+  const more = [handed ? `${handed} with the developers` : '', promoted ? `${promoted} promoted to review` : ''].filter(Boolean);
+  return `${[first, ...more].join(', ')}.`;
 }
 
 /** The count on the Explorations tab: running ones only. */
@@ -203,7 +232,7 @@ export function startCommand(f: Pick<StartForm, 'name' | 'purpose'>): string {
 
 /** What Claude runs to implement a request on this exploration. */
 export const implementOnCommand = (request: number | null, branch: string) => `bridge request implement ${request ?? '<number>'} --branch ${branch}`;
-export const promoteCommand = (slug: string) => `bridge explore promote ${slug}`;
+export const doneCommand = (slug: string) => `bridge explore done ${slug}`;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Try it in a product staging branch: the command the preview workflow actually published (its sticky comment),
@@ -267,41 +296,51 @@ export function purposeLine(name: string, purpose: string): string | null {
 
 /** The status sentence of an exploration detail, without branch names. */
 export function explorationStateLine(status: ExplorationStatus): string {
+  if (status === 'ready') return 'Done exploring. Your developers take it from here, and this preview stays for everyone to come back to.';
+  if (status === 'building') return 'Your developers are building it. This preview follows their work.';
+  if (status === 'shipped') return 'Shipped. This preview stays for reference.';
   if (status === 'promoted') return 'Promoted to review: it is in review now, and goes through the usual approvals.';
-  if (status === 'closed') return 'Closed without adding it to the library. Its previews stay for reference.';
-  return 'It never goes into the library as is: promote it to review when the idea is validated, or close it.';
+  if (status === 'closed') return 'Closed. Its previews are gone, its history stays on GitHub.';
+  return 'A living prototype: share its preview, come back to it, and say when you are done exploring.';
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Promote to review: who will be asked, what happens next. Before the write, from the same rules the review uses.
+// Done exploring: the pieces to propose, and how developers take it
 
-const handles = (xs: string[]) => [...new Set(xs.map((x) => x.replace(/^@/, '')).filter(Boolean))].map((x) => `@${x}`);
-const list = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
-
-export interface PromoteAsk {
-  /** "@ana (design) and @ben (tech) will be asked to approve." */
-  who: string;
-  /** "It becomes ready for review. Design and tech approve, then it ships." */
-  next: string;
+export interface DonePiece {
+  id: string;
+  title: string;
+  summary: string;
 }
 
 /**
- * What the promote dialog says. `tier` comes from the files the exploration changes (the shared classifier, a dry
- * run of the promotion); `owners` are the approver lists after rights (approverLists). Tier 2 and 3 need a design and
- * a tech approval (docs/GOVERNANCE.md); Tier 1 needs one approval from anyone. Unknown tier: the strictest rule, said as such.
+ * The pieces "Done exploring" offers to tick: the ones the last check found that have no library side yet. The ones
+ * already sent are counted, never offered twice. `checked` is false when the exploration was never checked.
  */
-export function promoteAsk(tier: Tier | null, owners: { design: string[]; tech: string[] }): PromoteAsk {
-  if (tier === 1) {
-    return { who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it can be added to the library.' };
-  }
-  const design = handles(owners.design);
-  const tech = handles(owners.tech);
-  const d = design.length ? `${list(design)} (design)` : 'a design owner';
-  const t = tech.length ? `${list(tech)} (tech)` : 'a tech owner';
-  const same = design.length > 0 && design.length === tech.length && design.every((x) => tech.includes(x));
-  const who = same ? `${list(design)} will be asked to approve, for design and for tech.` : `${d} and ${t} will be asked to approve.`;
-  return { who: `${who.charAt(0).toUpperCase()}${who.slice(1)}`, next: 'It moves to In review. Design and tech approve, then it can be added to the library.' };
+export function donePieces(body: string | null | undefined): { checked: boolean; pieces: DonePiece[]; sent: number } {
+  const r = parsePiecesRecord(body);
+  if (!r) return { checked: false, pieces: [], sent: 0 };
+  const linked = new Set(r.links.map((l) => l.piece));
+  return { checked: true, pieces: r.pieces.filter((p) => !linked.has(p.id)).map((p) => ({ id: p.id, title: p.title, summary: p.summary })), sent: r.pieces.filter((p) => linked.has(p.id)).length };
 }
 
-/** After the promotion: one sentence, the link goes next to it. */
-export const promotedLine = (n: number) => `Promoted. #${n} is in review now, waiting for its approvals.`;
+/** What the Done exploring dialog says, before any write. */
+export function doneExploringCopy(x: { checked: boolean; pieces: number; sent: number }): { description: string; piecesLine: string | null } {
+  const description = 'Nothing closes: the preview stays for you, your DS lead and stakeholders. Your developers take it from here.';
+  if (!x.checked) return { description, piecesLine: 'Not checked against the library yet. Ask Claude what is missing first, or go on without proposing pieces.' };
+  if (!x.pieces) return { description, piecesLine: x.sent ? 'Every piece it needs is already with your DS lead.' : null };
+  return { description, piecesLine: 'New pieces for the library. Each one you tick goes to your DS lead as a request, with a link to this preview.' };
+}
+
+/** The line after Done exploring: what went where, in one sentence. */
+export function doneLine(requests: number): string {
+  return requests ? `Done exploring. ${requests} ${requests === 1 ? 'piece went' : 'pieces went'} to your DS lead, and your developers take it from here.` : 'Done exploring. Your developers take it from here.';
+}
+
+/** The developer fold: the branch, the two commands to take it, and the note that it is a starting point. */
+export function takeItLines(branch: string): { branch: string; commands: [string, string]; note: string } {
+  return { branch, commands: explorationTakeCommands(branch), note: EXPLORATION_STARTING_POINT };
+}
+
+/** Archived, in one line next to its action. */
+export const ARCHIVED_LINE = 'Archived: hidden from the lists, its preview still works.';

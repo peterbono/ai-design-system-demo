@@ -62,22 +62,37 @@ describe('explorations HTML (untrusted pull request and preview data)', () => {
     expect(box.querySelector('h1')?.textContent).toContain(TEXT);
   });
 
-  it('offers Promote and Close in direct mode only, as the product page does', () => {
+  it('offers Done exploring and Archive in direct mode only, as the product page does, and never Close', () => {
     const r = row('https://x-git-explore-x.vercel.app/');
-    expect(expectInert(renderExplorationDetail(r, { connected: true, suggest: false })).querySelector('[data-ex-promote]')).not.toBeNull();
+    const direct = expectInert(renderExplorationDetail(r, { connected: true, suggest: false }));
+    expect(direct.querySelector('[data-ex-done]')?.textContent).toBe('Done exploring');
+    expect(direct.querySelector('[data-ex-archive]')?.textContent).toBe('Archive');
+    expect(direct.querySelector('[data-ex-close], [data-ex-close-ask], [data-ex-promote]')).toBeNull();
     const box = expectInert(renderExplorationDetail(r, { connected: true, suggest: true }));
-    expect(box.querySelector('[data-ex-promote]')).toBeNull();
-    expect(box.querySelector('[data-ex-close-ask]')).toBeNull();
+    expect(box.querySelector('[data-ex-done]')).toBeNull();
+    expect(box.querySelector('[data-ex-archive]')).toBeNull();
   });
 
-  it('offers Send for review and Close only to the person who started it or a reviewer', () => {
+  it('offers Done exploring and Archive only to the person who started it or a reviewer', () => {
     const r = { ...row('https://x.vercel.app/'), status: 'active' } as Parameters<typeof renderExplorationDetail>[0];
     const keeper = expectInert(renderExplorationDetail(r, { connected: true, suggest: false, keeper: true }));
-    expect(keeper.querySelector('[data-ex-promote]')).not.toBeNull();
+    expect(keeper.querySelector('[data-ex-done]')).not.toBeNull();
     const other = expectInert(renderExplorationDetail(r, { connected: true, suggest: false, keeper: false }));
-    expect(other.querySelector('[data-ex-promote]')).toBeNull();
-    expect(other.querySelector('[data-ex-close-ask]')).toBeNull();
-    expect(other.textContent).toMatch(/or a reviewer can send it for review or close it/);
+    expect(other.querySelector('[data-ex-done]')).toBeNull();
+    expect(other.querySelector('[data-ex-archive]')).toBeNull();
+    expect(other.textContent).toMatch(/or a reviewer can say it is done exploring or archive it/);
+  });
+
+  it('once done exploring: Archive only; archived: Unarchive; the developer fold has the two commands as a starting point', () => {
+    const ready = expectInert(renderExplorationDetail(row('https://x.vercel.app/', { status: 'ready' }), { connected: true, suggest: false, keeper: true }));
+    expect(ready.querySelector('[data-ex-done]')).toBeNull();
+    expect(ready.querySelector('[data-ex-archive]')?.textContent).toBe('Archive');
+    const archived = expectInert(renderExplorationDetail(row('https://x.vercel.app/', { status: 'ready', archived: true }), { connected: true, suggest: false, keeper: true }));
+    expect(archived.querySelector('[data-unarchive]')?.textContent).toBe('Unarchive');
+    const dev = ready.querySelector('#ex-sec-dev');
+    expect(dev?.hasAttribute('open')).toBe(false);
+    expect(dev?.querySelector('pre')?.textContent).toBe('git fetch origin\ngit checkout explore/x');
+    expect(dev?.textContent).toMatch(/starting point, not ready to ship/);
   });
 
   it('keeps https links', () => {

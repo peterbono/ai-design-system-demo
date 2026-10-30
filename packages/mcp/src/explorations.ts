@@ -1,12 +1,17 @@
 // Explorations for Claude and the CLI: start one (`explore/<slug>` + a draft pull request labeled exploration), list
-// them with their previews, snapshot install command and linked requests, promote one to review, close one. And the
+// them with their previews, snapshot install command and linked requests, say "Done exploring" on one (its pieces to
+// the DS lead as requests, the branch to the developers, nothing closed), archive one, close one. And the
 // "target branch" of the write tools: token edits, docs drafts and request briefs aimed at an exploration branch
 // instead of a new pull request to main. The rules and the GitHub calls are @bridge-ds/core's (explorations.ts,
 // explorations-github.ts); this file shapes them for the MCP tools and the CLI.
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
+  archiveExplorationOnGitHub,
   baseBranchOf,
+  doneExploringOnGitHub,
+  EXPLORATION_STARTING_POINT,
+  parsePiecesRecord,
   productsOf,
   closeExplorationOnGitHub,
   EXPLORATION_LABEL,
@@ -28,7 +33,6 @@ import {
   isExplorationBranch,
   listExplorationsOnGitHub,
   parseRequestIssue,
-  promoteExplorationOnGitHub,
   protectedBranchesOf,
   startExplorationOnGitHub,
   type BridgeConfig,
@@ -41,7 +45,7 @@ import {
 } from '@bridge-ds/core';
 import { branchExists, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
 import { BridgeContext } from './context.js';
-import { productMarks, resolveProduct } from './branches.js';
+import { productMarks, resolveProduct, viewerOf } from './branches.js';
 import { addToken, readOnlyPreview, say } from './say.js';
 
 const USE_CASES = new Set<string>(EXPLORATION_USE_CASES.map((u) => u.value));
@@ -143,7 +147,7 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
     ctx,
     `Token edits: bridge_propose_token_change with "branch": "${branch}". Requests: bridge_create_request with "exploration": "${branch}", then bridge_get_request with "branch": "${branch}".`,
     `Token edits: \`bridge propose --branch ${branch} ...\`. Requests: \`bridge request create --exploration ${branch} ...\`, then \`bridge request implement <n> --branch ${branch}\`.`,
-  )} It is never merged as is: promote it (\`bridge explore promote ${slug}\`) or close it.`;
+  )} It is never merged as is: say it is done exploring (\`bridge explore done ${slug}\`) to hand it to developers; it stays open.`;
   if (gh && ctx.canWriteRemote) {
     const r = await startExplorationOnGitHub(gh, e, { ...s, labels: marks.labels });
     return {
@@ -246,15 +250,16 @@ async function requestsByExploration(gh: GitHubClient): Promise<Map<string, { nu
 }
 
 /** bridge_list_explorations / `bridge explore list`. */
-export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' | 'closed' | 'all' } = {}) {
+export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' | 'closed' | 'all'; archived?: boolean | undefined } = {}) {
   const { config } = await ctx.config();
   const gh = await requireGitHub(ctx);
-  const [list, linked] = await Promise.all([listExplorationsOnGitHub(gh, settingsOf(config), { state: a.state ?? 'open' }), requestsByExploration(gh)]);
-  // Running ones: the real preview URLs (Vercel shortens long branch aliases) and the published install command.
+  const [list, linked] = await Promise.all([listExplorationsOnGitHub(gh, settingsOf(config), { state: a.state ?? 'open', archived: a.archived ? 'only' : 'exclude' }), requestsByExploration(gh)]);
+  // Running ones and the ones with the developers (a living prototype): the real preview URLs (Vercel shortens long
+  // branch aliases) and the published install command.
   const explorations = await Promise.all(
     list.map(async (x) => {
       const requests = linked.get(x.branch) ?? [];
-      if (x.status !== 'active') return { ...x, install: null, requests };
+      if (x.status !== 'active' && x.status !== 'ready' && x.status !== 'building') return { ...x, install: null, requests };
       const t = await explorationTestBuildOnGitHub(gh, { number: x.number, branch: x.branch }, config).catch(() => null);
       if (!t) return { ...x, install: installOf({ state: 'building' }), requests };
       return { ...x, previews: t.previews.map((p) => ({ app: p.app, label: p.label, url: p.url, state: p.state })), install: installOf(t.tryIt), requests };
@@ -266,34 +271,92 @@ export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' |
     localBranches = refs.filter((b) => !explorations.some((x) => x.branch === b));
   }
   const running = explorations.filter((x) => x.status === 'active').length;
+  const handed = explorations.filter((x) => x.status === 'ready' || x.status === 'building').length;
+  const first = a.archived ? `${explorations.length} archived ${explorations.length === 1 ? 'exploration' : 'explorations'}` : running ? `${running} ${running === 1 ? 'exploration' : 'explorations'} running` : 'No exploration running';
   return {
     repo: gh.fullName,
     label: EXPLORATION_LABEL,
     running,
     total: explorations.length,
-    summary: running ? `${running} ${running === 1 ? 'exploration' : 'explorations'} running.` : 'No exploration running.',
+    summary: `${first}${!a.archived && handed ? `, ${handed} with the developers` : ''}.`,
     explorations,
     ...(localBranches.length ? { localBranches, localHint: 'Local exploration branches without a pull request: push them and open a draft pull request labeled exploration to share them.' } : {}),
   };
 }
 
-/** `bridge explore promote`: ready for review, tier labels, exploration label and note removed, linked requests closed on merge. */
-export async function promoteExploration(ctx: BridgeContext, a: { ref: string; dryRun?: boolean | undefined }) {
+const refOf = (ref: string) => (/^#?\d+$/.test(ref.trim()) ? Number(ref.trim().replace(/^#/, '')) : toExplorationBranch(ref));
+
+/**
+ * bridge_promote_exploration (kept name) / `bridge explore done` (`promote` is an alias): "Done exploring". The pieces
+ * named in `pieces` (ids from bridge_missing_pieces) go to the DS lead as requests with the preview link; the
+ * exploration label and note go, `ready-for-devs` comes, and developers take the branch from there. Nothing is closed,
+ * merged or marked ready for review, so the preview link stays alive. Without `pieces`, the result lists the pieces
+ * still unsent so the person can pick.
+ */
+export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces?: string[] | undefined; dryRun?: boolean | undefined; source?: ExplorationSource | undefined; agent?: string | undefined }) {
   const { config } = await ctx.config();
   const gh = await requireGitHub(ctx);
-  if (!a.dryRun && !ctx.canWriteRemote) throw new Error(`Promoting an exploration needs a GitHub token (contents and pull requests: write): ${addToken(ctx)}. Or use "Ready for review" on GitHub and remove the exploration label.`);
-  const ref = /^#?\d+$/.test(a.ref.trim()) ? Number(a.ref.trim().replace(/^#/, '')) : toExplorationBranch(a.ref);
-  const p = await findExplorationOnGitHub(gh, ref);
-  const requests = ((await requestsByExploration(gh)).get(p.headRef) ?? []).filter((r) => r.state === 'open').map((r) => r.number);
-  const r = await promoteExplorationOnGitHub(gh, p.number, { config, requests, dryRun: a.dryRun });
-  return { status: a.dryRun ? ('dry-run' as const) : ('promoted' as const), ...r, closes: requests };
+  if (!a.dryRun && !ctx.canWriteRemote) throw new Error(`Saying "Done exploring" needs a GitHub token (contents, pull requests and issues: write): ${addToken(ctx)}. Or on GitHub: remove the exploration label and add ready-for-devs, keeping the pull request open.`);
+  const p = await findExplorationOnGitHub(gh, refOf(a.ref));
+  // The preview the requests link: the first one Vercel reported, else the pull request (pieceRequest says so).
+  const build = await explorationTestBuildOnGitHub(gh, { number: p.number, branch: p.headRef }, config).catch(() => null);
+  const previewUrl = build?.previews.find((v) => v.url && v.state !== 'failed')?.url ?? null;
+  const viewer = await viewerOf(ctx, gh);
+  const r = await doneExploringOnGitHub(gh, p.number, {
+    pieces: a.pieces ?? [],
+    products: productsOf(config),
+    previewUrl,
+    ...(viewer ? { openedBy: viewer } : {}),
+    ...(a.agent ? { agent: a.agent } : {}),
+    source: a.source ?? 'mcp',
+    dryRun: a.dryRun,
+  });
+  const record = parsePiecesRecord(p.body);
+  const sent = new Set([...(record?.links ?? []).map((l) => l.piece), ...r.pieces.proposed.map((x) => x.piece)]);
+  const unsent = (record?.pieces ?? []).filter((x) => !sent.has(x.id)).map((x) => ({ id: x.id, title: x.title, summary: x.summary }));
+  const status = a.dryRun ? ('dry-run' as const) : r.handedOff ? ('done-exploring' as const) : ('already-done' as const);
+  return {
+    status,
+    number: r.number,
+    url: r.url,
+    branch: r.branch,
+    exploration: r.status,
+    labels: r.plan ? { add: r.plan.addLabels, remove: r.plan.removeLabels } : null,
+    removeFiles: r.plan?.removeFiles ?? [],
+    requests: r.pieces.proposed,
+    alreadySent: r.pieces.already,
+    ...(r.pieces.unknown.length ? { unknownPieces: r.pieces.unknown } : {}),
+    notProposed: unsent,
+    forDevelopers: { take: r.take, note: EXPLORATION_STARTING_POINT },
+    warnings: r.warnings,
+    next: [
+      record ? (unsent.length ? `${unsent.length} piece${unsent.length === 1 ? ' was' : 's were'} not sent to the DS lead: pass their ids in pieces to send them later.` : '') : `The exploration was not checked against the library: ${say(ctx, `bridge_missing_pieces { pr: ${r.number}, record: true }`, `\`bridge pieces ${r.number} --record\``)} finds the pieces to propose.`,
+      `Developers take it with \`${r.take[0]}\` then \`${r.take[1]}\`, as a starting point. The pull request stays open so the preview keeps working; ${say(ctx, 'bridge_archive_exploration', '`bridge explore archive`')} hides it from the lists later.`,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  };
+}
+
+/** @deprecated The old name: "Promote to review" became "Done exploring" (doneExploring). */
+export const promoteExploration = doneExploring;
+
+/** bridge_archive_exploration / `bridge explore archive|unarchive`: the archived label on the still open pull request. */
+export async function archiveExploration(ctx: BridgeContext, a: { ref: string; archived?: boolean | undefined }) {
+  const gh = await requireGitHub(ctx);
+  if (!ctx.canWriteRemote) throw new Error(`Archiving an exploration needs a GitHub token (pull requests or issues: write): ${addToken(ctx)}. Or add the archived label on GitHub.`);
+  const r = await archiveExplorationOnGitHub(gh, refOf(a.ref), { archived: a.archived ?? true });
+  return {
+    status: r.archived ? ('archived' as const) : ('unarchived' as const),
+    ...r,
+    next: r.archived ? 'Hidden from the default lists. Its pull request stays open, so the preview link keeps working.' : 'Back in the lists.',
+  };
 }
 
 export async function closeExploration(ctx: BridgeContext, a: { ref: string }) {
   const gh = await requireGitHub(ctx);
   if (!ctx.canWriteRemote) throw new Error(`Closing an exploration needs a GitHub token (pull requests: write): ${addToken(ctx)}. Or close the pull request on GitHub.`);
-  const ref = /^#?\d+$/.test(a.ref.trim()) ? Number(a.ref.trim().replace(/^#/, '')) : toExplorationBranch(a.ref);
-  return { status: 'closed' as const, ...(await closeExplorationOnGitHub(gh, ref)) };
+  return { status: 'closed' as const, ...(await closeExplorationOnGitHub(gh, refOf(a.ref))), note: 'Closing removes its preview. To keep the link alive and only hide it, archive it instead.' };
 }
 
 // --- target branch of the write tools ------------------------------------------------------------------------------

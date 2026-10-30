@@ -2,12 +2,20 @@
 // An exploration is a branch named `explore/<slug>` with an open DRAFT pull request labeled `exploration`. It holds
 // token edits and component work (requests filed with `exploration: explore/<slug>` are implemented there). Every
 // exploration gets the per-branch previews (bridge.config.json previews.apps) and a snapshot of the packages a product
-// staging branch installs (.github/workflows/preview-packages.yml). It is never merged as is: when the idea is
-// validated it is promoted to a normal pull request for review, otherwise it is closed. The CI check "Exploration not
-// merged as is" fails while the label is on, so an exploration cannot be merged by accident.
+// staging branch installs (.github/workflows/preview-packages.yml). The CI check "Exploration not merged as is" fails
+// while the label is on, so an exploration cannot be merged by accident.
 //
-// Pure: branch naming, the draft pull request body, status and the promotion plan. Shared by Studio, the MCP server
-// and the CLI, so an exploration reads the same everywhere. GitHub calls live in explorations-github.ts.
+// An exploration is a living prototype everyone keeps coming back to (decision 2026-10-30), so it is never closed:
+// - "Done exploring" (doneExploringPlan) hands it to the developers: the `exploration` label goes, `ready-for-devs`
+//   comes, the draft stays a draft and its preview link stays alive. The pieces the library lacks become requests for
+//   the DS lead (prod-branch.ts pieceRequest). Developers continue on the branch from there, as a starting point: the
+//   prototype code is never reviewed or tested as is. Their pushes read "Being built", the merge reads "Shipped".
+// - "Archive" (the `archived` label) hides it from the default lists while the pull request, and so its preview, stay
+//   open. Closing a pull request would delete its preview prerelease and visual images.
+// The older "promote to review" path (promotionPlan) stays for tools that still call it.
+//
+// Pure: branch naming, the draft pull request body, status and the plans. Shared by Studio, the MCP server and the
+// CLI, so an exploration reads the same everywhere. GitHub calls live in explorations-github.ts.
 
 import type { BridgeConfig } from './config';
 import { slugify } from './pr-composer';
@@ -24,9 +32,18 @@ export const EXPLORATION_NOTES_DIR = '.bridge/explorations';
 export const EXPLORATION_TIER_LABEL = 'Exploration (not mergeable)';
 /** Name of the CI job that fails while the label is on. */
 export const EXPLORATION_CHECK = 'Exploration not merged as is';
+/** Done exploring: the exploration label gives way to this one. Developers take the branch from there. */
+export const EXPLORATION_READY_LABEL = 'ready-for-devs';
+/** An archived exploration: hidden from the default lists, its pull request and preview still open. */
+export const EXPLORATION_ARCHIVED_LABEL = 'archived';
 
 export type ExplorationUseCase = 'user-test' | 'stakeholder-demo' | 'ab-idea' | 'terminal' | 'other';
-export type ExplorationStatus = 'active' | 'promoted' | 'closed';
+/**
+ * active: running (the exploration label is on). ready: done exploring, waiting for developers to take it. building:
+ * developers pushed to it (or marked it ready for review) since. shipped: merged after done exploring. promoted: sent
+ * to review the older way (label removed without done exploring), open or merged. closed: closed without merging.
+ */
+export type ExplorationStatus = 'active' | 'ready' | 'building' | 'shipped' | 'promoted' | 'closed';
 /** Where an exploration was started: Bridge Studio, the Figma plugin, the CLI or the MCP server (an AI agent). */
 export type ExplorationSource = 'studio' | 'figma' | 'cli' | 'mcp';
 
@@ -38,7 +55,14 @@ export const EXPLORATION_USE_CASES: { value: ExplorationUseCase; label: string; 
   { value: 'other', label: 'Other', hint: 'Anything else worth trying before it becomes a change.' },
 ];
 
-export const EXPLORATION_STATUS_LABEL: Record<ExplorationStatus, string> = { active: 'Running', promoted: 'Promoted to review', closed: 'Closed' };
+export const EXPLORATION_STATUS_LABEL: Record<ExplorationStatus, string> = {
+  active: 'Running',
+  ready: 'Waiting for code',
+  building: 'Being built',
+  shipped: 'Shipped',
+  promoted: 'Promoted to review',
+  closed: 'Closed',
+};
 
 export interface Exploration {
   /** Display name, sentence case: "Denser data tables". */
@@ -63,6 +87,10 @@ export interface Exploration {
   agent?: string | undefined;
   /** A Jira ticket key ("DS-42"), first in the pull request title so Jira's GitHub integration links it. */
   jira?: string | undefined;
+  /** ISO date someone said "Done exploring". */
+  doneAt?: string | undefined;
+  /** The branch head at that moment: a newer head means developers are building on it. */
+  doneSha?: string | undefined;
 }
 
 const MARK = 'bridge-exploration';
@@ -122,7 +150,7 @@ export function explorationNote(e: Exploration): string {
     ...(uc ? [`- Use case: ${uc}`] : []),
     ...(e.startedAt ? [`- Started: ${e.startedAt.slice(0, 10)}${e.author ? ` by @${e.author}` : ''}`] : []),
     '',
-    'This file marks the branch as an exploration. It is never merged as is: promoting the pull request to review removes it.',
+    'This file marks the branch as an exploration. It is never merged as is: "Done exploring" removes it before developers take the branch.',
     '',
   ].join('\n');
 }
@@ -152,7 +180,7 @@ export function explorationPrTitle(e: Pick<Exploration, 'name'>): string {
 
 /**
  * The draft pull request body: purpose, what is experimental, how a product staging branch installs it, the
- * previews, and how to promote or close it. Markdown for people plus one hidden JSON block for tools.
+ * previews, and how it ends (Done exploring, Archive). Markdown for people plus one hidden JSON block for tools.
  */
 export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): string {
   const slug = e.slug || explorationSlug(e.name);
@@ -162,7 +190,7 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
   const lines = [
     `## Exploration: ${e.name.trim()}`,
     '',
-    `> Not mergeable as is. This draft pull request is a sandbox on \`${branch}\`: promote it to a normal review when the idea is validated, or close it.`,
+    `> Not mergeable as is. This draft pull request is a living prototype on \`${branch}\`: say "Done exploring" when the idea is ready for developers. Keep it open, so its preview link keeps working.`,
     '',
     ...(e.purpose?.trim() ? [`**Purpose.** ${e.purpose.trim()}`, ''] : []),
     ...(uc ? [`**Use case.** ${uc}`, ''] : []),
@@ -206,12 +234,31 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
     '',
     '### When it is done',
     '',
-    `- **Promote:** in Bridge Studio (Changes, Explorations, Promote to review) or \`bridge explore promote ${slug}\`. Bridge marks the pull request ready for review, removes the \`${EXPLORATION_LABEL}\` label and the exploration note, and adds the tier labels. Then it goes through the usual review.`,
-    '- **Close:** close this pull request. The branch stays for reference; the preview prerelease is removed.',
+    `- **Done exploring:** on the exploration's page in Bridge Studio, or \`bridge explore done ${slug}\`. Bridge removes the \`${EXPLORATION_LABEL}\` label and the exploration note, adds \`${EXPLORATION_READY_LABEL}\`, and sends the pieces the designer picks to the DS lead as requests. Nothing is closed or merged: developers continue on \`${branch}\`.`,
+    `- **Archive:** \`bridge explore archive ${slug}\` adds the \`${EXPLORATION_ARCHIVED_LABEL}\` label. Keep this pull request open: closing it removes the preview prerelease.`,
     '',
-    `<!-- ${MARK} ${JSON.stringify({ name: e.name.trim(), purpose: (e.purpose ?? '').trim(), slug, ...(e.useCase ? { useCase: e.useCase } : {}), ...(experimental.length ? { experimental } : {}), ...(e.author ? { author: e.author } : {}), ...(e.startedAt ? { startedAt: e.startedAt } : {}), ...(e.source ? { source: e.source } : {}), ...(e.agent ? { agent: e.agent } : {}) }).replace(/-->/g, '--\\u003e')} -->`,
+    explorationBlock({ ...e, slug }),
   );
   return lines.join('\n');
+}
+
+/** The hidden block tools read: the exploration as JSON. */
+function explorationBlock(e: Exploration): string {
+  const experimental = (e.experimental ?? []).map((x) => x.trim()).filter(Boolean);
+  const data = {
+    name: e.name.trim(),
+    purpose: (e.purpose ?? '').trim(),
+    slug: e.slug || explorationSlug(e.name),
+    ...(e.useCase ? { useCase: e.useCase } : {}),
+    ...(experimental.length ? { experimental } : {}),
+    ...(e.author ? { author: e.author } : {}),
+    ...(e.startedAt ? { startedAt: e.startedAt } : {}),
+    ...(e.source ? { source: e.source } : {}),
+    ...(e.agent ? { agent: e.agent } : {}),
+    ...(e.doneAt ? { doneAt: e.doneAt } : {}),
+    ...(e.doneSha ? { doneSha: e.doneSha } : {}),
+  };
+  return `<!-- ${MARK} ${JSON.stringify(data).replace(/-->/g, '--\\u003e')} -->`;
 }
 
 /** The exploration inside a pull request body, or undefined when it has no valid Bridge block. */
@@ -236,28 +283,133 @@ export interface ExplorationPullLike {
   labels: (string | { name?: string })[];
   headRef?: string | undefined;
   body?: string | null | undefined;
+  /** Head commit and draft flag: after "Done exploring", a newer head or a ready pull request reads "Being built". */
+  headSha?: string | undefined;
+  draft?: boolean | undefined;
 }
 
-const labelNames = (labels: ExplorationPullLike['labels']) => labels.map((l) => (typeof l === 'string' ? l : (l.name ?? '')));
+const labelNames = (labels: readonly (string | { name?: string })[]) => labels.map((l) => (typeof l === 'string' ? l : (l.name ?? '')));
 
 /** True for a pull request that is or was an exploration: an `explore/*` branch, the label, or the Bridge block. */
 export function isExplorationPull(p: ExplorationPullLike): boolean {
   return isExplorationBranch(p.headRef) || labelNames(p.labels).includes(EXPLORATION_LABEL) || Boolean(parseExplorationBody(p.body));
 }
 
+/** "Done exploring" was said: the `ready-for-devs` label, or the date in the exploration block. */
+export function isHandedOff(p: Pick<ExplorationPullLike, 'labels' | 'body'>): boolean {
+  return labelNames(p.labels).includes(EXPLORATION_READY_LABEL) || Boolean(parseExplorationBody(p.body)?.doneAt);
+}
+
 /**
  * Where an exploration stands: closed without merging = closed; open with the `exploration` label = active
- * (running); otherwise promoted (the label was removed, so it is a normal pull request now, open or merged).
+ * (running). After "Done exploring": merged = shipped; marked ready for review, or a head newer than the one done
+ * exploring left = building (developers work on it); otherwise ready (waiting for code). The label removed without
+ * done exploring is the older promotion: promoted, open or merged.
  */
 export function explorationStatus(p: ExplorationPullLike): ExplorationStatus {
   const merged = Boolean(p.merged || p.merged_at || p.state === 'merged');
   if (p.state !== 'open' && !merged) return 'closed';
   if (p.state === 'open' && labelNames(p.labels).includes(EXPLORATION_LABEL)) return 'active';
-  return 'promoted';
+  if (!isHandedOff(p)) return 'promoted';
+  if (merged) return 'shipped';
+  if (p.draft === false) return 'building';
+  const doneSha = parseExplorationBody(p.body)?.doneSha;
+  if (doneSha && p.headSha && p.headSha !== doneSha) return 'building';
+  return 'ready';
 }
 
 /** True while the label is on: the pull request must not merge (the CI check fails, Studio blocks the merge). */
 export const isActiveExploration = (labels: ExplorationPullLike['labels']) => labelNames(labels).includes(EXPLORATION_LABEL);
+
+/** True for an archived exploration: hidden from the default lists, reachable from the Archived filter. */
+export const isArchivedExploration = (labels: readonly (string | { name?: string })[] | null | undefined) => labelNames(labels ?? []).includes(EXPLORATION_ARCHIVED_LABEL);
+
+/**
+ * Open explorations that stay out of the review queue: running, archived, or handed to developers while still a
+ * draft. Once developers mark it ready for review it is a change like any other.
+ */
+export function isHeldExploration(p: { state?: string | undefined; draft?: boolean | undefined; labels?: readonly (string | { name?: string })[] | null | undefined }): boolean {
+  if (p.state !== undefined && p.state !== 'open') return false;
+  const names = labelNames(p.labels ?? []);
+  if (names.includes(EXPLORATION_LABEL) || names.includes(EXPLORATION_ARCHIVED_LABEL)) return true;
+  return names.includes(EXPLORATION_READY_LABEL) && p.draft !== false;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Done exploring
+
+/** How a developer takes an exploration: fetch, then check out its branch. */
+export const explorationTakeCommands = (branch: string): [string, string] => ['git fetch origin', `git checkout ${branch}`];
+
+/** What developers read next to those commands: a starting point, never code ready to ship. */
+export const EXPLORATION_STARTING_POINT =
+  "A starting point, not ready to ship: Claude's prototype code is not reviewed or tested. Continue on this branch: its pull request already exists, so Bridge follows your pushes, and the merge reads as shipped.";
+
+export interface DoneExploringPlan {
+  /** Labels to remove (the exploration label) and to add (ready-for-devs). */
+  removeLabels: string[];
+  addLabels: string[];
+  /** Files to delete on the branch first: the exploration note, so main never gets it. */
+  removeFiles: string[];
+  /** The body once done: the developer section in place of the sandbox note and the "When it is done" part. */
+  body: string;
+  /** The two commands a developer runs to take it. */
+  take: [string, string];
+  /** Done exploring never merges, closes or marks the draft ready. */
+  markReady: false;
+}
+
+/**
+ * What "Done exploring" does to the pull request: the exploration label gives way to `ready-for-devs` (the merge
+ * guard stops failing, so developers can ship it once the code is theirs), the exploration note leaves the branch, and
+ * the body says how developers take it. The draft stays a draft and the pull request stays open, so its preview lives
+ * on. The caller records the head once the note is gone (withDoneExploring with `doneSha`).
+ */
+export function doneExploringPlan(input: { body: string | null | undefined; branch: string; files: { path: string; status?: string | undefined }[]; date?: Date | undefined }): DoneExploringPlan {
+  const removeFiles = input.files.filter((f) => f.path.startsWith(`${EXPLORATION_NOTES_DIR}/`) && f.status !== 'removed').map((f) => f.path);
+  return {
+    removeLabels: [EXPLORATION_LABEL],
+    addLabels: [EXPLORATION_READY_LABEL],
+    removeFiles,
+    body: withDoneExploring(input.body, { branch: input.branch, doneAt: (input.date ?? new Date()).toISOString() }),
+    take: explorationTakeCommands(input.branch),
+    markReady: false,
+  };
+}
+
+const DEV_SECTION = '### For developers';
+
+/**
+ * The body after "Done exploring": the sandbox warning and the "When it is done" part give way to the developer
+ * section (the two commands and the starting point note), and the hidden block records when, and on which head once
+ * known. Calling it again replaces the section and the block.
+ */
+export function withDoneExploring(body: string | null | undefined, done: { branch: string; doneAt: string; doneSha?: string | undefined }): string {
+  const e = parseExplorationBody(body);
+  const [fetch, checkout] = explorationTakeCommands(done.branch);
+  const section = [
+    DEV_SECTION,
+    '',
+    `**Done exploring on ${done.doneAt.slice(0, 10)}.** ${EXPLORATION_STARTING_POINT}`,
+    '',
+    '```sh',
+    fetch,
+    checkout,
+    '```',
+    '',
+    'Mark this pull request ready for review when the code is yours. Keep it open: its preview link is how designers, the DS lead and stakeholders come back to the prototype.',
+  ].join('\n');
+  const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
+  const kept = (body ?? '')
+    .replace(/^> Not mergeable as is\..*$\n?\n?/m, '')
+    .replace(/### When it is done[\s\S]*?(?=<!-- |$)/, '')
+    .replace(/### For developers[\s\S]*?(?=### |<!-- |$)/, '');
+  if (!e || !block.test(kept)) return `${kept.trim()}${kept.trim() ? '\n\n' : ''}${section}`;
+  const at = kept.search(block);
+  const nextBlock = explorationBlock({ ...e, doneAt: done.doneAt, ...(done.doneSha ? { doneSha: done.doneSha } : {}) });
+  const after = kept.slice(at).replace(block, () => nextBlock).trim();
+  return `${kept.slice(0, at).trim()}\n\n${section}\n\n${after}`.trim();
+}
 
 export interface PromotionPlan {
   tier: RiskTier;
@@ -371,7 +523,7 @@ export function explorationShareMessage(input: { name: string; branch: string; u
 export function explorationRules(branch: string): string[] {
   return [
     `- Work on the existing branch ${branch} (git fetch origin && git switch ${branch}). Commit there.`,
-    `- Do not open a pull request to main and do not create another branch: the draft pull request of ${branch} is the place. It is promoted to review only when the idea is validated.`,
-    '- Do not mark the pull request ready for review and do not remove the exploration label: promoting is a person\'s decision.',
+    `- Do not open a pull request to main and do not create another branch: the draft pull request of ${branch} is the place. It stays open as a living prototype.`,
+    '- Do not mark the pull request ready for review, do not remove the exploration label and never close it: "Done exploring" is a person\'s decision, and closing removes its preview.',
   ];
 }

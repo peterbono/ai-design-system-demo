@@ -111,7 +111,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
         'Product branches and the library: when a designer explores a product feature with you (an exploration for a product), check it with bridge_missing_pieces (record: true) before they share it; for each piece the library lacks, offer bridge_open_library_branch, which opens the library side linked to their branch. bridge_product_branch says where each library branch stands; bridge_switch_to_published moves the product branch to the real version once the library ships.',
         'Components from Figma: the DS Bridge plugin sends a component changed in Figma to a library branch. Token swaps go as exact token changes; new variants, properties and components go to a branch carrying the spec, waiting for Claude AI. When the person asks you to draft one, bridge_figma_changes lists them and bridge_get_figma_change gives the spec and the steps; write the code on that branch, push it, then bridge_mark_figma_change_drafted. Never claim a branch is drafted before its code is pushed.',
         'Fix with Claude: when a component built in Figma differs from its story, you are the team\'s Claude and Bridge is the referee. bridge_figma_gaps lists them, bridge_get_gap_case gives one gap case and the fix schema, bridge_try_figma_fix checks fixes on the measured values (at most 3 rounds per component), bridge_propose_figma_fixes opens them for review; a component that will not come closer gets a status fix (Differs or Can\'t check, with the reason), never Matches. The plugin\'s Check fidelity (the story shots) decides after the next pull.',
-        'Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. When a designer says they want to explore something, start one with bridge_start_exploration right away, named from their words, without asking for a purpose or a brief: for a product with its own repository it is created there, and the library comes as the npm package. bridge_list_explorations lists them. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it: a person promotes it to review or closes it.',
+        'Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. When a designer says they want to explore something, start one with bridge_start_exploration right away, named from their words, without asking for a purpose or a brief: for a product with its own repository it is created there, and the library comes as the npm package. bridge_list_explorations lists them. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it. An exploration is a living prototype: when the person says they are done exploring, call bridge_promote_exploration ("Done exploring") with the pieces they picked; it hands the branch to the developers and never closes it. bridge_archive_exploration hides one from the lists while its preview stays alive.',
         ...(excluded.has('bridge_merge_branch') ? ['On this server you never merge: bridge_merge_branch is not available here. When a branch is ready, say so; a person merges it from Bridge Studio or GitHub.'] : []),
       ].join(' '),
     },
@@ -678,7 +678,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     {
       title: 'Start an exploration',
       description:
-        'Start an exploration: a branch explore/<slug> from the default branch with a note file, and a DRAFT pull request labeled exploration. When the designer says they want to explore, try or prototype something, start one right away: take the name from what they said, never ask them for a purpose, a brief or a use case. For a product with its own repository (bridge.config.json products[].repo, see bridge_list_products), the branch and the draft pull request are created IN THAT PRODUCT REPOSITORY by default, so developers check it out in their own environment; the library arrives there as the npm package (npm i @bridge-ds/react@<snapshot> for unreleased library changes). Otherwise (a product folder of the design system repo, the demo workspace) it is created in the design system repository with per-branch previews and a snapshot package. If Bridge cannot reach the product repository, the error says so: tell the designer plainly that an admin needs to connect that product to Bridge, and only start it in the design system repository (where: "library") if they choose that. Never merged as is: a person promotes it to review or closes it. GitHub with GITHUB_TOKEN: branch and draft pull request. Local without a token: a local branch only, nothing pushed. dryRun previews it.',
+        'Start an exploration: a branch explore/<slug> from the default branch with a note file, and a DRAFT pull request labeled exploration. When the designer says they want to explore, try or prototype something, start one right away: take the name from what they said, never ask them for a purpose, a brief or a use case. For a product with its own repository (bridge.config.json products[].repo, see bridge_list_products), the branch and the draft pull request are created IN THAT PRODUCT REPOSITORY by default, so developers check it out in their own environment; the library arrives there as the npm package (npm i @bridge-ds/react@<snapshot> for unreleased library changes). Otherwise (a product folder of the design system repo, the demo workspace) it is created in the design system repository with per-branch previews and a snapshot package. If Bridge cannot reach the product repository, the error says so: tell the designer plainly that an admin needs to connect that product to Bridge, and only start it in the design system repository (where: "library") if they choose that. Never merged as is: a person says "Done exploring" (bridge_promote_exploration) to hand it to developers. GitHub with GITHUB_TOKEN: branch and draft pull request. Local without a token: a local branch only, nothing pushed. dryRun previews it.',
       inputSchema: {
         name: z.string().min(1).describe('Short name, sentence case: "Pill buttons". Becomes explore/pill-buttons.'),
         purpose: z.string().optional().describe('Optional, never ask for it. The designer\'s own first sentence about what they explore, when they said one; otherwise leave it out. No em dash.'),
@@ -698,8 +698,11 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     {
       title: 'List explorations',
       description:
-        'Explorations of the repo (draft pull requests labeled exploration on explore/* branches): name, purpose, status (active: running; promoted: ready for review; closed), author, last update, for running ones the preview links Vercel reports (url null while it has not reported one yet) and the install command a product staging branch uses, read from the preview comment on the pull request (state building until the snapshot of the latest commit is published, never a guessed command), and the component requests implemented on each. Locally, also explore/* branches without a pull request.',
-      inputSchema: { state: z.enum(['open', 'closed', 'all']).optional().describe('Pull request state. Default open: running and promoted ones.') },
+        'Explorations of the repo (pull requests on explore/* branches): name, purpose, status (active: running; ready: done exploring, waiting for code; building: developers push to it; shipped: merged; promoted: sent to review the older way; closed), archived, author, last update, for open ones the preview links Vercel reports (url null while it has not reported one yet) and the install command a product staging branch uses, read from the preview comment on the pull request (state building until the snapshot of the latest commit is published, never a guessed command), and the component requests implemented on each. Archived ones are left out unless archived is true. Locally, also explore/* branches without a pull request.',
+      inputSchema: {
+        state: z.enum(['open', 'closed', 'all']).optional().describe('Pull request state. Default open: running ones and the ones with the developers.'),
+        archived: z.boolean().optional().describe('true: only the archived ones (the Archived filter in Studio).'),
+      },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     run((a) => explorations.listExplorations(ctx, a)),
@@ -708,20 +711,36 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
   server.registerTool(
     'bridge_promote_exploration',
     {
-      title: 'Promote an exploration to review',
+      title: 'Done exploring',
       description:
-        'Promote an exploration (explore/<name>) to review, as in Studio: the draft becomes ready for review with its tier labels, the exploration label and note go, and the component requests it implements are linked so they close when it merges. Never merges. Needs GITHUB_TOKEN (contents and pull requests: write). Only when the person asked; dryRun shows what changes.',
-      inputSchema: { exploration: z.string().min(1).describe('Its name, explore/<name> branch or number (#42).'), dryRun: z.boolean().optional() },
+        '"Done exploring" on an exploration (explore/<name>), as in Studio (the tool keeps its old name). It never closes, merges or marks the draft ready for review: the pull request stays open so its preview link keeps working for the designer, the DS lead, stakeholders and developers. The pieces you pass (ids from bridge_missing_pieces; ask the person which ones) each become a request for the DS lead with a link to the preview; pieces left out are not proposed. Then the exploration label and note go and ready-for-devs comes: developers take the branch (git fetch origin, then git checkout explore/<name>) as a starting point, never as code ready to ship. Their pushes read "Being built", the merge "Shipped". Said again later, it only sends newly picked pieces. dryRun shows what it would send. Needs GITHUB_TOKEN (contents, pull requests and issues: write). Only when the person asked.',
+      inputSchema: {
+        exploration: z.string().min(1).describe('Its name, explore/<name> branch or number (#42).'),
+        pieces: z.array(z.string()).optional().describe('Ids of the missing pieces the person ticked (bridge_missing_pieces). Omitted: none is proposed, and the result lists the ones not sent.'),
+        dryRun: z.boolean().optional(),
+      },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
-    run((a) => explorations.promoteExploration(ctx, { ref: a.exploration, dryRun: a.dryRun })),
+    run((a) => explorations.doneExploring(ctx, { ref: a.exploration, pieces: a.pieces, dryRun: a.dryRun, source: 'mcp', agent: 'claude' })),
+  );
+
+  server.registerTool(
+    'bridge_archive_exploration',
+    {
+      title: 'Archive an exploration',
+      description:
+        'Archive an exploration, as in Studio: the archived label on its still open pull request hides it from the default lists, home and counts (bridge_list_explorations with archived: true lists them). The preview link keeps working. unarchive: true brings it back. Prefer it to bridge_close_exploration, which removes the preview. Needs GITHUB_TOKEN (pull requests or issues: write). Only when the person asked.',
+      inputSchema: { exploration: z.string().min(1).describe('Its name, explore/<name> branch or number (#42).'), unarchive: z.boolean().optional() },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    run((a) => explorations.archiveExploration(ctx, { ref: a.exploration, archived: !a.unarchive })),
   );
 
   server.registerTool(
     'bridge_close_exploration',
     {
       title: 'Close an exploration',
-      description: 'Close an exploration without merging it, as in Studio. Its branch and previews stay on GitHub. Needs GITHUB_TOKEN (pull requests: write). Only when the person asked.',
+      description: 'Close an exploration without merging it. Its branch stays on GitHub, but closing removes its preview prerelease and visual images: archive it instead (bridge_archive_exploration) unless the person explicitly wants it closed. Needs GITHUB_TOKEN (pull requests: write). Only when the person asked.',
       inputSchema: { exploration: z.string().min(1).describe('Its name, explore/<name> branch or number (#42).') },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },

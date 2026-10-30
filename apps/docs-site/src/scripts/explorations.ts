@@ -1,39 +1,36 @@
 // Studio Branches > Explorations: the list (summary first), the detail in place (?exploration=N), the "Start an
-// exploration" form, and Promote to review / Close. An exploration is a draft pull request labeled `exploration` on an
-// `explore/<slug>` branch; starting, promoting and closing go through the core helpers (explorations-github.ts) with
-// the viewer's token, the same code the MCP server and the CLI run. Reads stay inside the anonymous budget: the open
-// pull requests In review already read, plus the request list the Requests view caches. Pure rules: lib/explorations-view.ts.
+// exploration" form, and Done exploring / Archive. An exploration is a draft pull request labeled `exploration` on an
+// `explore/<slug>` branch, a living prototype: "Done exploring" hands it to the developers and "Archive" hides it, and
+// neither closes it, so its preview link stays alive. Both go through the core helpers (exploration-done-github.ts,
+// explorations-github.ts) with the viewer's token, the same code the MCP server and the CLI run. Reads stay inside the
+// anonymous budget: the open pull requests In review already read, plus the request list the Requests view caches.
+// Pure rules: lib/explorations-view.ts.
 import {
   type BranchPreview,
-  entryLabel,
   type BranchPreviewSources,
-  closeExplorationOnGitHub,
-  promoteExplorationOnGitHub,
+  archiveExplorationOnGitHub,
   requestIssueTitle,
   subjectTitle,
   type ExplorationUseCase,
 } from '@bridge-ds/core';
-import { loadTeams, siteApproverEntries } from './teams';
 import {
+  ARCHIVED_LINE,
   branchFor,
   explorationPreviews,
   explorationRows,
   explorationStateLine,
   explorationsSummary,
-  openRequestNumbers,
   runningCount,
   startProblems,
+  takeItLines,
   type ExplorationPullLike,
   type ExplorationRow,
   previewRowCopy,
-  promoteAsk,
-  promotedLine,
   purposeLine,
   useCaseHint,
 } from '../lib/explorations-view';
 import { touchesVisuals } from '../lib/visual-impact';
-import type { Tier } from '../lib/review-rules';
-import type { PromoteAskDetail } from '../components/ds/studio/PromoteToReview';
+import { askDoneExploring } from './exploration-done';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { explorationFromRequest, type PullLike, type RequestRow } from '../lib/requests-view';
 import { explorationWork } from '../lib/work-nature';
@@ -60,14 +57,6 @@ const USE_CASE = 'ex-use-case';
 const repo = readRepo();
 const R = `/repos/${repo.owner}/${repo.repo}`;
 const CFG = explorationsConfig();
-
-// Who approves: the owner lists after rights, the same lists the review counts approvals against. A GitHub team is
-// named as a team with its size once read ("@acme/design (4 people)").
-async function approverNames(): Promise<{ design: string[]; tech: string[] }> {
-  const teams = await loadTeams();
-  const e = siteApproverEntries();
-  return { design: e.design.map((x) => entryLabel(x, teams)), tech: e.tech.map((x) => entryLabel(x, teams)) };
-}
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -360,21 +349,45 @@ export function previewList(previews: BranchPreview[]): string {
  */
 const keeperOf = (r: ExplorationRow) => canKeepExploration({ viewer: currentViewer()?.login ?? null, author: r.author, reviewer: viewerRole() === 'reviewer', write: currentAccess()?.write ?? null });
 
+/**
+ * The header actions. Running: Done exploring (primary) and Archive. With the developers: Archive only. Archived: the
+ * line that says so and Unarchive. Nothing ever closes the exploration, so its preview link stays alive. Promoted the
+ * older way: the change it became.
+ */
+function detailActions(r: ExplorationRow, opts: { connected: boolean; suggest: boolean; keeper?: boolean }): string {
+  if (r.status === 'promoted') return `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a>`;
+  const open = r.status === 'active' || r.status === 'ready' || r.status === 'building';
+  if (!open || opts.suggest) return r.archived ? `<p class="cg-muted">${esc(ARCHIVED_LINE)}</p>` : '';
+  if (opts.connected && opts.keeper === false) return `<p class="cg-muted">${esc(keepExplorationLine(r.author))}</p>`;
+  if (!opts.connected) {
+    if (r.status !== 'active') return '';
+    // The sample team: the button says what it does; a click opens the demo dialog (scripts/demo-gate.ts).
+    return sampleVisitor()
+      ? `<button type="button" class="btn btn-primary btn-lg" data-demo-write="keep an exploration">Done exploring</button>`
+      : `<button type="button" class="btn btn-primary btn-lg" data-gh-open data-demo-write="keep an exploration">${ghAction('say it is done exploring', prefersSignIn())}</button>`;
+  }
+  if (r.archived) return `<p class="cg-muted">${esc(ARCHIVED_LINE)}</p> <button type="button" class="btn btn-secondary btn-lg" data-ex-archive="${r.number}" data-unarchive>Unarchive</button>`;
+  const archive = `<button type="button" class="btn btn-secondary btn-lg" data-ex-archive="${r.number}">Archive</button>`;
+  return r.status === 'active' ? `<button type="button" class="btn btn-primary btn-lg" data-ex-done="${r.number}">Done exploring</button> ${archive}` : archive;
+}
+
+/**
+ * "For developers", folded: the branch and the two commands to take it, labeled as a starting point (Claude's
+ * prototype code is never reviewed or tested). Developer words live here only, never in the designer's flow.
+ */
+export function developerSection(r: Pick<ExplorationRow, 'branch' | 'url' | 'status'>): string {
+  if (r.status === 'closed') return '';
+  const t = takeItLines(r.branch);
+  const body = `<p class="cg-line">${esc(t.note)}</p>
+    <p class="cg-line">Branch <code class="mono">${esc(t.branch)}</code></p>
+    <pre class="ex-take"><code>${esc(t.commands.join('\n'))}</code></pre>
+    <p class="cg-line"><a href="${attrUrl(r.url)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a></p>`;
+  return section('ex-sec-dev', 'For developers', 'Starting point', body);
+}
+
 export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean; suggest?: boolean; keeper?: boolean }): string {
   const suggest = opts.suggest ?? changesModeOnPage() === 'suggest';
-  const actions =
-    r.status !== 'active'
-      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a>`
-      : suggest
-        ? ''
-        : opts.connected && opts.keeper === false
-          ? `<p class="cg-muted">${esc(keepExplorationLine(r.author))}</p>`
-        : opts.connected
-        ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">${VOCAB.requestReview}</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
-        : sampleVisitor()
-          ? // The sample team: the button says what it does; a click opens the demo dialog (scripts/demo-gate.ts).
-            `<button type="button" class="btn btn-primary btn-lg" data-demo-write="keep an exploration">${VOCAB.requestReview}</button>`
-          : `<button type="button" class="btn btn-primary btn-lg" data-gh-open data-demo-write="keep an exploration">${ghAction('promote it', prefersSignIn())}</button>`;
+  const actions = detailActions(r, { connected: opts.connected, suggest, ...(opts.keeper !== undefined ? { keeper: opts.keeper } : {}) });
   // Filled again by paintTryIt with what Vercel reports: a long branch alias is shortened with a hash, never guessed.
   const resolved = explorationPreviews(r, CFG.apps);
   const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Previews are not set up for this library yet.</p>';
@@ -390,10 +403,6 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
     <p class="cg-pr-meta">${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}${badgeHtml('Exploration', { className: 'cg-tier' })}${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span><a class="cg-gh" href="${attrUrl(r.url)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a></p>
     <p class="cg-pr-state">${esc(explorationStateLine(r.status))}</p>
     <div class="cg-pr-cta ex-actions" id="ex-actions">${actions}</div>
-    <div class="ex-confirm" id="ex-confirm" hidden>
-      <p>Close ${esc(r.name)} without merging it? Its previews stay for reference.</p>
-      <p class="ex-actions"><button type="button" class="btn btn-secondary rv-danger" data-ex-close="${r.number}">Close exploration</button> <button type="button" class="btn btn-secondary" data-ex-close-cancel>Keep it</button></p>
-    </div>
     <p class="gh-error" id="ex-action-error" role="alert" hidden></p>
   </header>
   <section class="ex-hero" aria-labelledby="ex-h-previews">
@@ -406,6 +415,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   </section>
   <div class="cg-secs">
     ${section('ex-sec-requests', 'Requests built on it', String(r.requests.length), reqs, r.requests.length > 0)}
+    ${developerSection(r)}
   </div>`;
 }
 
@@ -415,6 +425,9 @@ let current: ExplorationRow | null = null;
  * The preview URLs Vercel reports (its comment on the branch, the head's statuses). Two reads. A failed read keeps
  * the previews painted from the configured templates.
  */
+/** What Vercel reported per exploration, kept for the preview link "Done exploring" puts on each request. */
+const sourcesBy = new Map<number, BranchPreviewSources>();
+
 async function paintTryIt(r: ExplorationRow) {
   let sources: BranchPreviewSources | null = null;
   try {
@@ -426,6 +439,7 @@ async function paintTryIt(r: ExplorationRow) {
   } catch {
     return;
   }
+  sourcesBy.set(r.number, sources);
   if (current?.number !== r.number || !sources) return;
   const pv = document.getElementById('ex-previews');
   if (pv) pv.innerHTML = previewList(explorationPreviews(r, CFG.apps, sources));
@@ -466,7 +480,8 @@ async function rowFor(n: number): Promise<ExplorationRow | null> {
   // A closed or promoted exploration is not in the open list: read it once.
   try {
     const p = (await ghGet<ExplorationPullLike>(`${R}/pulls/${n}`)).data;
-    return explorationRows([p], CFG)[0] ?? null;
+    pullsBy.set(p.number, p);
+    return explorationRows([p], CFG, { archived: 'include' })[0] ?? null;
   } catch {
     return null;
   }
@@ -507,60 +522,43 @@ function actionError(message: string | null, err?: unknown, action?: string) {
   el.hidden = message === null;
 }
 
-/**
- * Promote to review: a DS Dialog first (components/ds/studio/PromoteToReview.tsx) that says who will be asked to
- * approve, from a dry run of the promotion (the tier of the files it changes, no write) and the owners after rights.
- * Confirmed, it promotes; the header then says where the change went, with the link next to it.
- */
-function promote(btn: HTMLButtonElement) {
-  if (!current) return;
-  const r = current;
-  actionError(null);
-  const detail: PromoteAskDetail = {
-    number: r.number,
-    name: r.name,
-    ask: async () => {
-      const plan = await promoteExplorationOnGitHub(client(), r.number, { requests: openRequestNumbers(r), dryRun: true });
-      return promoteAsk(plan.tier as Tier, await approverNames());
-    },
-    confirm: async () => {
-      try {
-        const p = await promoteExplorationOnGitHub(client(), r.number, { requests: openRequestNumbers(r) });
-        const warn = p.warnings.length ? `<p class="cg-muted ex-note">${p.warnings.map(esc).join(' ')}</p>` : '';
-        // The header now says where the branch went, in one sentence with the link next to it.
-        $('ex-confirm').hidden = true;
-        document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Promoted to review');
-        document.querySelector('#rv-detail .cg-pr-meta .cg-tier')?.remove();
-        document.querySelector('#rv-detail .cg-pr-state')?.remove();
-        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a></p>${warn}`;
-        void loadExplorations(undefined, true);
-      } catch (err) {
-        throw new Error(`${(err as Error).message} You can also mark it ready for review on GitHub.`);
-      }
-    },
-    closed: (promoted) => {
-      if (promoted) document.querySelector<HTMLAnchorElement>('#ex-actions a')?.focus();
-      else if (btn.isConnected) btn.focus();
-    },
-  };
-  document.dispatchEvent(new CustomEvent('bridge:promote-ask', { detail }));
+/** Paints the detail again from a fresh read of the pull request (after Done exploring or Archive). */
+async function repaintDetail(n: number, said: string) {
+  const p = await ghGet<ExplorationPullLike>(`${R}/pulls/${n}`).then((f) => f.data, () => null);
+  if (p) pullsBy.set(n, p);
+  const r = p ? (explorationRows([p], CFG, { archived: 'include' })[0] ?? null) : null;
+  if (!r || current?.number !== n) return;
+  current = r;
+  $('rv-detail').innerHTML = renderExplorationDetail(r, { connected: connected(), keeper: keeperOf(r) });
+  const state = document.querySelector('#rv-detail .cg-pr-state');
+  if (state && said) {
+    state.textContent = said;
+    state.setAttribute('role', 'status');
+  }
+  void paintTryIt(r);
+  void paintVisual(r);
 }
 
-async function close(btn: HTMLButtonElement) {
+/** The preview each request links to: a URL Vercel reported, never a template it may have shortened. */
+function reportedPreview(r: ExplorationRow): string | null {
+  const s = sourcesBy.get(r.number);
+  if (!s) return null;
+  return explorationPreviews(r, CFG.apps, s).find((p) => p.url && p.source !== 'template' && p.state !== 'failed')?.url ?? null;
+}
+
+async function archive(btn: HTMLButtonElement) {
   if (!current) return;
   const r = current;
+  const archived = !btn.hasAttribute('data-unarchive');
   actionError(null);
-  setButtonBusy(btn, true, 'Closing');
+  setButtonBusy(btn, true, archived ? 'Archiving' : 'Unarchiving');
   try {
-    await closeExplorationOnGitHub(client(), r.number);
-    $('ex-confirm').hidden = true;
-    document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Closed');
-    document.querySelector('#rv-detail .cg-pr-state')?.remove();
-    $('ex-actions').outerHTML = '<p class="cg-pr-state ex-done" id="ex-actions" role="status">Closed without adding it to the library. Its previews stay for reference.</p>';
+    await archiveExplorationOnGitHub(client(), r.number, { archived });
     void loadExplorations(undefined, true);
+    await repaintDetail(r.number, archived ? ARCHIVED_LINE : 'Back in the lists.');
   } catch (err) {
-    actionError((err as Error).message, err, 'close changes');
-    setButtonBusy(btn, false, 'Close exploration');
+    actionError((err as Error).message, err, 'archive explorations');
+    setButtonBusy(btn, false, archived ? 'Archive' : 'Unarchive');
   }
 }
 
@@ -581,19 +579,22 @@ export function initExplorations() {
   });
   document.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
-    const p = t.closest<HTMLButtonElement>('[data-ex-promote]');
-    if (p) return void promote(p);
-    if (t.closest('[data-ex-close-ask]')) {
-      $('ex-confirm').hidden = false;
-      $('ex-confirm').querySelector<HTMLButtonElement>('[data-ex-close]')?.focus();
-      return;
+    const d = t.closest<HTMLButtonElement>('[data-ex-done]');
+    if (d && current) {
+      const r = current;
+      actionError(null);
+      // Done exploring: the dialog lists the new pieces to tick, then the branch goes to the developers. Nothing closes.
+      return void askDoneExploring(r, pullsBy.get(r.number)?.body, {
+        client,
+        previewUrl: reportedPreview(r),
+        focus: d,
+        after: (line) => {
+          void loadExplorations(undefined, true);
+          void repaintDetail(r.number, line);
+        },
+      });
     }
-    if (t.closest('[data-ex-close-cancel]')) {
-      $('ex-confirm').hidden = true;
-      document.querySelector<HTMLButtonElement>('[data-ex-close-ask]')?.focus();
-      return;
-    }
-    const c = t.closest<HTMLButtonElement>('[data-ex-close]');
-    if (c) void close(c);
+    const a = t.closest<HTMLButtonElement>('[data-ex-archive]');
+    if (a) void archive(a);
   });
 }

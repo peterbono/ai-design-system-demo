@@ -9,7 +9,7 @@
 // Each card shows the explored screen (a capture, never a generic icon when one exists), the title, the product, who
 // explores it and where it stands in designer words: "Exploring", "2 new pieces found", "In review", "Kept in the
 // library". Pure: no DOM, no fetch. Unit tested in home-explorations.test.ts.
-import { defaultProduct, findProduct, isActiveExploration, isExplorationPull, parseExplorationBody, parsePiecesRecord, PRODUCT_LABEL_PREFIX, requesterOf, type ProductConfig } from '@bridge-ds/core';
+import { defaultProduct, EXPLORATION_STATUS_LABEL, explorationStatus, findProduct, isActiveExploration, isArchivedExploration, isExplorationPull, isHandedOff, parseExplorationBody, parsePiecesRecord, PRODUCT_LABEL_PREFIX, requesterOf, type ProductConfig } from '@bridge-ds/core';
 import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
 import { studioHref } from './team-path';
@@ -31,7 +31,7 @@ export interface ExplorationPull {
 }
 
 /** Where an exploration stands. */
-export type ExplorationStage = 'exploring' | 'found' | 'in-review' | 'kept';
+export type ExplorationStage = 'exploring' | 'found' | 'with-devs' | 'in-review' | 'kept';
 
 export interface ExplorationCard {
   number: number;
@@ -83,10 +83,16 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 /**
  * Where it stands, in designer words. Merged: kept in the library. Still being tried (a draft, or the exploration label
- * on): exploring, or "2 new pieces found" once Bridge found pieces the library does not have. Otherwise: in review.
+ * on): exploring, or "2 new pieces found" once Bridge found pieces the library does not have. Done exploring and
+ * still a draft: with the developers ("Waiting for code", then "Being built"), shipped once merged. Otherwise: in review.
  */
-export function explorationStage(p: Pick<ExplorationPull, 'draft' | 'state' | 'merged_at' | 'labels' | 'body'>): { stage: ExplorationStage; state: string } {
-  if (p.merged_at || p.state === 'merged') return { stage: 'kept', state: 'Kept in the library' };
+export function explorationStage(p: Pick<ExplorationPull, 'draft' | 'state' | 'merged_at' | 'labels' | 'body'> & { head?: { ref: string; sha?: string } | undefined }): { stage: ExplorationStage; state: string } {
+  const handed = !isActiveExploration(p.labels ?? []) && isHandedOff({ labels: p.labels ?? [], body: p.body });
+  if (p.merged_at || p.state === 'merged') return { stage: 'kept', state: handed ? EXPLORATION_STATUS_LABEL.shipped : 'Kept in the library' };
+  if (handed && p.draft !== false) {
+    const s = explorationStatus({ state: p.state ?? 'open', labels: p.labels ?? [], body: p.body, headSha: p.head?.sha, draft: p.draft });
+    return { stage: 'with-devs', state: EXPLORATION_STATUS_LABEL[s] };
+  }
   if (p.draft || isActiveExploration(p.labels ?? [])) {
     const pieces = parsePiecesRecord(p.body)?.pieces.length ?? 0;
     return pieces ? { stage: 'found', state: `${plural(pieces, 'new piece', 'new pieces')} found` } : { stage: 'exploring', state: 'Exploring' };
@@ -117,7 +123,7 @@ export function isOwnExploration(p: Pick<ExplorationPull, 'user' | 'body'>, view
 /** The sketch of a screen, while no capture of it exists. */
 export const SCREEN_SKETCH: ThumbSpec = { kind: 'screen', src: null };
 
-const ORDER: Record<ExplorationStage, number> = { exploring: 0, found: 0, 'in-review': 1, kept: 2 };
+const ORDER: Record<ExplorationStage, number> = { exploring: 0, found: 0, 'with-devs': 1, 'in-review': 1, kept: 2 };
 
 export interface HomeExplorationsOptions<P extends ExplorationPull = ExplorationPull> {
   products: readonly ProductConfig[];
@@ -145,7 +151,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
     .filter((p) => {
       if (seen.has(p.number)) return false;
       seen.add(p.number);
-      return !givenUp(p) && isHomeExploration(p, opts.products) && (!opts.onlyOwn || isOwnExploration(p, opts.viewer));
+      return !givenUp(p) && !isArchivedExploration(p.labels) && isHomeExploration(p, opts.products) && (!opts.onlyOwn || isOwnExploration(p, opts.viewer));
     })
     .map((p): ExplorationCard => {
       const { stage, state } = explorationStage(p);

@@ -130,9 +130,10 @@ products, settings and Figma coverage, 5 for product branches and the library (s
 | `bridge_get_request` | Read one request with the component's files, the agent rules and a brief to implement it in a pull request that closes it |
 | `bridge_create_request` | File a request as an issue labeled `component-change` (`source: mcp`); needs `GITHUB_TOKEN`; `dryRun` previews it; `exploration` implements it on an exploration branch |
 | `bridge_start_exploration` | Start an exploration: an `explore/<name>` branch and a draft pull request labeled `exploration`, with previews and a snapshot package for a product staging branch, never merged as is (see [Explorations](#explorations)) |
-| `bridge_list_explorations` | List explorations: purpose, status (running, promoted, closed), previews, the snapshot install command and the requests implemented on each |
-| `bridge_promote_exploration` | Promote an exploration to review (ready for review, tier labels, its requests linked); never merges |
-| `bridge_close_exploration` | Close an exploration without merging it |
+| `bridge_list_explorations` | List explorations: purpose, status (running, waiting for code, being built, shipped, closed), archived ones on demand, previews, the snapshot install command and the requests implemented on each |
+| `bridge_promote_exploration` | Done exploring (old name kept): the picked pieces become requests for the DS lead, the branch goes to the developers; never closes, merges or marks it ready |
+| `bridge_archive_exploration` | Archive or unarchive an exploration: hidden from the lists, its pull request and preview still open |
+| `bridge_close_exploration` | Close an exploration without merging it (removes its preview: prefer archive) |
 | `bridge_missing_pieces` | What a product branch adds that the library lacks (the audit on its diff against main): variants of library components, new components, token values; `record` saves them where Studio shows them |
 | `bridge_open_library_branch` | Open the library side of one piece, linked both ways: a token change (and the product branch takes its preview), a library exploration for a variant, or a component request |
 | `bridge_product_branch` | A product branch as Studio shows it: the summary, each linked library branch with its status, reviewers, preview and next action |
@@ -233,7 +234,8 @@ read without the "needs me" part) and 13 not at all. Now all 32 do.
 | Share with a product team | `bridge_try_branch` (install command and message) | `bridge branch try 12` | None |
 | Try 2 to 4 branches together | `bridge_combine_branches` | `bridge branch combine 101 118 [--pick <key>=118]` | None |
 | Start an exploration | `bridge_start_exploration` with `product` | `bridge explore start ... --product admin` | Contents, Pull requests: write |
-| Promote an exploration | `bridge_promote_exploration` | `bridge explore promote <name>` | Contents, Pull requests: write |
+| Done exploring | `bridge_promote_exploration` | `bridge explore done <name>` | Contents, Pull requests, Issues: write |
+| Archive an exploration | `bridge_archive_exploration` | `bridge explore archive <name>` | Pull requests or Issues: write |
 | Close an exploration | `bridge_close_exploration` | `bridge explore close <name>` | Pull requests: write |
 | See what a product branch adds outside the library | `bridge_missing_pieces` (`record` to show it in Studio) | `bridge pieces 12 [--record]` | None to read; Pull requests: write to record |
 | Open a library branch for a missing piece | `bridge_open_library_branch` | `bridge pieces open 12 <piece>` | Contents, Pull requests, Issues: write |

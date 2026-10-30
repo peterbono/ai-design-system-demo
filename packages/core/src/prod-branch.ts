@@ -317,6 +317,41 @@ export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef,
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Done exploring: each piece the designer ticks becomes a request for the DS lead
+
+/**
+ * The request a piece becomes when a designer says "Done exploring" and ticks it: always a request (an issue), never a
+ * branch, so the DS lead decides on it first. A token is asked for beside the closest token, a variant on its
+ * component, a new component as one. The summary links the exploration's preview, so the DS lead sees the piece in
+ * context. The "Needed by" block (withNeededBy, the plan's `neededBy`) goes on the issue too.
+ */
+export function pieceRequest(piece: MissingPiece, branch: ProductBranchRef, opts: { previewUrl?: string | null | undefined; source?: ComponentChangeRequest['source']; requestedBy?: string | undefined } = {}): { request: ComponentChangeRequest; neededBy: NeededBy } {
+  const plan = libraryBranchPlan(piece, branch, { ...(opts.source ? { source: opts.source } : {}), ...(opts.requestedBy ? { requestedBy: opts.requestedBy } : {}), mode: 'suggest' });
+  const near = piece.nearest ? ` The closest the library has today is ${piece.nearest.label} (${piece.nearest.token}, ${piece.nearest.value}).` : '';
+  const context = opts.previewUrl ? ` See it in context in the exploration's preview: ${opts.previewUrl}` : ` See it in context in the exploration: ${branch.url}`;
+  const base = {
+    source: opts.source ?? 'mcp',
+    ...(opts.requestedBy ? { requestedBy: opts.requestedBy } : {}),
+    changes: piece.values.slice(0, 6).map((v) => ({ field: v.property ?? v.category, after: v.value })),
+  } as const;
+  let request: ComponentChangeRequest;
+  if (plan.kind === 'request') request = { ...plan.request, summary: `${plan.request.summary}${context}` };
+  else if (piece.kind === 'token' && piece.token) {
+    request = {
+      ...base,
+      component: 'Tokens',
+      kind: 'other',
+      title: `Add ${piece.token.path}`,
+      summary: `${forLine(branch)}: ${piece.summary}${near} Proposed: ${piece.token.path} = ${piece.token.value}, beside the closest token.${context}`,
+      changes: [{ field: piece.token.path, after: piece.token.value }],
+    };
+  } else {
+    request = { ...base, component: piece.component ?? cap(piece.name), kind: piece.component ? 'new-variant' : 'new-component', title: piece.title, summary: `${forLine(branch)}: ${piece.summary}${near}${context}` };
+  }
+  return { request, neededBy: plan.neededBy };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Where a linked library branch stands
 
 export type LinkStatusKey = 'draft' | 'in-review' | 'changes' | 'approved' | 'shipped' | 'closed' | 'exploring' | 'requested' | 'in-progress' | 'done' | 'declined' | 'outdated';
@@ -401,7 +436,8 @@ export function linkStatus(
   }
   if (x.state === 'merged') return make('shipped');
   if (x.state !== 'open') return make('closed');
-  if ((x.labels ?? []).includes('exploration')) return make('exploring');
+  // Running, or handed to developers after "Done exploring" while still a draft: being built either way.
+  if ((x.labels ?? []).includes('exploration') || (x.draft && (x.labels ?? []).includes('ready-for-devs'))) return make('exploring');
   if (x.draft) return make('draft');
   const latest = new Map<string, string>();
   for (const r of x.reviews ?? []) if (r.user && r.state !== 'COMMENTED') latest.set(r.user, r.state);

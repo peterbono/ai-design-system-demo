@@ -153,12 +153,12 @@ Usage:
                                       build. Status read from GitHub (assignee, linked pull request), the
                                       brief for Claude (\`bridge build help\`)
   bridge explore start <name> --purpose "..." [--use-case user-test|stakeholder-demo|ab-idea|terminal]
-  bridge explore list [--all] [--json]
-  bridge explore promote <name|#pr> [--dry-run]
-  bridge explore close <name|#pr>
+  bridge explore list [--all] [--archived] [--json]
+  bridge explore done <name|#pr> [--piece <id> ...] [--dry-run]
+  bridge explore archive|unarchive|close <name|#pr>
                                       explorations: an explore/<name> branch with a draft pull request
                                       labeled exploration, previews and a snapshot package for a product
-                                      staging branch. Never merged as is: promote it to review or close it
+                                      staging branch. Done exploring hands it to developers, never closes it
   bridge branch list|status|comments|ready|draft|review|ask|comment|merge|close|reopen|update|try|combine
                                       branches in review, the same actions as Bridge Studio
                                       (\`bridge branch help\`): what needs me, send for review, review,
@@ -223,7 +223,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct', 'use-gh-auth', 'measure', 'open', 'variants', 'check', 'tokens', 'shots', 'resume', 'no-fixes', 'case', 'with-claude', 'build', 'print', 'in-library'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct', 'use-gh-auth', 'measure', 'open', 'variants', 'check', 'tokens', 'shots', 'resume', 'no-fixes', 'case', 'with-claude', 'build', 'print', 'in-library', 'archived'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }

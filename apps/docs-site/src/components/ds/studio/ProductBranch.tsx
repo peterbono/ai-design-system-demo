@@ -11,8 +11,6 @@ import { ChevronLeft, Ellipsis } from 'lucide-react';
 import {
   Accordion,
   AccordionItem,
-  AlertDialog,
-  AlertDialogContent,
   Badge,
   Breadcrumb,
   Button,
@@ -55,12 +53,20 @@ export interface ProductBranchProps {
   connected: boolean;
   connectLabel: (goal: string) => string;
   onAct: (row: PieceRowView, kind: PieceActionKind) => Promise<string | void>;
-  /** Exploration actions: promote to review (the shared dialog), close without merging. Null when not offered. */
-  onPromote: (() => void) | null;
-  onClose: (() => Promise<string | void>) | null;
-  /** Why Send for review and Close are not offered to this viewer, and who can (lib/write-route keepExplorationLine). */
+  /**
+   * Exploration actions, none of which closes it (its preview link stays alive): Done exploring (the shared dialog,
+   * while it runs), Archive or Unarchive (`archived` says which). Null when not offered.
+   */
+  onDone: ((focus: HTMLElement | null) => void) | null;
+  onArchive: (() => Promise<string | void>) | null;
+  archived?: boolean;
+  /** Where it stands once done exploring, in one sentence (lib/explorations-view explorationStateLine); null while it runs. */
+  state?: string | null;
+  /** Why Done exploring and Archive are not offered to this viewer, and who can (lib/write-route keepExplorationLine). */
   keepNote?: string | null;
   developer: { label: string; value: string }[];
+  /** How developers take it: the two commands and the starting point note (lib/explorations-view takeItLines). */
+  take?: { commands: [string, string]; note: string } | null;
   githubUrl: string;
   ask: string;
   said?: string;
@@ -111,7 +117,6 @@ function PieceRow({ row, p, busy, run }: { row: PieceRowView; p: ProductBranchPr
 export function ProductBranch(p: ProductBranchProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [said, setSaid] = useState(p.said ?? '');
-  const [confirm, setConfirm] = useState(false);
   const run = (row: PieceRowView, kind: PieceActionKind) => {
     setBusy(`${row.id}:${kind}`);
     setSaid('');
@@ -120,10 +125,9 @@ export function ProductBranch(p: ProductBranchProps) {
       .catch((err: Error) => setSaid(err.message))
       .finally(() => setBusy(null));
   };
-  const close = () => {
-    setConfirm(false);
+  const archive = () => {
     setSaid('');
-    p.onClose?.()
+    p.onArchive?.()
       .then((r) => setSaid(r ?? ''))
       .catch((err: Error) => setSaid(err.message));
   };
@@ -150,19 +154,15 @@ export function ProductBranch(p: ProductBranchProps) {
               </Button>
             </Tooltip>
           )}
-          {(p.onPromote || p.onClose) && (
+          {(p.onDone || p.onArchive) && (
             <Menu>
               <Tooltip content="More actions">
                 <MenuTrigger render={<IconButton icon={Ellipsis} label="More actions" variant="secondary" size="lg" />} />
               </Tooltip>
               <MenuContent align="end">
-                {p.onPromote && <MenuItem onClick={p.onPromote}>Send for review</MenuItem>}
-                {p.onPromote && p.onClose && <MenuSeparator />}
-                {p.onClose && (
-                  <MenuItem tone="danger" onClick={() => setConfirm(true)}>
-                    Close feature
-                  </MenuItem>
-                )}
+                {p.onDone && <MenuItem onClick={() => p.onDone?.(document.querySelector<HTMLElement>('.pb-head-acts [aria-label="More actions"]'))}>Done exploring</MenuItem>}
+                {p.onDone && p.onArchive && <MenuSeparator />}
+                {p.onArchive && <MenuItem onClick={archive}>{p.archived ? 'Unarchive' : 'Archive'}</MenuItem>}
               </MenuContent>
             </Menu>
           )}
@@ -173,6 +173,7 @@ export function ProductBranch(p: ProductBranchProps) {
         {p.sentence.strong && <strong>{p.sentence.strong}</strong>}
         {p.sentence.rest}
       </p>
+      {p.state && <p className="pb-keep-note">{p.state}</p>}
       {p.keepNote && <p className="pb-keep-note">{p.keepNote}</p>}
       <div className={twoRegions ? 'pb-grid' : 'pb-grid is-one'}>
         {twoRegions && (
@@ -212,6 +213,14 @@ export function ProductBranch(p: ProductBranchProps) {
       </p>
       <Accordion className="pb-dev" headingLevel={2}>
         <AccordionItem value="dev" title="For developers">
+          {p.take && (
+            <div className="pb-dev-take">
+              <p>{p.take.note}</p>
+              <pre className="pb-mono pb-dev-commands">
+                <code>{p.take.commands.join('\n')}</code>
+              </pre>
+            </div>
+          )}
           <dl className="pb-dev-list">
             {p.developer.map((d) => (
               <div key={d.label} className="pb-dev-row">
@@ -225,9 +234,6 @@ export function ProductBranch(p: ProductBranchProps) {
           </Link>
         </AccordionItem>
       </Accordion>
-      <AlertDialog open={confirm} onOpenChange={(o) => !o && setConfirm(false)}>
-        <AlertDialogContent title="Close this feature without adding it?" description="Its previews stay for reference. Library changes opened for it stay open." confirmLabel="Close feature" tone="danger" onConfirm={close} />
-      </AlertDialog>
     </div>
   );
 }

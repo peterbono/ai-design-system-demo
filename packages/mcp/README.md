@@ -45,18 +45,19 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 
 <!-- tools:start (generated from the server: npm run readme:tools -w @bridge-ds/mcp) -->
 
-73 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
+74 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
 
 | Tool | Access | What it does |
 | --- | --- | --- |
 | `bridge_apply_suggestion` | writes | Apply a Bridge suggestion to today's code ("Apply Bridge suggestion #42"). |
+| `bridge_archive_exploration` | writes | Archive an exploration, as in Studio: the archived label on its still open pull request hides it from the default lists, home and counts (bridge_list_explorations with archived: true lists them). |
 | `bridge_ask_someone_else` | writes | Ask the other people who can give the missing approvals to review a branch, as "Ask someone else to review" in the Studio review queue, and take the person off its requested reviewers. |
 | `bridge_audit` | reads | Measure how a product codebase uses this design system (local only). |
 | `bridge_back_to_draft` | writes | Take a branch out of review back to draft, as in Studio's More menu. |
 | `bridge_branch_status` | reads | One branch in review as Studio shows it: its product, status (draft, in review, needs design or tech approval, blocked by tests, conflict, ready to merge, merged, closed), approvals (Tier 1: one owner approval; a branch that applies an approved suggestion carries its approvals), tests, how it stands against main, whether the person may merge it (the same verdict as the Merge button and status chips in Studio), and the next step. |
 | `bridge_check_contrast` | reads | Run the repo's WCAG contrast gate (every pair in every brand x theme). |
 | `bridge_close_branch` | writes | Close a branch without merging it, as in Studio's More menu. |
-| `bridge_close_exploration` | writes | Close an exploration without merging it, as in Studio. |
+| `bridge_close_exploration` | writes | Close an exploration without merging it. |
 | `bridge_combine_branches` | reads | Combined preview of 2 to 4 token branches, as "Try together" in Studio: each branch's own token edits on the latest main, the tokens two branches set differently (pick one per key with picks), and the links that open the combination (the admin demo with the Bridge toolbar, the library views). |
 | `bridge_comment` | writes | Post a comment on a branch, or reply in the thread of a line comment (replyTo: its id from bridge_list_comments). |
 | `bridge_create_request` | writes | File a component change request as a GitHub issue labeled component-change (source: mcp), in the same format as Figma and Bridge Studio requests. |
@@ -84,7 +85,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_list_build_requests` | reads | Build requests: structure changes pushed from Figma (a new variant, option, layout or component) that developers build, as GitHub issues labeled component-change and bridge-build, plus library branches from Figma waiting for a developer. |
 | `bridge_list_comments` | reads | The conversation on a branch and its line comment threads, with the ids to reply to (bridge_comment with replyTo). |
 | `bridge_list_components` | reads | List design system components with family and one-line summary (what it is for). |
-| `bridge_list_explorations` | reads | Explorations of the repo (draft pull requests labeled exploration on explore/* branches): name, purpose, status (active: running; promoted: ready for review; closed), author, last update, for running ones the preview links Vercel reports (url null while it has not reported one yet) and the install command a product staging branch uses, read from the preview comment on the pull request (state building until the snapshot of the latest commit is published, never a guessed command), and the component requests implemented on each. |
+| `bridge_list_explorations` | reads | Explorations of the repo (pull requests on explore/* branches): name, purpose, status (active: running; ready: done exploring, waiting for code; building: developers push to it; shipped: merged; promoted: sent to review the older way; closed), archived, author, last update, for open ones the preview links Vercel reports (url null while it has not reported one yet) and the install command a product staging branch uses, read from the preview comment on the pull request (state building until the snapshot of the latest commit is published, never a guessed command), and the component requests implemented on each. |
 | `bridge_list_products` | reads | The products of this design system (bridge.config.json "products": name, repo or folder, preview link pattern, framework) and the one the current folder or repo belongs to, which tools that start work use when no product is given. |
 | `bridge_list_requests` | reads | Component change requests: GitHub issues labeled component-change (from Figma, Bridge Studio, the CLI or Claude). |
 | `bridge_list_reviews` | reads | Open pull requests on the repo (flagging the ones Bridge opened) and, locally, the bridge/* proposal branches. |
@@ -98,7 +99,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_plan_brand` | reads | Dry run of a new brand: the brand token file (generated primary and neutral ramps, radius and font roles), copied theme overrides, the bridge.config.json change, every contrast pair for the new brand in light and dark (ok, or the failing pairs), validation issues, the risk tier (always Tier 3, minor) and the PR body. |
 | `bridge_plan_revert` | reads | What undoing a merged token change takes, computed against the CURRENT base branch (not a blind git revert): the inverse edits, conflicts where a token changed again later (with the later PR), changes already undone, contrast before and after, new validation errors, risk tier, files and the PR body ("Revert: <title>", links the original PR). |
 | `bridge_product_branch` | reads | A product branch as Studio shows it: the summary sentence, each linked library branch with its status and reviewers, what its preview means for the product branch and the next action, and the pieces with no library branch yet. |
-| `bridge_promote_exploration` | writes | Promote an exploration (explore/<name>) to review, as in Studio: the draft becomes ready for review with its tier labels, the exploration label and note go, and the component requests it implements are linked so they close when it merges. |
+| `bridge_promote_exploration` | writes | "Done exploring" on an exploration (explore/<name>), as in Studio (the tool keeps its old name). |
 | `bridge_propose_brand` | writes | Propose a new brand as a reviewable change. |
 | `bridge_propose_figma_fixes` | writes | Opens the accepted fixes for review like other Bridge changes: figma-fixes.json with them on a new bridge/* branch and a draft pull request labelled drafted-by-claude, figma-fixes and its tier (locally: a new local branch, never pushed). |
 | `bridge_propose_revert` | writes | Plans the revert (or restore) like bridge_plan_revert, then: local repo, commits to a new local bridge/* branch without touching your working tree (never pushes); GitHub with token, new bridge/* branch and a PR labelled revert and its tier (draft for Tier 2 and 3). |

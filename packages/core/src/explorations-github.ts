@@ -14,7 +14,9 @@ import {
   explorationSlug,
   explorationStatus,
   explorationTryIt,
+  isArchivedExploration,
   isExplorationPull,
+  EXPLORATION_ARCHIVED_LABEL,
   parseExplorationBody,
   promotionPlan,
   type Exploration,
@@ -57,6 +59,8 @@ export interface ExplorationSummary {
   purpose: string;
   useCase?: string | undefined;
   status: ExplorationStatus;
+  /** Archived (the `archived` label): hidden from the default lists, its pull request and preview still open. */
+  archived: boolean;
   draft: boolean;
   author: string;
   /** Where it was started and the AI agent that started it, when the exploration block says so. */
@@ -84,7 +88,8 @@ export function explorationSummary(p: PullRequestSummary, _owner: string, _repo:
     name: e?.name ?? p.title.replace(/^[A-Z][A-Z0-9_]*-\d+\s+/, '').replace(/^Exploration:\s*/i, ''),
     purpose: e?.purpose ?? '',
     ...(e?.useCase ? { useCase: e.useCase } : {}),
-    status: explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body }),
+    status: explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body, headSha: p.headSha, draft: p.draft }),
+    archived: isArchivedExploration(p.labels),
     draft: p.draft,
     author: e?.author ?? p.author,
     ...(e?.source ? { source: e.source } : {}),
@@ -95,10 +100,17 @@ export function explorationSummary(p: PullRequestSummary, _owner: string, _repo:
   };
 }
 
-/** Explorations of the repo, newest activity first. `state: 'open'` lists the running ones and the promoted open ones. */
-export async function listExplorationsOnGitHub(gh: GitHubClient, s: Pick<ExplorationSettings, 'packages' | 'apps'>, opts: { state?: 'open' | 'closed' | 'all' } = {}): Promise<ExplorationSummary[]> {
+/**
+ * Explorations of the repo, newest activity first. `state: 'open'` lists the running ones and the open ones handed to
+ * developers. Archived ones are left out unless `archived` is 'include' (all) or 'only' (the Archived filter).
+ */
+export async function listExplorationsOnGitHub(gh: GitHubClient, s: Pick<ExplorationSettings, 'packages' | 'apps'>, opts: { state?: 'open' | 'closed' | 'all'; archived?: 'exclude' | 'include' | 'only' } = {}): Promise<ExplorationSummary[]> {
   const pulls = await gh.listPullRequests(opts.state ?? 'open');
-  return pulls.filter((p) => isExplorationPull({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body })).map((p) => explorationSummary(p, gh.owner, gh.name, s));
+  const archived = opts.archived ?? 'exclude';
+  return pulls
+    .filter((p) => isExplorationPull({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body }))
+    .filter((p) => archived === 'include' || (archived === 'only') === isArchivedExploration(p.labels))
+    .map((p) => explorationSummary(p, gh.owner, gh.name, s));
 }
 
 export interface StartedExploration {
@@ -256,7 +268,27 @@ export async function promoteExplorationOnGitHub(
   return out;
 }
 
-/** Closes an exploration without merging. The branch stays for reference; the workflow removes the prerelease. */
+/**
+ * Archives an exploration (the `archived` label), or brings it back with `archived: false`. The pull request stays
+ * open, so its preview link keeps working: archiving only hides it from the default lists.
+ */
+export async function archiveExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { archived?: boolean } = {}): Promise<{ number: number; url: string; branch: string; archived: boolean }> {
+  if (!gh.canWrite) throw new GitHubError(401, 'Archiving an exploration needs a GitHub token (pull requests or issues: write).');
+  const p = await findExplorationOnGitHub(gh, ref);
+  if (p.state !== 'open') throw new GitHubError(422, `#${p.number} is ${p.state === 'merged' ? 'shipped' : 'closed'}: only an open exploration is archived. Its link already stays on GitHub.`);
+  const archived = opts.archived ?? true;
+  if (archived) await gh.addLabels(p.number, [EXPLORATION_ARCHIVED_LABEL]);
+  else
+    await gh.removeLabel(p.number, EXPLORATION_ARCHIVED_LABEL).catch((e: Error) => {
+      if (!(e instanceof GitHubError && e.status === 404)) throw e;
+    });
+  return { number: p.number, url: p.url, branch: p.headRef, archived };
+}
+
+/**
+ * Closes an exploration without merging. The branch stays for reference, but the workflows remove its preview
+ * prerelease and visual images: archiving (archiveExplorationOnGitHub) keeps the link alive instead.
+ */
 export async function closeExplorationOnGitHub(gh: GitHubClient, ref: string | number): Promise<{ number: number; url: string; branch: string }> {
   if (!gh.canWrite) throw new GitHubError(401, 'Closing an exploration needs a GitHub token (pull requests: write).');
   const p = await findExplorationOnGitHub(gh, ref);
