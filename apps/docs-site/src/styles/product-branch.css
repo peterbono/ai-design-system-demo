@@ -282,3 +282,7 @@
     flex: 1 1 100%;
   }
 }
+
+.pb-dev-take p {
+  margin: 0 0 var(--space-2);
+}

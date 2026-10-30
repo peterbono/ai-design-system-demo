@@ -36,7 +36,7 @@ export function canKeepExploration(x: { viewer: string | null | undefined; autho
   return x.reviewer || x.viewer.replace(/^@/, '').toLowerCase() === x.author.replace(/^@/, '').toLowerCase();
 }
 
-/** The line in place of Send for review and Close for everyone else. */
+/** The line in place of Done exploring and Archive for everyone else. */
 export function keepExplorationLine(author: string): string {
-  return `Only ${author ? `@${author.replace(/^@/, '')}, who started it,` : 'the person who started it'} or a reviewer can send it for review or close it.`;
+  return `Only ${author ? `@${author.replace(/^@/, '')}, who started it,` : 'the person who started it'} or a reviewer can say it is done exploring or archive it.`;
 }

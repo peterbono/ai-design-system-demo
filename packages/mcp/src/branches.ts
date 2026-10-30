@@ -317,7 +317,7 @@ function nextStep(ctx: BridgeContext, f: Awaited<ReturnType<typeof branchFacts>>
   const n = f.pr.number;
   if (f.lifecycle === 'merged') return 'Merged. It goes out with the next library release.';
   if (f.lifecycle === 'closed') return `Closed without merging. ${say(ctx, 'bridge_reopen_branch reopens it', `\`bridge branch reopen ${n}\` reopens it`)} when its work is still there.`;
-  if (f.exploration) return `It is an exploration: promote it with ${say(ctx, 'bridge_promote_exploration', `\`bridge explore promote #${n}\``)} when the idea is validated, or close it.`;
+  if (f.exploration) return `It is an exploration: when the idea is ready, say it is done exploring with ${say(ctx, 'bridge_promote_exploration', `\`bridge explore done #${n}\``)}; it stays open for the developers.`;
   if (f.autoShip && f.ci.state !== 'fail' && f.fresh.state !== 'conflict' && !f.approvals.changesRequested.length && (!f.gate.allowed || !f.figmaPush))
     return f.figmaPush ? 'Pushed from Figma, token values only: it merges by itself once the automatic checks pass.' : 'Token values, design approved: Bridge merges it by itself once the automatic checks pass (decision TV-1).';
   if (f.lifecycle === 'draft') return `Draft: ${say(ctx, 'bridge_send_for_review', `\`bridge branch ready ${n}\``)} asks for review when it is ready.`;
@@ -522,7 +522,7 @@ export async function sendForReview(ctx: BridgeContext, a: { pr: number | string
   const gh = await writer(ctx, 'Sending a branch for review', RIGHTS.draft);
   const [pr, viewer] = await Promise.all([gh.getPullRequest(n), gh.getViewer()]);
   if (pr.author.toLowerCase() !== viewer.login.toLowerCase()) throw new Error(`Only its author (@${pr.author}) sends #${n} for review, as in Studio. Ask them, or comment with ${say(ctx, 'bridge_comment', `\`bridge branch comment ${n} "text"\``)}.`);
-  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: promote it with ${say(ctx, 'bridge_promote_exploration', `\`bridge explore promote #${n}\``)} instead.`);
+  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: say it is done exploring with ${say(ctx, 'bridge_promote_exploration', `\`bridge explore done #${n}\``)} instead.`);
   if (pr.state !== 'open') throw new Error(`#${n} is ${pr.state}: reopen it first with ${say(ctx, 'bridge_reopen_branch', `\`bridge branch reopen ${n}\``)}.`);
   if (!pr.draft) return { pr: n, status: 'already-in-review' as const, said: 'It is already in review. Reviewers can see it.' };
   await gh.markReadyForReview(n);

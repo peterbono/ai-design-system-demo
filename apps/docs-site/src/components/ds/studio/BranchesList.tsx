@@ -19,7 +19,7 @@ import { Badge, Button, Checkbox, Link, SegmentedControl, Select, Skeleton, Tool
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
-import { boxDisabled, emptyWhoLine, showsDesignerFilter, tabFilters, finishedParam, FULL_TIP, groupByProduct, FINISHED_WORDS, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
+import { archivedLine, archivedParam, ARCHIVED_WORDS, boxDisabled, emptyWhoLine, showsDesignerFilter, tabFilters, finishedParam, FULL_TIP, groupByProduct, FINISHED_WORDS, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
 import { CLAUDE, person, requesterPerson, type Person, type PillTone } from '../../../lib/home-model';
@@ -82,6 +82,8 @@ export interface BranchesListProps {
   rows: ListRow[];
   /** The most recently closed branches (merged or not), null until read. */
   closed: ListRow[] | null;
+  /** Archived explorations (open pull requests, previews alive): listed only under the Archived filter (?archived=1). */
+  archived?: ListRow[];
   closedLimit: number;
   loading: boolean;
   viewer: string | null;
@@ -159,10 +161,15 @@ const setParam = (name: string, value: string | null) => {
 export function BranchesList(p: BranchesListProps) {
   const [who, setWho] = useState<WhoFilter>(() => whoFilterParam(location.search));
   const [finished, setFinished] = useState(() => finishedParam(location.search));
+  const [archivedOnly, setArchivedOnly] = useState(() => archivedParam(location.search));
   const [selected, setSelected] = useState<number[]>([]);
   const [filters, setFilters] = useState<QueueFilters>(() => readQueueFilters(location.search));
   const viewer = p.viewer ?? (p.seat ? `~${p.seat.toLowerCase()}` : null);
-  const all = useMemo(() => [...p.rows, ...(finished.finished ? (p.closed ?? []) : [])], [p.rows, p.closed, finished.finished]);
+  // The Archived filter lists the archived explorations only; everywhere else they stay out of the list and its counts.
+  const all = useMemo(
+    () => (archivedOnly ? (p.archived ?? []) : [...p.rows, ...(finished.finished ? (p.closed ?? []) : [])]),
+    [p.rows, p.closed, p.archived, finished.finished, archivedOnly],
+  );
   const extras = useExtras(all, p.connected ? 'all' : p.seat ? 'seat' : 'none');
 
   // The person of a row: who asked for it when Bridge recorded it, else Claude AI for its own work, else the author.
@@ -252,6 +259,11 @@ export function BranchesList(p: BranchesListProps) {
     setFinished({ finished: false, only: null });
     setParam('status', null);
   };
+  const showArchived = (on: boolean) => {
+    setArchivedOnly(on);
+    setParam('archived', on ? '1' : null);
+  };
+  const archivedCount = archivedLine(p.archived?.length ?? 0);
 
 
   // The checkbox (preview token branches together) leads a row; every row of a group that has one keeps its slot, so
@@ -434,7 +446,7 @@ export function BranchesList(p: BranchesListProps) {
           </Button>
         </p>
       ) : groups.length === 0 || waitingView ? (
-        <p className="t-body t-muted bl-none">{emptyWhoLine(who, Boolean(viewer))}</p>
+        <p className="t-body t-muted bl-none">{archivedOnly ? ARCHIVED_WORDS.empty : emptyWhoLine(who, Boolean(viewer))}</p>
       ) : (
         groups.map((g) => (
           <section className="bl-group" key={g.key} aria-labelledby={`bl-${g.key}`}>
@@ -447,7 +459,26 @@ export function BranchesList(p: BranchesListProps) {
           </section>
         ))
       )}
-      {!finished.only && !waitingView && (merged !== null || finished.finished) && (
+      {archivedOnly ? (
+        <p className="t-ui t-muted bl-merged">
+          {ARCHIVED_WORDS.showing}{' '}
+          <Button variant="link" onClick={() => showArchived(false)}>
+            {ARCHIVED_WORDS.hide}
+          </Button>
+        </p>
+      ) : (
+        archivedCount &&
+        !finished.only &&
+        !waitingView && (
+          <p className="t-ui t-muted bl-merged">
+            {archivedCount}{' '}
+            <Button variant="link" onClick={() => showArchived(true)}>
+              {ARCHIVED_WORDS.show}
+            </Button>
+          </p>
+        )
+      )}
+      {!archivedOnly && !finished.only && !waitingView && (merged !== null || finished.finished) && (
         <p className="t-ui t-muted bl-merged">
           {finished.finished ? (
             <>

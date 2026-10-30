@@ -42,7 +42,7 @@ import { CONTRAST_FILE } from '../../lib/contrast';
 import { pendingChangesets, versionInfo } from '../../lib/changelog';
 import { waitingLine } from '../../lib/release-view';
 import { loadComponents } from '../../lib/components';
-import PromoteToReview from '../../components/ds/studio/PromoteToReview';
+import DoneExploring from '../../components/ds/studio/DoneExploring';
 import RequestDecide from '../../components/ds/studio/RequestDecide';
 import type { BranchesConfig } from '../../lib/branches';
 import { signInConfig } from '../../lib/signin-config';
@@ -120,7 +120,7 @@ const signIn = Boolean(signInConfig());
 
   <HistoryPlanner />
   <OverrideDialog />
-  <PromoteToReview client:only="react" />
+  <DoneExploring client:only="react" />
   <RequestDecide client:only="react" />
   <script type="application/json" id="bridge-contrast" set:html={checks} />
   <script type="application/json" id="bridge-branches" set:html={cfgJson} />

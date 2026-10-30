@@ -151,7 +151,7 @@ export function previewComment(input: PreviewCommentInput): string {
   const sha7 = input.sha.slice(0, 7);
   const lines = [PREVIEW_COMMENT_MARKER, input.exploration ? '## Try this exploration in your product' : '## Try this DS branch in your product', ''];
   lines.push(`Snapshot of \`${sha7}\` on \`${input.branch}\`. Install it in a product branch that deploys to staging; production keeps the released version.`, '');
-  if (input.exploration) lines.push('This is an exploration: it is never merged as is. Use it for a prototype, a user test, a demo or an A/B idea, then promote it to review or close it.', '');
+  if (input.exploration) lines.push('This is an exploration: it is never merged as is. Use it for a prototype, a user test, a demo or an A/B idea, then say it is done exploring: developers take it from there, and it stays open so this preview keeps working.', '');
 
   if (input.packages.length) {
     // Explorations install as `name@url`, so the product's package.json keeps the package names.

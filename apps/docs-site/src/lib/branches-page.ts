@@ -139,6 +139,22 @@ export function mergedLine(count: number, read: number, limit: number): string {
   return `${count >= limit && read >= limit ? `${count}+` : count} added to the library this month.`;
 }
 
+/** ?archived=1: the Archived filter, the archived explorations only (their pull requests stay open, previews alive). */
+export const archivedParam = (search: string): boolean => new URLSearchParams(search).get('archived') === '1';
+
+/** "2 archived explorations." under the list, or null when there are none. */
+export function archivedLine(count: number): string | null {
+  return count > 0 ? `${count} archived ${count === 1 ? 'exploration' : 'explorations'}.` : null;
+}
+
+/** The words of the Archived filter: the link that shows them, and the line once they are shown. */
+export const ARCHIVED_WORDS = {
+  show: 'Show them',
+  showing: 'Showing archived explorations. Their previews still work.',
+  hide: 'Back to the list',
+  empty: 'No archived exploration.',
+} as const;
+
 /** The words around mergedLine: the link that shows them, and the line once they are shown. */
 export const FINISHED_WORDS = {
   show: 'Show them',

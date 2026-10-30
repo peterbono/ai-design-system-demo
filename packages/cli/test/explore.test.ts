@@ -80,15 +80,23 @@ describe('bridge explore', () => {
     expect(JSON.parse(lj.out()).running).toBe(1);
 
     const pd = io(gh);
-    expect(await runExplore(args('explore', 'promote', 'pill-buttons', '--dry-run'), dir, pd.io)).toBe(0);
-    expect(pd.out()).toContain('Dry run: would promote #1');
+    expect(await runExplore(args('explore', 'done', 'pill-buttons', '--dry-run'), dir, pd.io)).toBe(0);
+    expect(pd.out()).toContain('Dry run: done exploring #1');
     expect(gh.pulls[0]!.draft).toBe(true);
+    // promote is the old name of done: nothing closes, merges or turns ready for review.
     const p = io(gh);
     expect(await runExplore(args('explore', 'promote', 'pill-buttons'), dir, p.io)).toBe(0);
-    expect(p.out()).toMatch(/Promoted #1 "Pill buttons" to review: Tier 1\./);
-    expect(p.out()).toContain('Closes requests #100 when it merges.');
-    expect(gh.pulls[0]!.draft).toBe(false);
-    expect(gh.pulls[0]!.labels.map((x: any) => x.name)).toEqual(['tier: 1']);
+    expect(p.out()).toContain('Done exploring #1 (explore/pill-buttons). Nothing closed or merged: the preview stays.');
+    expect(p.out()).toContain('For developers: git fetch origin && git checkout explore/pill-buttons');
+    expect(gh.pulls[0]!.draft).toBe(true);
+    expect(gh.pulls[0]!.state).toBe('open');
+    expect(gh.pulls[0]!.labels.map((x: any) => x.name)).toEqual(['ready-for-devs']);
+    const ar = io(gh);
+    expect(await runExplore(args('explore', 'archive', '#1'), dir, ar.io)).toBe(0);
+    expect(ar.out()).toContain('Archived #1');
+    const la = io(gh);
+    expect(await runExplore(args('explore', 'list', '--archived'), dir, la.io)).toBe(0);
+    expect(la.out()).toContain('1 archived exploration.');
 
     await runExplore(args('explore', 'start', 'Dense tables', '--purpose', 'Compact rows.'), dir, io(gh).io);
     const cl = io(gh);

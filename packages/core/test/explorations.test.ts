@@ -37,6 +37,145 @@ import {
   type FetchLike,
 } from '../src/index';
 import { realConfig } from './helpers';
+import {
+  archiveExplorationOnGitHub,
+  doneExploringOnGitHub,
+  doneExploringPlan,
+  EXPLORATION_READY_LABEL,
+  isHeldExploration,
+  parsePiecesRecord,
+  pieceRequest,
+  reviewQueue,
+  withDoneExploring,
+  withPiecesRecord,
+  type MissingPiece,
+} from '../src/index';
+
+const BADGE: MissingPiece = {
+  id: 'badge-overdue-tone',
+  kind: 'variant',
+  title: 'Badge: overdue tone',
+  summary: 'The branch paints a Badge #fff4f4 on #9d0639.',
+  name: 'overdue',
+  component: 'Badge',
+  aspect: 'tone',
+  values: [{ category: 'color', property: 'background-color', value: '#fff4f4' }],
+  nearest: { token: 'color.feedback.danger.bg', cssVar: '--color-feedback-danger-bg', value: '#fff4f4', level: 'high', label: 'danger' },
+  where: [{ file: 'apps/admin/src/Billing.tsx', line: 12 }],
+};
+const TOKEN: MissingPiece = {
+  id: 'color-c2410c',
+  kind: 'token',
+  title: 'New color #C2410C',
+  summary: 'A hand-written color.',
+  name: 'c2410c',
+  values: [{ category: 'color', value: '#c2410c' }],
+  where: [],
+  token: { path: 'color.feedback.overdue.text', type: 'color', value: '#c2410c', files: [] },
+};
+
+describe('done exploring: status, plan and body', () => {
+  it('status after done exploring: waiting for code, being built once developers push or mark it ready, shipped once merged', () => {
+    const body = withDoneExploring(explorationPrBody({ name: 'Pill buttons', purpose: 'Rounder.' }, { owner: 'acme', repo: 'ds', packages, apps }), { branch: 'explore/pill-buttons', doneAt: '2026-10-30T09:00:00Z', doneSha: 'aaa' });
+    const base = { state: 'open', labels: [EXPLORATION_READY_LABEL], body, draft: true };
+    expect(explorationStatus({ ...base, headSha: 'aaa' })).toBe('ready');
+    expect(explorationStatus({ ...base, headSha: 'bbb' })).toBe('building');
+    expect(explorationStatus({ ...base, headSha: 'aaa', draft: false })).toBe('building');
+    expect(explorationStatus({ ...base, state: 'closed', merged_at: '2026-11-01' })).toBe('shipped');
+    expect(explorationStatus({ ...base, state: 'closed' })).toBe('closed');
+    // Held out of the review queue while it runs, is archived, or is with the developers as a draft.
+    expect(isHeldExploration({ state: 'open', labels: [EXPLORATION_READY_LABEL], draft: true })).toBe(true);
+    expect(isHeldExploration({ state: 'open', labels: [EXPLORATION_READY_LABEL], draft: false })).toBe(false);
+    expect(isHeldExploration({ state: 'open', labels: ['archived'] })).toBe(true);
+    const q = (labels: string[], draft = true) => ({ state: 'open', draft, labels, head: { ref: 'explore/x' }, user: { login: 'ann' } });
+    expect(reviewQueue([q(['exploration']), q([EXPLORATION_READY_LABEL]), q([EXPLORATION_READY_LABEL], false), q(['archived'], false)])).toHaveLength(1);
+  });
+
+  it('plan: label swap, note removed, never closes, merges or marks ready; the body says how developers take it', () => {
+    const e = { name: 'Pill buttons', purpose: 'Rounder.', author: 'ann' };
+    const body = explorationPrBody(e, { owner: 'acme', repo: 'ds', packages, apps });
+    const plan = doneExploringPlan({ body, branch: 'explore/pill-buttons', files: [{ path: '.bridge/explorations/pill-buttons.md', status: 'added' }, { path: 'a.css' }], date: new Date('2026-10-30T09:00:00Z') });
+    expect(plan).toMatchObject({ removeLabels: ['exploration'], addLabels: ['ready-for-devs'], removeFiles: ['.bridge/explorations/pill-buttons.md'], markReady: false, take: ['git fetch origin', 'git checkout explore/pill-buttons'] });
+    expect(plan.body).not.toContain('Not mergeable as is');
+    expect(plan.body).not.toContain('### When it is done');
+    expect(plan.body).toContain('### For developers');
+    expect(plan.body).toContain('git checkout explore/pill-buttons');
+    expect(plan.body).toMatch(/starting point, not ready to ship/);
+    expect(plan.body).not.toMatch(/—/);
+    expect(parseExplorationBody(plan.body)).toMatchObject({ name: 'Pill buttons', author: 'ann', doneAt: '2026-10-30T09:00:00.000Z' });
+    // Again with the head: one developer section, the block updated.
+    const again = withDoneExploring(plan.body, { branch: 'explore/pill-buttons', doneAt: '2026-10-30T09:00:00.000Z', doneSha: 'c9' });
+    expect(again.match(/### For developers/g)).toHaveLength(1);
+    expect(parseExplorationBody(again)?.doneSha).toBe('c9');
+  });
+
+  it('pieceRequest: always a request for the DS lead, with the preview link and who needs it', () => {
+    const ref = { pr: 12, title: 'Billing screen', branch: 'explore/billing', url: 'https://github.com/acme/ds/pull/12', productKey: 'admin', productName: 'Admin demo', author: 'ann' };
+    const v = pieceRequest(BADGE, ref, { previewUrl: 'https://admin-git-explore-billing.vercel.app/', source: 'studio', requestedBy: 'ann' });
+    expect(v.request).toMatchObject({ component: 'Badge', kind: 'new-variant', title: 'Badge: overdue tone', source: 'studio', requestedBy: 'ann' });
+    expect(v.request.summary).toContain("in the exploration's preview: https://admin-git-explore-billing.vercel.app/");
+    expect(v.request.summary).toContain('danger');
+    expect(v.neededBy).toMatchObject({ pr: 12, piece: 'badge-overdue-tone', nearest: 'danger' });
+    const t = pieceRequest(TOKEN, ref);
+    expect(t.request).toMatchObject({ component: 'Tokens', kind: 'other', title: 'Add color.feedback.overdue.text', changes: [{ field: 'color.feedback.overdue.text', after: '#c2410c' }] });
+    expect(t.request.summary).toContain('https://github.com/acme/ds/pull/12');
+  });
+});
+
+describe('done exploring and archive on GitHub', () => {
+  it('sends the ticked pieces as requests, swaps the labels, removes the note, keeps it open and a draft', async () => {
+    const gh = fakeGitHub();
+    const c = gh.client();
+    await startExplorationOnGitHub(c, { name: 'Billing screen', purpose: 'Overdue invoices.' }, { ...settings, labels: ['product: admin'] });
+    gh.pulls[0].body = withPiecesRecord(gh.pulls[0].body, { checkedAt: '2026-10-30', pieces: [BADGE, TOKEN], links: [] });
+
+    const dry = await doneExploringOnGitHub(c, 'billing-screen', { pieces: ['badge-overdue-tone'], dryRun: true });
+    expect(dry.pieces.proposed.map((x) => x.piece)).toEqual(['badge-overdue-tone']);
+    expect(gh.issues).toHaveLength(0);
+    expect(gh.pulls[0].labels.map((l: any) => l.name)).toContain('exploration');
+
+    const r = await doneExploringOnGitHub(c, 1, { pieces: ['badge-overdue-tone', 'nope'], previewUrl: 'https://admin-preview.vercel.app/', openedBy: 'ann', source: 'studio' });
+    expect(r).toMatchObject({ number: 1, status: 'ready', handedOff: true, warnings: [], take: ['git fetch origin', 'git checkout explore/billing-screen'] });
+    expect(r.pieces.unknown).toEqual(['nope']);
+    expect(gh.issues).toHaveLength(1);
+    expect(gh.issues[0].labels.map((l: any) => l.name)).toEqual(expect.arrayContaining(['component-change', 'needed-by-product']));
+    expect(gh.issues[0].body).toContain('https://admin-preview.vercel.app/');
+    expect(gh.issues[0].body).toContain('**Needed by:**');
+    const pr = gh.pulls[0];
+    expect(pr.state).toBe('open');
+    expect(pr.draft).toBe(true);
+    expect(pr.labels.map((l: any) => l.name).sort()).toEqual(['product: admin', 'ready-for-devs']);
+    expect(gh.trees.get(gh.refs.get('explore/billing-screen')!)!.has('.bridge/explorations/billing-screen.md')).toBe(false);
+    expect(parsePiecesRecord(pr.body)!.links.map((l) => [l.piece, l.kind, l.number])).toEqual([['badge-overdue-tone', 'request', 100]]);
+    expect(pr.body).toContain('### For developers');
+    expect(gh.calls.some((x) => x.path === '/graphql')).toBe(false);
+    expect((await listExplorationsOnGitHub(c, settings)).map((x) => x.status)).toEqual(['ready']);
+
+    // Said again: only the newly ticked piece, never twice.
+    const again = await doneExploringOnGitHub(c, 1, { pieces: ['badge-overdue-tone', 'color-c2410c'] });
+    expect(again).toMatchObject({ handedOff: false, status: 'ready' });
+    expect(again.pieces.already).toEqual([{ piece: 'badge-overdue-tone', number: 100 }]);
+    expect(gh.issues).toHaveLength(2);
+
+    // A developer pushes: being built.
+    await c.withBranchPrefix('explore/').commitToBranch({ branch: 'explore/billing-screen', message: 'feat: real code', files: [{ path: 'apps/admin/x.ts', content: 'x' }] });
+    expect((await listExplorationsOnGitHub(c, settings)).map((x) => x.status)).toEqual(['building']);
+    await expect(doneExploringOnGitHub(gh.client(''), 1)).rejects.toThrow(/needs a GitHub token/);
+  });
+
+  it('archive: a label on the open pull request, hidden from the default list, back with unarchive', async () => {
+    const gh = fakeGitHub();
+    const c = gh.client();
+    await startExplorationOnGitHub(c, { name: 'Pill buttons', purpose: 'Rounder.' }, settings);
+    expect(await archiveExplorationOnGitHub(c, 'pill-buttons')).toMatchObject({ number: 1, archived: true });
+    expect(gh.pulls[0].state).toBe('open');
+    expect(await listExplorationsOnGitHub(c, settings)).toEqual([]);
+    expect((await listExplorationsOnGitHub(c, settings, { archived: 'only' })).map((x) => [x.number, x.archived])).toEqual([[1, true]]);
+    await archiveExplorationOnGitHub(c, 1, { archived: false });
+    expect((await listExplorationsOnGitHub(c, settings)).map((x) => x.archived)).toEqual([false]);
+    await expect(archiveExplorationOnGitHub(gh.client(''), 1)).rejects.toThrow(/needs a GitHub token/);
+  });
+});
 
 const apps = { docs: 'https://bridge-docs-git-{branch}-acme.vercel.app', storybook: 'https://sb-git-{branch}-acme.vercel.app' };
 const packages = ['@bridge-ds/tokens', '@bridge-ds/react'];
@@ -83,7 +222,9 @@ describe('exploration pull request', () => {
     expect(body).toContain('"Try this exploration in your product" comment');
     expect(body).toContain('| Docs | https://bridge-docs-git-explore-pill-buttons-acme.vercel.app/ |');
     expect(body).toContain('- #40 Button: pill radius');
-    expect(body).toContain('bridge explore promote pill-buttons');
+    expect(body).toContain('bridge explore done pill-buttons');
+    expect(body).toContain('bridge explore archive pill-buttons');
+    expect(body).toContain('Keep this pull request open');
     expect(body).not.toMatch(/\u2014/);
     expect(parseExplorationBody(body)).toEqual({ ...e, slug: 'pill-buttons' });
     expect(parseExplorationBody('no block')).toBeUndefined();
@@ -125,7 +266,7 @@ describe('exploration pull request', () => {
     const note = explorationNote({ ...e, slug: 'pill-buttons' });
     expect(note).toContain('- Branch: `explore/pill-buttons`');
     expect(note).toContain('- Started: 2026-10-17 by @designer');
-    expect(note).toContain('promoting the pull request to review removes it');
+    expect(note).toContain('"Done exploring" removes it');
   });
 
   it('status: running while labeled and open, promoted without the label, closed when closed unmerged', () => {
@@ -212,6 +353,7 @@ function fakeGitHub() {
   const refs = new Map<string, string>([['main', 'c0']]);
   const trees = new Map<string, Map<string, string>>([['c0', new Map([['README.md', 'hi']])]]);
   const pulls: any[] = [];
+  const issues: any[] = [];
   const comments: { n: number; body: string }[] = [];
   const calls: { method: string; path: string; body?: any }[] = [];
   const res = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) });
@@ -256,13 +398,20 @@ function fakeGitHub() {
     if (method === 'GET' && path.startsWith('/pulls?')) {
       const q = new URLSearchParams(path.split('?')[1]);
       const head = q.get('head')?.split(':')[1];
+      for (const p of pulls) p.head.sha = refs.get(p.head.ref) ?? p.head.sha;
       return res(200, pulls.filter((p) => (head ? p.head.ref === head && p.state === 'open' : q.get('state') === 'all' || p.state === q.get('state'))));
     }
     if ((m = /^\/pulls\/(\d+)$/.exec(path))) {
       const pr = pulls[Number(m[1]) - 1];
       if (!pr) return res(404, {});
       if (method === 'PATCH') Object.assign(pr, body);
+      pr.head.sha = refs.get(pr.head.ref) ?? pr.head.sha;
       return res(200, pr);
+    }
+    if (method === 'POST' && path === '/issues') {
+      const issue = { number: 100 + issues.length, title: body.title, body: body.body, labels: (body.labels ?? []).map((name: string) => ({ name })), state: 'open', html_url: `https://github.com/acme/ds/issues/${100 + issues.length}`, user: { login: 'designer' }, created_at: '', updated_at: '' };
+      issues.push(issue);
+      return res(201, issue);
     }
     if (method === 'GET' && (m = /^\/pulls\/(\d+)\/files/.exec(path))) {
       const pr = pulls[Number(m[1]) - 1];
@@ -290,7 +439,7 @@ function fakeGitHub() {
   };
   const noRetry = { attempts: 1, baseDelayMs: 0, sleep: async () => {} };
   const client = (token = 't') => new GitHubClient('acme/ds', token, f, noRetry, { protectedBranches: ['main'], branchPrefix: 'bridge/' });
-  return { client, refs, trees, pulls, calls, comments };
+  return { client, refs, trees, pulls, issues, calls, comments };
 }
 
 describe('explorations on GitHub', () => {

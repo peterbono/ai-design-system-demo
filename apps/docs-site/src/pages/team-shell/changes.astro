@@ -25,7 +25,7 @@ import ChangesRequests from '../../components/ChangesRequests.astro';
 import ChangesExplorations from '../../components/ChangesExplorations.astro';
 import ChangesHistory from '../../components/ChangesHistory.astro';
 import OverrideDialog from '../../components/OverrideDialog.astro';
-import PromoteToReview from '../../components/ds/studio/PromoteToReview';
+import DoneExploring from '../../components/ds/studio/DoneExploring';
 import RequestDecide from '../../components/ds/studio/RequestDecide';
 import { signInConfig } from '../../lib/signin-config';
 import { TEAM_HISTORY_LINE } from '../../lib/team-branches';
@@ -63,7 +63,7 @@ const signIn = Boolean(signInConfig(true));
   </div>
   <HistoryPlanner />
   <OverrideDialog />
-  <PromoteToReview client:only="react" />
+  <DoneExploring client:only="react" />
   <RequestDecide client:only="react" />
   <script>
     import { initTeamBranches } from '../../scripts/team-branches';

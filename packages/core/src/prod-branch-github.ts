@@ -16,6 +16,7 @@ import {
   mergePiecesRecord,
   NEEDED_BY_LABEL,
   parsePiecesRecord,
+  pieceRequest,
   libraryPreviewState,
   productBranchSentence,
   withLink,
@@ -344,4 +345,64 @@ export async function switchToPublishedOnGitHub(gh: GitHubClient, pr: number): P
     throw err;
   }
   return { status: 'switched', said: `Your branch now uses the published version from ${pull.baseRef}.` };
+}
+
+export interface ProposedPieces {
+  /** Requests filed now, one per ticked piece (number 0 in a dry run). */
+  proposed: { piece: string; title: string; number: number; url: string }[];
+  /** Ticked pieces that already have a library side: never sent twice. */
+  already: { piece: string; number: number }[];
+  /** Ticked ids the record does not know. */
+  unknown: string[];
+  warnings: string[];
+}
+
+/**
+ * "Done exploring", the library side: each piece the designer ticks becomes a request for the DS lead (the request
+ * mechanism of requests.ts, labeled `needed-by-product`, with the "Needed by" block and the exploration's preview
+ * link), and the exploration records the link so it is never sent twice. Unticked pieces are not proposed. A branch
+ * outside any product (a library exploration) is named after the library.
+ */
+export async function proposePiecesOnGitHub(
+  gh: GitHubClient,
+  pr: number,
+  input: { pieces: readonly string[]; products: readonly ProductConfig[]; previewUrl?: string | null | undefined; openedBy?: string | undefined; agent?: string | undefined; source?: RequestSource | undefined; dryRun?: boolean | undefined },
+): Promise<ProposedPieces> {
+  const out: ProposedPieces = { proposed: [], already: [], unknown: [], warnings: [] };
+  const ids = [...new Set(input.pieces.map((p) => p.trim()).filter(Boolean))];
+  if (!ids.length) return out;
+  const pull = await gh.getPullRequest(pr);
+  const record = parsePiecesRecord(pull.body);
+  if (!record) throw new GitHubError(404, `#${pr} was not checked against the library yet: find its missing pieces first (bridge_missing_pieces with record, or \`bridge pieces ${pr} --record\`).`);
+  const files = await gh.listPullRequestFiles(pr).then((f) => f.map((x) => x.filename), () => []);
+  const ref = productBranchRef(pull, productOfBranch(input.products, { labels: pull.labels, files }));
+  const todo: { piece: MissingPiece; ask: ReturnType<typeof pieceRequest> }[] = [];
+  for (const id of ids) {
+    const piece = record.pieces.find((p) => p.id === id);
+    const link = record.links.find((l) => l.piece === id);
+    if (!piece) out.unknown.push(id);
+    else if (link) out.already.push({ piece: id, number: link.number });
+    else todo.push({ piece, ask: pieceRequest(piece, ref, { previewUrl: input.previewUrl, source: input.source, requestedBy: input.openedBy }) });
+  }
+  if (input.dryRun) return { ...out, proposed: todo.map((t) => ({ piece: t.piece.id, title: t.ask.request.title, number: 0, url: '' })) };
+  if (!todo.length) return out;
+  if (!gh.canWrite) throw new GitHubError(401, 'Sending pieces to the library needs a GitHub token (issues: write).');
+  const at = new Date().toISOString();
+  const who = { ...(input.openedBy ? { openedBy: input.openedBy } : {}), ...(input.agent ? { agent: input.agent } : {}) };
+  const links: LibraryLink[] = [];
+  for (const t of todo) {
+    const issue = composeRequestIssue(t.ask.request, { labels: [NEEDED_BY_LABEL] });
+    const r = await gh.createIssue({ ...issue, body: withNeededBy(issue.body, t.ask.neededBy) });
+    links.push({ piece: t.piece.id, kind: 'request', number: r.number, url: r.url, title: t.ask.request.title, at, ...who });
+    out.proposed.push({ piece: t.piece.id, title: t.ask.request.title, number: r.number, url: r.url });
+  }
+  try {
+    const fresh = await gh.getPullRequest(pr);
+    const next = links.reduce((rec, l) => withLink(rec, l), parsePiecesRecord(fresh.body) ?? record);
+    await gh.updatePullRequest(pr, { body: withPiecesRecord(fresh.body, next) });
+  } catch (err) {
+    if (err instanceof GitHubError && err.auth === 'rejected') throw err;
+    out.warnings.push(`#${pr} does not list the requests yet (${(err as Error).message}). Add "Library: ${links.map((l) => `#${l.number}`).join(', ')}" to #${pr} on GitHub, so they are not sent twice.`);
+  }
+  return out;
 }

@@ -45,6 +45,7 @@ export * from './change-drafts';
 export * from './draft-exchange';
 export * from './explorations';
 export * from './explorations-github';
+export * from './exploration-done-github';
 export * from './requests-github';
 export * from './component-spec';
 export * from './measured-spec';

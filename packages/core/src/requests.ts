@@ -95,11 +95,11 @@ export function composeRequestIssue(r: ComponentChangeRequest, opts: { labels?: 
     ...(r.images?.length ? [...r.images.map((u, i) => `![${r.component} design ${i + 1}](${u})`), ''] : []),
     ...(figma ? [`**Design:** ${figma}`, ''] : []),
     ...(opts.componentUrl ? [`**Component:** ${opts.componentUrl}`, ''] : []),
-    ...(r.exploration ? [`**Exploration:** \`${r.exploration}\`. Implement it on that branch, not in a pull request to main: it ships to product staging as a snapshot and is promoted to review only when the idea is validated.`, ''] : []),
+    ...(r.exploration ? [`**Exploration:** \`${r.exploration}\`. Implement it on that branch, not in a pull request to main: it ships to product staging as a snapshot, and developers take the branch once the designer is done exploring.`, ''] : []),
     '## How to implement',
     '',
     r.exploration
-      ? `Commit the change to \`${r.exploration}\` (its draft pull request is the place). With Claude: \`bridge request implement <number>\` (CLI) or the \`bridge_get_request\` MCP tool. Promoting the exploration closes this request when it merges.`
+      ? `Commit the change to \`${r.exploration}\` (its draft pull request is the place). With Claude: \`bridge request implement <number>\` (CLI) or the \`bridge_get_request\` MCP tool. The request closes when developers ship that branch.`
       : `Code is the source of truth: change the component in a pull request that says \`Closes #<this issue>\`, so this request closes when it merges. With Claude: \`bridge request implement <number>\` (CLI) or the \`bridge_get_request\` MCP tool.`,
     '',
     `<sub>Requested from ${sourceLabel(r.source)}${r.requestedBy ? ` by @${r.requestedBy}` : ''} with Bridge.</sub>`,
@@ -133,7 +133,7 @@ export function withRequestExploration(body: string | null | undefined, branch: 
   if (!r || !body) return undefined;
   const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
   let out = body.replace(block, () => `<!-- ${MARK} ${JSON.stringify({ ...r, exploration: branch })} -->`);
-  const line = `**Exploration:** \`${branch}\`. Implement it on that branch, not in a pull request to main: it ships to product staging as a snapshot and is promoted to review only when the idea is validated.`;
+  const line = `**Exploration:** \`${branch}\`. Implement it on that branch, not in a pull request to main: it ships to product staging as a snapshot, and developers take the branch once the designer is done exploring.`;
   if (/^\*\*Exploration:\*\* .*$/m.test(out)) out = out.replace(/^\*\*Exploration:\*\* .*$/m, () => line);
   else if (out.includes('\n## How to implement')) out = out.replace('\n## How to implement', () => `\n${line}\n\n## How to implement`);
   else out = out.replace(block, (m) => `${line}\n\n${m}`);
@@ -209,7 +209,7 @@ export function requestBrief(r: ComponentChangeRequest, ctx: { issue: number; is
     `- Follow ${ctx.agentsFile ?? 'AGENTS.md'}: tokens only in component CSS, Base UI for behavior, states, tests, story, docs.json, changeset.`,
     '- A new component, prop or variant is Tier 2: open the pull request as a draft (new component: follow the new component checklist). A token add or rename is Tier 3: describe it, do not invent values.',
     ...(exploration
-      ? [`- This request is part of the exploration ${exploration}.`, ...explorationRules(exploration), `- Reference the request in the commit message ("Refs #${ctx.issue}"). Promoting the exploration closes it.`]
+      ? [`- This request is part of the exploration ${exploration}.`, ...explorationRules(exploration), `- Reference the request in the commit message ("Refs #${ctx.issue}"). Shipping the exploration closes it.`]
       : [`- Work on a branch named agent/request-${ctx.issue}. The pull request body must contain "Closes #${ctx.issue}".`]),
     '- If the request is unclear or conflicts with the guidance, comment on the issue instead of guessing.',
   ].join('\n');

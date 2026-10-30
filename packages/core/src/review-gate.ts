@@ -5,7 +5,7 @@
 // `governance.rights` (rights.ts). Moved from the docs site (apps/docs-site/src/lib/review-rules.ts re-exports it).
 import type { FigmaPush } from './build-requests';
 import type { OverridePolicy } from './config';
-import { isActiveExploration } from './explorations';
+import { isHeldExploration } from './explorations';
 import { DRAFTED_BY_CLAUDE_LABEL, WAITING_FOR_CLAUDE_LABEL } from './figma-push';
 import { canShip, soloApprover, unreadableShipTeams, whoCanShipSentence, type ShipPolicy } from './rights';
 import { classifyRisk, type RiskTier } from './risk';
@@ -342,7 +342,7 @@ export function mergeGate(input: {
   if (lifecycle === 'merged' || lifecycle === 'closed') {
     return { allowed: false, reasons: [lifecycle === 'merged' ? 'This branch is already merged.' : 'This branch is closed.'], overridable: false, missing: [], canShip: !input.viewer || canShip(input.viewer, input.ship) };
   }
-  if (input.exploration) blocking.push('It is an exploration: promote it to review first.');
+  if (input.exploration) blocking.push('It is an exploration: say it is done exploring first, then developers take it.');
   if (input.draft) blocking.push('It is a draft. Mark it ready for review on GitHub first.');
   if (input.ci.state === 'fail') blocking.push(`Tests fail: ${input.ci.failed.map((f) => f.name).join(', ')}.`);
   if (input.ci.state === 'pending') blocking.push('Tests are still running.');
@@ -682,12 +682,9 @@ export function isAutomationPull(p: Pick<QueuePull, 'head' | 'user'>): boolean {
   return isReleasePull(p) || BOTS.has((p.user?.login ?? '').toLowerCase());
 }
 
-/** A running exploration: open and labeled exploration. */
-const runningExploration = (p: Pick<QueuePull, 'state' | 'labels'>) => p.state === 'open' && isActiveExploration((p.labels ?? []) as never);
-
-/** The open pull requests that wait for a review, in the order given. Every count in the Studio comes from here. */
+/** The open pull requests that wait for a review, in the order given (explorations held out: isHeldExploration). Every count in the Studio comes from here. */
 export function reviewQueue<P extends QueuePull>(pulls: P[]): P[] {
-  return openPulls(pulls).filter((p) => !isAutomationPull(p) && !runningExploration(p));
+  return openPulls(pulls).filter((p) => !isAutomationPull(p) && !isHeldExploration(p));
 }
 
 /** The open release pull request, if the changesets action opened one. */

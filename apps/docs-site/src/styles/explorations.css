@@ -225,3 +225,20 @@
 .ex-for[hidden] {
   display: none;
 }
+
+/* For developers (Done exploring): the two commands that take the branch, one per line, copyable. */
+.ex-take,
+.pb-dev-commands {
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius-inset);
+  background-color: var(--color-bg-subtle);
+  font-family: var(--font-family-mono);
+  white-space: pre;
+}
+
+/* Done exploring dialog: the pieces to propose, each with its one-line summary. */
+.ex-done-pieces {
+  margin-top: var(--space-2);
+}

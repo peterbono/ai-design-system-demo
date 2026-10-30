@@ -1,14 +1,14 @@
 // The product branch page in place (?exploration=N for a branch started for a product): paints
 // components/ds/studio/ProductBranch.tsx, reads the linked library branches through the core functions the MCP server
 // and the CLI use (productBranchViewOnGitHub), the product preview Vercel reported, and the before and after of the
-// visual impact. Actions (open a library branch, use its preview, switch to the published version, send for review,
-// close) write with the viewer's token through the same core functions. The missing pieces themselves come from the
+// visual impact. Actions (open a library branch, use its preview, switch to the published version, done exploring,
+// archive; nothing closes it) write with the viewer's token through the same core functions. The missing pieces come from the
 // branch description, where Claude or `bridge pieces --record` saved them: the audit does not run in the browser.
 // In suggest mode (bridge.config.json "changes") a missing piece goes to the library as a suggestion (a token) or a
-// request (a component), never a branch, and the branch actions (switch, use a preview, send for review, close) are
+// request (a component), never a branch, and the branch actions (switch, use a preview, done exploring, archive) are
 // not offered: suggest mode is a Bridge rule until the read-only GitHub App ships.
 import {
-  closeExplorationOnGitHub,
+  archiveExplorationOnGitHub,
   DEFAULT_PRODUCTS,
   LayeredTokenSet,
   loadRepoFiles,
@@ -19,7 +19,6 @@ import {
   planTokenProposal,
   productBranchSentence,
   productBranchViewOnGitHub,
-  promoteExplorationOnGitHub,
   suggestTokenProposalOnGitHub,
   switchToPublishedOnGitHub,
   tryInProductUrl,
@@ -33,14 +32,13 @@ import {
   type ProductConfig,
 } from '@bridge-ds/core';
 import { ASK_CLAUDE, developerLines, pieceRows, productCrumbs, whyItShows, type PieceActionKind, type PieceRowView } from '../lib/product-branch';
-import { explorationPreviews, openRequestNumbers, promoteAsk, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
+import { ARCHIVED_LINE, explorationPreviews, explorationStateLine, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { touchesVisuals } from '../lib/visual-impact';
 import { ghAction, sendButton, suggestionSentLine } from '../lib/gh-wording';
 import { assertBranchWrites, changesModeOnPage } from './changes-mode';
 import { jiraKeyOf } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
-import type { Tier } from '../lib/review-rules';
-import type { PromoteAskDetail } from '../components/ds/studio/PromoteToReview';
+import { askDoneExploring } from './exploration-done';
 import type { ProductBranchProps } from '../components/ds/studio/ProductBranch';
 import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, resolveAccess, studioClient } from './github-session';
 import { canKeepExploration, keepExplorationLine, sendModeFor } from '../lib/write-route';
@@ -205,30 +203,25 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       developer: developerLines({ number: r.number, branch: r.branch, links: read.view.record?.links ?? [] }),
     });
   };
-  const promote = () => {
-    const detail: PromoteAskDetail = {
-      number: r.number,
-      name: r.name,
-      ask: async () => {
-        const plan = await promoteExplorationOnGitHub(gh.withBranchPrefix('explore/'), r.number, { requests: openRequestNumbers(r), dryRun: true });
-        const { loadTeams, siteApproverEntries } = await import('./teams');
-        const { entryLabel } = await import('@bridge-ds/core');
-        const teams = await loadTeams();
-        const e = siteApproverEntries();
-        return promoteAsk(plan.tier as Tier, { design: e.design.map((x) => entryLabel(x, teams)), tech: e.tech.map((x) => entryLabel(x, teams)) });
-      },
-      confirm: async () => {
-        await promoteExplorationOnGitHub(gh.withBranchPrefix('explore/'), r.number, { requests: openRequestNumbers(r) });
+  // Done exploring: the dialog lists the pieces still without a library side, the ticked ones go to the DS lead as
+  // requests with the product preview, and the branch goes to the developers. Nothing closes.
+  let reported: BranchPreviewSources | null = null;
+  const done = (focus: HTMLElement | null) =>
+    askDoneExploring(r, pull.body, {
+      client: () => gh,
+      previewUrl: tryUrlOf(r, reported),
+      products,
+      focus,
+      after: (line) => {
+        repaint(d, { said: line });
         reopen();
       },
-      closed: () => undefined,
-    };
-    document.dispatchEvent(new CustomEvent('bridge:promote-ask', { detail }));
-  };
-  // Suggest mode: send for review and close are branch writes, so they are not offered.
-  // Sending for review and closing have no suggestion path: the person who started it or a reviewer, with write access.
+    });
+  // Suggest mode: done exploring and archive are branch writes, so they are not offered. They have no suggestion
+  // path: the person who started it or a reviewer, with write access.
   const keeper = canKeepExploration({ viewer: currentViewer()?.login ?? null, author: r.author, reviewer: viewerRole() === 'reviewer', write: access?.write ?? null });
-  const writable = connected() && r.status === 'active' && mode === 'direct' && keeper;
+  const open = r.status === 'active' || r.status === 'ready' || r.status === 'building';
+  const writable = connected() && open && mode === 'direct' && keeper;
   current = {
     n: r.number,
     props: {
@@ -245,23 +238,29 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       connected: connected(),
       connectLabel: (goal) => ghAction(goal, prefersSignIn()),
       onAct: act,
-      onPromote: writable ? promote : null,
-      onClose: writable
+      onDone: writable && r.status === 'active' && !r.archived ? done : null,
+      onArchive: writable
         ? async () => {
-            await closeExplorationOnGitHub(gh.withBranchPrefix('explore/'), r.number);
+            await archiveExplorationOnGitHub(gh, r.number, { archived: !r.archived });
             reopen();
-            return 'Closed without adding it to the library.';
+            return r.archived ? 'Back in the lists.' : ARCHIVED_LINE;
           }
         : null,
-      keepNote: connected() && r.status === 'active' && changesModeOnPage() === 'direct' && !keeper ? keepExplorationLine(r.author) : null,
+      archived: Boolean(r.archived),
+      state: r.archived ? ARCHIVED_LINE : r.status === 'active' ? null : explorationStateLine(r.status),
+      keepNote: connected() && open && changesModeOnPage() === 'direct' && !keeper ? keepExplorationLine(r.author) : null,
       developer: developerLines({ number: r.number, branch: r.branch, links: record?.links ?? [] }),
+      take: r.status === 'closed' ? null : takeItLines(r.branch),
       githubUrl: safeUrl(r.url, '#'),
       ask: ASK_CLAUDE,
     },
   };
   d.innerHTML = '';
   mod.paintProductBranch(d, current.props);
-  void previewSources(r).then((s) => current?.n === r.number && repaint(d, { tryUrl: tryUrlOf(r, s) }));
+  void previewSources(r).then((s) => {
+    reported = s;
+    if (current?.n === r.number) repaint(d, { tryUrl: tryUrlOf(r, s) });
+  });
   void paintVisual(d, r);
   if (record) void refresh();
 }
