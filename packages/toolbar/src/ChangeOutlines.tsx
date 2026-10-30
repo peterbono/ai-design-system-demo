@@ -1,8 +1,9 @@
 // The outlines of "Show what changed": one dashed Deep Harbor frame per changed surface (the outermost changed
 // element), with a role chip in its corner, in a fixed layer above the page that takes no pointer events, no focus
 // and no layout. A page-sized surface gets an inset frame so it never reads as browser chrome. Only surfaces with a
-// visible, non-zero box in the viewport are drawn, and only those are counted (onShown).
-import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
+// visible, non-zero box in the viewport are drawn, and only those are counted (onShown). Isolate adds a scrim over the
+// rest of the page with a cut-out around each changed surface (page-sized ones excepted: they would leave no scrim).
+import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from 'react';
 import { ThemeProvider, Tooltip } from '@bridge-ds/react';
 import type { Theme } from '@bridge-ds/react';
 import { shownRect, type ChangedElement } from './outline';
@@ -12,6 +13,8 @@ import styles from './BridgeToolbar.module.css';
 
 /** Inset of a page-sized frame, so it sits inside the viewport like a selection, not like the window edge. */
 const INSET = 8;
+/** Room around a surface in the Isolate scrim, so its dashed frame stays in the light too. */
+const HOLE = 4;
 
 export interface Shown {
   /** Visible surfaces, in order. */
@@ -51,6 +54,7 @@ export function ChangeOutlines({
   onShown,
   emphasis,
   flash,
+  isolate = false,
 }: {
   surfaces: ChangedElement[];
   theme: Theme;
@@ -58,12 +62,15 @@ export function ChangeOutlines({
   emphasis: number | null;
   /** Show every chip (the moment outlines turn on). */
   flash: boolean;
+  /** Dim everything but the changed surfaces. */
+  isolate?: boolean;
   /** Tooltip content for a surface: its role, token and before and after. */
   tip: (s: ChangedElement) => ReactNode;
   onShown: (shown: Shown) => void;
 }) {
   const [tick, setTick] = useState(0);
   const [active, setActive] = useState<number | null>(null);
+  const maskId = `bridge-isolate-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
   // Follow the page: re-measure on scroll and resize, one frame at a time.
   useEffect(() => {
@@ -124,7 +131,22 @@ export function ChangeOutlines({
   }, [surfaces]);
 
   return (
-    <ThemeProvider theme={theme} brand="bridge" density="compact" className={styles.overlay} data-bridge-overlay="" {...{ [PIN_ATTR]: '' }} aria-hidden="true">
+    <ThemeProvider theme={theme} brand="bridge" density="compact" className={styles.overlay} data-bridge-overlay="" data-isolate={isolate || undefined} {...{ [PIN_ATTR]: '' }} aria-hidden="true">
+      {isolate ? (
+        <svg className={styles.scrim} width="100%" height="100%" focusable="false">
+          <defs>
+            <mask id={maskId}>
+              <rect width="100%" height="100%" fill="white" />
+              {boxes.map((b, i) =>
+                b && !b.page ? (
+                  <rect key={i} x={b.left - HOLE} y={b.top - HOLE} width={b.width + 2 * HOLE} height={b.height + 2 * HOLE} rx={(parseFloat(b.radius) || 0) + HOLE} fill="black" />
+                ) : null,
+              )}
+            </mask>
+          </defs>
+          <rect className={styles.scrimFill} width="100%" height="100%" mask={`url(#${maskId})`} />
+        </svg>
+      ) : null}
       {boxes.map((b, i) => {
         if (!b) return null;
         const s = surfaces[i]!;

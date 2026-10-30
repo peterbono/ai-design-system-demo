@@ -6,8 +6,13 @@ The Bridge toolbar for a product built with the Bridge design system. Bridge Stu
 
 - **Code changes** (an exploration in the product's repository, a feature branch): Before is the product in
   production, After is the branch's preview. Flipping keeps the screen and the scroll position.
-- **Token changes** of the design system: the live tokens swap in without a reload, and Show what changed outlines
-  every surface that differs.
+- **Token changes** of the design system: the live tokens swap in without a reload. As soon as the toolbar is open,
+  every surface that differs is outlined and counted in the bar ("3 changes"). Previous and Next scroll to each one
+  in reading order and outline it stronger than the others; Isolate dims the rest of the page (Esc turns it off). The
+  outlines, the position and Isolate hold when you flip to Live product, since both sides are the same page.
+
+Keyboard: **B** flips Live product and This change on the same screen and scroll position, **C** turns the outlines
+off and on, **Esc** ends Isolate. None of them fires while you type in a field.
 
 Without `?bridge=` (or the session that remembers it) it renders nothing and loads nothing: the toolbar and its styles
 are one lazy chunk.

@@ -5,9 +5,11 @@
 // the page's primary and submit buttons. Several token changes tried together (`?bridge=101,118,120`, from Studio's
 // Changes list) run on the product in production: their combined tokens are applied live (useTogether), each change can
 // be switched off, and Before/After and "Show what changed" work on what is switched on.
+// The changes of a screen are outlined as soon as the toolbar is open, counted in the bar ("3 changes") and stepped
+// through with Previous and Next; Isolate dims everything else, and B flips sides in place.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { Badge, Button, ButtonGroup, Checkbox, Icon, IconButton, Link, Popover, PopoverContent, PopoverTrigger, ThemeProvider, Tooltip } from '@bridge-ds/react';
-import { Check, ChevronUp, GripVertical, Info, ListChecks, Minimize2, ScanSearch } from 'lucide-react';
+import { Badge, Button, ButtonGroup, Checkbox, Icon, IconButton, Kbd, Link, Popover, PopoverContent, PopoverTrigger, ThemeProvider, Tooltip } from '@bridge-ds/react';
+import { Check, ChevronUp, GripVertical, Info, ListChecks, Minimize2 } from 'lucide-react';
 import { loadChange, type ChangeFacts } from './github';
 import { loadBuild } from './config';
 import type { BridgeToolbarProps } from './BridgeToolbar';
@@ -49,10 +51,12 @@ import {
   type Screen,
   type TokenChange,
 } from './session';
-import { EMPTY_LINE, isKey, outOfView, surfaceLine } from './diff';
-import { shownRect } from './outline';
+import { EMPTY_LINE, isKey, surfaceLine } from './diff';
+import { isPage, rendered, shownRect } from './outline';
+import { changeCount, elsewhereLine, isEscape, positionLabel, readingOrder, stepAnnouncement, stepTo } from './navigate';
 import { useChangedElements } from './useChangedElements';
 import { ChangeOutlines, type Shown } from './ChangeOutlines';
+import { ChangeNav } from './ChangeNav';
 import { PIN_ATTR, PIN_CLASS, usePinnedBridgeTokens } from './pin';
 import { useTogether } from './useTogether';
 import styles from './BridgeToolbar.module.css';
@@ -62,8 +66,6 @@ type TokenState = 'idle' | 'loading' | 'ready' | 'error';
 
 /** The two sides, in the words designers use. */
 const SIDE_LABEL: Record<Side, string> = { before: 'Live product', after: 'This change' };
-/** Token pairs shown on the toolbar; the rest is "+N". */
-const MAX_PAIRS = 3;
 
 function session(): Storage | null {
   try {
@@ -339,7 +341,11 @@ function Toolbar({
   // One change: the live tokens.css switches the preview to Before. Changes tried together: this page is the live
   // product already, and the combination's sheet (useTogether) switches it to After.
   const liveUrl = !tg && facts?.mode === 'tokens' ? liveTokensUrl(build) : null;
-  const [outlines, setOutlines] = useState(false);
+  // Outlines follow the bar: on while it is open (the changes are the point of opening it), until the person turns
+  // them off (or on) themselves.
+  const [outlinePick, setOutlinePick] = useState<boolean | null>(null);
+  const outlines = outlinePick ?? open;
+  const toggleOutlines = useCallback(() => setOutlinePick((p) => !(p ?? open)), [open]);
   const canOutline = facts?.mode === 'tokens' && (facts.tokens.length ?? 0) > 0;
   const live = useLiveSheet(liveUrl, outlines && canOutline, side === 'before' && facts?.mode === 'tokens');
   const onePairs = usePairs(tg ? null : facts, liveUrl, brand, side === 'before');
@@ -348,12 +354,13 @@ function Toolbar({
   const noDiff = tg ? (T?.noDiff ?? null) : facts?.mode === 'tokens' ? noVisibleDifference(facts.files, { theme, brand: brand }) : null;
   // Outlines run only where the change can show: muted in dark for a light-only change.
   const outlinesOn = outlines && canOutline && !noDiff;
+  // Switching a change on or off repaints the combination: the outlines are measured again.
+  const screenKey = `${hash}|${theme}|${tenantId}|${tg ? (T?.included.join(',') ?? '') : ''}`;
   const diff = useChangedElements(
     outlinesOn,
     tg ? (T?.sheet ?? null) : live.link,
     (facts?.tokens ?? []).map((t) => t.cssVar),
-    // Switching a change on or off repaints the combination: the outlines are measured again.
-    `${hash}|${theme}|${tenantId}|${tg ? (T?.included.join(',') ?? '') : ''}`,
+    screenKey,
     tg ? 'after' : 'before',
   );
   const nameOf = (v: string) => facts?.tokens.find((t) => t.cssVar === v)?.name ?? v;
@@ -367,6 +374,11 @@ function Toolbar({
   const [emphasis, setEmphasis] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Stepping through the changes: the position in reading order (null until Previous or Next), what a screen reader
+  // hears on each step, and Isolate (off by default, Esc turns it off).
+  const [position, setPosition] = useState<number | null>(null);
+  const [announce, setAnnounce] = useState('');
+  const [isolate, setIsolate] = useState(false);
   const phone = useMedia('(max-width: 760px)');
   const reduced = useMedia('(prefers-reduced-motion: reduce)');
   usePinnedBridgeTokens(liveTokensUrl(build), theme);
@@ -437,7 +449,7 @@ function Toolbar({
     const onKey = (e: KeyboardEvent) => {
       if (canOutline && !noDiff && isKey(e, 'c')) {
         e.preventDefault();
-        setOutlines((o) => !o);
+        toggleOutlines();
         return;
       }
       if (!isFlipKey(e)) return;
@@ -446,7 +458,16 @@ function Toolbar({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [choose, side, canOutline, noDiff]);
+  }, [choose, side, canOutline, noDiff, toggleOutlines]);
+  // Escape turns Isolate off, also from the bar's own controls (their tooltip stops Escape before it bubbles).
+  useEffect(() => {
+    if (!isolate) return;
+    const onEscape = (e: KeyboardEvent) => {
+      if (isEscape(e)) setIsolate(false);
+    };
+    window.addEventListener('keydown', onEscape, true);
+    return () => window.removeEventListener('keydown', onEscape, true);
+  }, [isolate]);
 
   // Stay clear of the page's primary and submit buttons: on open, resize, scroll, route change and size change.
   useLayoutEffect(() => {
@@ -541,8 +562,45 @@ function Toolbar({
   // Screens share one shop and theme most of the time: say it once in the sheet's header.
   const shared = screens?.length && screens.every((s) => s.tenant === screens[0]!.tenant && s.theme === screens[0]!.theme) ? screens[0]! : null;
   const shopOf = (t: string) => shops.find((x) => x.id === t)?.name ?? t;
-  const surfaces = outlinesOn ? (diff?.surfaces ?? []) : [];
+  const surfaces = useMemo(() => (outlinesOn ? (diff?.surfaces ?? []) : []), [outlinesOn, diff]);
   const shownCount = outlinesOn && diff ? shown.count : null;
+  // Every changed surface that shows on this screen, in view or further down, in reading order: what the bar counts
+  // and what Previous and Next step through (indexes into surfaces).
+  const order = useMemo(() => {
+    const on = surfaces.map((s, i) => ({ s, i })).filter(({ s }) => rendered(s.el));
+    const places = on.map(({ s }) => {
+      if (isPage(s.el)) return { top: -1, left: 0 };
+      const r = s.el.getBoundingClientRect();
+      return { top: r.top + window.scrollY, left: r.left + window.scrollX };
+    });
+    return readingOrder(places).map((k) => on[k]!.i);
+  }, [surfaces]);
+  const total = outlinesOn && diff ? order.length : null;
+  const current = position !== null ? (order[position] ?? null) : null;
+  // A new screen, theme or shop starts over; so do outlines turned off. Isolate needs something to isolate.
+  useEffect(() => {
+    setPosition(null);
+    setAnnounce('');
+  }, [screenKey, outlinesOn]);
+  useEffect(() => {
+    if (position !== null && position >= order.length) setPosition(null);
+  }, [order.length, position]);
+  const isolateOn = isolate && Boolean(total);
+  const step = (delta: 1 | -1) => {
+    const next = stepTo(position, delta, order.length);
+    if (next === null) return;
+    const s = surfaces[order[next]!]!;
+    setPosition(next);
+    setEmphasis(null);
+    // The page canvas is everywhere: stepping to it leaves the scroll where it is.
+    if (!isPage(s.el)) s.el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+    setAnnounce(stepAnnouncement(next, order.length, s.label));
+  };
+
+  // The screens this change shows on, other than this one: where to go when nothing changes here.
+  const isHere = (sc: Screen) => sc.route === hash && sc.tenant === tenantId && sc.theme === theme;
+  const elsewhere = (screens ?? []).filter((sc) => !isHere(sc));
+  const screenHref = (sc: Screen) => `?${PARAM}=${change}&tenant=${encodeURIComponent(sc.tenant)}&theme=${encodeURIComponent(sc.theme)}#${sc.route}`;
 
   // Changes tried together: how many of the switched-on ones show anything in this theme and brand.
   const activeHere = new Set((T?.pairs ?? []).flatMap((p) => p.token.from)).size;
@@ -561,9 +619,26 @@ function Toolbar({
     <p className={styles.note} role="status">
       Could not load the live product. Check your connection, then try again.
     </p>
-  ) : shownCount === 0 ? (
+  ) : total === 0 ? (
+    tg ? (
+      <p className={styles.note} role="status">
+        {TOGETHER_EMPTY_LINE}
+      </p>
+    ) : elsewhere.length ? (
+      <p className={styles.note} role="status">
+        <span>{elsewhereLine(elsewhere.map((sc) => sc.label))}</span>
+        <Button variant="ghost" size="md" render={<a href={screenHref(elsewhere[0]!)} />} onClick={goTo(elsewhere[0]!)} className={styles.noteAction}>
+          Go to {elsewhere[0]!.label}
+        </Button>
+      </p>
+    ) : (
+      <p className={styles.note} role="status">
+        {screens ? elsewhereLine([]) : EMPTY_LINE}
+      </p>
+    )
+  ) : total && shownCount === 0 && position === null ? (
     <p className={styles.note} role="status">
-      {diff?.surfaces.length ? outOfView(diff.surfaces.length) : tg ? TOGETHER_EMPTY_LINE : EMPTY_LINE}
+      Nothing changed in view. Next takes you to {total === 1 ? 'the change' : `the ${total} changes`}.
     </p>
   ) : tg && T && side === 'after' && activeHere < T.included.length ? (
     <p className={styles.note} role="status">
@@ -580,7 +655,6 @@ function Toolbar({
     const from = (p?.token as { from?: number[] } | undefined)?.from;
     return tg && from?.length ? fromText(from, titleOf) : null;
   };
-  const pairTip = (p: Pair) => `${p.token.name}${p.token.step ? ` (${p.token.step})` : ''}${fromOf(p) ? `, ${fromOf(p)}` : ''}: ${p.color ? hexPair(p.before, p.after) : `${p.before} → ${p.after}`}`;
   const splitOf = (before: string, after: string) => (
     <span className={styles.split} aria-hidden="true">
       <span style={{ backgroundColor: before }} />
@@ -588,60 +662,53 @@ function Toolbar({
     </span>
   );
   const subtleOf = (before: string, after: string) => (isSubtle(before, after) ? <span className={styles.subtle}>Subtle change</span> : null);
-  const shownPairs = visiblePairs.filter((p) => p.color).slice(0, MAX_PAIRS);
-  // One row per role in the sheet ("Brand primary", "Link"), its most visible step's swatch first.
+  // One row per role in the Changes sheet ("Brand primary", "Link"), its most visible step's swatch first.
   const roleGroups = [...visiblePairs.reduce((m, p) => m.set(p.token.name, [...(m.get(p.token.name) ?? []), p]), new Map<string, Pair[]>())].map(([name, list]) => ({ name, pairs: list }));
-  const swatches = visiblePairs.length ? (
-    <Tooltip className={PIN_CLASS} content={visiblePairs.slice(0, 6).map(pairTip).join('. ') + (visiblePairs.length > 6 ? `. And ${visiblePairs.length - 6} more.` : '')}>
-      <span className={styles.swatches} tabIndex={0} aria-label={`Tokens this change edits: ${visiblePairs.map(pairTip).join('. ')}`}>
-        {shownPairs.map((p) => (
-          <span key={p.token.path}>{splitOf(p.before, p.after)}</span>
-        ))}
-        {visiblePairs.length > shownPairs.length && <span className={styles.more}>+{visiblePairs.length - shownPairs.length} more {visiblePairs.length - shownPairs.length === 1 ? 'token' : 'tokens'}</span>}
-        {shownPairs[0] ? subtleOf(shownPairs[0].before, shownPairs[0].after) : null}
-      </span>
-    </Tooltip>
-  ) : null;
 
   // Show what changed: token changes only. A code change's live side is another origin (the production admin), whose
-  // styles this page cannot read, so there is nothing reliable to compare: the toggle is not offered. Muted where the
-  // change shows nothing (dark for a light-only change).
+  // styles this page cannot read, so there is nothing reliable to compare: no outlines, no count. Muted where the
+  // change shows nothing (dark for a light-only change). Token changes keep the same elements on both sides, so the
+  // outlines, the position and Isolate hold when the person flips to Live product.
   const tokenNames = (facts?.tokens ?? []).map((t) => t.name);
-  const summary = shownCount === null ? null : surfaceLine(diff!.surfaces.flatMap((s) => s.roots.map(nameOf)), shownCount);
-  const toggleTip = `${summary ?? `Outline what ${tokenNames.length === 1 ? tokenNames[0] : 'this change'} changes on this screen.`} Press C.`;
-  const toggleLabel = shownCount === null ? 'Show what changed' : `Show what changed · ${shownCount}`;
-  const outlineToggle = canOutline ? (
-    <Tooltip className={PIN_CLASS} content={toggleTip}>
-      <Button variant="secondary" size="md" pressed={outlinesOn} aria-keyshortcuts="C" disabled={Boolean(noDiff)} onClick={() => setOutlines((o) => !o)}>
-        {toggleLabel}
-      </Button>
-    </Tooltip>
-  ) : null;
-  const outlineIcon = canOutline ? (
-    <IconButton
-      icon={ScanSearch}
-      size="md"
-      variant="ghost"
-      pressed={outlinesOn}
+  const summary = shownCount === null ? null : surfaceLine(diff!.surfaces.flatMap((s) => s.roots.map(nameOf)), total ?? shownCount);
+  const countText = !outlinesOn ? 'Show what changed' : total === null ? 'Finding changes' : total === 0 ? 'No changes here' : position !== null ? `Change ${positionLabel(position, total)}` : changeCount(total);
+  const toggleTip = outlinesOn ? `${summary ? `${summary}. ` : ''}Press C to hide the outlines.` : `Outline what ${tokenNames.length === 1 ? tokenNames[0] : 'this change'} changes on this screen. Press C.`;
+  const nav = canOutline ? (
+    <ChangeNav
+      countText={countText}
+      tip={toggleTip}
+      outlinesOn={outlinesOn}
       disabled={Boolean(noDiff)}
-      label={shownCount === null ? 'Show what changed' : `Show what changed, ${shownCount} ${shownCount === 1 ? 'surface' : 'surfaces'}`}
-      className={styles.phoneOnly}
-      onClick={() => setOutlines((o) => !o)}
+      total={total}
+      isolate={isolateOn}
+      announce={announce}
+      onToggle={toggleOutlines}
+      onStep={step}
+      onIsolate={setIsolate}
     />
   ) : null;
   const shownSurfaces = surfaces.map((s, i) => ({ s, i })).filter(({ s }) => shownRect(s.el));
   const focusSurface = (i: number) => {
     const el = surfaces[i]?.el;
     if (!el) return;
-    el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+    if (!isPage(el)) el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
     setEmphasis(i);
+    if (order.includes(i)) setPosition(order.indexOf(i));
   };
   const tokensOf = (x: { roots: string[] }) => [...new Set(x.roots.map(nameOf))].join(', ');
 
   const sides = (
     <ButtonGroup appearance="attached" aria-label="Compare" className={styles.sides}>
       {(['before', 'after'] as const).map((s) => (
-        <Tooltip className={PIN_CLASS} key={s} content={`${sideLabel(s)}: ${s === 'before' ? 'what customers see today.' : modeDetail(facts, 'after', 'idle')} Press B to flip.`}>
+        <Tooltip
+          className={PIN_CLASS}
+          key={s}
+          content={
+            <>
+              {sideLabel(s)}: {s === 'before' ? 'what customers see today.' : modeDetail(facts, 'after', 'idle')} <Kbd keys="B" size="sm" /> flips sides on the same screen.
+            </>
+          }
+        >
           <Button
             variant="secondary"
             size="md"
@@ -669,6 +736,41 @@ function Toolbar({
       data-dock={place.dock}
       style={place.lift ? { paddingBottom: `${place.lift}px` } : undefined}
     >
+      {/* Before the bar in the document, so the bar paints above the outlines and the Isolate scrim. */}
+      {outlinesOn && surfaces.length ? (
+        <ChangeOutlines
+          surfaces={surfaces}
+          theme={theme}
+          emphasis={emphasis ?? current}
+          flash={flash}
+          isolate={isolateOn}
+          onShown={setShownStable}
+          tip={(s) => {
+            // This surface's own before and after (its computed colour), and the token whose value it now shows.
+            const prop = s.props.find((p) => /^rgb/.test(p.before) && /^rgb/.test(p.after));
+            const token = prop ? visiblePairs.find((p) => p.color && toHex(p.after) === toHex(prop.after) && toHex(p.before) === toHex(prop.before)) : null;
+            // The role leads ("Brand primary"), the palette step comes second ("Primary 700").
+            const name = token?.token.name ?? [...new Set(s.roots.map(nameOf))].slice(0, 2).join(', ');
+            // Changes tried together: the change the value comes from, by the matched token, else by the surface's roots.
+            const rootsFrom = [...new Set(s.roots.flatMap((r) => (facts?.tokens.find((t) => t.cssVar === r) as { from?: number[] } | undefined)?.from ?? []))];
+            const fromLine = fromOf(token) ?? (tg && rootsFrom.length ? fromText(rootsFrom, titleOf) : null);
+            return (
+              <span className={styles.tip}>
+                {prop ? splitOf(prop.before, prop.after) : null}
+                <span className={styles.tipText}>
+                  <span>
+                    {s.label}: {name}
+                    {prop ? `, ${hexPair(prop.before, prop.after)}` : ''}
+                  </span>
+                  {token?.token.step ? <span className={styles.tipStep}>{token.token.step}</span> : null}
+                  {fromLine ? <span className={styles.tipStep}>{fromLine.charAt(0).toUpperCase() + fromLine.slice(1)}</span> : null}
+                </span>
+                {prop ? subtleOf(prop.before, prop.after) : null}
+              </span>
+            );
+          }}
+        />
+      ) : null}
       <div
         ref={root}
         className={open ? styles.panel : styles.pill}
@@ -677,6 +779,7 @@ function Toolbar({
         data-side={side}
         data-diff-ms={outlinesOn ? diff?.ms : undefined}
         data-diff-count={shownCount ?? undefined}
+        data-diff-total={total ?? undefined}
         data-diff-elements={outlinesOn ? diff?.elements.length : undefined}
         data-note={note ? '' : undefined}
         style={drag ? { transform: `translateX(${drag}px)` } : undefined}
@@ -703,15 +806,14 @@ function Toolbar({
                 {title}
               </span>
             </p>
-            {outlineIcon}
+            {sides}
+            {nav}
             <div className={styles.actions}>
-              {sides}
-              <span className={styles.desktopOnly}>{swatches}</span>
               <Popover open={sheetOpen} onOpenChange={setSheetOpen}>
                 <PopoverTrigger
                   render={
                     phone ? (
-                      <IconButton icon={ListChecks} size="md" variant="ghost" label={shownCount ? `Changes, ${shownCount} changed here` : 'Changes'} />
+                      <IconButton icon={ListChecks} size="md" variant="ghost" label="Changes, screens and tokens" />
                     ) : (
                       <Button variant="ghost" size="md" iconEnd={ChevronUp} />
                     )
@@ -719,7 +821,7 @@ function Toolbar({
                 >
                   {phone ? null : (
                     <>
-                      Changes{shownCount ? <span className={styles.count}>{shownCount}</span> : null}
+                      Changes
                     </>
                   )}
                 </PopoverTrigger>
@@ -801,7 +903,7 @@ function Toolbar({
                       ) : null}
                       <ul className={styles.list}>
                         {screens.map((sc) => {
-                          const current = sc.route === hash && sc.tenant === tenantId && sc.theme === theme;
+                          const current = isHere(sc);
                           const where = shared ? null : <span className={styles.meta}> {shopOf(sc.tenant)}, {sc.theme}</span>;
                           return (
                             <li key={`${sc.route}|${sc.tenant}|${sc.theme}`} className={styles.item} aria-current={current ? 'page' : undefined}>
@@ -814,7 +916,7 @@ function Toolbar({
                               ) : (
                                 <Link
                                   variant="standalone"
-                                  href={`?${PARAM}=${change}&tenant=${encodeURIComponent(sc.tenant)}&theme=${encodeURIComponent(sc.theme)}#${sc.route}`}
+                                  href={screenHref(sc)}
                                   onClick={goTo(sc)}
                                   className={styles.screenLink}
                                 >
@@ -830,7 +932,7 @@ function Toolbar({
                     </section>
                   ) : null}
                   {visiblePairs.length ? (
-                    <section className={`${styles.sheetSection} ${styles.sheetPhone}`} aria-label="Tokens this change edits">
+                    <section className={styles.sheetSection} aria-label="Tokens this change edits">
                       <p className={styles.sectionTitle}>Tokens</p>
                       <ul className={styles.list}>
                         {roleGroups.map((g) => (
@@ -838,7 +940,7 @@ function Toolbar({
                             <span className={styles.rowText}>
                               <span>{g.name}</span>
                               <span className={styles.rowMeta}>
-                                {g.pairs.length === 1 ? (g.pairs[0]!.token.step ?? '') : `${g.pairs.length} steps`}
+                                {g.pairs.length === 1 ? [g.pairs[0]!.token.step, g.pairs[0]!.color ? hexPair(g.pairs[0]!.before, g.pairs[0]!.after) : `${g.pairs[0]!.before} → ${g.pairs[0]!.after}`].filter(Boolean).join(', ') : `${g.pairs.length} steps`}
                                 {isSubtle(g.pairs[0]!.before, g.pairs[0]!.after) ? ', subtle change' : ''}
                               </span>
                             </span>
@@ -874,7 +976,6 @@ function Toolbar({
                   ) : null}
                 </PopoverContent>
               </Popover>
-              <span className={styles.desktopOnly}>{outlineToggle}</span>
               <Button variant="ghost" size="md" render={<a href={studio} />} className={styles.studio}>
                 Back to Studio
               </Button>
@@ -902,39 +1003,6 @@ function Toolbar({
         )}
         {note && <div className={styles.noteRow}>{note}</div>}
       </div>
-      {outlinesOn && surfaces.length ? (
-        <ChangeOutlines
-          surfaces={surfaces}
-          theme={theme}
-          emphasis={emphasis}
-          flash={flash}
-          onShown={setShownStable}
-          tip={(s) => {
-            // This surface's own before and after (its computed colour), and the token whose value it now shows.
-            const prop = s.props.find((p) => /^rgb/.test(p.before) && /^rgb/.test(p.after));
-            const token = prop ? visiblePairs.find((p) => p.color && toHex(p.after) === toHex(prop.after) && toHex(p.before) === toHex(prop.before)) : null;
-            // The role leads ("Brand primary"), the palette step comes second ("Primary 700").
-            const name = token?.token.name ?? [...new Set(s.roots.map(nameOf))].slice(0, 2).join(', ');
-            // Changes tried together: the change the value comes from, by the matched token, else by the surface's roots.
-            const rootsFrom = [...new Set(s.roots.flatMap((r) => (facts?.tokens.find((t) => t.cssVar === r) as { from?: number[] } | undefined)?.from ?? []))];
-            const fromLine = fromOf(token) ?? (tg && rootsFrom.length ? fromText(rootsFrom, titleOf) : null);
-            return (
-              <span className={styles.tip}>
-                {prop ? splitOf(prop.before, prop.after) : null}
-                <span className={styles.tipText}>
-                  <span>
-                    {s.label}: {name}
-                    {prop ? `, ${hexPair(prop.before, prop.after)}` : ''}
-                  </span>
-                  {token?.token.step ? <span className={styles.tipStep}>{token.token.step}</span> : null}
-                  {fromLine ? <span className={styles.tipStep}>{fromLine.charAt(0).toUpperCase() + fromLine.slice(1)}</span> : null}
-                </span>
-                {prop ? subtleOf(prop.before, prop.after) : null}
-              </span>
-            );
-          }}
-        />
-      ) : null}
     </ThemeProvider>
   );
 }

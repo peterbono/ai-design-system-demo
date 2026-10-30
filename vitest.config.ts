@@ -2,7 +2,7 @@ import { defaultClientConditions, defaultServerConditions } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 // Projects:
-//   react  keyboard and ARIA behavior of the React components (jsdom + Testing Library + axe-core)
+//   react  keyboard and ARIA behavior of the React components and the toolbar's controls (jsdom + Testing Library + axe-core)
 //   core   @bridge-ds/core, pure token logic (node)
 //   docs   docs-site data layer: token review, review rules, token editor model (node)
 //   admin  back-office demo data layer: browser persistence of the demo dataset, and the Bridge toolbar's logic (node)
@@ -24,7 +24,7 @@ export default defineConfig({
         test: {
           name: 'react',
           environment: 'jsdom',
-          include: ['packages/react/src/**/*.test.tsx'],
+          include: ['packages/react/src/**/*.test.tsx', 'packages/toolbar/src/**/*.test.tsx'],
           setupFiles: ['./packages/react/src/test/setup.ts'],
           css: { modules: { classNameStrategy: 'non-scoped' } },
         },

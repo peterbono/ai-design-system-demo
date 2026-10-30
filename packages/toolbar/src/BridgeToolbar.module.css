@@ -40,19 +40,27 @@
   pointer-events: auto;
 }
 
+/* The outlines layer comes first in the document: the bar, on the same layer, paints above it and its scrim. */
+.panel,
+.pill {
+  position: relative;
+  z-index: var(--layer-sticky);
+}
+
 .panel[data-dragging],
 .pill[data-dragging] {
   box-shadow: var(--elevation-modal);
 }
 
-/* Desktop: one row, 44px tall with its border (36px controls); a note, when there is one, takes a second row. */
+/* Desktop: one row, 44px tall with its border (36px controls): compare, then the changes of this screen, then the
+   rest. A note, when there is one, takes a second row. */
 .panel {
   display: grid;
   grid-template-areas:
-    "grip title actions collapse"
-    "note note note note";
+    "grip title sides nav actions collapse"
+    "note note note note note note";
   grid-template-rows: calc(var(--size-11) - 2 * var(--border-width-default)) auto;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto auto auto minmax(0, 1fr) auto;
   align-items: center;
   column-gap: var(--space-2);
   max-width: min(100%, var(--size-300));
@@ -109,19 +117,29 @@
 }
 
 .sides {
+  grid-area: sides;
+}
+
+/* The changes of this screen: the count (also the outlines toggle), Previous and Next, Isolate. */
+.nav {
+  display: flex;
+  grid-area: nav;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.countButton {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.steps {
   flex: none;
 }
 
 .collapse {
   grid-area: collapse;
-}
-
-.phoneOnly {
-  display: none;
-}
-
-.desktopOnly {
-  display: contents;
 }
 
 .count {
@@ -436,6 +454,24 @@
   visibility: visible;
 }
 
+/* Isolate: the scrim of a dialog over the rest of the page, with a cut-out around each changed surface. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  display: block;
+  animation: scrim-in var(--motion-duration-moderate) var(--motion-easing-enter);
+}
+
+.scrimFill {
+  fill: var(--color-overlay-scrim);
+}
+
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
 .tip {
   display: inline-flex;
   align-items: center;
@@ -448,7 +484,8 @@
     bottom: var(--space-2);
   }
 
-  /* Phone, open: docked to the bottom edge as one 44px row (sides, Changes, outline toggle, collapse). */
+  /* Phone, open: docked to the bottom edge. Row 1: sides, Changes, collapse. Row 2, for a token change: the count,
+     Previous and Next, Isolate. */
   .anchor[data-open] {
     inset-inline: 0;
     bottom: 0;
@@ -456,9 +493,10 @@
 
   .panel {
     grid-template-areas:
-      "actions toggle collapse"
+      "sides actions collapse"
+      "nav nav nav"
       "note note note";
-    grid-template-rows: calc(var(--size-11) - var(--border-width-default)) auto;
+    grid-template-rows: calc(var(--size-11) - var(--border-width-default)) auto auto;
     grid-template-columns: minmax(0, 1fr) auto auto;
     column-gap: var(--space-2);
     width: 100%;
@@ -471,20 +509,18 @@
     display: none;
   }
 
-  .phoneOnly {
-    display: inline-flex;
-    grid-area: toggle;
-  }
-
   .grip,
   .brand,
-  .studio,
-  .desktopOnly {
+  .studio {
     display: none;
   }
 
-  .actions {
-    justify-content: space-between;
+  .sides {
+    justify-self: start;
+  }
+
+  .nav {
+    padding-block-end: var(--space-1);
   }
 
   .noteRow .note {
