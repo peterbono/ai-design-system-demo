@@ -5,7 +5,7 @@
 // `governance.rights` (rights.ts). Moved from the docs site (apps/docs-site/src/lib/review-rules.ts re-exports it).
 import type { FigmaPush } from './build-requests';
 import type { OverridePolicy } from './config';
-import { isHeldExploration } from './explorations';
+import { isExplorationCheck, isHeldExploration } from './explorations';
 import { DRAFTED_BY_CLAUDE_LABEL, WAITING_FOR_CLAUDE_LABEL } from './figma-push';
 import { canShip, soloApprover, unreadableShipTeams, whoCanShipSentence, type ShipPolicy } from './rights';
 import { classifyRisk, type RiskTier } from './risk';
@@ -114,12 +114,26 @@ export interface CiSummary {
 
 const OK = new Set(['success', 'neutral', 'skipped']);
 
-/** Combines check runs and commit statuses into one verdict. Any failure wins over pending. */
-export function summarizeCi(runs: CiRunLike[], statuses: CiStatusLike[] = []): CiSummary {
+export interface SummarizeCiOptions {
+  /**
+   * The pull request is an exploration (explorations isGuardedExploration): its guard check, "Exploration not merged
+   * as is" (EXPLORATION_CHECK), fails by design while it is one, so it is left out of the verdict. Without it the
+   * check counts like any other: a pull request that is no exploration and still fails it has a real problem.
+   */
+  exploration?: boolean | undefined;
+}
+
+/**
+ * Combines check runs and commit statuses into one verdict. Any failure wins over pending. The one check summary of
+ * Studio, the MCP server and the CLI: pass `exploration` for an exploration so its guard never reads as a failure.
+ */
+export function summarizeCi(runs: CiRunLike[], statuses: CiStatusLike[] = [], opts: SummarizeCiOptions = {}): CiSummary {
   const failed: CiSummary['failed'] = [];
   const pending: CiSummary['pending'] = [];
   let passed = 0;
+  const skip = (name: string) => Boolean(opts.exploration) && isExplorationCheck(name);
   for (const r of runs) {
+    if (skip(r.name)) continue;
     if (r.status !== 'completed') pending.push({ name: r.name, url: r.html_url });
     else if (r.conclusion && OK.has(r.conclusion)) passed++;
     else failed.push({ name: r.name, url: r.html_url });
@@ -129,7 +143,7 @@ export function summarizeCi(runs: CiRunLike[], statuses: CiStatusLike[] = []): C
   for (const s of statuses) {
     if (seen.has(s.context)) continue;
     seen.add(s.context);
-    if (isPlatformRefusal(s)) continue;
+    if (isPlatformRefusal(s) || skip(s.context)) continue;
     if (s.state === 'success') passed++;
     else if (s.state === 'pending') pending.push({ name: s.context, url: s.target_url ?? undefined });
     else failed.push({ name: s.context, url: s.target_url ?? undefined });

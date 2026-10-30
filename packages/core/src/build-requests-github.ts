@@ -16,6 +16,7 @@ import {
 } from './build-requests';
 import type { GitHubClient } from './github-client';
 import { REQUEST_LABEL } from './requests';
+import { isGuardedExploration } from './explorations';
 import { summarizeApprovals, summarizeCi } from './review-gate';
 
 /**
@@ -69,6 +70,7 @@ export async function libraryArrivalOnGitHub(gh: GitHubClient, n: number): Promi
   const ci = summarizeCi(
     runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion })),
     statuses.map((s) => ({ context: s.context, state: s.state, description: s.description })),
+    { exploration: isGuardedExploration({ state: pr.state, draft: pr.draft, labels: pr.labels, headRef: pr.headRef, body: pr.body }) },
   );
   const approvals = summarizeApprovals(
     reviews.map((r) => ({ user: r.user ? { login: r.user } : null, state: r.state, submitted_at: r.submittedAt ?? null })),

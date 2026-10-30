@@ -16,7 +16,7 @@ import { isDeveloper, needFromStatus, pendingApprovals, statusPill, whoActs, typ
 import { developerOnlyFailures } from '../lib/check-explain';
 import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
-import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, lookAgainReviewers, ownerOverridePolicy, PUBLISH_ROUTE_COPY, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
+import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, isGuardedExploration, lookAgainReviewers, ownerOverridePolicy, PUBLISH_ROUTE_COPY, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
 import { approvedSuggestionOf } from './suggestions';
 import { prefetchChangeStatuses } from './contribute-session';
 import { siteConfig } from './repo-context';
@@ -72,9 +72,10 @@ export function teamPeople(): { entries: { design: string[]; tech: string[] }; s
 
 /**
  * CI summary of a commit: check runs plus the combined commit status. `lean` (anonymous budget) reads the commit
- * status only when the commit has no check runs, so a status costs two requests instead of three.
+ * status only when the commit has no check runs, so a status costs two requests instead of three. `exploration`: the
+ * commit heads an exploration (core isGuardedExploration), whose guard check fails by design and never counts.
  */
-export async function ciFor(sha: string, opts: { lean?: boolean } = {}) {
+export async function ciFor(sha: string, opts: { lean?: boolean; exploration?: boolean } = {}) {
   const { owner, repo } = readRepo();
   const R = `/repos/${owner}/${repo}`;
   const readStatuses = () =>
@@ -83,10 +84,10 @@ export async function ciFor(sha: string, opts: { lean?: boolean } = {}) {
       .catch(() => [] as StatusLike[]);
   if (opts.lean) {
     const runs = (await ghGet<{ check_runs: CheckRunLike[] }>(`${R}/commits/${sha}/check-runs?per_page=100`)).data.check_runs;
-    return summarizeCi(runs, runs.length ? [] : await readStatuses());
+    return summarizeCi(runs, runs.length ? [] : await readStatuses(), { exploration: opts.exploration });
   }
   const [runs, statuses] = await Promise.all([ghGet<{ check_runs: CheckRunLike[] }>(`${R}/commits/${sha}/check-runs?per_page=100`), readStatuses()]);
-  return summarizeCi(runs.data.check_runs, statuses);
+  return summarizeCi(runs.data.check_runs, statuses, { exploration: opts.exploration });
 }
 
 /** A status plus the review facts the who-acts line and the row need (lib/changes whoActs). */
@@ -143,7 +144,7 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
   // Approvals count against team members: read the teams of governance.owners first (no request without teams).
   await loadTeams();
   const [ci, reviews, files] = await Promise.all([
-    ciFor(p.head.sha, opts).catch(() => null),
+    ciFor(p.head.sha, { ...opts, exploration: isGuardedExploration(p) }).catch(() => null),
     ghGet<ReviewLike[]>(`/repos/${owner}/${repo}/pulls/${p.number}/reviews?per_page=100`)
       .then((f) => f.data)
       .catch(() => null),

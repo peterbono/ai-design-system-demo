@@ -22,7 +22,7 @@ import { SelectionBar, type ListedBranch } from './CombineChanges';
 import { archivedLine, archivedParam, ARCHIVED_WORDS, boxDisabled, emptyWhoLine, showsDesignerFilter, tabFilters, finishedParam, FULL_TIP, groupByProduct, FINISHED_WORDS, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
-import { CLAUDE, person, requesterPerson, type Person, type PillTone } from '../../../lib/home-model';
+import { CLAUDE, person, requesterPerson, SEP, type Person, type PillTone } from '../../../lib/home-model';
 import {
   categoryOf,
   designerKey,
@@ -57,6 +57,8 @@ export interface ListRow {
   agent: boolean;
   /** `pr`: the branch review in place (?pr=N); `exploration`: the exploration in place (?exploration=N). */
   opens: 'pr' | 'exploration';
+  /** An exploration: when it last moved ("2 h ago"), after who on line 2. */
+  ago?: string | null;
   pill: { label: string; tone: PillTone | 'info' } | null;
   lifecycle: Lifecycle | 'exploration';
   yourTurn: boolean;
@@ -307,7 +309,7 @@ export function BranchesList(p: BranchesListProps) {
                     who={whoNode(r, e)}
                     title={r.title}
                     jira={r.jira}
-                    line={child ? childLine(nameOf(r, e)) : (line ?? nameOf(r, e))}
+                    line={child ? childLine(nameOf(r, e)) : (line ?? (r.ago ? `${nameOf(r, e)}${SEP}${r.ago}` : nameOf(r, e)))}
                     href={href}
                     linkAttributes={r.opens === 'pr' ? { 'data-open-pr': r.number } : { 'data-open-exploration': r.number, ...(r.product ? { 'data-product': r.product } : {}) }}
                     pill={r.pill}

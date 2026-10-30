@@ -164,3 +164,27 @@ describe('the explorations of the Studio home', () => {
     expect(libraryChangesLine(3)).toBe('You have 3 library changes in progress.');
   });
 });
+
+describe('the state of a running exploration card, from its files', () => {
+  const opts = (files: Record<number, string[] | null | undefined>) => ({ products, author: who, files: (p: ExplorationPull) => files[p.number] });
+
+  it('says "Not started" while only the Bridge note changed, as its page', () => {
+    const [c] = homeExplorations([profile], opts({ 36: ['.bridge/explorations/profile-page.md'] }));
+    expect(c!.state).toBe('Not started');
+    expect(c!.stage).toBe('exploring');
+  });
+
+  it('says "Exploring" once something else changed, or when the files cannot be read', () => {
+    expect(homeExplorations([profile], opts({ 36: ['.bridge/explorations/profile-page.md', 'apps/account/src/Profile.tsx'] }))[0]!.state).toBe('Exploring');
+    expect(homeExplorations([profile], opts({ 36: null }))[0]!.state).toBe('Exploring');
+  });
+
+  it('says nothing while the files are read, and "Exploring" when the caller reads none', () => {
+    expect(homeExplorations([profile], opts({}))[0]!.state).toBe('');
+    expect(homeExplorations([profile], { products, author: who })[0]!.state).toBe('Exploring');
+  });
+
+  it('leaves the other stages as they are', () => {
+    expect(explorationStage({ ...billing, draft: false }, () => ['.bridge/x.md']).state).toBe('In review');
+  });
+});

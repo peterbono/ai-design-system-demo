@@ -117,11 +117,14 @@ export interface BranchChecks {
   visual: { state: CiState; url: string | null; name: string | null };
 }
 
-/** Splits check runs into the CI verdict and the visual impact verdict. */
-export function branchChecks(runs: CheckRunLike[]): BranchChecks {
+/**
+ * Splits check runs into the CI verdict and the visual impact verdict. `exploration`: the branch is an exploration
+ * (core isGuardedExploration), whose guard check fails by design and never counts.
+ */
+export function branchChecks(runs: CheckRunLike[], opts: { exploration?: boolean } = {}): BranchChecks {
   const visualRuns = runs.filter((r) => VISUAL.test(r.name));
   const ciRuns = runs.filter((r) => !VISUAL.test(r.name));
-  const ci = summarizeCi(ciRuns);
+  const ci = summarizeCi(ciRuns, [], { exploration: opts.exploration });
   const v = summarizeCi(visualRuns);
   const first = visualRuns.find((r) => r.status === 'completed' && r.conclusion && !['success', 'neutral', 'skipped'].includes(r.conclusion)) ?? visualRuns[0];
   return {

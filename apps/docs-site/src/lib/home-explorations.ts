@@ -9,7 +9,7 @@
 // Each card shows the explored screen (a capture, never a generic icon when one exists), the title, the product, who
 // explores it and where it stands in designer words: "Exploring", "2 new pieces found", "In review", "Kept in the
 // library". Pure: no DOM, no fetch. Unit tested in home-explorations.test.ts.
-import { defaultProduct, EXPLORATION_STATUS_LABEL, explorationStatus, findProduct, isActiveExploration, isArchivedExploration, isExplorationPull, isHandedOff, parseExplorationBody, parsePiecesRecord, PRODUCT_LABEL_PREFIX, requesterOf, type ProductConfig } from '@bridge-ds/core';
+import { defaultProduct, EXPLORATION_STATUS_LABEL, explorationStateLabel, explorationStatus, findProduct, isActiveExploration, isArchivedExploration, isExplorationPull, isHandedOff, parseExplorationBody, parsePiecesRecord, PRODUCT_LABEL_PREFIX, requesterOf, type ProductConfig } from '@bridge-ds/core';
 import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
 import { studioHref } from './team-path';
@@ -94,7 +94,14 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * on): exploring, or "2 new pieces found" once Bridge found pieces the library does not have. Done exploring and
  * still a draft: with the developers ("Waiting for code", then "Being built"), shipped once merged. Otherwise: in review.
  */
-export function explorationStage(p: Pick<ExplorationPull, 'draft' | 'state' | 'merged_at' | 'labels' | 'body'> & { head?: { ref: string; sha?: string } | undefined }): { stage: ExplorationStage; state: string } {
+export function explorationStage(
+  p: Pick<ExplorationPull, 'draft' | 'state' | 'merged_at' | 'labels' | 'body'> & { head?: { ref: string; sha?: string } | undefined },
+  /**
+   * The changed files of a running exploration, when the caller reads them: then it says what its page says, "Not
+   * started" (only Bridge notes changed) or "Exploring", and nothing while they are read (undefined). Omitted: "Exploring".
+   */
+  files?: () => readonly string[] | null | undefined,
+): { stage: ExplorationStage; state: string } {
   const handed = !isActiveExploration(p.labels ?? []) && isHandedOff({ labels: p.labels ?? [], body: p.body });
   if (p.merged_at || p.state === 'merged') return { stage: 'kept', state: handed ? EXPLORATION_STATUS_LABEL.shipped : 'Kept in the library' };
   if (handed && p.draft !== false) {
@@ -103,7 +110,10 @@ export function explorationStage(p: Pick<ExplorationPull, 'draft' | 'state' | 'm
   }
   if (p.draft || isActiveExploration(p.labels ?? [])) {
     const pieces = parsePiecesRecord(p.body)?.pieces.length ?? 0;
-    return pieces ? { stage: 'found', state: `${plural(pieces, 'new piece', 'new pieces')} found` } : { stage: 'exploring', state: 'Exploring' };
+    if (pieces) return { stage: 'found', state: `${plural(pieces, 'new piece', 'new pieces')} found` };
+    const status = explorationStatus({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body, headSha: p.head?.sha, draft: p.draft });
+    if (files && status === 'active') return { stage: 'exploring', state: explorationStateLabel({ status, files: files() }) ?? '' };
+    return { stage: 'exploring', state: 'Exploring' };
   }
   return { stage: 'in-review', state: 'In review' };
 }
@@ -145,6 +155,11 @@ export interface HomeExplorationsOptions<P extends ExplorationPull = Exploration
   author: (p: P) => Person;
   /** The explored screen, once known. */
   preview?: (p: P) => ThumbSpec | null | undefined;
+  /**
+   * The changed files of a running exploration (undefined while read, null when unreadable): its card then says
+   * "Not started" or "Exploring", as its page. Omitted: "Exploring".
+   */
+  files?: (p: P) => readonly string[] | null | undefined;
 }
 
 /** Closed without being kept: an exploration given up, not one the home shows. */
@@ -165,7 +180,8 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
       return !givenUp(p) && !isArchivedExploration(p.labels) && isHomeExploration(p, opts.products) && (!opts.onlyOwn || isOwnExploration(p, opts.viewer));
     })
     .map((p): ExplorationCard => {
-      const { stage, state } = explorationStage(p);
+      const files = opts.files;
+      const { stage, state } = explorationStage(p, files ? () => files(p) : undefined);
       return {
         number: p.number,
         key: keyOf(p),

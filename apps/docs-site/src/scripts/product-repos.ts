@@ -4,7 +4,7 @@
 // skipped here, silently: designers never see why, Settings says it (scripts/product-connections.ts).
 import { DEFAULT_PRODUCTS, EXPLORATION_PREFIX, type GitHubClient, type ProductConfig } from '@bridge-ds/core';
 import { productPullsPath, productReposOf, tagProductPulls, type ExplorationPullLike, type ProductRepo } from '../lib/explorations-view';
-import { getToken, ghGet, studioClient } from './github-session';
+import { getToken, ghGet, readRepo, studioClient } from './github-session';
 import { explorationsConfig } from './exploration-start';
 import { siteConfig } from './repo-context';
 
@@ -23,6 +23,27 @@ export const siteProductRepos = (): ProductRepo[] => productReposOf(products(), 
 
 /** The product repository of a product key, when the site gives it one. */
 export const productRepoByKey = (key: string | null | undefined): ProductRepo | null => (key ? (siteProductRepos().find((x) => x.product.key === key.toLowerCase()) ?? null) : null);
+
+/**
+ * The files an exploration's branch changes (first 100), in the design system repository or its product's own one,
+ * read once per head commit; null when GitHub cannot be read. Lists read it for the row's state ("Not started" while
+ * only Bridge notes changed: core explorationStateLabel).
+ */
+const explorationFilesBy = new Map<string, Promise<string[] | null>>();
+export function explorationFiles(x: { number: number; headSha: string; product?: string | null | undefined }): Promise<string[] | null> {
+  const own = productRepoByKey(x.product);
+  const key = `${own?.repo ?? ''}#${x.number}@${x.headSha}`;
+  let files = explorationFilesBy.get(key);
+  if (!files) {
+    const ds = readRepo();
+    const path = own ? `/repos/${own.repo}` : `/repos/${ds.owner}/${ds.repo}`;
+    files = ghGet<{ filename: string }[]>(`${path}/pulls/${x.number}/files?per_page=100`)
+      .then((f) => f.data.map((y) => y.filename))
+      .catch(() => null);
+    explorationFilesBy.set(key, files);
+  }
+  return files;
+}
 
 export type ProductPull = ExplorationPullLike & { repo: string; product: string };
 
