@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "tool": "@bridge-ds/visual",
+  "createdAt": "2026-10-30T09:38:03.791Z",
+  "durationMs": 1275,
+  "base": {
+    "ref": "c8ebeda666ea082edc44cde3d0e07e07c65bc770",
+    "sha": "c8ebeda666ea082edc44cde3d0e07e07c65bc770"
+  },
+  "head": {
+    "ref": "d29c1022024d6b42a3c229e39ea170ec74fe1fa9",
+    "sha": "d29c1022024d6b42a3c229e39ea170ec74fe1fa9"
+  },
+  "options": {
+    "only": [
+      "stories",
+      "app"
+    ],
+    "threshold": 0.03,
+    "viewport": {
+      "stories": {
+        "width": 1024,
+        "height": 768
+      },
+      "app": {
+        "width": 1280,
+        "height": 800
+      }
+    }
+  },
+  "selection": {
+    "tokens": [],
+    "vars": [],
+    "files": [
+      ".changeset/guidance-publish-reviewed.md",
+      "apps/docs-site/src/components/LibraryEditMode.tsx",
+      "apps/docs-site/src/lib/home-model.test.ts",
+      "apps/docs-site/src/lib/home-model.ts",
+      "apps/docs-site/src/lib/library-edit-model.test.ts",
+      "apps/docs-site/src/lib/library-edit-model.ts",
+      "apps/docs-site/src/lib/team-docs-ai.test.ts",
+      "apps/docs-site/src/lib/team-facts.ts",
+      "apps/docs-site/src/pages/studio/index.astro",
+      "apps/docs-site/src/scripts/home-data.ts",
+      "packages/react/src/components/VisuallyHidden/VisuallyHidden.docs.json"
+    ],
+    "components": [],
+    "stories": [],
+    "fallback": null,
+    "app": {
+      "include": false,
+      "reason": "No token, component or app change"
+    }
+  },
+  "summary": {
+    "shots": 0,
+    "changed": 0,
+    "unchanged": 0,
+    "added": 0,
+    "removed": 0,
+    "errors": 0,
+    "maxPercent": 0
+  },
+  "shots": []
+}
