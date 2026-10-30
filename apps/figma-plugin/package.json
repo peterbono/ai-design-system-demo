@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/figma-plugin",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "license": "FSL-1.1-MIT",
   "private": true,
   "type": "module",

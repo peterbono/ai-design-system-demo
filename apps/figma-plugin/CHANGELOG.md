@@ -1,5 +1,22 @@
 # @bridge-ds/figma-plugin
 
+## 0.8.1
+
+### Patch Changes
+
+- 51da8b4: Explorations for a product with its own repository (`products[].repo`) are now created in that product repository by default: the `explore/<name>` branch and its draft pull request live where developers already work, and the library arrives as the npm package. Studio's "Create branch", `bridge_start_exploration` and `bridge explore start` share the rule (`productRepoOf`, `productRepoAccess`). When Bridge cannot reach the product repository, Studio says so in one line with "Ask an admin to connect <product>" and starts it in the library only if the person picks "Start in the library instead"; Claude gets the same message and asks before using `where: "library"`, the CLI takes `--in-library`. The purpose of an exploration is now optional everywhere: nobody is asked for a brief, and Claude starts one as soon as a designer says they want to explore.
+- Updated dependencies [dc3fec0]
+- Updated dependencies [949b731]
+- Updated dependencies [dc3fec0]
+- Updated dependencies [32948b0]
+- Updated dependencies [51da8b4]
+- Updated dependencies [fedd0c0]
+- Updated dependencies [54a8c8c]
+- Updated dependencies [6a44454]
+- Updated dependencies [e8a6e7b]
+- Updated dependencies [4ffd06f]
+  - @bridge-ds/core@0.21.0
+
 ## 0.8.0
 
 ### Minor Changes
