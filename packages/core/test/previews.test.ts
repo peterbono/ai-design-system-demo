@@ -73,7 +73,7 @@ test('previewComment explains missing snapshots and missing deploy config', () =
 });
 
 test('config: previews load, unknown apps and non-URL templates are refused', () => {
-  assert.deepEqual(realConfig().previews?.packages, ['@bridge-ds/tokens', '@bridge-ds/core', '@bridge-ds/react']);
+  assert.deepEqual(realConfig().previews?.packages, ['@bridge-ds/tokens', '@bridge-ds/core', '@bridge-ds/react', '@bridge-ds/toolbar']);
   const base = { repo: { owner: 'o', name: 'r' } };
   const ok = loadConfig({ ...base, previews: { apps: { docs: 'https://d-{branch}.example.com' } } });
   assert.deepEqual(ok.previews, { packages: [], apps: { docs: 'https://d-{branch}.example.com' } });
