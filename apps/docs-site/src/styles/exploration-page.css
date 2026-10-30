@@ -169,6 +169,8 @@
 .xp-line {
   flex: 1;
   min-width: 0;
+  padding: 0;
+  background: none;
   font-family: var(--font-family-mono);
   overflow-wrap: anywhere;
   user-select: all;
@@ -187,6 +189,15 @@
 
 .xp-continue .xp-claude {
   flex: none;
+  margin-inline-end: var(--space-1-5);
+}
+
+/* "Exploring" in Harbor, as on the validated board: the selected surface and the link text, its dot the same. */
+.xp .xp-head .xp-exploring {
+  --_bg: var(--color-surface-selected);
+  --_border: transparent;
+  --_text: var(--color-text-link);
+  --_mark: var(--color-text-link);
 }
 
 .xp-today {

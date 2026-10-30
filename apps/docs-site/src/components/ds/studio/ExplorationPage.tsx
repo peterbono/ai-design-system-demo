@@ -195,7 +195,7 @@ export function ExplorationPage(p: ExplorationPageProps) {
                 Not started
               </Badge>
             ) : (
-              <Badge tone="info" size="md" dot>
+              <Badge tone="info" size="md" dot className="xp-exploring">
                 Exploring
               </Badge>
             ))}
