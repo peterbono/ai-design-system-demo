@@ -18,6 +18,8 @@ import {
   isFigmaPush,
   libraryArrival,
   matchesBuildFilter,
+  BUILD_DECLINED_DAYS,
+  declinedAt,
   parseBuildRequestIssue,
   parseBuildSpec,
   parseRequestIssue,
@@ -316,6 +318,42 @@ describe('where a build request stands', () => {
     expect(buildRequestStatus({ pull: { ...own, assignees: ['ana'] } }, NOW).status).toBe('picked-up');
     expect(buildRequestStatus({ pull: { ...own, labels: ['from-figma', 'drafted-by-claude'] } }, NOW).status).toBe('in-review');
     expect(buildRequestStatus({ pull: { ...own, state: 'closed' } }, NOW).status).toBe('not-planned');
+  });
+
+  it('dates a declined library branch from Figma by its close (else its last update), so it can leave the list', () => {
+    const own = pull({ body: '', author: 'sam', labels: ['from-figma', 'waiting-for-claude'], headRef: 'bridge/button-add-a-lg-size', state: 'closed', closedAt: day(2), updatedAt: day(1) });
+    expect(declinedAt(buildRequestStatus({ pull: own }, NOW))).toBe(day(2));
+    expect(declinedAt(buildRequestStatus({ pull: { ...own, closedAt: undefined } }, NOW))).toBe(day(1));
+  });
+});
+
+describe('a request closed as not planned', () => {
+  // Issue #489 "Tag: test: rounder tag corners": closed as not planned, it shows in All for a week, then leaves.
+  const declined = (closedDaysAgo: number) =>
+    buildRequestStatus({ issue: issue({ state: 'closed', stateReason: 'not_planned', createdAt: day(closedDaysAgo), closedAt: day(closedDaysAgo) }) }, NOW);
+
+  it(`stays in All for ${BUILD_DECLINED_DAYS} days after it was closed, then leaves it`, () => {
+    expect(BUILD_DECLINED_DAYS).toBe(7);
+    expect(matchesBuildFilter(declined(0), 'all', NOW)).toBe(true);
+    expect(matchesBuildFilter(declined(6), 'all', NOW)).toBe(true);
+    expect(matchesBuildFilter(declined(7), 'all', NOW)).toBe(true);
+    expect(matchesBuildFilter(declined(8), 'all', NOW)).toBe(false);
+    expect(matchesBuildFilter(declined(400), 'all', NOW)).toBe(false);
+  });
+
+  it('never shows under Waiting, In progress or Shipped this week', () => {
+    for (const f of ['waiting', 'in-progress', 'shipped-this-week'] as const) expect(matchesBuildFilter(declined(1), f, NOW)).toBe(false);
+  });
+
+  it('leaves All at once when GitHub gave no close date', () => {
+    const s = buildRequestStatus({ issue: issue({ state: 'closed', stateReason: 'not_planned', closedAt: null }) }, NOW);
+    expect(matchesBuildFilter(s, 'all', NOW)).toBe(false);
+  });
+
+  it('keeps shipped requests in All (Shipped this week is their one week view)', () => {
+    const shipped = buildRequestStatus({ issue: issue({ state: 'closed', stateReason: 'completed', closedAt: day(30) }) }, NOW);
+    expect(matchesBuildFilter(shipped, 'all', NOW)).toBe(true);
+    expect(matchesBuildFilter(shipped, 'shipped-this-week', NOW)).toBe(false);
   });
 });
 

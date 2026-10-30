@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { assembleBuildRequests, figmaAheadLine, buildSummaryLine } from '@bridge-ds/core';
+import { assembleBuildRequests, composeBuildRequestIssue, figmaAheadLine, buildSummaryLine } from '@bridge-ds/core';
 import { sampleBuildData, SAMPLE_BUILDERS } from './building-sample';
-import { ageLabel, buildDetail, detailFromQuery, detailQuery, filterCounts, jiraLink, pageSentence, propLine, rowLine, slimIssue, slimPull, statusTag, timelineSteps, toBuildIssue, toBuildPull } from './building-view';
+import { ageLabel, buildDetail, detailFromQuery, detailQuery, filterCounts, jiraLink, listedRows, pageSentence, rowThumb, propLine, rowLine, slimIssue, slimPull, statusTag, timelineSteps, toBuildIssue, toBuildPull } from './building-view';
 
 const NOW = Date.parse('2026-10-24T12:00:00Z');
 const sample = () => {
@@ -94,5 +94,55 @@ describe('Being built', () => {
   it('never writes an em dash', () => {
     const { issues } = sampleBuildData(NOW);
     for (const i of issues) expect(i.body).not.toMatch(/\u2014/);
+  });
+
+  describe('a request closed as not planned (issue #489, "Tag: test: rounder tag corners")', () => {
+    const DAY = 86_400_000;
+    const before = 'https://github.com/acme/ds/blob/bridge-visual/figma-references/tag/size-md.png?raw=true';
+    const after = 'https://github.com/acme/ds/blob/bridge-requests/.bridge/requests/tag-1.png?raw=true';
+    const tag = (closedDaysAgo: number) => {
+      const r = composeBuildRequestIssue({ component: 'Tag', kind: 'visual', title: 'Test: rounder tag corners', summary: 'Tags would read softer.', figma: { nodeName: 'Tone=signal' }, images: { before: [before], after: [after] }, source: 'figma', requestedBy: 'dana' });
+      return { number: 489, title: r.title, body: r.body, html_url: 'https://github.com/acme/ds/issues/489', state: 'closed', state_reason: 'not_planned', labels: r.labels, user: { login: 'dana' }, assignees: [], created_at: new Date(NOW - closedDaysAgo * DAY).toISOString(), closed_at: new Date(NOW - closedDaysAgo * DAY).toISOString() };
+    };
+    const viewsWith = (closedDaysAgo: number) => {
+      const { issues, pulls } = sampleBuildData(NOW);
+      return assembleBuildRequests({ issues: [...issues, tag(closedDaysAgo)].map(toBuildIssue), pulls: pulls.map(toBuildPull), now: NOW });
+    };
+
+    it('shows in All for a week after it was closed, then leaves the list, its count and its sentence', () => {
+      const fresh = listedRows(viewsWith(6), NOW);
+      expect(fresh.find((v) => v.number === 489)).toMatchObject({ status: 'not-planned', sentence: 'Developers closed it without building it.' });
+      expect(filterCounts(fresh, NOW).all).toBe(7);
+      const old = listedRows(viewsWith(8), NOW);
+      expect(old.find((v) => v.number === 489)).toBeUndefined();
+      expect(filterCounts(old, NOW)).toEqual(filterCounts(listedRows(viewsWith(400), NOW), NOW));
+      expect(filterCounts(old, NOW).all).toBe(6);
+    });
+
+    it('never says everything is in the library while only declined requests are listed', () => {
+      const one = listedRows(assembleBuildRequests({ issues: [tag(2)].map(toBuildIssue), pulls: [], now: NOW }), NOW);
+      expect(pageSentence(one)).toBe('Nothing is being built right now. One change was closed without being built this week.');
+      expect(listedRows(assembleBuildRequests({ issues: [tag(9)].map(toBuildIssue), pulls: [], now: NOW }), NOW)).toEqual([]);
+    });
+
+    it('dates a declined pull request by its close date, kept in the session cache', () => {
+      expect(slimPull({ number: 9, html_url: 'u', state: 'closed', closed_at: '2026-10-20T00:00:00Z' }).closed_at).toBe('2026-10-20T00:00:00Z');
+      expect(toBuildPull({ number: 9, html_url: 'u', state: 'closed', closed_at: '2026-10-20T00:00:00Z' }).closedAt).toBe('2026-10-20T00:00:00Z');
+    });
+
+    it("draws the row thumbnail from the request's own pictures, labelled with its component", () => {
+      const v = viewsWith(2).find((x) => x.number === 489)!;
+      expect(rowThumb(v, tag(2).body)).toEqual({ kind: 'image', before, after, label: 'Tag' });
+    });
+
+    it('falls back to the component placeholder, labelled with the right component, never a default one', () => {
+      const views = viewsWith(2);
+      const button = views.find((x) => x.component === 'Button')!;
+      const { issues } = sampleBuildData(NOW);
+      expect(rowThumb(button, issues.find((i) => i.number === 41)!.body)).toEqual({ kind: 'icon', icon: 'component', label: 'Button' });
+      const v = views.find((x) => x.number === 489)!;
+      expect(rowThumb(v, null)).toEqual({ kind: 'icon', icon: 'component', label: 'Tag' });
+      expect(rowThumb({ ...v, kind: 'pull' }, tag(2).body)).toEqual({ kind: 'icon', icon: 'component', label: 'Tag' });
+    });
   });
 });

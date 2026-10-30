@@ -26,6 +26,8 @@ export const BUILD_REQUEST_LABEL = 'bridge-build';
 export const SOURCE_FIGMA_LABEL = 'source: figma';
 /** A build request waits this many days before it reads as stale. */
 export const BUILD_STALE_DAYS = 7;
+/** A request closed as not planned stays in the "All" list this many days after it was closed, then leaves it. */
+export const BUILD_DECLINED_DAYS = 7;
 
 /**
  * What the two images of a build request are called on designer screens (Studio): the component as it is in code
@@ -519,6 +521,8 @@ export interface BuildPullLike {
   assignees?: string[] | undefined;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
+  /** When it was closed (merged or not), when known. */
+  closedAt?: string | null | undefined;
   body?: string | undefined;
   /** Commits on the branch, when known (a branch with only the spec commit is not work in progress). */
   commits?: number | null | undefined;
@@ -666,7 +670,9 @@ export function buildRequestStatus(
     if (s === 'shipped') return { status: s, ...(shippedAt ? { at: shippedAt } : {}) };
     return { status: s as BuildStatus };
   });
-  if (status === 'not-planned') timeline.push({ status: 'not-planned', ...(x.issue?.closedAt ? { at: x.issue.closedAt } : {}) });
+  // When it was declined: the issue's close, else (a library branch from Figma no issue covers) the pull request's.
+  const closedOn = x.issue ? x.issue.closedAt : (own?.closedAt ?? own?.updatedAt);
+  if (status === 'not-planned') timeline.push({ status: 'not-planned', ...(closedOn ? { at: closedOn } : {}) });
   return {
     status,
     label: status === 'requested' && stale ? `Requested ${ageDays} days ago` : BUILD_STATUS_LABEL[status],
@@ -765,10 +771,16 @@ export const BUILD_FILTER_LABEL: Record<BuildFilter, string> = {
   'shipped-this-week': 'Shipped this week',
 };
 
-/** Whether a build request shows under a filter. "All" leaves out what was closed as not planned more than a week ago. */
+/** When a build request was closed as not planned, from its timeline, or null. */
+export const declinedAt = (v: Pick<BuildRequestView, 'status' | 'timeline'>): string | null => (v.status === 'not-planned' ? (v.timeline.find((e) => e.status === 'not-planned')?.at ?? null) : null);
+
+/**
+ * Whether a build request shows under a filter. "All" keeps a request closed as not planned for BUILD_DECLINED_DAYS
+ * after it was closed (one without a close date leaves at once), then leaves it out; shipped requests stay in "All".
+ */
 export function matchesBuildFilter(v: Pick<BuildRequestView, 'status' | 'shippedAt' | 'timeline'>, f: BuildFilter, now: Date | number = Date.now()): boolean {
   const nowMs = typeof now === 'number' ? now : now.getTime();
-  const recent = (iso: string | null | undefined) => Boolean(iso) && nowMs - Date.parse(iso!) <= 7 * DAY;
+  const recent = (iso: string | null | undefined, days = 7) => Boolean(iso) && nowMs - Date.parse(iso!) <= days * DAY;
   switch (f) {
     case 'waiting':
       return v.status === 'requested';
@@ -777,7 +789,7 @@ export function matchesBuildFilter(v: Pick<BuildRequestView, 'status' | 'shipped
     case 'shipped-this-week':
       return v.status === 'shipped' && recent(v.shippedAt);
     default:
-      return v.status === 'not-planned' ? recent(v.timeline.find((e) => e.status === 'not-planned')?.at) : true;
+      return v.status === 'not-planned' ? recent(declinedAt(v), BUILD_DECLINED_DAYS) : true;
   }
 }
 
