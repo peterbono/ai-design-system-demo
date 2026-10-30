@@ -4,7 +4,7 @@
 // follows the product pull request, and a product repository Bridge cannot reach is left out of the lists.
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, branches, explorations, pieces } from '../dist/lib.js';
-import { parseNeededBy, parsePiecesRecord } from '@bridge-ds/core';
+import { explorationPrBody, parseNeededBy, parsePiecesRecord } from '@bridge-ds/core';
 import { fakeGitHub, readTree, REAL_PATHS, REPO } from './helpers.js';
 
 const TSX = "import { Badge } from '@bridge-ds/react';\nimport styles from './billing.module.css';\nexport function Row() {\n  return <Badge className={styles.overdue}>Overdue</Badge>;\n}\n";
@@ -29,17 +29,17 @@ function setup() {
   const ro = () => BridgeContext.create({ repo: 'acme/ds', fetch });
   const rw = () => BridgeContext.create({ repo: 'acme/ds', token: 't', fetch });
   /** The exploration Studio or Claude started in the shop repository: explore/billing-overdue, its draft, labels. */
-  const start = () => {
+  const start = (slug = 'billing-overdue') => {
     const main = shop.refs.get('main')!;
     const files = new Map(shop.commits.get(main)!.files);
     files.set('src/billing/Billing.tsx', TSX);
     files.set('src/billing/billing.module.css', CSS);
-    files.set('.bridge/explorations/billing-overdue.md', '# Exploration: Billing screen\n');
+    files.set(`.bridge/explorations/${slug}.md`, '# Exploration: Billing screen\n');
     const c = shop.id();
     shop.commits.set(c, { files, parents: [main] });
-    shop.refs.set('explore/billing-overdue', c);
-    const body = `## Exploration: Billing screen with overdue invoices\n\n<!-- bridge-exploration ${JSON.stringify({ name: 'Billing screen with overdue invoices', purpose: '', slug: 'billing-overdue', author: 'ann' })} -->`;
-    shop.pulls.push({ number: 1, node_id: 'PR_shop_1', title: 'Exploration: billing screen with overdue invoices', body, state: 'open', draft: true, user: { login: 'ann' }, head: { ref: 'explore/billing-overdue', sha: c }, base: { ref: 'main' }, labels: [{ name: 'exploration' }, { name: 'product: shop' }], html_url: 'https://github.com/acme/shop/pull/1', updated_at: '2026-10-29T00:00:00Z' });
+    shop.refs.set(`explore/${slug}`, c);
+    const body = `## Exploration: Billing screen with overdue invoices\n\n<!-- bridge-exploration ${JSON.stringify({ name: 'Billing screen with overdue invoices', purpose: '', slug, author: 'ann' })} -->`;
+    shop.pulls.push({ number: 1, node_id: 'PR_shop_1', title: 'Exploration: billing screen with overdue invoices', body, state: 'open', draft: true, user: { login: 'ann' }, head: { ref: `explore/${slug}`, sha: c }, base: { ref: 'main' }, labels: [{ name: 'exploration' }, { name: 'product: shop' }], html_url: 'https://github.com/acme/shop/pull/1', updated_at: '2026-10-29T00:00:00Z' });
   };
   return { ds, shop, ro, rw, start };
 }
@@ -129,5 +129,37 @@ describe('explorations in a product repository', () => {
     Object.assign(shop.pulls[0]!, { state: 'closed', merged: true, merged_at: '2026-10-30T00:00:00Z' });
     expect((await explorations.listExplorations(ctx, { state: 'all' })).explorations[0]).toMatchObject({ ref: 'shop#1', status: 'shipped' });
     await expect(explorations.doneExploring(ctx, { ref: 'nope#1' })).rejects.toThrow(/Unknown product "nope"/);
+  });
+
+  it('a long branch name: the request, Continue and the body use the preview Vercel reported, never the guessed one', async () => {
+    const { ds, shop, rw, start } = setup();
+    const slug = 'wishlist-button-on-product-cards';
+    start(slug);
+    // Vercel shortens an alias over 63 characters with a hash: only its comment on the pull request knows it.
+    const reported = 'https://shop-git-explore-wishlis-f9937d-acme.vercel.app/';
+    const vc = btoa(JSON.stringify({ projects: [{ name: 'shop', previewUrl: reported.replace(/^https:\/\//, '').replace(/\/$/, ''), nextCommitStatus: 'DEPLOYED' }] }));
+    shop.comments.set(1, [`[vc]: #abc:${vc}\nThe latest updates on your projects.`]);
+    const ctx = await rw();
+
+    const resumed = (await explorations.continueExploration(ctx, { ref: 'shop#1', checkout: false })) as any;
+    expect(resumed.previews).toEqual([{ app: 'shop', label: 'Shop', url: reported }]);
+    // The next step stays in the product repository: no token proposal on a branch the design system does not have.
+    expect(resumed.next).toContain(`in a checkout of acme/shop`);
+    expect(resumed.next).toContain('bridge_missing_pieces');
+    expect(resumed.next).not.toContain('bridge_propose');
+
+    await pieces.missingPiecesOp(ctx, { pr: 'shop#1', record: true });
+    await explorations.doneExploring(ctx, { ref: 'shop#1', pieces: ['badge-overdue-tone'] });
+    expect(ds.issues[0]!.body).toContain(reported);
+    expect(ds.issues[0]!.body).not.toContain('shop-git-explore-wishlist-button');
+  });
+
+  it('the draft body of a product exploration: the preview row says where the link is, closing does not talk about prereleases', () => {
+    const body = explorationPrBody(
+      { name: 'Wishlist button on product cards', slug: 'wishlist-button-on-product-cards', purpose: '' },
+      { owner: 'acme', repo: 'shop', pr: 1, packages: [], apps: {}, inProduct: { name: 'Shop', library: 'acme/ds', preview: 'https://shop-git-{branch}-acmes-long-team-projects.vercel.app' } },
+    );
+    expect(body).toContain('| Shop | Link in the Vercel comment on this pull request |');
+    expect(body).not.toContain('prerelease');
   });
 });

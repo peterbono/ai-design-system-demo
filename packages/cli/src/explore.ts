@@ -126,6 +126,7 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
       io.print(`${r.ref} ${r.name} (${r.product}): ${r.whereItStands}`);
       for (const e of r.activity) io.print(`  ${e.who} ${e.what}, ${e.when}`);
+      for (const p of r.previews) io.print(`  ${p.label}: ${p.url}`);
       io.print(`${r.checkout.note} ${r.url}`);
       return 0;
     }
