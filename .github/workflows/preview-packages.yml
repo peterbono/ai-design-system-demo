@@ -31,7 +31,7 @@ permissions:
   deployments: read # GitHub deployments (real preview URLs)
 
 env:
-  PACKAGE_DIRS: ./packages/tokens ./packages/core ./packages/react
+  PACKAGE_DIRS: ./packages/tokens ./packages/core ./packages/react ./packages/toolbar
 
 jobs:
   snapshot:
