@@ -68,7 +68,7 @@
   },
   "changes": "direct",
   "previews": {
-    "packages": ["@bridge-ds/tokens", "@bridge-ds/core", "@bridge-ds/react"],
+    "packages": ["@bridge-ds/tokens", "@bridge-ds/core", "@bridge-ds/react", "@bridge-ds/toolbar"],
     "apps": {
       "docs": "https://bridge-docs-git-{branch}-peterbonos-projects.vercel.app",
       "storybook": "https://bridge-storybook-git-{branch}-peterbonos-projects.vercel.app",
