@@ -65,6 +65,8 @@ export interface ExplorationsConfig {
   defaultBranch: string;
   apps: PreviewApps;
   packages: string[];
+  /** Production URL of each app: "Try it in the product" opens it when a branch has no build of its own. */
+  production?: PreviewApps;
 }
 
 export interface LinkedRequest {
@@ -364,6 +366,8 @@ export const explorationPreviews = (r: Pick<ExplorationRow, 'branch' | 'number' 
 
 /** One preview row as the detail shows it: the link, or what is missing. */
 export function previewRowCopy(p: BranchPreview): { label: string; url: string | null; host: string | null; note: string | null } {
+  // Vercel skipped the build (nothing it is built from changed): its link opens a canceled deployment, so none.
+  if (p.skipped) return { label: previewName(p.app, p.label), url: null, host: null, note: 'Same as today. Your preview appears after the first change.' };
   const host = p.url ? new URL(p.url).host : null;
   const note = !p.url ? 'Link not ready yet' : p.state === 'building' ? 'Updating to the latest version' : p.state === 'failed' ? 'The latest update did not build' : null;
   return { label: previewName(p.app, p.label), url: p.url, host, note };

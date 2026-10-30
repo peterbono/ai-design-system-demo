@@ -9,6 +9,8 @@ export interface BranchesConfig {
   defaultBranch: string;
   apps: PreviewApps;
   packages: string[];
+  /** Production URL of each app (bridge.config.json previews.production): the product as it is today. */
+  production?: PreviewApps;
 }
 
 export interface PullLike {

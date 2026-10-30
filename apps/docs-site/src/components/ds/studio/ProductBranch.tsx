@@ -39,12 +39,22 @@ export interface ProductBranchProps {
   title: string;
   /** Lead, the strong part, the rest: "Built with the library. **1 piece was missing**, and Claude AI opened a library branch for it." */
   sentence: { lead: string; strong: string; rest: string };
-  /** The product preview with the Bridge toolbar, as GitHub reported it; null while unknown. */
+  /**
+   * Where "Try it in the product" goes: the branch's own build with the Bridge toolbar, or the product as it is today
+   * when the branch has no build of its own (lib/product-branch tryInProductView). Null: disabled.
+   */
   tryUrl: string | null;
+  /** One short line next to the button: "Same as the product today...", "Preview is building", "Preview not available yet". */
+  tryNote?: string | null;
   /** Null while the library branches are read. */
   rows: PieceRowView[] | null;
   /** The pieces were checked at least once. */
   checked: boolean;
+  /**
+   * Still exploring (before Done exploring): explorations are free and the library check belongs to Done exploring,
+   * so the sentence and "Missing from the library" show only once the pieces were checked.
+   */
+  exploring?: boolean;
   why: { title: string; text: string } | null;
   /** "Your screen": the before and after of the visual impact, painted into #pb-visual by the script; none: one column. */
   visual: 'loading' | 'shown' | 'none';
@@ -132,6 +142,8 @@ export function ProductBranch(p: ProductBranchProps) {
       .catch((err: Error) => setSaid(err.message));
   };
   const twoRegions = p.visual !== 'none';
+  // While exploring and never checked: nothing about the library, nothing to ask Claude yet.
+  const showPieces = p.checked || !p.exploring;
   return (
     <div className="pb">
       <Breadcrumb items={p.crumbs} className="pb-crumbs" />
@@ -143,13 +155,22 @@ export function ProductBranch(p: ProductBranchProps) {
           {p.title}
         </h1>
         <div className="pb-head-acts">
+          {p.tryNote && (
+            <p className="pb-try-note" id="pb-try-note">
+              {p.tryNote}
+            </p>
+          )}
           {p.tryUrl ? (
-            <ButtonLink variant="primary" size="lg" href={p.tryUrl} target="_blank" rel="noopener">
+            <ButtonLink variant="primary" size="lg" className="pb-try" href={p.tryUrl} target="_blank" rel="noopener" aria-describedby={p.tryNote ? 'pb-try-note' : undefined}>
               Try it in the product
             </ButtonLink>
+          ) : p.tryNote ? (
+            <Button variant="primary" size="lg" className="pb-try" disabled aria-describedby="pb-try-note">
+              Try it in the product
+            </Button>
           ) : (
             <Tooltip content="The preview appears a few minutes after each update to the feature.">
-              <Button variant="primary" size="lg" disabled>
+              <Button variant="primary" size="lg" className="pb-try" disabled>
                 Try it in the product
               </Button>
             </Tooltip>
@@ -168,45 +189,49 @@ export function ProductBranch(p: ProductBranchProps) {
           )}
         </div>
       </header>
-      <p className="pb-lead">
-        {p.sentence.lead}
-        {p.sentence.strong && <strong>{p.sentence.strong}</strong>}
-        {p.sentence.rest}
-      </p>
+      {showPieces && (
+        <p className="pb-lead">
+          {p.sentence.lead}
+          {p.sentence.strong && <strong>{p.sentence.strong}</strong>}
+          {p.sentence.rest}
+        </p>
+      )}
       {p.state && <p className="pb-keep-note">{p.state}</p>}
       {p.keepNote && <p className="pb-keep-note">{p.keepNote}</p>}
-      <div className={twoRegions ? 'pb-grid' : 'pb-grid is-one'}>
+      <div className={twoRegions && showPieces ? 'pb-grid' : 'pb-grid is-one'} hidden={!twoRegions && !showPieces}>
         {twoRegions && (
           <section className="pb-screen" aria-label={`Your screen in ${p.product}`}>
             {p.visual === 'loading' && <Skeleton variant="rect" className="pb-skel" />}
             <div id="pb-visual" aria-live="polite" />
           </section>
         )}
-        <section className="pb-missing zone" aria-labelledby="pb-missing-h">
-          <h2 className="pb-h2" id="pb-missing-h">
-            Missing from the library
-          </h2>
-          {!p.checked ? (
-            <p className="pb-muted">Not checked yet. {p.ask}</p>
-          ) : p.rows === null ? (
-            <Skeleton variant="rect" className="pb-skel-row" />
-          ) : p.rows.length === 0 ? (
-            <p>Nothing: every value and component comes from the library.</p>
-          ) : (
-            <ul className="pb-rows">
-              {p.rows.map((row) => (
-                <PieceRow key={row.id} row={row} p={p} busy={busy} run={run} />
-              ))}
-            </ul>
-          )}
-          {p.why && (
-            <Accordion appearance="flush" headingLevel={3} className="pb-why">
-              <AccordionItem value="why" title={p.why.title}>
-                <p>{p.why.text}</p>
-              </AccordionItem>
-            </Accordion>
-          )}
-        </section>
+        {showPieces && (
+          <section className="pb-missing zone" aria-labelledby="pb-missing-h">
+            <h2 className="pb-h2" id="pb-missing-h">
+              Missing from the library
+            </h2>
+            {!p.checked ? (
+              <p className="pb-muted">Not checked yet. {p.ask}</p>
+            ) : p.rows === null ? (
+              <Skeleton variant="rect" className="pb-skel-row" />
+            ) : p.rows.length === 0 ? (
+              <p>Nothing: every value and component comes from the library.</p>
+            ) : (
+              <ul className="pb-rows">
+                {p.rows.map((row) => (
+                  <PieceRow key={row.id} row={row} p={p} busy={busy} run={run} />
+                ))}
+              </ul>
+            )}
+            {p.why && (
+              <Accordion appearance="flush" headingLevel={3} className="pb-why">
+                <AccordionItem value="why" title={p.why.title}>
+                  <p>{p.why.text}</p>
+                </AccordionItem>
+              </Accordion>
+            )}
+          </section>
+        )}
       </div>
       <p className="pb-said" role="status" aria-live="polite">
         {said}
