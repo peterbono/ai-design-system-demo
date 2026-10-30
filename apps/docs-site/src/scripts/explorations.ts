@@ -57,7 +57,7 @@ import { isProductBranch } from '../lib/product-branch';
 import { attrUrl } from '../lib/html';
 import { studioHref } from '../lib/team-path';
 import { productClient, productRepoByKey, readProductPulls, type ProductPull } from './product-repos';
-import { defaultProduct, type GitHubClient } from '@bridge-ds/core';
+import { defaultProduct, EXPLORATION_LABEL, isUnlabeledExploration, type GitHubClient } from '@bridge-ds/core';
 
 // The use case menu of Start an exploration (BridgedSelect id).
 const USE_CASE = 'ex-use-case';
@@ -327,7 +327,8 @@ function wireStart() {
       closeStart(false);
       const done = $('ex-done');
       done.hidden = false;
-      done.innerHTML = `<p><strong>${esc(f.name.trim())} is ready.</strong> <a href="?exploration=${s.pr}" data-open-exploration="${s.pr}">Open exploration #${s.pr}</a>. Its previews appear in a few minutes.${linked}</p>`;
+      const unlabeled = s.labelsMissing?.length ? ` <span class="cg-muted">GitHub did not take its exploration label yet: Bridge adds it again when you open it.</span>` : '';
+      done.innerHTML = `<p><strong>${esc(f.name.trim())} is ready.</strong> <a href="?exploration=${s.pr}" data-open-exploration="${s.pr}">Open exploration #${s.pr}</a>. Its previews appear in a few minutes.${linked}${unlabeled}</p>`;
       void loadExplorations(undefined, true).then(() => {
         // The list from GitHub may not show the new pull request yet: keep it on screen.
         if (!rows.some((r) => r.number === s.pr)) $('ex-sentence').textContent = `${explorationsSummary(rows)} #${s.pr} appears here in a moment.`;
@@ -461,6 +462,23 @@ function clientFor(r: ExplorationRow): GitHubClient {
   return at ? productClient(at.repo, pullOf(r)?.base?.ref) : client();
 }
 
+/**
+ * A running exploration whose `exploration` label is missing (the label call failed when it started): put back, once
+ * per page, by a viewer who can write. Everything already reads it as running (core isUnlabeledExploration), so a
+ * refusal changes nothing on screen.
+ */
+const repaired = new Set<string>();
+async function repairLabel(r: ExplorationRow, pull: ExplorationPullLike) {
+  const k = explorationKey(r);
+  if (repaired.has(k) || !isUnlabeledExploration({ state: pull.state, draft: pull.draft, labels: pull.labels, headRef: pull.head.ref, body: pull.body })) return;
+  if (!connected() || currentContributor() || (!r.repo && !currentAccess()?.write)) return;
+  repaired.add(k);
+  if (await clientFor(r).addLabels(r.number, [EXPLORATION_LABEL]).catch(() => false)) {
+    pullsBy.set(k, { ...pull, labels: [...pull.labels, { name: EXPLORATION_LABEL }] });
+    void loadExplorations(undefined, true);
+  }
+}
+
 /** What Vercel reported per exploration (by explorationKey), kept for the preview link "Done exploring" puts on each request. */
 const sourcesBy = new Map<string, BranchPreviewSources>();
 
@@ -562,6 +580,7 @@ export async function openExploration(n: number, push = true, product: string | 
   // A branch started for a product: the product branch page (its missing pieces and their library branches). In the
   // product's own repository, the repository says which product it is.
   const pull = r ? pullOf(r) : undefined;
+  if (r && pull) void repairLabel(r, pull);
   if (r && pull) {
     const pb = await import('./product-branch');
     const products = pb.siteProducts();

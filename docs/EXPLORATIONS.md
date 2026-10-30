@@ -243,7 +243,10 @@ bridge products                                # shop  Shop  acme/shop (connecte
 Statuses everywhere (Studio, CLI, MCP): **Running** (open, labeled `exploration`), **Waiting for code** (done
 exploring, labeled `ready-for-devs`, no new commit since), **Being built** (developers pushed to it or marked it
 ready for review), **Shipped** (merged after done exploring), **Closed** (closed without merging). An exploration
-promoted to review before 2026-10-30 still reads **Promoted to review**.
+promoted to review before 2026-10-30 still reads **Promoted to review**. An open draft on `explore/*` (or with the
+Bridge block) whose `exploration` label is missing still reads **Running**, and Studio puts the label back when
+someone who can write opens it. Every link to an exploration, even one that names it as a change (`?pr=N`), opens its
+exploration page.
 
 ## Guardrails
 

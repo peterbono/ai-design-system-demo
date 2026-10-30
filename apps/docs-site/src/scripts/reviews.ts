@@ -7,7 +7,7 @@
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
 import { figmaPushFor, tokenValuesFor } from './figma-push-read';
-import { EXPLORATION_STATUS_LABEL, EXPLORATION_USE_CASES, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_STATUS_LABEL, EXPLORATION_USE_CASES, isHeldExploration, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -110,6 +110,7 @@ import type { ActKind, BranchReviewProps, GuidanceView, PersonRef, TokenRowView,
 const MOTION_CHANGE = 'tokens:motion';
 import { lifecycleOfRow } from './status-filter';
 import { byLifecycle, LIFECYCLE, lifecycleTone, type Lifecycle } from '../lib/change-status';
+import { studioHref } from '../lib/team-path';
 import { isArchivedOpen, isListedExploration, previewName, tryItCopy, tryItFromComments } from '../lib/explorations-view';
 import type { BranchesListProps, ListRow } from '../components/ds/studio/BranchesList';
 import { conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
@@ -549,11 +550,11 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
       const s = explorationStatus({ state: p.state, labels: p.labels as never, headRef: p.head.ref, body: p.body, headSha: p.head.sha, draft: p.draft });
       return { ...toRow(p, null), exploration: true, ...(s === 'active' ? {} : { explorationLabel: EXPLORATION_STATUS_LABEL[s] }) };
     };
-    exploreRows = allOpen.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft })).map(exploreRow);
+    exploreRows = allOpen.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft, head: p.head, body: p.body })).map(exploreRow);
     archivedRows = allOpen.filter((p) => isArchivedOpen({ state: p.state, labels: p.labels as never })).map(exploreRow);
     // Explorations in products' own repositories: rows of their product's group, under their own status too.
     const own = await productRead;
-    exploreRows = [...exploreRows, ...own.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft })).map(productExploreRow)];
+    exploreRows = [...exploreRows, ...own.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft, head: p.head, body: p.body })).map(productExploreRow)];
     archivedRows = [...archivedRows, ...own.filter((p) => isArchivedOpen({ state: p.state, labels: p.labels as never })).map(productExploreRow)];
   } catch (err) {
     failure = err;
@@ -697,6 +698,15 @@ export async function openPr(n: number, push = true) {
     const pf = await ghGet<Pull>(`${R}/pulls/${n}`);
     if (pf.stale) showNotice('warn', `GitHub cannot be read right now, so this shows the ${VOCAB.branch} ${asOf(pf.cachedAt ?? '')}. ${ghAction('see live status', prefersSignIn())}.`);
     const pull = pf.data;
+    // An exploration (running, its label missing, archived, or with the developers while a draft) has its own page:
+    // every way in that names it as a change (Home, notifications, search, an old ?pr= address) lands there instead.
+    if (pull.state === 'open' && isHeldExploration({ state: pull.state, draft: pull.draft, labels: pull.labels, head: pull.head, body: pull.body })) {
+      if (seq !== openSeq) return;
+      // The Changes page opens it in place (scripts/changes.ts); any other page goes there.
+      const handled = !document.dispatchEvent(new CustomEvent('bridge:open-exploration', { detail: { number: n }, cancelable: true }));
+      if (!handled) location.assign(studioHref(`changes/?exploration=${n}`));
+      return;
+    }
     // GitHub computes whether it merges cleanly on the first read (null meanwhile): read it once more while the rest
     // loads, so the page never says "waiting for approval" on one load and "conflict" on the next.
     const mergeable: Promise<boolean | null | undefined> =

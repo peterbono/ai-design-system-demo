@@ -348,6 +348,27 @@ export function isExplorationPull(p: ExplorationPullLike): boolean {
   return isExplorationBranch(p.headRef) || labelNames(p.labels).includes(EXPLORATION_LABEL) || Boolean(parseExplorationBody(p.body));
 }
 
+/**
+ * A running exploration whose `exploration` label is missing, because the label call failed when it was started: an
+ * open draft on an `explore/*` branch or with the Bridge block, neither archived nor done exploring. Every list, page
+ * and status treats it as running (explorationStatus, isHeldExploration), and Studio puts the label back for a viewer
+ * who can write. An older promotion also removed the label, but it marked the pull request ready for review: not a draft.
+ */
+export function isUnlabeledExploration(p: {
+  state?: string | undefined;
+  draft?: boolean | undefined;
+  labels?: readonly (string | { name?: string })[] | null | undefined;
+  headRef?: string | null | undefined;
+  body?: string | null | undefined;
+}): boolean {
+  if (p.state !== 'open' || p.draft !== true) return false;
+  const names = labelNames(p.labels ?? []);
+  if (names.includes(EXPLORATION_LABEL) || names.includes(EXPLORATION_ARCHIVED_LABEL) || names.includes(EXPLORATION_READY_LABEL)) return false;
+  const block = parseExplorationBody(p.body);
+  if (block?.doneAt) return false;
+  return isExplorationBranch(p.headRef) || Boolean(block);
+}
+
 /** "Done exploring" was said: the `ready-for-devs` label, or the date in the exploration block. */
 export function isHandedOff(p: Pick<ExplorationPullLike, 'labels' | 'body'>): boolean {
   return labelNames(p.labels).includes(EXPLORATION_READY_LABEL) || Boolean(parseExplorationBody(p.body)?.doneAt);
@@ -362,7 +383,7 @@ export function isHandedOff(p: Pick<ExplorationPullLike, 'labels' | 'body'>): bo
 export function explorationStatus(p: ExplorationPullLike): ExplorationStatus {
   const merged = Boolean(p.merged || p.merged_at || p.state === 'merged');
   if (p.state !== 'open' && !merged) return 'closed';
-  if (p.state === 'open' && labelNames(p.labels).includes(EXPLORATION_LABEL)) return 'active';
+  if (p.state === 'open' && (labelNames(p.labels).includes(EXPLORATION_LABEL) || isUnlabeledExploration(p))) return 'active';
   if (!isHandedOff(p)) return 'promoted';
   if (merged) return 'shipped';
   if (p.draft === false) return 'building';
@@ -381,10 +402,19 @@ export const isArchivedExploration = (labels: readonly (string | { name?: string
  * Open explorations that stay out of the review queue: running, archived, or handed to developers while still a
  * draft. Once developers mark it ready for review it is a change like any other.
  */
-export function isHeldExploration(p: { state?: string | undefined; draft?: boolean | undefined; labels?: readonly (string | { name?: string })[] | null | undefined }): boolean {
+export function isHeldExploration(p: {
+  state?: string | undefined;
+  draft?: boolean | undefined;
+  labels?: readonly (string | { name?: string })[] | null | undefined;
+  /** The branch and the body: a running exploration whose label is missing is held too (isUnlabeledExploration). */
+  headRef?: string | null | undefined;
+  head?: { ref?: string | null | undefined } | null | undefined;
+  body?: string | null | undefined;
+}): boolean {
   if (p.state !== undefined && p.state !== 'open') return false;
   const names = labelNames(p.labels ?? []);
   if (names.includes(EXPLORATION_LABEL) || names.includes(EXPLORATION_ARCHIVED_LABEL)) return true;
+  if (isUnlabeledExploration({ state: 'open', draft: p.draft, labels: p.labels, headRef: p.headRef ?? p.head?.ref, body: p.body })) return true;
   return names.includes(EXPLORATION_READY_LABEL) && p.draft !== false;
 }
 

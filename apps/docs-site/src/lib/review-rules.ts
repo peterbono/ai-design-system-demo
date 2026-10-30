@@ -10,6 +10,7 @@ import {
   approverLists,
   branchVerdict,
   isActiveExploration,
+  isUnlabeledExploration,
   canOverride,
   canShip,
   claudeStage,
@@ -177,7 +178,7 @@ export function statusOf(kind: ReviewStatusKind, lookAgain?: readonly string[] |
 export function studioVerdict(input: {
   site: Pick<SiteRepo, 'owners' | 'rights' | 'soloOwnerCanApproveBoth'> & { override?: OverridePolicy | null | undefined };
   teams?: TeamStates | null | undefined;
-  pull: { state?: string | undefined; draft?: boolean | undefined; merged_at?: string | null | undefined; labels?: LabelLike[] | undefined; user: { login: string }; head?: { sha?: string | null | undefined } | null | undefined; auto_merge?: unknown };
+  pull: { state?: string | undefined; draft?: boolean | undefined; merged_at?: string | null | undefined; labels?: LabelLike[] | undefined; user: { login: string }; head?: { sha?: string | null | undefined; ref?: string | null | undefined } | null | undefined; body?: string | null | undefined; auto_merge?: unknown };
   tier: Tier | null;
   ci: CiSummary | null;
   /** With `body` when read: the app's Tier 1 publish review is recognised by its heading (core tier1PublishOf). */
@@ -207,7 +208,7 @@ export function studioVerdict(input: {
     state: pull.state,
     merged_at: pull.merged_at,
     viewer: input.viewer,
-    exploration: isActiveExploration(pull.labels ?? []),
+    exploration: isActiveExploration(pull.labels ?? []) || isUnlabeledExploration({ state: pull.state, draft: pull.draft, labels: pull.labels ?? [], headRef: pull.head?.ref, body: pull.body }),
     ship: input.ship,
     figmaPush: input.figmaPush,
     tokenValues: input.tokenValues,
