@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/toolbar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "The Bridge toolbar for a product built with the Bridge design system: opened from Bridge Studio with ?bridge=<change>, it flips the real product between before and after and shows what changed.",
   "license": "MIT",
@@ -49,7 +49,7 @@
     "build:package": "node ../../scripts/build-packages.mjs toolbar"
   },
   "dependencies": {
-    "@bridge-ds/core": "^0.22.0",
+    "@bridge-ds/core": "^0.23.0",
     "lucide-react": "1.58.0"
   },
   "peerDependencies": {
