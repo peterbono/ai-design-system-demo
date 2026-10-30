@@ -25,6 +25,8 @@ Usage:
                      neither exists). --product: the key in the design system's bridge.config.json
                      "products"; by default the product whose "repo" is this repository's origin.
                      Run it again any time: only what differs changes, your own content is kept.
+                     In a React product it also prints the one line that mounts the Bridge toolbar
+                     (@bridge-ds/toolbar: Before and After of a change, from Studio's Try it in the product).
 
 Then, from this repository: bridge explore list | continue <#n> | start <name> | done <#n>, bridge pieces <#n>,
 and Claude Code with the Bridge tools (restart it here once).`;
@@ -112,11 +114,45 @@ export function instructionsFile(root: string): string {
   return 'CLAUDE.md';
 }
 
+/** The npm package of the Bridge toolbar. */
+export const TOOLBAR_PACKAGE = '@bridge-ds/toolbar';
+
+/** The one line a React product mounts at its root for Before and After (Studio's "Try it in the product"). */
+export const toolbarMount = (designSystem: string, product: string) => `<BridgeToolbar ds="${designSystem}" product="${product}" />`;
+
+export interface ToolbarSetup {
+  /** installed: the package is a dependency; suggested: a React product without it (the lines say how); none: not React. */
+  state: 'installed' | 'suggested' | 'none';
+  /** What to run and paste: the install, the import and the mount (nothing is edited in the app). */
+  lines: string[];
+}
+
+/**
+ * Whether this product gets the Bridge toolbar and how: React by the design system's config ("framework": "react") or
+ * by package.json (react in its dependencies). Bridge never edits the app's code: it prints the lines.
+ */
+export function toolbarSetup(pkgText: string | null, x: { designSystem: string; product: string; framework?: string | undefined }): ToolbarSetup {
+  let deps: Record<string, unknown> = {};
+  try {
+    const pkg = pkgText ? (JSON.parse(pkgText) as { dependencies?: Record<string, unknown>; devDependencies?: Record<string, unknown> }) : {};
+    deps = { ...(pkg.devDependencies ?? {}), ...(pkg.dependencies ?? {}) };
+  } catch {
+    deps = {};
+  }
+  const react = (x.framework ?? '').toLowerCase() === 'react' || 'react' in deps;
+  if (!react) return { state: 'none', lines: [] };
+  const mount = [`import { BridgeToolbar } from '${TOOLBAR_PACKAGE}';`, toolbarMount(x.designSystem, x.product)];
+  if (TOOLBAR_PACKAGE in deps) return { state: 'installed', lines: mount };
+  return { state: 'suggested', lines: [`npm i ${TOOLBAR_PACKAGE}`, ...mount] };
+}
+
 export interface ConnectResult {
   status: 'connected' | 'dry-run';
   designSystem: string;
   product: { key: string; name: string; repo?: string | undefined };
   files: { path: string; change: FileChange }[];
+  /** The Bridge toolbar in a React product: installed, or the lines to add it. */
+  toolbar: ToolbarSetup;
   warnings: string[];
   next: string;
 }
@@ -134,10 +170,11 @@ export async function connect(root: string, a: { designSystem: string; product?:
   }
   const wanted = a.product ?? (previous && previous.designSystem.toLowerCase() === a.designSystem.toLowerCase() ? previous.product : undefined);
   let product: { key: string; name: string; repo?: string | undefined };
+  let found: ProductConfig | undefined;
   if (a.products) {
     const byKey = wanted ? a.products.find((p) => p.key === wanted || p.name.toLowerCase() === wanted.toLowerCase()) : undefined;
     const byRepo = a.origin ? a.products.find((p) => productRepoOf(p, a.designSystem)?.toLowerCase() === a.origin!.toLowerCase()) : undefined;
-    const found = wanted ? byKey : byRepo;
+    found = wanted ? byKey : byRepo;
     if (!found) {
       const list = a.products.map((p) => `${p.key} (${p.name})`).join(', ');
       throw new RequestUsageError(
@@ -185,11 +222,16 @@ export async function connect(root: string, a: { designSystem: string; product?:
     }
   }
   const changed = files.filter((f) => f.change === 'created' || f.change === 'updated').map((f) => f.path);
+  const toolbar = toolbarSetup(await readOrNull(join(root, 'package.json')), { designSystem: a.designSystem, product: product.key, framework: found?.framework });
+  if (toolbar.state !== 'none' && found && !found.production && !found.path) {
+    warnings.push(`${found.name} has no "production" URL in the design system's bridge.config.json, so the Bridge toolbar cannot show Live product for a change made here. An admin can add "production": "https://..." to that product.`);
+  }
   return {
     status: a.dryRun ? 'dry-run' : 'connected',
     designSystem: a.designSystem,
     product,
     files: files.map(({ path, change }) => ({ path, change })),
+    toolbar,
     warnings,
     next: changed.length
       ? `Commit ${changed.join(', ')} so everyone working here gets it. Restart Claude Code in this folder to load the Bridge tools. Then: bridge explore list, or "Continue Bridge exploration #<n>" in Claude.`
@@ -220,6 +262,13 @@ export async function runConnect(a: RequestArgs, root: string, io: RequestIO = d
   if (has(a, 'json')) return io.print(JSON.stringify(r, null, 2)), 0;
   io.print(`${r.status === 'dry-run' ? 'Dry run, nothing written. ' : ''}${r.status === 'dry-run' ? 'Would connect' : 'Connected'} ${r.product.name} (${r.product.key}) to the design system ${r.designSystem}.`);
   for (const f of r.files) io.print(`  ${VERB[f.change]} ${f.path}${f.change === 'unchanged' || f.change === 'kept' ? '' : `: ${WHAT[f.path] ?? 'a short Bridge section for Claude'}`}`);
+  if (r.toolbar.state === 'suggested') {
+    io.print(`\nBefore and after in ${r.product.name} (Studio's Try it in the product): add the Bridge toolbar, then mount it once at the root of the app, inside ThemeProvider. Bridge does not edit your code.`);
+    for (const l of r.toolbar.lines) io.print(`  ${l}`);
+  } else if (r.toolbar.state === 'installed') {
+    io.print(`\nThe Bridge toolbar is installed: mount it once at the root of the app, if it is not yet.`);
+    for (const l of r.toolbar.lines) io.print(`  ${l}`);
+  }
   for (const w of r.warnings) io.error(`Warning: ${w}`);
   io.print(`\n${r.next}`);
   return 0;

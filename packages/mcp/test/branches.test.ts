@@ -35,11 +35,11 @@ describe('products', () => {
     const { ro } = setup();
     const ctx = await ro();
     const r = await branches.listProducts(ctx);
-    expect(r.products.map((p) => p.key)).toEqual(['admin', 'shop', 'library']);
+    expect(r.products.map((p) => p.key)).toEqual(['admin', 'shop', 'admin-app', 'library']);
     expect(r.products.find((p) => p.key === 'library')!.default).toBe(true);
     expect(r.current).toMatchObject({ key: 'library', how: 'default' });
     expect((await branches.resolveProduct(ctx, 'Admin demo')).key).toBe('admin');
-    await expect(branches.resolveProduct(ctx, 'checkout')).rejects.toThrow(/Unknown product "checkout"\. Pick one of: admin \(Admin demo\), shop \(Demo shop\), library \(Library\)/);
+    await expect(branches.resolveProduct(ctx, 'checkout')).rejects.toThrow(/Unknown product "checkout"\. Pick one of: admin \(Admin demo\), shop \(Demo shop\), admin-app \(Product admin\), library \(Library\)/);
   });
 
   it('starts work for a product with a Jira key: label, body line, key first in the branch and title', async () => {
@@ -346,7 +346,7 @@ describe('docs, settings, Figma coverage', () => {
     const s = (await studio.getSettings(await ro())) as any;
     expect(s.roles.designApproval).toEqual(['@peterbono']);
     expect(s.ownerOverride).toMatchObject({ on: true, who: ['@peterbono'] });
-    expect(s.products.map((p: any) => p.key)).toEqual(['admin', 'shop', 'library']);
+    expect(s.products.map((p: any) => p.key)).toEqual(['admin', 'shop', 'admin-app', 'library']);
     expect(Object.keys(s)).not.toContain('token');
     expect(JSON.stringify(s)).not.toMatch(/"t"|Bearer/);
     const f = (await studio.figmaCoverage(await ro(), { component: 'Button' })) as any;

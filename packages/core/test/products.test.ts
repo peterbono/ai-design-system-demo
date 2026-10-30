@@ -66,7 +66,7 @@ test('the repo config keeps the same grouping although the library has a path', 
   const products = realConfig().products;
   assert.deepEqual(
     products.map((p) => p.key),
-    ['admin', 'shop', 'library'],
+    ['admin', 'shop', 'admin-app', 'library'],
   );
   const of = (files: string[] | null) => productOfBranch(products, { files }).key;
   assert.equal(of(['packages/react/src/Badge.tsx', 'apps/admin/src/App.tsx']), 'admin');
@@ -110,7 +110,7 @@ test('productProblems says how to fix each mistake', () => {
   assert.match(productProblems([])[0]!, /at least one/);
   const p = productProblems([
     { key: 'Admin', name: '' },
-    { key: 'a', name: 'A', repo: 'nope', path: '/abs', preview: 'ftp://x', default: true, extra: 1 },
+    { key: 'a', name: 'A', repo: 'nope', path: '/abs', preview: 'ftp://x', production: 'https://x-git-{branch}.app', default: true, extra: 1 },
     { key: 'a', name: 'B', path: '../up', default: true },
     'x',
   ]);
@@ -120,6 +120,8 @@ test('productProblems says how to fix each mistake', () => {
   has(/products\[1\]\.repo.*owner\/name/);
   has(/products\[1\]\.path.*leading/);
   has(/products\[1\]\.preview.*http/);
+  has(/products\[1\]\.production.*without placeholders/);
+  assert.deepEqual(productProblems([{ key: 'shop', name: 'Shop', repo: 'acme/shop', production: 'https://shop.acme.com' }]), []);
   has(/products\[1\]\.extra.*not a known field/);
   has(/products\[2\]\.key.*used twice/);
   has(/products\[2\]\.path/);
@@ -143,8 +145,8 @@ test('config: products default, custom list, errors and toConfigJson', () => {
   assert.throws(() => loadConfig({ products: [{ key: 'x' }] }), (err: unknown) => err instanceof ConfigError && err.problems.some((m) => m.includes('"products[0].name"')));
   assert.throws(() => loadConfig({ products: 'admin' }), ConfigError);
 
-  // The repo config lists its products explicitly (with previews, a library path and the shop repo), so it is written out.
-  assert.equal((toConfigJson(realConfig()).products as ProductConfig[]).length, 3);
+  // The repo config lists its products explicitly (with previews, a library path and the product repos), so it is written out.
+  assert.equal((toConfigJson(realConfig()).products as ProductConfig[]).length, 4);
 });
 
 test('productMarks: a label and a body line for a non-default product, nothing for the default', () => {

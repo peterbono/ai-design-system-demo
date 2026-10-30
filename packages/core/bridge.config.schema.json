@@ -773,6 +773,11 @@
             "pattern": "^https?://",
             "description": "Preview URL pattern, with the same placeholders as previews.apps: {branch}, {rawBranch}, {pr}, {sha} and {sha7}."
           },
+          "production": {
+            "type": "string",
+            "pattern": "^https?://[^{}\\s]+$",
+            "description": "The product in production, without placeholders, such as https://shop.example.com: Live product in the Bridge toolbar (Before of a code change) and See the product today. A product of this repository may use previews.production.<key> instead."
+          },
           "framework": {
             "type": "string",
             "description": "The framework the product is built with: react, vue, angular, svelte, astro or other.",

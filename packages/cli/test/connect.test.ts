@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { bridgeSection, mergeMcpJson, mergeSection, runConnect, SECTION_END, SECTION_START } from '../src/connect.js';
+import { bridgeSection, mergeMcpJson, mergeSection, runConnect, SECTION_END, SECTION_START, toolbarSetup } from '../src/connect.js';
 import { runExplore } from '../src/explore.js';
 import type { RequestIO } from '../src/request.js';
 import { fakeGitHub, readTree, REAL_PATHS, REPO } from '../../mcp/test/helpers.js';
@@ -141,5 +141,35 @@ describe('connect merges', () => {
     expect(mergeSection(null, section)).toBe(`${section}\n`);
     expect(mergeMcpJson(null, 'acme/ds').change).toBe('created');
     expect(() => mergeMcpJson('{', 'acme/ds')).toThrow(/not valid JSON/);
+  });
+});
+
+describe('the Bridge toolbar in a React product', () => {
+  const x = { designSystem: 'acme/ds', product: 'shop' };
+
+  it('prints the install and the one-line mount for a React product without it, and nothing to install once it is there', () => {
+    expect(toolbarSetup('{"dependencies":{"react":"18.3.1"}}', x)).toEqual({
+      state: 'suggested',
+      lines: ['npm i @bridge-ds/toolbar', "import { BridgeToolbar } from '@bridge-ds/toolbar';", '<BridgeToolbar ds="acme/ds" product="shop" />'],
+    });
+    expect(toolbarSetup('{"dependencies":{"react":"18.3.1","@bridge-ds/toolbar":"^0.1.0"}}', x).state).toBe('installed');
+    expect(toolbarSetup(null, { ...x, framework: 'react' }).state).toBe('suggested');
+  });
+
+  it('says nothing for a product that is not React, or a package.json it cannot read', () => {
+    expect(toolbarSetup('{"dependencies":{"vue":"3.5.0"}}', x)).toEqual({ state: 'none', lines: [] });
+    expect(toolbarSetup('not json', { ...x, framework: 'vue' }).state).toBe('none');
+  });
+
+  it('prints the mount in a React product repository and warns when the product has no production URL', async () => {
+    const { fetch } = ds();
+    const dir = productRepo();
+    writeFileSync(join(dir, 'package.json'), '{"dependencies":{"react":"18.3.1"}}');
+    const c = io(fetch);
+    await runConnect(args('connect', '--ds', 'acme/ds'), dir, c.io);
+    expect(c.out()).toContain("Before and after in Demo shop (Studio's Try it in the product)");
+    expect(c.out()).toContain('  <BridgeToolbar ds="acme/ds" product="shop" />');
+    expect(c.err()).toContain('Demo shop has no "production" URL');
+    expect(read(dir, 'package.json')).toBe('{"dependencies":{"react":"18.3.1"}}');
   });
 });

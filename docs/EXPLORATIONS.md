@@ -40,9 +40,11 @@ Connect GitHub).
 the draft pull request there, so developers check the branch out in their usual environment. The library arrives as
 the npm package, as on main; to try library changes that are not released yet, install the snapshot of their library
 branch (`npm i @bridge-ds/react@<snapshot>`, below). A product that is a folder of the design system repository (the
-Admin demo) and the demo workspace keep their explorations in the design system repository. Here, the Demo shop
-(`shop`, [peterbono/bridge-demo-shop](https://github.com/peterbono/bridge-demo-shop)) is a product with its own
-repository: its explorations are `explore/*` branches there, each with a Vercel preview. When Bridge cannot reach
+Admin demo) and the demo workspace keep their explorations in the design system repository. Here, Product admin
+(`admin-app`, [peterbono/bridge-product-admin](https://github.com/peterbono/bridge-product-admin), a copy of the Admin
+demo built with the library from npm) and the Demo shop (`shop`,
+[peterbono/bridge-demo-shop](https://github.com/peterbono/bridge-demo-shop)) are products with their own repository:
+their explorations are `explore/*` branches there, each with a Vercel preview. When Bridge cannot reach
 the product repository (Bridge not installed on it, or no write access), Studio's "Create branch" says so in one
 line with **Ask an admin to connect <product>** (it copies a message for an admin) and starts it in the design system
 repository only if the person picks **Start in the library instead**. Claude gets the same error and asks before
@@ -177,6 +179,20 @@ bridge explore list --archived
 ### In a product's own repository
 
 An exploration created in a product repository (`products[].repo`) lives there for good, and Bridge follows it there.
+
+**Before and after in the product.** Studio's **Try it in the product** (next to Open the preview on the exploration's
+page) opens the branch preview with the Bridge toolbar: **Live product** is the product in production
+(`products[].production`), **This change** is the preview, on the same screen. A React product mounts the toolbar
+once, at its root, from [`@bridge-ds/toolbar`](../packages/toolbar/README.md):
+
+```tsx
+import { BridgeToolbar } from '@bridge-ds/toolbar';
+
+<BridgeToolbar ds="peterbono/ai-design-system-demo" product="admin-app" />
+```
+
+It reads the product's repository, `production` and `preview` from this repository's `bridge.config.json` when Studio
+opens the page, and renders nothing otherwise. `bridge connect` prints these lines in a React product.
 
 **Connect the product repository once.** Inside a checkout of it, run:
 
