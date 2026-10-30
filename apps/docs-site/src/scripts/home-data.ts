@@ -5,7 +5,7 @@
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
 // are pure in lib/home-model.ts and lib/branch-thumb.ts. Admins of a real team on the hosted site also get the people
 // asking to join it (board E7b, GET /api/entry?requests=), first in the list.
-import { productsOf, requesterOf, type ProductConfig } from '@bridge-ds/core';
+import { isGuardedExploration, productsOf, requesterOf, type ProductConfig } from '@bridge-ds/core';
 import { siteConfig } from './repo-context';
 import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError, resolveAccess } from './github-session';
@@ -314,6 +314,23 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     .then((r) => (closed = r.data.filter((p) => p.merged_at)))
     .catch(() => (closed = []));
   const shots = new Map<number, ThumbSpec>();
+  // The changed files of each running exploration: its card says "Not started" or "Exploring", as its page.
+  const xpFiles = new Map<string, string[] | null>();
+  const xpAsked = new Set<string>();
+  const xpKey = (p: HomePull) => `${p.product ?? ''}#${p.number}@${p.head.sha}`;
+  const readXpFiles = (list: HomePull[]) => {
+    for (const p of list) {
+      const k = xpKey(p);
+      if (xpFiles.has(k) || xpAsked.has(k) || !isGuardedExploration(p)) continue;
+      xpAsked.add(k);
+      void import('./product-repos')
+        .then((m) => m.explorationFiles({ number: p.number, headSha: p.head.sha, product: p.product }))
+        .then((files) => {
+          xpFiles.set(k, files);
+          repaint();
+        });
+    }
+  };
   const statuses = new Map<number, PullStatus | null>(queue.map((p) => [p.number, null]));
   // Read once the change's status is: it ships by itself until a check fails (PullStatus autoShip).
   onItsWay = (n) => {
@@ -386,9 +403,11 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     for (let i = needs.length - 1; i >= 0; i--) if (needs[i]!.kind === 'guidance' && needs[i]!.number && asked.has(needs[i]!.number!)) needs.splice(i, 1);
     // Explorations are the home's cards; the viewer's library changes are counted under them (Changes lists them).
     // The team's: a contributor's home keeps only their own (home by role, lib/home-explorations explorationsFor).
+    readXpFiles([...pulls, ...productOpen]);
     const explorations = homeExplorations([...pulls, ...productOpen, ...closed], {
       products,
       viewer,
+      files: (p) => (xpFiles.has(xpKey(p)) ? xpFiles.get(xpKey(p)) : undefined),
       author: (p) => {
         const r = requesterOf(p.body);
         return (r && requesterPerson(r, (l) => pick(l)!)) ?? pick(p.user.login)!;

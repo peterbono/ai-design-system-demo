@@ -10,6 +10,7 @@ import {
   doneExploringPlan,
   explorationStartingPoint,
   explorationStatus,
+  isGuardedExploration,
   parseExplorationBody,
   withDoneExploring,
   type DoneExploringPlan,
@@ -79,7 +80,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   const plan = fresh ? doneExploringPlan({ body: p.body, branch: p.headRef, files: files.map((f) => ({ path: f.filename, status: f.status })), date: input.date }) : null;
   const take = plan?.take ?? (['git fetch origin', `git checkout ${p.headRef}`] as [string, string]);
   // The checks of the head the developers start from, so the note says truthfully whether anything ran or passed.
-  const checks: ExplorationChecks | null = p.headSha ? await Promise.resolve(p.headSha).then((sha) => gh.getChecks(sha)).then((c) => c.state, () => null) : null;
+  const checks: ExplorationChecks | null = p.headSha ? await Promise.resolve(p.headSha).then((sha) => gh.getChecks(sha, { exploration: isGuardedExploration({ state: p.state, draft: p.draft, labels: p.labels, headRef: p.headRef, body: p.body }) })).then((c) => c.state, () => null) : null;
   const out: DoneExploring = { number: p.number, url: p.url, branch: p.headRef, status: fresh ? 'ready' : status, handedOff: fresh, plan, pieces: { proposed: [], already: [], unknown: [], warnings: [] }, take, checks, note: explorationStartingPoint(checks), warnings: [] };
   const products = input.products ?? [];
   const ask = { pieces: input.pieces ?? [], products, previewUrl: input.previewUrl, openedBy: input.openedBy, agent: input.agent, source: input.source, library: input.library };

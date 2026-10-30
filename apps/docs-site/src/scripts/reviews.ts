@@ -7,7 +7,7 @@
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
 import { figmaPushFor, tokenValuesFor } from './figma-push-read';
-import { EXPLORATION_STATUS_LABEL, EXPLORATION_USE_CASES, isHeldExploration, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_USE_CASES, explorationStateLabel, isArchivedExploration, isGuardedExploration, shortAgo, type ExplorationStatus, isHeldExploration, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -277,8 +277,13 @@ interface Row {
   labels?: { name: string }[];
   /** An open exploration: tried, never reviewed as is (status pill "Exploration", or where it stands once done exploring). */
   exploration?: boolean;
-  /** The exploration's pill once done exploring: "Waiting for code", "Being built". */
-  explorationLabel?: string;
+  /**
+   * The exploration's one status tag, the words its page shows (core explorationStateLabel): "Not started",
+   * "Exploring", "Archived", "Waiting for code", "Being built". Null while its files are read. Never a check.
+   */
+  explorationLabel?: string | null;
+  /** Where the exploration stands (core explorationStatus), so the tag follows once its files are read. */
+  explorationStatus?: ExplorationStatus;
   /** A token push from Figma that ships by itself after the checks (PullStatus autoShip): "On its way to the library". */
   autoShip?: boolean;
   /** Design or developer work (lib/work-nature): title and labels first, then the changed files once read. */
@@ -319,7 +324,7 @@ let listLoading = true;
 
 /** The status pill of a row: its lifecycle in words, else who acts now (pr-status rowWho), the same tone rules. */
 function pillOf(r: Row, lifecycle: Lifecycle | 'exploration'): ListRow['pill'] {
-  if (lifecycle === 'exploration') return { label: r.explorationLabel ?? 'Exploration', tone: 'neutral' };
+  if (lifecycle === 'exploration') return r.explorationLabel ? { label: r.explorationLabel, tone: r.explorationLabel === 'Exploring' ? 'info' : 'neutral' } : null;
   // A branch opened from Figma before Claude drafted the code waits on a developer (decision RT-1).
   if (lifecycle === 'draft' && claudeStage(r.labels) === 'waiting') return { label: 'Waiting for a developer', tone: lifecycleTone(lifecycle) };
   if (lifecycle !== 'ready') return { label: LIFECYCLE[lifecycle].short, tone: lifecycleTone(lifecycle) };
@@ -386,6 +391,8 @@ function listRow(r: Row): ListRow {
     author: r.user.login,
     agent: Boolean(r.agent) || agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
     opens: r.exploration ? 'exploration' : 'pr',
+    // An exploration says when it last moved, after who: "Florian · 2 h ago".
+    ago: r.exploration && r.updated_at ? shortAgo(r.updated_at) || null : null,
     // The lead's rows on the demo carry the home's status for the same change ("New today", "Waiting 2 days").
     pill: demoApproved ? { label: 'Approved', tone: 'success' } : seat !== null && turn && r.created_at ? { label: waitingLabel(r.created_at, Date.now()), tone: 'warning' } : pillOf(r, lifecycle),
     lifecycle,
@@ -504,9 +511,28 @@ function productExploreRow(p: import('./product-repos').ProductPull): Row {
     nature: natureOf(p.title, labels),
     agent: agentMade({ body: p.body ?? null, labels }),
     exploration: true,
-    ...(s === 'active' ? {} : { explorationLabel: EXPLORATION_STATUS_LABEL[s] }),
+    explorationStatus: s,
+    explorationLabel: explorationStateLabel({ status: s, archived: isArchivedExploration(labels) }),
     product: p.product,
   };
+}
+
+/**
+ * The state of each running exploration row: "Not started" while its branch only carries Bridge notes, else
+ * "Exploring" (core explorationStateLabel), from its changed files (one read each, cached per head). Repaints as
+ * each lands. Never its checks: an exploration's guard check fails by design.
+ */
+function readExplorationStates(rows: Row[]) {
+  for (const r of rows) {
+    if (r.explorationLabel || !r.explorationStatus) continue;
+    const status = r.explorationStatus;
+    void import('./product-repos')
+      .then((m) => m.explorationFiles({ number: r.number, headSha: r.head.sha, product: r.product }))
+      .then((files) => {
+        r.explorationLabel = explorationStateLabel({ status, archived: isArchivedExploration(r.labels), files });
+        paintRows(openRows, listLoading);
+      });
+  }
 }
 
 /** The most recently closed branches, read once: the "N merged this month" line and Show merged. */
@@ -548,7 +574,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     // behind the Archived line and stay out of every count.
     const exploreRow = (p: Pull): Row => {
       const s = explorationStatus({ state: p.state, labels: p.labels as never, headRef: p.head.ref, body: p.body, headSha: p.head.sha, draft: p.draft });
-      return { ...toRow(p, null), exploration: true, ...(s === 'active' ? {} : { explorationLabel: EXPLORATION_STATUS_LABEL[s] }) };
+      return { ...toRow(p, null), exploration: true, explorationStatus: s, explorationLabel: explorationStateLabel({ status: s, archived: isArchivedExploration(p.labels as never) }) };
     };
     exploreRows = allOpen.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft, head: p.head, body: p.body })).map(exploreRow);
     archivedRows = allOpen.filter((p) => isArchivedOpen({ state: p.state, labels: p.labels as never })).map(exploreRow);
@@ -556,6 +582,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     const own = await productRead;
     exploreRows = [...exploreRows, ...own.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft, head: p.head, body: p.body })).map(productExploreRow)];
     archivedRows = [...archivedRows, ...own.filter((p) => isArchivedOpen({ state: p.state, labels: p.labels as never })).map(productExploreRow)];
+    readExplorationStates(exploreRows);
   } catch (err) {
     failure = err;
   }
@@ -723,7 +750,7 @@ export async function openPr(n: number, push = true) {
       ghGet<Comment[]>(`${R}/issues/${n}/comments?per_page=100`).then((f) => f.data).catch(() => [] as Comment[]),
       // Comments on a file: they belong to the change that file is part of.
       ghGet<(Comment & { path?: string })[]>(`${R}/pulls/${n}/comments?per_page=100`).then((f) => f.data).catch(() => [] as (Comment & { path?: string })[]),
-      ciFor(pull.head.sha).catch(() => summarizeCi([])),
+      ciFor(pull.head.sha, { exploration: isGuardedExploration({ state: pull.state, draft: pull.draft, labels: pull.labels, head: pull.head, body: pull.body }) }).catch(() => summarizeCi([])),
       readAccess(),
       // Same request as ciFor's commit status (shared in flight): the Vercel statuses say which previews are built.
       ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${pull.head.sha}/status`).then((f) => f.data.statuses).catch(() => []),

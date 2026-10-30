@@ -9,6 +9,7 @@
 import { type BridgeConfig, CONFIG_FILE, ConfigError, DEFAULT_TOKEN_PATHS, loadConfig } from './config';
 import { assertSafeBranch, DEFAULT_PROTECTED_BRANCHES, ProtectedBranchError } from './governance';
 import type { ClassicProtection, Ruleset, RulesetPayload } from './protection';
+import { isExplorationCheck } from './explorations';
 
 /**
  * What an auth failure means for the token:
@@ -1260,8 +1261,11 @@ export class GitHubClient {
     return r.map(toSummary);
   }
 
-  /** Commit statuses and check runs of a commit, folded into one state. */
-  async getChecks(sha: string): Promise<{ state: 'success' | 'failure' | 'pending' | 'none'; checks: { name: string; status: string; conclusion: string | null }[] }> {
+  /**
+   * Commit statuses and check runs of a commit, folded into one state. `exploration`: the commit heads an exploration
+   * (explorations isGuardedExploration), so its guard check, failing by design, is left out (as review-gate summarizeCi).
+   */
+  async getChecks(sha: string, opts: { exploration?: boolean | undefined } = {}): Promise<{ state: 'success' | 'failure' | 'pending' | 'none'; checks: { name: string; status: string; conclusion: string | null }[] }> {
     const [combined, runs] = await Promise.all([
       this.request<{ statuses: { context: string; state: string }[] }>('GET', `${this.repoPath}/commits/${encodeRef(sha)}/status`).catch(() => ({ statuses: [] })),
       this.listCheckRuns(sha).catch(() => [] as CheckRun[]),
@@ -1269,7 +1273,7 @@ export class GitHubClient {
     const checks = [
       ...runs.map((c) => ({ name: c.name, status: c.status, conclusion: c.conclusion })),
       ...combined.statuses.map((s) => ({ name: s.context, status: s.state === 'pending' ? 'in_progress' : 'completed', conclusion: s.state === 'pending' ? null : s.state })),
-    ];
+    ].filter((c) => !(opts.exploration && isExplorationCheck(c.name)));
     const failing = checks.some((c) => c.conclusion && !['success', 'neutral', 'skipped'].includes(c.conclusion));
     const pending = checks.some((c) => c.status !== 'completed');
     return { state: !checks.length ? 'none' : failing ? 'failure' : pending ? 'pending' : 'success', checks };

@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { buildAuditReport, compareWithBaseline, DesignSystemIndex, type AuditReport } from '@bridge-ds/core/audit';
 import { auditSnippet } from './audit.js';
 import { cssVarsUsed, getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
-import { approverEntries, leadsPublishTier1On, soloOwnerOf, soloOwnerSentence, tier1PublishSentence, changesMode, reviewOnGitHub, baseBranchOf, planTokenProposal, writeTokenProposalOnGitHub, suggestTokenProposalOnGitHub, suggestionIssueTitle, type ChangesMode, branchWithJiraKey, parseJiraKey, productsOf, cssModuleClasses, docsPrompt, entryLabel, expandOwners, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
+import { approverEntries, leadsPublishTier1On, soloOwnerOf, soloOwnerSentence, tier1PublishSentence, changesMode, reviewOnGitHub, baseBranchOf, planTokenProposal, writeTokenProposalOnGitHub, suggestTokenProposalOnGitHub, suggestionIssueTitle, type ChangesMode, branchWithJiraKey, parseJiraKey, productsOf, cssModuleClasses, docsPrompt, entryLabel, expandOwners, isGuardedExploration, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
 import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git, loadAllowlist } from '@bridge-ds/core/node';
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
@@ -657,7 +657,7 @@ export async function getReview(ctx: BridgeContext, a: { pr?: number; branch?: s
     const gh = await ctx.github();
     if (!gh) throw new Error('No GitHub repo known: set "repo" in bridge.config.json.');
     const pr = await gh.getPullRequest(a.pr!);
-    const [files, checks, reviews] = await Promise.all([gh.listPullRequestFiles(a.pr!), gh.getChecks(pr.headSha), gh.listReviews(a.pr!)]);
+    const [files, checks, reviews] = await Promise.all([gh.listPullRequestFiles(a.pr!), gh.getChecks(pr.headSha, { exploration: isGuardedExploration({ state: pr.state, draft: pr.draft, labels: pr.labels, headRef: pr.headRef, body: pr.body }) }), gh.listReviews(a.pr!)]);
     baseSrc = new GitHubSource(gh, pr.baseRef);
     headSrc = new GitHubSource(gh, pr.headSha);
     changedFiles = files.map((f) => f.filename);

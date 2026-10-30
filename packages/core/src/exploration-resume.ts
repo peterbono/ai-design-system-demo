@@ -4,7 +4,7 @@
 // "exploring". What changed is said in words: the files mapped to the screens and components they are, else the
 // commit subjects. The line a designer pastes in Claude to continue it names the exploration by the ref the MCP
 // server resolves (#12 in the design system repository, shop#12 in a product's own repository).
-import { explorationRefLabel, type ExplorationStatus } from './explorations';
+import { EXPLORATION_STATUS_LABEL, explorationRefLabel, type ExplorationStatus } from './explorations';
 
 /** The phrase Claude recognizes to resume an exploration ("Continue Bridge exploration #12"). */
 export const CONTINUE_PHRASE = 'Continue Bridge exploration';
@@ -21,6 +21,23 @@ export function explorationStage(x: { status: ExplorationStatus; archived?: bool
   if (x.status !== 'active' || x.archived) return 'handed';
   if (x.files && (x.files.length === 0 || onlyNotes(x.files))) return 'not-started';
   return 'exploring';
+}
+
+/** The words of a running exploration on its page, and on every row and card that lists it. */
+export const EXPLORATION_STAGE_LABEL = { 'not-started': 'Not started', exploring: 'Exploring', archived: 'Archived' } as const;
+
+/**
+ * The one status tag of an exploration wherever it is listed (Changes rows, Home cards, tools): the words its page
+ * shows. Running: "Not started" while the branch only carries Bridge notes, else "Exploring". Archived: "Archived".
+ * After done exploring: where it stands ("Waiting for code", "Being built", "Shipped"). Never a check or a technical
+ * blocker: an exploration's guard check fails by design. `files` undefined (not read yet): null for a running one, so
+ * a row never guesses; null (the read failed): "Exploring", as on the page.
+ */
+export function explorationStateLabel(x: { status: ExplorationStatus; archived?: boolean | null | undefined; files?: readonly string[] | null | undefined }): string | null {
+  if (x.archived && x.status !== 'closed' && x.status !== 'shipped') return EXPLORATION_STAGE_LABEL.archived;
+  if (x.status !== 'active') return EXPLORATION_STATUS_LABEL[x.status];
+  if (x.files === undefined) return null;
+  return EXPLORATION_STAGE_LABEL[explorationStage({ status: x.status, files: x.files }) === 'not-started' ? 'not-started' : 'exploring'];
 }
 
 export interface ContinueRef {

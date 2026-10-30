@@ -176,10 +176,12 @@ function ExplorationCardItem({ c }: { c: ExplorationCard }) {
           <span className="t-ui t-muted sh-card-status">
             {/* Each part is its own wrapping item and the dot rides with what comes before it: a wrap never starts a
                 line on it. "Exploring · in Account · Ann". */}
-            <span>
-              <span className="sh-card-stage">{c.state}</span>
-              {SEP.trimEnd()}
-            </span>
+            {c.state && (
+              <span>
+                <span className="sh-card-stage">{c.state}</span>
+                {SEP.trimEnd()}
+              </span>
+            )}
             {c.product && (
               <span>
                 in {c.product}

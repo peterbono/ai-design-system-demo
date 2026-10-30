@@ -392,6 +392,29 @@ export function explorationStatus(p: ExplorationPullLike): ExplorationStatus {
   return 'ready';
 }
 
+/**
+ * The pull request is an exploration right now: open with the `exploration` label (archived ones keep it), or a running
+ * exploration whose label is missing (isUnlabeledExploration: an open draft on an `explore/*` branch or with the
+ * Bridge block). Its guard check (EXPLORATION_CHECK) fails by design then, so every check summary leaves that check out
+ * (review-gate summarizeCi `exploration`): Studio, the MCP server and the CLI never read it as a problem. Any other
+ * pull request with that check failing still counts it.
+ */
+export function isGuardedExploration(p: {
+  state?: string | undefined;
+  draft?: boolean | undefined;
+  labels?: readonly (string | { name?: string })[] | null | undefined;
+  headRef?: string | null | undefined;
+  head?: { ref?: string | null | undefined } | null | undefined;
+  body?: string | null | undefined;
+}): boolean {
+  if (p.state !== undefined && p.state !== 'open') return false;
+  if (labelNames(p.labels ?? []).includes(EXPLORATION_LABEL)) return true;
+  return isUnlabeledExploration({ state: 'open', draft: p.draft, labels: p.labels, headRef: p.headRef ?? p.head?.ref, body: p.body });
+}
+
+/** True for the guard check of an exploration (EXPLORATION_CHECK), by check run name or status context. */
+export const isExplorationCheck = (name: string | null | undefined): boolean => (name ?? '').trim() === EXPLORATION_CHECK;
+
 /** True while the label is on: the pull request must not merge (the CI check fails, Studio blocks the merge). */
 export const isActiveExploration = (labels: ExplorationPullLike['labels']) => labelNames(labels).includes(EXPLORATION_LABEL);
 
