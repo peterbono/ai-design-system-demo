@@ -54,5 +54,6 @@
     "hidden": "The clipped span, one pixel wide (border.width.1)"
   },
   "draftedBy": "claude",
-  "needsReview": true
+  "needsReview": true,
+  "draftedSections": ["summary", "whenToUse", "whenNotToUse", "dos", "donts", "accessibility", "contentGuidelines"]
 }
