@@ -14,6 +14,11 @@ export interface ProductConfig {
   path?: string;
   /** Preview URL pattern, same placeholders as previews.apps: {branch} {rawBranch} {pr} {sha} {sha7}. */
   preview?: string;
+  /**
+   * The product in production ("https://shop.acme.com"), no placeholders: Live product in the Bridge toolbar and
+   * "See the product today". A product of this repository may use previews.production.<key> instead.
+   */
+  production?: string;
   /** react, vue, angular, svelte, astro, other. */
   framework?: string;
   /** The product a branch belongs to when nothing else matches: the library. */
@@ -150,7 +155,7 @@ export function productOfRepo(products: readonly ProductConfig[], repo: string |
 
 const KEY = /^[a-z0-9][a-z0-9-]*$/;
 const REPO = /^[\w.-]+\/[\w.-]+$/;
-const FIELDS = ['key', 'name', 'repo', 'path', 'preview', 'framework', 'default'];
+const FIELDS = ['key', 'name', 'repo', 'path', 'preview', 'production', 'framework', 'default'];
 
 /** What is wrong with a `products` value, each problem saying how to fix it. Empty: valid (or absent). */
 export function productProblems(raw: unknown): string[] {
@@ -178,6 +183,7 @@ export function productProblems(raw: unknown): string[] {
       if (bad) problems.push(`${at}.path" must be a folder relative to the repository root, without a leading "/" or "..", such as "apps/admin"`);
     }
     if (o.preview !== undefined && (typeof o.preview !== 'string' || !/^https?:\/\//.test(o.preview))) problems.push(`${at}.preview" must be an http(s) URL template, such as "https://app-git-{branch}.vercel.app"`);
+    if (o.production !== undefined && (typeof o.production !== 'string' || !/^https?:\/\/[^{}\s]+$/.test(o.production))) problems.push(`${at}.production" must be the product's production URL, without placeholders, such as "https://shop.example.com"`);
     if (o.framework !== undefined && (typeof o.framework !== 'string' || !o.framework.trim())) problems.push(`${at}.framework" must be a name such as "react", "vue" or "other"`);
     if (o.default !== undefined && typeof o.default !== 'boolean') problems.push(`${at}.default" must be true or false`);
     if (o.default === true) defaults++;

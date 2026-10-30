@@ -83,6 +83,7 @@
   "products": [
     { "key": "admin", "name": "Admin demo", "path": "apps/admin", "preview": "https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app", "framework": "react" },
     { "key": "shop", "name": "Demo shop", "repo": "peterbono/bridge-demo-shop", "preview": "https://bridge-demo-shop-git-{branch}-peterbonos-projects.vercel.app", "framework": "react" },
+    { "key": "admin-app", "name": "Product admin", "repo": "peterbono/bridge-product-admin", "preview": "https://bridge-product-admin-git-{branch}-peterbonos-projects.vercel.app", "production": "https://bridge-product-admin.vercel.app", "framework": "react" },
     { "key": "library", "name": "Library", "path": "packages", "framework": "react", "default": true }
   ]
 }
