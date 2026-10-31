@@ -141,7 +141,7 @@ describe('after Done exploring (Waiting for code, Being built, Shipped)', () => 
     const shipped = handoffSteps({ status: 'shipped', doneBy: florian, doneAt: '2026-10-29T12:00:00Z', builders: [], shippedAt: '2026-10-30T09:00:00Z', product: 'Admin demo', now: NOW });
     expect(shipped.map((s) => s.status)).toEqual(['done', 'done', 'done']);
     expect(shipped[2]).toMatchObject({ title: 'Shipped', detail: 'In Admin demo, today', current: true });
-    expect(JSON.stringify([waiting, shipped])).not.toMatch(/merge|pull request|branch|commit|—/i);
+    expect(JSON.stringify([waiting, shipped])).not.toMatch(/merge|pull request|branch|commit|\u2014/i);
   });
 
   it('puts "said done exploring" in the activity, without Bridge\'s own commit', () => {

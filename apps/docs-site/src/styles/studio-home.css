@@ -324,8 +324,8 @@
   flex-direction: column;
 }
 
-/* Title (two lines kept, so every card of a row has the same rhythm), the state tag and the product, then who explores
-   it on the last line: the body fills the card, nothing floats in empty space. */
+/* Title (two lines at most), then the state tag with the product and who explores it, pinned to the bottom: in a row
+   of cards the tags and names line up whatever the titles' length, and nothing floats in empty space. */
 .sh-card-body {
   display: flex;
   flex: 1;
@@ -337,13 +337,15 @@
 .sh-card-title {
   display: -webkit-box;
   overflow: hidden;
-  min-height: calc(2 * var(--typography-body-line-height));
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
-.sh-card-who {
+.sh-card-body > .sh-card-status {
   margin-block-start: auto;
+}
+
+.sh-card-who {
   color: var(--color-text-muted);
 }
 

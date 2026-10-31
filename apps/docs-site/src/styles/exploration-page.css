@@ -494,6 +494,11 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* The preview's one action, full width on a phone: the easiest target on the screen. */
+  .xp-preview .xp-acts > * {
+    inline-size: 100%;
+  }
+
   .xp-plate {
     aspect-ratio: auto;
     flex-direction: column;
