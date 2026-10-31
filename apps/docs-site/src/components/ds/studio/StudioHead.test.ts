@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 // The Studio page header, one pattern on every page: the title with the action on its line, ONE live summary sentence
-// (no team name under the title), the quiet "How it works" fold, and the section's Field Guide scene, which rests
-// under reduced motion.
+// (no team name under the title) and the quiet "How it works" fold. No drawing in the header: the action comes first.
 import '../../../../../../packages/react/src/test/setup';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
@@ -15,16 +14,15 @@ import { setPageSummary } from '../../../lib/page-summary';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
 describe('Studio page header', () => {
-  it('renders the title, one summary sentence, the action on the title line and the scene', async () => {
+  it('renders the title, one summary sentence and the action on the title line, with no drawing', async () => {
     const { container } = render(
       createElement(StudioHead, { title: 'Components', summary: '53 components in 8 families, each with usage guidance.', scene: 'components', actions: createElement('button', { type: 'button' }, 'Add guidance') }),
     );
     expect(screen.getByRole('heading', { level: 1, name: 'Components' })).toBeTruthy();
     expect(container.querySelector('[data-st-summary]')!.textContent).toBe('53 components in 8 families, each with usage guidance.');
     expect(container.querySelector('.st-title-row [data-st-actions] button')!.textContent).toBe('Add guidance');
-    const scene = container.querySelector('.st-head > svg.qs[data-scene="components"]');
-    expect(scene).toBeTruthy();
-    expect(scene!.getAttribute('aria-hidden')).toBe('true');
+    // UX before brand: the primary action owns the end of the title line, no drawing competes with it.
+    expect(container.querySelector('.st-head svg.qs')).toBeNull();
     expect(container.querySelectorAll('.st-head p')).toHaveLength(1);
     await expectNoAxeViolations(container);
   });

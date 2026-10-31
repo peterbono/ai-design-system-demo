@@ -1,4 +1,4 @@
-/* Quiet scenes (components/ds/studio/QuietScene.tsx): a Field Guide drawing that draws itself in once, then breathes.
+/* Quiet scenes (components/ds/studio/QuietScene.tsx): a Field Guide drawing that shows at once, then breathes.
    Relaxing on purpose: every loop is built on the slowest motion token (shimmer) and runs several seconds each way,
    eased, alternate, with staggered lengths so nothing moves in step. Moving parts are low contrast; the only strong
    color is the Deep Harbor flag. Reduced motion: the still drawing, fully drawn. */
@@ -55,54 +55,8 @@
   }
 }
 
-/* --- Draw-in, once: the ground, then the boat, then the sky. ----------------------------------------------- */
+/* No draw-in: the drawing shows at once (a line drawing itself in delays the page and adds nothing). */
 
-.qs path {
-  stroke-dasharray: 1;
-  animation: qs-draw calc(var(--_breath) * 1.4) var(--motion-easing-standard) both;
-}
-
-.qs [data-fill] {
-  animation:
-    qs-draw calc(var(--_breath) * 1.4) var(--motion-easing-standard) both,
-    qs-fill var(--_breath) var(--motion-easing-standard) calc(var(--_breath) * 0.8) both;
-}
-
-.qs .qs-boat path {
-  animation-delay: calc(var(--_breath) * 0.4);
-}
-
-.qs .qs-boat [data-fill] {
-  animation-delay: calc(var(--_breath) * 0.4), calc(var(--_breath) * 1.2);
-}
-
-.qs .qs-sky path {
-  animation-delay: calc(var(--_breath) * 0.8);
-}
-
-.qs .qs-sky [data-fill] {
-  animation-delay: calc(var(--_breath) * 0.8), calc(var(--_breath) * 1.6);
-}
-
-@keyframes qs-draw {
-  from {
-    stroke-dashoffset: 1;
-  }
-
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes qs-fill {
-  from {
-    fill-opacity: 0;
-  }
-
-  to {
-    fill-opacity: 1;
-  }
-}
 
 /* --- The idle loop: slow swell, a boat rocking at its mooring, a cloud and two gulls passing. ------------------- */
 
