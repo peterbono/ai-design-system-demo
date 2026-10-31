@@ -16,7 +16,7 @@ import { useState, type ReactNode } from 'react';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import { Who } from './faces';
 import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, Skeleton, ToastProvider } from '@bridge-ds/react';
-import { BranchThumb } from './BranchThumb';
+import { ExplorationCardItem, ProductFolders } from './ExplorationCards';
 import { Drawing } from './Drawing';
 import { QuietScene } from './QuietScene';
 import StartExploration from './StartExploration';
@@ -42,6 +42,9 @@ import {
 } from '../../../lib/home-model';
 import { explorationsFor, libraryChangesLine, YOUR_CHANGES_HREF, type ExplorationCard } from '../../../lib/home-explorations';
 import { studioHref } from '../../../lib/team-path';
+import { productFolders } from '../../../lib/product-page';
+import { siteConfig } from '../../../scripts/repo-context';
+import { productsOf, type ProductConfig } from '@bridge-ds/core';
 import { demoTour, demoWaiting, tourSteps, type TourAt } from '../../../lib/demo';
 import { useNarrow, useTour } from './HomeTour';
 
@@ -163,40 +166,6 @@ function Needs({ needs, now, snoozed, demo, tour, join, contributor }: { needs: 
   );
 }
 
-function ExplorationCardItem({ c }: { c: ExplorationCard }) {
-  return (
-    <li className="sh-card-item">
-      <Card interactive padding="none" className="sh-card">
-        <BranchThumb spec={c.preview} size="card" />
-        <div className="sh-card-body">
-          <span className="sh-card-head">
-            <Link href={c.href} variant="subtle" className="t-body sh-card-title" data-card-primary>
-              <span className="sh-strong">{c.title}</span>
-            </Link>
-          </span>
-          {/* A fixed footer, pinned to the bottom: the DS tag of its page, the product, who explores it, one line each
-              (a long one ends in an ellipsis). Every card of a row has the same footer, so the tags, the product lines
-              and the names line up whatever the titles' length; a card without a product keeps the line empty. */}
-          <span className="sh-card-foot">
-            <span className="sh-card-tagline">
-              {c.state && (
-                <Badge tone={c.tone ?? 'neutral'} dot={c.dot ?? false} size="md" className={c.state === 'Exploring' ? 'sh-card-tag xp-exploring' : 'sh-card-tag'}>
-                  {c.state}
-                </Badge>
-              )}
-            </span>
-            <span className="t-ui t-muted sh-card-product">{c.product ? `in ${c.product}` : '\u00a0'}</span>
-            <span className="t-ui sh-card-who">
-              <Who p={c.author} size="xs" />
-              <span className="sh-card-name">{c.author.name}</span>
-            </span>
-          </span>
-        </div>
-      </Card>
-    </li>
-  );
-}
-
 export interface HomeComponent {
   name: string;
   slug: string;
@@ -295,6 +264,29 @@ function Health({ h }: { h: HealthLine }) {
   );
 }
 
+/**
+ * The status line under the Harbor zone: the library's health ("Library healthy. Open Quality") and, while setup steps
+ * are left, "7 of 8 connected" with its checklist, in the same quiet voice. Neither competes with the greeting.
+ */
+function Status({ health, setup }: { health: HealthLine | null; setup?: ReactNode }) {
+  if (!health && !setup) return null;
+  return (
+    <div className="sh-status" data-home-status="">
+      {health && <Health h={health} />}
+      {setup && <div className="sh-setup">{setup}</div>}
+    </div>
+  );
+}
+
+/** The team's products (bridge.config.json), as this page knows them. */
+function pageProducts(): ProductConfig[] {
+  try {
+    return productsOf(siteConfig() as { products?: ProductConfig[] });
+  } catch {
+    return productsOf(null);
+  }
+}
+
 const CHOICES = [
   { drawing: 'tokens', title: 'Edit tokens', line: 'A color, a spacing, a radius. See every place it shows before you send it.', key: 'tokens' },
   { drawing: 'components', title: 'Ask for a component change', line: 'Describe what is missing or wrong. A developer builds it with Claude, the owner decides.', key: 'component' },
@@ -356,8 +348,13 @@ export interface StudioHomeProps {
   /** GitHub could not be read. */
   failed: string | null;
   startHrefs: Record<'tokens' | 'component' | 'guidance', string>;
-  /** Signed in with setup steps left: "4 of 6 connected" and its checklist (Onboarding.tsx), by the greeting. */
+  /**
+   * Signed in with setup steps left: "4 of 8 connected" and its checklist (Onboarding.tsx), on the status line under
+   * the Harbor zone, next to the library's health: out of the greeting, which keeps the zone for what needs you.
+   */
   setup?: ReactNode;
+  /** bridge.config.json products, for the product folders under the explorations. Absent: the page's (repo-context). */
+  products?: ProductConfig[];
   /**
    * The demo for a visitor (DemoHome.tsx, boards D1 and D1b): the same home from the DS lead's seat. `lead` names
    * them in the waiting line; each row keeps its Review button; "Review all" opens the Review page; the team's
@@ -471,7 +468,6 @@ function HomeBody(p: StudioHomeProps) {
         {note}
         <section className="zone sh-zone sh-zone-empty" aria-labelledby="sh-hello">
           <div className="sh-head-text">
-            {p.setup && <div className="sh-setup">{p.setup}</div>}
             <p className="t-body">
               {p.greeting} Nothing needs you{p.failed ? '' : ', and you have nothing in progress'}.
             </p>
@@ -484,7 +480,7 @@ function HomeBody(p: StudioHomeProps) {
           {tour?.('start')}
         </section>
         {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
-        {p.health && <Health h={p.health} />}
+        <Status health={p.health} setup={p.setup} />
         {p.building && <BuildLine />}
       </div>
     );
@@ -499,12 +495,9 @@ function HomeBody(p: StudioHomeProps) {
         {quiet && <QuietScene scene="harbor" layout="window" />}
         <div className="sh-head">
           <div className="sh-head-text">
-            <div className="sh-hello-row">
-              <h1 id="sh-hello" className="sh-hello">
-                {p.greeting}
-              </h1>
-              {p.setup && <div className="sh-setup">{p.setup}</div>}
-            </div>
+            <h1 id="sh-hello" className="sh-hello">
+              {p.greeting}
+            </h1>
             {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} lead={p.demo ? p.demo.lead : undefined} /> : <p className="t-body">{p.needs.length ? 'Your changes need you.' : QUIET_LINE}</p>}
           </div>
         </div>
@@ -523,10 +516,12 @@ function HomeBody(p: StudioHomeProps) {
         )}
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
-      {p.health && <Health h={p.health} />}
+      <Status health={p.health} setup={p.setup} />
       {p.building && <BuildLine />}
       {(byRole.cards.length > 0 || !loading) && explorations}
       {!p.demo && !loading && <YourChanges n={p.branches.length} />}
+      {/* The products, like project folders in Figma: each opens its page, with the explorations made in it. */}
+      {!loading && <ProductFolders folders={productFolders(p.products ?? pageProducts(), byRole.cards)} />}
     </div>
   );
 }

@@ -1,0 +1,15 @@
+---
+// Team shell of a Studio product page (lib/team-shells.ts PRODUCT_SHELL_ROUTE): /studio/<owner>/<repo>/products/<key>/
+// is rewritten here (vercel.json, dev/local-api.ts teamRewrite). Built once for every product of every team: the island
+// (components/ds/studio/ProductPage) reads the key from the address and the team's products from its own
+// bridge.config.json, then the product's explorations (scripts/product-page.ts).
+import '../../../styles/studio-home.css';
+import '../../../styles/branch-thumb.css';
+import '../../../styles/product-page.css';
+import Layout from '../../../layouts/Layout.astro';
+import ProductPage from '../../../components/ds/studio/ProductPage';
+---
+
+<Layout title="Product" description="The explorations made in one of this team's products, grouped by where they stand." hosted wide>
+  <ProductPage client:only="react" />
+</Layout>

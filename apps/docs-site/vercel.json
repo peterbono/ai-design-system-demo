@@ -44,6 +44,10 @@
     {"source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/components", "has": [{"type": "query", "key": "c", "value": "(?<slug>[A-Za-z0-9][A-Za-z0-9-]*)"}], "destination": "/library/:owner/:repo/components/:slug/", "permanent": false}
   ],
   "rewrites": [
+    { "source": "/studio/~/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/products/:key([A-Za-z0-9][A-Za-z0-9-]*)/", "destination": "/team-shell/products/item/" },
+    { "source": "/studio/~/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/products/:key([A-Za-z0-9][A-Za-z0-9-]*)", "destination": "/team-shell/products/item/" },
+    { "source": "/studio/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/products/:key([A-Za-z0-9][A-Za-z0-9-]*)/", "destination": "/team-shell/products/item/" },
+    { "source": "/studio/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/products/:key([A-Za-z0-9][A-Za-z0-9-]*)", "destination": "/team-shell/products/item/" },
     { "source": "/studio/~/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*/", "destination": "/team-shell/:path*/" },
     { "source": "/studio/~/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*", "destination": "/team-shell/:path*" },
     { "source": "/studio/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*/", "destination": "/team-shell/:path*/" },

@@ -285,6 +285,69 @@
   padding-inline: var(--space-1);
 }
 
+/* The status line under the zone: the library's health, then "7 of 8 connected" (its checklist opens from it), one
+   quiet line, out of the greeting. */
+.sh-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: calc(var(--space-4) * -1) 0 0;
+}
+
+.sh-status > .sh-health {
+  margin: 0;
+}
+
+/* --- Product folders: a mosaic of the latest screens, like a project folder in Figma ----------------------------- */
+
+.pf-mosaic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--space-1);
+  height: calc(var(--space-24) + var(--space-10));
+}
+
+.pf-mosaic[data-panes='2'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pf-mosaic[data-panes='3'] {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.pf-pane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pf-mosaic[data-panes='3'] .pf-pane-0 {
+  grid-row: 1 / span 2;
+}
+
+.pf-pane > .bt--card {
+  height: 100%;
+}
+
+/* Nothing explored yet: one quiet pane, the same size, no art. */
+.pf-pane-empty {
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-subtle);
+}
+
+/* The small panes show the screen, not the plate's caption. */
+.pf-mosaic[data-panes='3'] .pf-pane-1 .bt-plate-text,
+.pf-mosaic[data-panes='3'] .pf-pane-2 .bt-plate-text,
+.pf-mosaic[data-panes='3'] .pf-pane-1 .bt-captured,
+.pf-mosaic[data-panes='3'] .pf-pane-2 .bt-captured {
+  display: none;
+}
+
 /* --- Your branches ------------------------------------------------------------------------------------------ */
 
 .sh-section {

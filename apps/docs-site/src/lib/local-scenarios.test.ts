@@ -424,6 +424,8 @@ describe('team and Library addresses in local mode (dev/local-api.ts)', () => {
 
   it('serves a team address from its shell, like the vercel.json rewrites', () => {
     expect(teamRewrite('/studio/acme/acme-product/', reserved)).toBe('/team-shell/');
+    expect(teamRewrite('/studio/acme/acme-product/products/admin-app/', reserved)).toBe('/team-shell/products/item/');
+    expect(teamRewrite('/studio/~/acme/acme-product/products/library?x=1', reserved)).toBe('/team-shell/products/item/?x=1');
     expect(teamRewrite('/studio/acme/acme-product/settings/?tab=members', reserved)).toBe('/team-shell/settings/?tab=members');
     expect(teamRewrite('/studio/~/settings/ds/changes/', reserved)).toBe('/team-shell/changes/');
     expect(teamRewrite('/library/acme/acme-product/', reserved)).toBe('/library-shell/');

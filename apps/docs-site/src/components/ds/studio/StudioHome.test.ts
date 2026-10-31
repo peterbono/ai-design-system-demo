@@ -125,7 +125,7 @@ describe('StudioHome, explorations by role', () => {
   it("shows a lead or reviewer the team's explorations, See all on Changes", () => {
     const many = [...team, exploration(39, { own: false }), exploration(40, { own: false })];
     render(createElement(StudioHome, props({ contributor: false, lead: true, explorations: many })));
-    expect(screen.getByRole('heading', { level: 2, name: 'Explorations' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: 'Recent explorations' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Team seats and roles' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'See all 5' }).getAttribute('href')).toBe('/studio/changes/');
   });
@@ -150,7 +150,7 @@ describe('StudioHome, explorations only', () => {
     const found = exploration(37, { title: 'Billing screen', state: '2 new pieces found', stage: 'found', author: dana });
     const { container } = render(createElement(StudioHome, props({ explorations: [exploration(36), found] })));
     expect(screen.getByRole('heading', { level: 2, name: 'Your explorations' })).toBeTruthy();
-    const items = [...container.querySelectorAll('.sh-cards > li')];
+    const items = [...container.querySelectorAll('[aria-labelledby="sh-explorations"] .sh-cards > li')];
     // "Start an exploration" first, then the cards.
     expect(items[0]!.classList.contains('sh-create')).toBe(true);
     expect(items[0]!.textContent).toBe('Start an exploration');
@@ -190,7 +190,7 @@ describe('StudioHome, explorations only', () => {
   it('leaves library changes out of the section and counts them in one line, with the way to Changes', () => {
     const { container } = render(createElement(StudioHome, props({ branches: [branch, { ...branch, number: 43 }] })));
     expect(screen.queryByText('Spacing scale for dense tables')).toBeNull();
-    expect(container.querySelectorAll('.sh-cards > li').length).toBe(2);
+    expect(container.querySelectorAll('[aria-labelledby="sh-explorations"] .sh-cards > li').length).toBe(2);
     expect(screen.getByText('You have 2 library changes in progress.')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'See your changes' }).getAttribute('href')).toBe('/studio/changes/?who=mine');
   });
@@ -198,7 +198,7 @@ describe('StudioHome, explorations only', () => {
   it('shows three cards, and "See all N" counts explorations only', () => {
     const many = [36, 37, 38, 39, 40].map((n) => exploration(n));
     const { container } = render(createElement(StudioHome, props({ explorations: many, branches: [branch, branch, branch] })));
-    expect(container.querySelectorAll('.sh-cards > li:not(.sh-create)').length).toBe(3);
+    expect(container.querySelectorAll('[aria-labelledby="sh-explorations"] .sh-cards > li:not(.sh-create)').length).toBe(3);
     expect(screen.getByRole('link', { name: 'See all 5' })).toBeTruthy();
   });
 
@@ -239,7 +239,7 @@ describe('StudioHome, demo', () => {
     const many = [36, 37, 38, 39].map((n) => exploration(n));
     const { container } = render(createElement(StudioHome, props({ contributor: false, demo, tour: () => null, explorations: many, branches: [] })));
     expect(screen.getByRole('heading', { level: 2, name: 'Explorations' })).toBeTruthy();
-    const items = container.querySelectorAll('.sh-cards > li');
+    const items = container.querySelectorAll('[aria-labelledby="sh-explorations"] .sh-cards > li');
     expect(items[0]!.classList.contains('sh-create')).toBe(true);
     expect(items[0]!.querySelector('[data-demo-write="start explorations"]')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'See all 4' }).getAttribute('href')).toBe('/studio/changes/');
@@ -350,5 +350,48 @@ describe('StudioHome, quiet', () => {
     rerender(createElement(StudioHome, props({ needs: [sentBack] })));
     expect(container.querySelector('.qs')).toBeNull();
     expect(container.querySelector('.sh-zone-quiet')).toBeNull();
+  });
+});
+
+describe('StudioHome, products', () => {
+  const products = [
+    { key: 'admin-app', name: 'Product admin', repo: 'acme/product-admin' },
+    { key: 'library', name: 'Library', default: true },
+  ];
+
+  it('lists a folder card per product under Recent explorations, with its counts and its page', async () => {
+    localStorage.setItem('bridge.home.lead-tour', 'done');
+    const cards = [
+      exploration(1, { productKey: 'admin-app', product: 'Product admin' }),
+      exploration(2, { productKey: 'admin-app', product: 'Product admin' }),
+      exploration(3, { productKey: 'admin-app', product: 'Product admin', stage: 'with-devs', state: 'Waiting for code' }),
+      exploration(4, { productKey: 'library', product: null, stage: 'kept', state: 'Shipped' }),
+    ];
+    const { container } = render(createElement(StudioHome, props({ contributor: false, lead: true, explorations: cards, products })));
+    expect(screen.getByRole('heading', { level: 2, name: 'Recent explorations' })).toBeTruthy();
+    const section = container.querySelector('[aria-labelledby="sh-products"]')!;
+    // Under the recent explorations, in the configured order.
+    expect(container.querySelector('[aria-labelledby="sh-explorations"]')!.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const folders = [...section.querySelectorAll('.sh-cards > li')];
+    expect(folders.map((f) => f.querySelector('[data-card-primary]')!.textContent)).toEqual(['Product admin', 'Library']);
+    expect(folders[0]!.textContent).toContain('2 exploring · 1 waiting for code');
+    expect(folders[1]!.textContent).toContain('1 shipped');
+    expect(folders[0]!.querySelector('a')!.getAttribute('href')).toBe('/studio/products/admin-app/');
+    // The mosaic: the latest screens, three panes.
+    expect(folders[0]!.querySelectorAll('.pf-pane').length).toBe(3);
+    await expectNoAxeViolations(container);
+  });
+
+  it('puts the setup chip on the status line under the zone, next to the library health, not by the greeting', () => {
+    localStorage.setItem('bridge.home.lead-tour', 'done');
+    const setup = createElement('button', { type: 'button', 'data-testid': 'setup' }, '7 of 8 connected');
+    const health = { text: 'Library healthy.', tone: 'ok' as const, href: '/studio/quality/', link: 'Open Quality' };
+    const { container } = render(createElement(StudioHome, props({ contributor: false, lead: true, setup, health, products })));
+    const chip = screen.getByTestId('setup');
+    expect(container.querySelector('.sh-zone')!.contains(chip)).toBe(false);
+    const status = container.querySelector('[data-home-status]')!;
+    expect(status.contains(chip)).toBe(true);
+    expect(status.textContent).toContain('Library healthy.');
+    expect(status.querySelector('.sh-health')!.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
