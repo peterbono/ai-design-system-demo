@@ -48,19 +48,22 @@ export function ExplorationCardItem({ c, showProduct = true }: { c: ExplorationC
 
 /**
  * One product as a folder: the mosaic of its latest screens (one, two, or the newest large and the next two stacked),
- * its name and what is in progress. Nothing explored yet: the product's own plate, its Field Guide drawing.
+ * its name and what is in progress. Content first: nothing explored yet leaves one quiet empty pane, no decoration.
  */
 export function ProductFolderCard({ f }: { f: ProductFolder }) {
-  const panes = f.shots.length ? f.shots : [{ key: `plate-${f.key}`, spec: { kind: 'screen' as const, src: null, seed: f.key } }];
   return (
     <li className="sh-card-item">
       <Card interactive padding="none" className="sh-card pf-card">
-        <span className="pf-mosaic" data-panes={panes.length} aria-hidden="true">
-          {panes.map((s, i) => (
-            <span key={s.key} className={`pf-pane pf-pane-${i}`}>
-              <BranchThumb spec={s.spec} size="card" />
-            </span>
-          ))}
+        <span className="pf-mosaic" data-panes={Math.max(1, f.shots.length)} aria-hidden="true">
+          {f.shots.length ? (
+            f.shots.map((s, i) => (
+              <span key={s.key} className={`pf-pane pf-pane-${i}`}>
+                <BranchThumb spec={s.spec} size="card" />
+              </span>
+            ))
+          ) : (
+            <span className="pf-pane pf-pane-empty" />
+          )}
         </span>
         <div className="sh-card-body">
           <span className="sh-card-head">

@@ -333,6 +333,13 @@
   height: 100%;
 }
 
+/* Nothing explored yet: one quiet pane, the same size, no art. */
+.pf-pane-empty {
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-subtle);
+}
+
 /* The small panes show the screen, not the plate's caption. */
 .pf-mosaic[data-panes='3'] .pf-pane-1 .bt-plate-text,
 .pf-mosaic[data-panes='3'] .pf-pane-2 .bt-plate-text,
