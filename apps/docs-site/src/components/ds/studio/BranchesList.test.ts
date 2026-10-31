@@ -92,6 +92,16 @@ describe('BranchesList tabs and filters', () => {
     expect(screen.queryByText('Change 2')).toBeNull();
   });
 
+  it('tags an archived exploration "Archived" on its tab, never "Exploring"', async () => {
+    const user = userEvent.setup();
+    const ex = (n: number, label: string) => row(n, 'ann', { opens: 'exploration', lifecycle: 'exploration', pill: { label, tone: 'neutral' } });
+    const { container } = render(createElement(BranchesList, props({ rows: [ex(1, 'Exploring')], archived: [ex(4, 'Exploring')] })));
+    await user.click(screen.getByRole('tab', { name: /^Archived/ }));
+    const list = container.querySelector('.sh-rows')!;
+    expect(list.textContent).toContain('Archived');
+    expect(list.textContent).not.toContain('Exploring');
+  });
+
   it('lists an exploration in review under In review with who must review, and in Waiting on me when the review is asked of the viewer', async () => {
     const user = userEvent.setup();
     const xp = (n: number, over: Partial<ListRow>) => row(n, 'ann', { opens: 'exploration', lifecycle: 'exploration', ...over });

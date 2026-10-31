@@ -40,7 +40,7 @@ import {
   type NeedRow,
   type Person,
 } from '../../../lib/home-model';
-import { explorationsFor, libraryChangesLine, YOUR_CHANGES_HREF, type ExplorationCard } from '../../../lib/home-explorations';
+import { explorationsFor, libraryChangesLine, ownOpenWork, quietSentence, recentExplorations, YOUR_CHANGES_HREF, type ExplorationCard } from '../../../lib/home-explorations';
 import { studioHref } from '../../../lib/team-path';
 import { productFolders } from '../../../lib/product-page';
 import { siteConfig } from '../../../scripts/repo-context';
@@ -234,6 +234,31 @@ function Explorations({
   );
 }
 
+/**
+ * The quiet team Home's explorations (`recent`), under the ways to start: at most four of the same cards, newest first,
+ * and "See all N" on Changes when there are more. Purely informative: no Start card (the ways to start sit above), no
+ * badge, no action.
+ */
+function RecentExplorations({ cards, title, seeAll }: { cards: ExplorationCard[]; title: string; seeAll: string }) {
+  const recent = recentExplorations(cards);
+  if (!recent.cards.length) return null;
+  return (
+    <section className="sh-section" aria-labelledby="sh-explorations">
+      <header className="sh-section-head">
+        <h2 id="sh-explorations" className="sh-h2">
+          {title}
+        </h2>
+        {recent.total > recent.cards.length && <Link href={seeAll}>See all {recent.total}</Link>}
+      </header>
+      <ul className="sh-cards" data-recent-explorations="">
+        {recent.cards.map((c) => (
+          <ExplorationCardItem key={c.key ?? c.number} c={c} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** "You have 2 library changes in progress. See your changes": the author's library changes, on Changes. */
 function YourChanges({ n }: { n: number }) {
   const line = libraryChangesLine(n);
@@ -376,6 +401,11 @@ export interface StudioHomeProps {
   lead?: boolean;
   /** Admins: Approve and Decline on join requests (board E7b). */
   join?: JoinHandlers;
+  /**
+   * The team Home (scripts/team-home.ts): when nothing needs the viewer, the ways to start stay on top, the greeting
+   * says what is open of their own work, then "Recent explorations" (RecentExplorations) and the product folders.
+   */
+  recent?: boolean;
 }
 
 /** Where a tour step can point: the demo's (lib/demo TourAt) and the contributor's ("start", the ways to start). */
@@ -469,7 +499,7 @@ function HomeBody(p: StudioHomeProps) {
         <section className="zone sh-zone sh-zone-empty" aria-labelledby="sh-hello">
           <div className="sh-head-text">
             <p className="t-body">
-              {p.greeting} Nothing needs you{p.failed ? '' : ', and you have nothing in progress'}.
+              {p.greeting} {p.recent ? quietSentence(ownOpenWork(p.explorations, p.branches), Boolean(p.failed)) : `Nothing needs you${p.failed ? '' : ', and you have nothing in progress'}.`}
             </p>
             <h1 id="sh-hello" className="sh-hello">
               What do you want to change?
@@ -482,6 +512,13 @@ function HomeBody(p: StudioHomeProps) {
         {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
         <Status health={p.health} setup={p.setup} />
         {p.building && <BuildLine />}
+        {p.recent && (
+          <>
+            <RecentExplorations cards={byRole.cards} title={byRole.title} seeAll={byRole.seeAll} />
+            {/* The products, like project folders in Figma, counted on all the team's explorations. */}
+            <ProductFolders folders={productFolders(p.products ?? pageProducts(), p.explorations)} />
+          </>
+        )}
       </div>
     );
   }
@@ -521,7 +558,7 @@ function HomeBody(p: StudioHomeProps) {
       {(byRole.cards.length > 0 || !loading) && explorations}
       {!p.demo && !loading && <YourChanges n={p.branches.length} />}
       {/* The products, like project folders in Figma: each opens its page, with the explorations made in it. */}
-      {!loading && <ProductFolders folders={productFolders(p.products ?? pageProducts(), byRole.cards)} />}
+      {!loading && <ProductFolders folders={productFolders(p.products ?? pageProducts(), p.explorations)} />}
     </div>
   );
 }

@@ -16,6 +16,8 @@ import { studioHref } from './team-path';
 import type { Person } from './home-model';
 import type { ThumbSpec } from './branch-thumb';
 import { changedScreenOf, explorationTag, type TagTone } from './exploration-page';
+import { LIFECYCLE_LABEL } from './review-state';
+import { changesSummary } from './page-summary';
 
 /** The fields of an open (or closed) pull request the home reads. */
 export interface ExplorationPull {
@@ -231,9 +233,12 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
     })
     .map((p): ExplorationCard => {
       const files = opts.files;
-      const { stage, state } = explorationStage(p, files ? () => files(p) : undefined);
+      const read = explorationStage(p, files ? () => files(p) : undefined);
+      // Archived: out of the lists, never "Exploring". Its tag says what it is (the Archived tab of Changes).
+      const archived = isArchivedExploration(p.labels) && read.stage !== 'kept';
+      const { stage, state } = archived ? { stage: read.stage, state: LIFECYCLE_LABEL.archived } : read;
       const product = explorationProduct(p, opts.products);
-      const tag = cardTag(stage, state);
+      const tag = archived ? { tone: 'neutral' as const, dot: false } : cardTag(stage, state);
       return {
         number: p.number,
         key: keyOf(p),
@@ -274,4 +279,43 @@ export function explorationsFor(cards: ExplorationCard[], contributor: boolean):
   return contributor
     ? { cards: cards.filter((c) => c.own), title: 'Your explorations', seeAll: YOUR_CHANGES_HREF() }
     : { cards, title: 'Recent explorations', seeAll: studioHref('changes/') };
+}
+
+/** Explorations on the quiet team Home: at most this many cards, under the ways to start. */
+export const RECENT_CARDS = 4;
+
+/** "Recent explorations" under the ways to start: newest activity first, RECENT_CARDS at most, and how many in all. */
+export function recentExplorations(cards: readonly ExplorationCard[], n = RECENT_CARDS): { cards: ExplorationCard[]; total: number } {
+  const sorted = [...cards].sort((a, b) => b.updated.localeCompare(a.updated) || b.number - a.number);
+  return { cards: sorted.slice(0, n), total: cards.length };
+}
+
+/** A library change of the viewer's (home-model BranchCard): where it stands, as Changes files it (lib/branches-page stateOf). */
+type OwnBranch = { stage: 'draft' | 'waiting' | 'ready' };
+
+/**
+ * What is open of the viewer's own work, in the lifecycle's words of the Changes header (lib/page-summary
+ * changesSummary): their explorations by stage (shipped and kept ones are not open), and their library changes (a
+ * draft is being built, one waiting for a developer waits for code, one sent is in review). Null when nothing is open.
+ */
+export function ownOpenWork(cards: readonly Pick<ExplorationCard, 'stage' | 'state' | 'own'>[], branches: readonly OwnBranch[] = []): string | null {
+  const c = { exploring: 0, code: 0, building: 0, review: 0 };
+  for (const x of cards) {
+    if (!x.own || x.state === LIFECYCLE_LABEL.archived) continue;
+    if (x.stage === 'exploring' || x.stage === 'found') c.exploring += 1;
+    else if (x.stage === 'in-review') c.review += 1;
+    else if (x.stage === 'with-devs') c[x.state === LIFECYCLE_LABEL['being-built'] ? 'building' : 'code'] += 1;
+  }
+  for (const b of branches) c[b.stage === 'waiting' ? 'code' : b.stage === 'draft' ? 'building' : 'review'] += 1;
+  return c.exploring + c.code + c.building + c.review ? changesSummary(c) : null;
+}
+
+/**
+ * The quiet Home's sentence after the greeting: "Nothing needs you." then what is open of the viewer's own work
+ * ("1 waiting for code."), or "Nothing needs you, and you have nothing in progress." only when truly nothing is.
+ * `failed`: GitHub could not be read, so Bridge does not claim there is nothing.
+ */
+export function quietSentence(open: string | null, failed = false): string {
+  if (open) return `Nothing needs you. ${open}`;
+  return failed ? 'Nothing needs you.' : 'Nothing needs you, and you have nothing in progress.';
 }

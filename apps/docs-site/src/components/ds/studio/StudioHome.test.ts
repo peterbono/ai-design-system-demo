@@ -395,3 +395,56 @@ describe('StudioHome, products', () => {
     expect(status.querySelector('.sh-health')!.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe('StudioHome, quiet team Home (recent)', () => {
+  const products = [
+    { key: 'admin-app', name: 'Art print shop', repo: 'acme/print-shop' },
+    { key: 'library', name: 'Library', default: true },
+  ];
+  const quiet = (over: Partial<StudioHomeProps> = {}) =>
+    props({ state: 'empty', contributor: false, lead: true, recent: true, branches: [], greeting: 'Good evening, Florian.', products, ...over });
+
+  it('keeps the ways to start on top, then Recent explorations and the product folders, and tells the truth in the greeting', async () => {
+    localStorage.setItem('bridge.home.lead-tour', 'done');
+    const waiting = exploration(7, { title: 'Dashboard: orders waiting to ship', productKey: 'admin-app', product: 'Art print shop', stage: 'with-devs', state: 'Waiting for code', preview: { kind: 'screen', src: null } });
+    const { container } = render(createElement(StudioHome, quiet({ explorations: [waiting] })));
+    expect(screen.getByRole('heading', { level: 1, name: 'What do you want to change?' })).toBeTruthy();
+    expect(screen.getByRole('list', { name: 'Ways to start' })).toBeTruthy();
+    expect(container.querySelector('.sh-zone')!.textContent).toContain('Good evening, Florian. Nothing needs you. 1 waiting for code.');
+    expect(container.textContent).not.toContain('you have nothing in progress');
+    const recent = container.querySelector('[aria-labelledby="sh-explorations"]')!;
+    expect(screen.getByRole('heading', { level: 2, name: 'Recent explorations' })).toBeTruthy();
+    expect(container.querySelector('.sh-zone')!.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Purely informative: the cards, no Start card, no badge of what needs you, no "See all" for one.
+    expect(recent.querySelectorAll('.sh-card-item').length).toBe(1);
+    expect(recent.querySelector('.sh-create')).toBeNull();
+    expect(recent.textContent).toContain('Dashboard: orders waiting to ship');
+    expect(screen.queryByRole('link', { name: /See all/ })).toBeNull();
+    // The product with an exploration waiting for code says so; a product without any shows no empty mosaic block.
+    const folders = [...container.querySelectorAll('[aria-labelledby="sh-products"] .sh-cards > li')];
+    expect(folders[0]!.textContent).toContain('Art print shop');
+    expect(folders[0]!.textContent).toContain('1 waiting for code');
+    expect(folders[0]!.textContent).not.toContain('Nothing in progress');
+    expect(folders[0]!.querySelectorAll('.pf-pane').length).toBe(1);
+    expect(folders[1]!.querySelector('.pf-mosaic')).toBeNull();
+    expect(folders[1]!.textContent).toContain('Nothing in progress');
+    await expectNoAxeViolations(container);
+  });
+
+  it('shows the four newest and a way to all of them on Changes when there are more', () => {
+    localStorage.setItem('bridge.home.lead-tour', 'done');
+    const cards = [1, 2, 3, 4, 5, 6].map((n) => exploration(n, { own: false, updated: `2026-10-1${n}T10:00:00Z` }));
+    const { container } = render(createElement(StudioHome, quiet({ explorations: cards })));
+    const recent = container.querySelector('[aria-labelledby="sh-explorations"]')!;
+    expect([...recent.querySelectorAll('.sh-card-title')].map((t) => t.textContent)).toEqual(['Profile page 6', 'Profile page 5', 'Profile page 4', 'Profile page 3']);
+    expect(screen.getByRole('link', { name: 'See all 6' }).getAttribute('href')).toBe('/studio/changes/');
+    // None of them is the viewer's: nothing in progress of their own.
+    expect(container.querySelector('.sh-zone')!.textContent).toContain('Nothing needs you, and you have nothing in progress.');
+  });
+
+  it('keeps "you have nothing in progress" only when nothing at all is open, and no Recent explorations then', () => {
+    const { container } = render(createElement(StudioHome, quiet({ explorations: [] })));
+    expect(container.querySelector('.sh-zone')!.textContent).toContain('Good evening, Florian. Nothing needs you, and you have nothing in progress.');
+    expect(container.querySelector('[aria-labelledby="sh-explorations"]')).toBeNull();
+  });
+});

@@ -50,23 +50,22 @@ export function ExplorationCardItem({ c, showProduct = true }: { c: ExplorationC
 
 /**
  * One product as a folder: the mosaic of its latest screens (one, two, or the newest large and the next two stacked),
- * its name and what is in progress. Content first: nothing explored yet leaves one quiet empty pane, no decoration.
+ * its name and what is in progress. Content first: nothing explored yet shows only the name and the line, no empty pane.
  */
 export function ProductFolderCard({ f }: { f: ProductFolder }) {
   return (
     <li className="sh-card-item">
       <Card interactive padding="none" className="sh-card pf-card">
-        <span className="pf-mosaic" data-panes={Math.max(1, f.shots.length)} aria-hidden="true">
-          {f.shots.length ? (
-            f.shots.map((s, i) => (
+        {/* No capture and no exploration yet: no grey block, only the name and the line. */}
+        {f.shots.length > 0 && (
+          <span className="pf-mosaic" data-panes={f.shots.length} aria-hidden="true">
+            {f.shots.map((s, i) => (
               <span key={s.key} className={`pf-pane pf-pane-${i}`}>
                 <BranchThumb spec={s.spec} size="card" />
               </span>
-            ))
-          ) : (
-            <span className="pf-pane pf-pane-empty" />
-          )}
-        </span>
+            ))}
+          </span>
+        )}
         <div className="sh-card-body">
           <span className="sh-card-head">
             <Link href={f.href} variant="subtle" className="t-body sh-card-title" data-card-primary>

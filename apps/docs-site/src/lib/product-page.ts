@@ -165,3 +165,9 @@ export function emptyProductLine(product: ProductConfig, library: boolean): stri
     ? 'Try a token, a variant or a new component with Claude AI, in a safe copy of the library, before it goes to review.'
     : `Try one of the screens of ${product.name} with Claude AI. Bridge spots what the library does not have, and what works goes to review.`;
 }
+
+/** The quiet line at the end of a product page: "1 archived.", "2 archived.". */
+export const archivedLine = (n: number): string => `${n} archived.`;
+
+/** "See archived": Changes' Archived tab, kept to this product. */
+export const archivedHref = (key: string): string => studioHref(`changes/?state=archived&product=${encodeURIComponent(key.toLowerCase())}`);

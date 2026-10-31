@@ -82,11 +82,11 @@
 
 @keyframes qs-swell {
   from {
-    transform: translate(calc(var(--space-1-5) * -1), 0);
+    transform: translate(calc(var(--space-4) * -1), 0);
   }
 
   to {
-    transform: translate(var(--space-1-5), calc(var(--space-0-5) * -1));
+    transform: translate(var(--space-4), calc(var(--space-1) * -1));
   }
 }
 
@@ -99,11 +99,11 @@
 
 @keyframes qs-rock {
   from {
-    transform: rotate(-1.5deg) translateY(0);
+    transform: rotate(-3deg) translateY(calc(var(--space-0-5) * -1));
   }
 
   to {
-    transform: rotate(1.5deg) translateY(var(--space-0-5));
+    transform: rotate(3deg) translateY(var(--space-1));
   }
 }
 
@@ -113,11 +113,11 @@
 
 @keyframes qs-drift {
   from {
-    transform: translateX(calc(var(--space-3) * -1));
+    transform: translateX(calc(var(--space-10) * -1));
   }
 
   to {
-    transform: translateX(var(--space-4));
+    transform: translateX(var(--space-12));
   }
 }
 
@@ -131,7 +131,7 @@
   }
 
   to {
-    transform: translate(var(--space-6), calc(var(--space-1-5) * -1));
+    transform: translate(var(--space-16), calc(var(--space-3) * -1));
   }
 }
 
@@ -168,7 +168,7 @@
   }
 
   to {
-    transform: scaleX(0.86) skewY(5deg);
+    transform: scaleX(0.78) skewY(9deg);
   }
 }
 

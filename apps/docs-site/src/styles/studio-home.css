@@ -334,12 +334,6 @@
 }
 
 /* Nothing explored yet: one quiet pane, the same size, no art. */
-.pf-pane-empty {
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background: var(--color-bg-subtle);
-}
-
 /* The small panes show the screen, not the plate's caption. */
 .pf-mosaic[data-panes='3'] .pf-pane-1 .bt-plate-text,
 .pf-mosaic[data-panes='3'] .pf-pane-2 .bt-plate-text,
@@ -434,7 +428,7 @@
    them up. */
 .sh-card-foot {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-2);
   min-width: 0;
   margin-block-start: auto;
   padding-block-start: var(--space-1);
@@ -638,6 +632,23 @@
 }
 
 .sc-line {
+  margin: 0;
+}
+
+/* "Where", decided by the product page: a read-only line in the field's place. */
+.sc-where {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.sc-where-label {
+  font-weight: var(--font-weight-medium);
+}
+
+.sc-where-value {
+  display: grid;
+  gap: var(--space-0-5);
   margin: 0;
 }
 

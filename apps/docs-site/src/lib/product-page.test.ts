@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProductConfig } from '@bridge-ds/core';
-import { emptyProductLine, folderLine, productFacts, productFolders, productGroups, productHref, productKeyFromPath, productSummary, stateOfCard } from './product-page';
+import { archivedHref, archivedLine, emptyProductLine, folderLine, productFacts, productFolders, productGroups, productHref, productKeyFromPath, productSummary, stateOfCard } from './product-page';
 import { explorationProductKey, homeExplorations, type ExplorationCard } from './home-explorations';
 import { person } from './home-model';
 
@@ -63,6 +63,13 @@ describe('grouping by where explorations stand', () => {
     expect(folderLine([])).toBe('Nothing in progress');
     expect(productSummary([])).toBe('Nothing explored here yet.');
   });
+
+  it('counts every open lifecycle state on a folder line: never "Nothing in progress" while one waits for code', () => {
+    expect(folderLine([card(1, { stage: 'with-devs', state: 'Waiting for code' })])).toBe('1 waiting for code');
+    expect(folderLine([card(1, { stage: 'with-devs', state: 'Being built' })])).toBe('1 being built');
+    expect(folderLine([card(1, { stage: 'in-review', state: 'In review' })])).toBe('1 in review');
+    expect(folderLine([card(1, { stage: 'found', state: '2 new pieces found' })])).toBe('1 exploring');
+  });
 });
 
 describe('product folders', () => {
@@ -104,6 +111,18 @@ describe('product of an exploration', () => {
     const opts = { products, author: () => person('ann', 'Ann', null) };
     expect(homeExplorations(pulls, opts).map((c) => [c.number, c.productKey])).toEqual([[1, 'library']]);
     expect(homeExplorations(pulls, { ...opts, archived: 'only' }).map((c) => c.number)).toEqual([2]);
+  });
+
+  it('never tags an archived exploration "Exploring": it reads Archived, without a dot', () => {
+    const old = { number: 2, title: 'Old idea', state: 'open', draft: true, labels: [{ name: 'exploration' }, { name: 'archived' }], head: { ref: 'explore/old' }, user: { login: 'ann' }, updated_at: '2026-10-19T10:00:00Z' };
+    const [c] = homeExplorations([old], { products, author: () => person('ann', 'Ann', null), archived: 'only' });
+    expect(c).toMatchObject({ state: 'Archived', tone: 'neutral', dot: false });
+  });
+
+  it('counts the archived ones in one line, with the way to them on Changes', () => {
+    expect(archivedLine(1)).toBe('1 archived.');
+    expect(archivedLine(2)).toBe('2 archived.');
+    expect(archivedHref('Admin-app')).toBe('/studio/changes/?state=archived&product=admin-app');
   });
 });
 

@@ -64,7 +64,7 @@ export interface StartExplorationProps {
    * `choice`: the title of a way-to-start card (the home with nothing at all), the card's primary action.
    */
   appearance?: 'menu' | 'card' | 'button' | 'choice';
-  /** The product the start is for (a product page): preselected in "Where", the person can still pick another. */
+  /** The product the start is for (a product page): "Where" is decided, shown as a read-only line instead of the Select. */
   product?: string | null;
 }
 
@@ -282,18 +282,29 @@ export default function StartExploration({ components, appearance = 'menu', prod
           void start();
         }}
       >
-        <Select
-          label="Where"
-          placeholder="Pick a product or the library"
-          size="lg"
-          options={targets.map((t) => ({ value: t.value, label: t.label, ...(t.description ? { description: t.description } : {}) }))}
-          value={target}
-          onValueChange={(v) => {
-            setTarget(v);
-            setBlocked(null);
-          }}
-          error={shown.product}
-        />
+        {/* A product page already decided where: one read-only line, no dropdown. Elsewhere the person picks. */}
+        {product && picked ? (
+          <dl className="sc-where" data-where-fixed="">
+            <dt className="t-ui sc-where-label">Where</dt>
+            <dd className="sc-where-value">
+              <span className="t-body">{picked.label}</span>
+              {picked.description && <span className="t-ui t-muted">{picked.description}</span>}
+            </dd>
+          </dl>
+        ) : (
+          <Select
+            label="Where"
+            placeholder="Pick a product or the library"
+            size="lg"
+            options={targets.map((t) => ({ value: t.value, label: t.label, ...(t.description ? { description: t.description } : {}) }))}
+            value={target}
+            onValueChange={(v) => {
+              setTarget(v);
+              setBlocked(null);
+            }}
+            error={shown.product}
+          />
+        )}
         <Input
           ref={sentenceRef}
           label="Describe it in a sentence"

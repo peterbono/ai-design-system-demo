@@ -57,6 +57,36 @@ describe('Start an exploration', () => {
     }
   });
 
+  it('on a product page, shows Where as a read-only line with the product, no Select listing the others', async () => {
+    const embed = document.createElement('script');
+    embed.id = 'bridge-repo';
+    embed.type = 'application/json';
+    embed.textContent = JSON.stringify({ products: bridgeConfig.products });
+    document.body.append(embed);
+    try {
+      const user = userEvent.setup();
+      const lib = render(createElement(StartExploration, { components, product: 'library' }));
+      await user.click(screen.getByRole('button', { name: 'Start an exploration' }));
+      await screen.findByRole('dialog');
+      expect(screen.queryByRole('combobox', { name: 'Where' })).toBeNull();
+      const where = document.querySelector('[data-where-fixed]')!;
+      expect(where.querySelector('dt')!.textContent).toBe('Where');
+      expect(where.querySelector('dd')!.textContent).toBe('The libraryTokens, variants, new components');
+      expect(screen.getByRole('dialog').textContent).not.toContain('Art print shop');
+      await expectNoAxeViolations(document.body);
+      await user.keyboard('{Escape}');
+      lib.unmount();
+
+      render(createElement(StartExploration, { components, product: 'admin-app' }));
+      await user.click(screen.getByRole('button', { name: 'Start an exploration' }));
+      await screen.findByRole('dialog');
+      expect(screen.queryByRole('combobox', { name: 'Where' })).toBeNull();
+      expect(document.querySelector('[data-where-fixed] dd')!.textContent).toBe('Art print shop');
+    } finally {
+      embed.remove();
+    }
+  });
+
   it('keeps Something looks wrong as a quiet way out: the component, then its page on the report', async () => {
     const user = userEvent.setup();
     render(createElement(StartExploration, { components }));

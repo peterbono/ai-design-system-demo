@@ -4,19 +4,20 @@
 //     flow, StartExploration). No drawing in the header: the action owns the end of the line.
 //   - One quiet line under the header: "Open the live product", and a warning only when Bridge cannot reach it.
 //   - Its explorations, grouped by where they stand (Exploring, Waiting for code, Being built, In review, Shipped: the lifecycle's words), each
-//     the exploration card of the home (ExplorationCards.tsx); archived ones folded at the end.
+//     the exploration card of the home (ExplorationCards.tsx); archived ones only counted in one quiet line at the end
+//     ("1 archived. See archived"), which opens Changes' Archived tab for this product.
 //   - Nothing explored yet: a calm Field Guide drawing, shown at once, the reason in one sentence and the one action.
 // Self-hosted (pages/studio/products/[key].astro) the key comes from the build; on a team shell
 // (pages/team-shell/products/item.astro) from the address, once the team's settings are read. Reads:
 // scripts/product-page.ts.
 import { useEffect, useState } from 'react';
-import { Accordion, AccordionItem, Link, Skeleton } from '@bridge-ds/react';
+import { Link, Skeleton } from '@bridge-ds/react';
 import type { ProductConfig } from '@bridge-ds/core';
 import { StudioHead } from './StudioHead';
 import { Drawing } from './Drawing';
 import StartExploration from './StartExploration';
 import { ExplorationCardItem } from './ExplorationCards';
-import { emptyProductLine, productFacts, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
+import { archivedHref, archivedLine, emptyProductLine, productFacts, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
 import { studioHref } from '../../../lib/team-path';
 import type { ProductPageData } from '../../../scripts/product-page';
 import type { HomeComponent } from './StudioHome';
@@ -114,17 +115,11 @@ export function ProductPageView({ productKey, data, components }: ProductPageVie
           </section>
         ))
       )}
+      {/* Archived ones are out of the lists: one quiet line, and the way to them on Changes' Archived tab. */}
       {archived.length > 0 && (
-        <Accordion headingLevel={2} className="pp-archived">
-          <AccordionItem value="archived" title="Archived" meta={archived.length}>
-            <p className="t-ui t-muted pp-archived-note">Out of the lists, their previews still alive.</p>
-            <ul className="sh-cards">
-              {archived.map((c) => (
-                <ExplorationCardItem key={c.key ?? c.number} c={c} showProduct={false} />
-              ))}
-            </ul>
-          </AccordionItem>
-        </Accordion>
+        <p className="t-ui t-muted pp-archived" data-archived-line="">
+          <span>{archivedLine(archived.length)}</span> <Link href={archivedHref(product?.key ?? productKey)}>See archived</Link>
+        </p>
       )}
     </div>
   );

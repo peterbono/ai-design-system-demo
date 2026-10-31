@@ -170,7 +170,9 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
     const v = currentViewer();
     const signedIn = Boolean(v) || (!known && Boolean(getToken()));
     const d = data && gone.size ? { ...data, needs: data.needs.filter((r) => !gone.has(r.key)) } : data;
-    const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: (d?.branches.length ?? 0) + (d?.explorations.length ?? 0) });
+    // Nothing needs the viewer: the ways to start stay on top, their work follows under them (`recent`), so their
+    // explorations and library changes never turn the quiet home into the busy one.
+    const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: 0 });
     root = paintStudioHome(
       el,
       {
@@ -192,6 +194,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
         lead: Boolean(d && !d.loading && (d.reviewer || currentAccess()?.admin)),
         join,
         note,
+        recent: true,
       },
       root,
     );
@@ -221,6 +224,9 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
       (fn) => {
         if (mine === run) repaintHome = fn;
       },
+      // The team's products (its bridge.config.json) before the explorations are sorted into them and its product
+      // repositories read: the same settings Changes and the product pages wait for. A failed read keeps the defaults.
+      loadTeamData().catch(() => null),
     );
   }
 
