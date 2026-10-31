@@ -19,6 +19,8 @@ import {
   EXPLORATION_ARCHIVED_LABEL,
   parseExplorationBody,
   promotionPlan,
+  renamedExplorationTitle,
+  withExplorationName,
   type Exploration,
   type ExplorationSource,
   type ExplorationStatus,
@@ -362,6 +364,22 @@ export async function archiveExplorationOnGitHub(gh: GitHubClient, ref: string |
       if (!(e instanceof GitHubError && e.status === 404)) throw e;
     });
   return { number: p.number, url: p.url, branch: p.headRef, archived };
+}
+
+/**
+ * Renames an exploration: the pull request title (same format, its Jira key kept) and the name in its body (the hidden
+ * block and the heading). The branch, and so the preview link, keep their name. Refused on a closed or shipped one.
+ */
+export async function renameExplorationOnGitHub(gh: GitHubClient, ref: string | number, name: string): Promise<{ number: number; url: string; branch: string; name: string; title: string }> {
+  const problem = explorationProblems({ name, slug: 'kept' })[0];
+  if (problem) throw new GitHubError(422, problem);
+  if (!gh.canWrite) throw new GitHubError(401, 'Renaming an exploration needs a GitHub token (pull requests: write).');
+  const p = await findExplorationOnGitHub(gh, ref);
+  if (p.state !== 'open') throw new GitHubError(422, `#${p.number} is ${p.state === 'merged' ? 'shipped' : 'closed'}: only an open exploration is renamed.`);
+  const next = name.trim();
+  const title = renamedExplorationTitle(p.title, next);
+  await gh.updatePullRequest(p.number, { title, body: withExplorationName(p.body, next) });
+  return { number: p.number, url: p.url, branch: p.headRef, name: next, title };
 }
 
 /**

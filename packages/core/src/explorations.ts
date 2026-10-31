@@ -91,6 +91,11 @@ export interface Exploration {
   doneAt?: string | undefined;
   /** The branch head at that moment: a newer head means developers are building on it. */
   doneSha?: string | undefined;
+  /**
+   * ISO date someone said "Back to exploring" (withoutDoneExploring): the body says it runs again even when the
+   * `ready-for-devs` label could not be removed. A later "Done exploring" (doneAt) wins.
+   */
+  reopenedAt?: string | undefined;
 }
 
 const MARK = 'bridge-exploration';
@@ -310,6 +315,7 @@ function explorationBlock(e: Exploration): string {
     ...(e.agent ? { agent: e.agent } : {}),
     ...(e.doneAt ? { doneAt: e.doneAt } : {}),
     ...(e.doneSha ? { doneSha: e.doneSha } : {}),
+    ...(e.reopenedAt ? { reopenedAt: e.reopenedAt } : {}),
   };
   return `<!-- ${MARK} ${JSON.stringify(data).replace(/-->/g, '--\\u003e')} -->`;
 }
@@ -363,15 +369,21 @@ export function isUnlabeledExploration(p: {
 }): boolean {
   if (p.state !== 'open' || p.draft !== true) return false;
   const names = labelNames(p.labels ?? []);
-  if (names.includes(EXPLORATION_LABEL) || names.includes(EXPLORATION_ARCHIVED_LABEL) || names.includes(EXPLORATION_READY_LABEL)) return false;
   const block = parseExplorationBody(p.body);
+  // Back to exploring whose `ready-for-devs` label could not be removed: the body says it runs again.
+  const reopened = Boolean(block?.reopenedAt && !block.doneAt);
+  if (names.includes(EXPLORATION_LABEL) || names.includes(EXPLORATION_ARCHIVED_LABEL) || (names.includes(EXPLORATION_READY_LABEL) && !reopened)) return false;
   if (block?.doneAt) return false;
   return isExplorationBranch(p.headRef) || Boolean(block);
 }
 
 /** "Done exploring" was said: the `ready-for-devs` label, or the date in the exploration block. */
 export function isHandedOff(p: Pick<ExplorationPullLike, 'labels' | 'body'>): boolean {
-  return labelNames(p.labels).includes(EXPLORATION_READY_LABEL) || Boolean(parseExplorationBody(p.body)?.doneAt);
+  const block = parseExplorationBody(p.body);
+  if (block?.doneAt) return true;
+  // Back to exploring stands even when the `ready-for-devs` label could not be removed.
+  if (block?.reopenedAt) return false;
+  return labelNames(p.labels).includes(EXPLORATION_READY_LABEL);
 }
 
 /**
@@ -385,11 +397,13 @@ export function explorationStatus(p: ExplorationPullLike): ExplorationStatus {
   if (p.state !== 'open' && !merged) return 'closed';
   // Done exploring is written in the body: it stands even when the label could not be removed (a token without the
   // right to edit labels), so the exploration never reads as running again.
-  if (p.state === 'open' && !parseExplorationBody(p.body)?.doneAt && (labelNames(p.labels).includes(EXPLORATION_LABEL) || isUnlabeledExploration(p))) return 'active';
+  // Back to exploring is written there too (reopenedAt): running again even with the `ready-for-devs` label left on.
+  const block = parseExplorationBody(p.body);
+  if (p.state === 'open' && !block?.doneAt && (labelNames(p.labels).includes(EXPLORATION_LABEL) || Boolean(block?.reopenedAt) || isUnlabeledExploration(p))) return 'active';
   if (!isHandedOff(p)) return 'promoted';
   if (merged) return 'shipped';
   if (p.draft === false) return 'building';
-  const doneSha = parseExplorationBody(p.body)?.doneSha;
+  const doneSha = block?.doneSha;
   if (doneSha && p.headSha && p.headSha !== doneSha) return 'building';
   return 'ready';
 }
@@ -540,6 +554,45 @@ export function withDoneExploring(body: string | null | undefined, done: { branc
   const nextBlock = explorationBlock({ ...e, doneAt: done.doneAt, ...(done.doneSha ? { doneSha: done.doneSha } : {}) });
   const after = kept.slice(at).replace(block, () => nextBlock).trim();
   return `${kept.slice(0, at).trim()}\n\n${section}\n\n${after}`.trim();
+}
+
+/**
+ * The body after "Back to exploring", the inverse of withDoneExploring: the developer section goes, and the hidden block
+ * loses its done marker (doneAt, doneSha) and records when it runs again (reopenedAt), so the body alone says it is
+ * running even when a label write was refused. Pieces already sent stay recorded.
+ */
+export function withoutDoneExploring(body: string | null | undefined, reopenedAt: string): string {
+  const e = parseExplorationBody(body);
+  const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
+  const kept = (body ?? '').replace(/### For developers[\s\S]*?(?=### |<!-- |$)/, '');
+  if (!e || !block.test(kept)) return kept.trim();
+  const { doneAt: _doneAt, doneSha: _doneSha, ...rest } = e;
+  const at = kept.search(block);
+  const after = kept.slice(at).replace(block, () => explorationBlock({ ...rest, reopenedAt }));
+  return `${kept.slice(0, at).trim()}\n\n${after.trim()}`.trim();
+}
+
+/** A Jira key first in a pull request title ("DS-42 Exploration: ..."), kept when the exploration is renamed. */
+const JIRA_PREFIX = /^([A-Z][A-Z0-9_]*-\d+)\s+/;
+
+/** The pull request title after a rename: the same format (explorationPrTitle), its Jira key kept first. */
+export function renamedExplorationTitle(title: string | null | undefined, name: string): string {
+  const jira = JIRA_PREFIX.exec(title ?? '')?.[1];
+  return `${jira ? `${jira} ` : ''}${explorationPrTitle({ name })}`;
+}
+
+/**
+ * The body after a rename: the name in the hidden block and in the heading ("## Exploration: <name>"). The slug, and
+ * so the branch and its preview link, stay as they are.
+ */
+export function withExplorationName(body: string | null | undefined, name: string): string {
+  const e = parseExplorationBody(body);
+  const next = name.trim();
+  let out = (body ?? '').replace(/^## Exploration: .*$/m, () => `## Exploration: ${next}`);
+  if (!e) return out;
+  const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
+  out = out.replace(block, () => explorationBlock({ ...e, name: next, slug: e.slug || explorationSlug(e.name) }));
+  return out;
 }
 
 export interface PromotionPlan {

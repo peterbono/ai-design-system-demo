@@ -3,12 +3,12 @@
 // pull request (shared with the product branch page, so "not started" is the same rule as #620's "no build of its
 // own"), its commits (one call, for the activity in words), what Vercel reported (the preview), and, only when the
 // files touch tokens or components, the visual impact manifest for a captured image. Writes: Done exploring (the
-// shared dialog) and Archive, with the viewer's token, as on the other exploration pages.
+// shared dialog), and in the "..." menu Rename, Back to exploring and Archive, with the viewer's token, as on the other exploration pages.
 // After Done exploring (Waiting for code, Being built, Shipped) the same page: who said done (Bridge's commit at that
 // moment, else the label event), the developers on it, the three steps, and the library part. A product exploration
 // never checked against the library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption
 // audit with the viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { archiveExplorationOnGitHub, explorationStage, parseExplorationBody, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { archiveExplorationOnGitHub, explorationStage, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
   buildersOf,
@@ -16,6 +16,7 @@ import {
   checkInClaudeLine,
   doneActionFor,
   doneByOf,
+  explorationMenu,
   faceOf,
   gitNamesOf,
   handoffActivity,
@@ -34,7 +35,7 @@ import { pieceRows, type PieceRowView } from '../lib/product-branch';
 import { checkPieces } from './connector-api';
 import { forgetClaudeLink, knownClaudeLink, viewerClaudeLink } from './claude-link';
 import { connectorUrl, copilotSetup, terminalSetup } from '../lib/claude-connector';
-import { ARCHIVED_LINE, explorationKey, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
+import { ARCHIVED_LINE, BACK_TO_EXPLORING_LINE, explorationKey, RENAMED_LINE, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { developerLines, productCrumbs, productProduction, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
 import { touchesVisuals } from '../lib/visual-impact';
 import { jiraKeyOf } from '../lib/vocabulary';
@@ -170,6 +171,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const emailOnProduct = Boolean(own && currentContributor());
   const direct = changesModeOnPage() === 'direct';
   const writable = connected() && direct && keeper && !emailOnProduct;
+  // The "..." menu: Rename, Back to exploring (waiting for code only), Archive, for the same people as Archive.
+  const menu = explorationMenu({ writable, status: r.status });
   // Signed out or without write access (a PM, a stakeholder): no Done exploring card, the preview and activity stay.
   const done: DoneAction = doneActionFor({
     direct,
@@ -216,7 +219,23 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
             reopen(line);
           },
         }),
-      onArchive: writable
+      onRename: menu.rename
+        ? async (name: string) => {
+            await renameExplorationOnGitHub(gh, r.number, name);
+            reopen(RENAMED_LINE);
+            return RENAMED_LINE;
+          }
+        : null,
+      onReopen: menu.reopen
+        ? async () => {
+            const back = await reopenExplorationOnGitHub(gh, r.number);
+            // A token without the right to edit labels: the body says it runs again, designers never read why.
+            if (back.warnings.length) console.warn('Back to exploring:', back.warnings.join(' '));
+            reopen(BACK_TO_EXPLORING_LINE);
+            return BACK_TO_EXPLORING_LINE;
+          }
+        : null,
+      onArchive: menu.archive
         ? async () => {
             await archiveExplorationOnGitHub(gh, r.number, { archived: true });
             reopen(ARCHIVED_LINE);

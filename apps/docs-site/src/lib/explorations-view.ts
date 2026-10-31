@@ -455,6 +455,12 @@ export function takeItLines(branch: string): { branch: string; commands: [string
 /** Archived, in one line next to its action. */
 export const ARCHIVED_LINE = 'Archived: hidden from the lists, its preview still works.';
 
+/** Renamed, in one line: the link and the preview keep their address. */
+export const RENAMED_LINE = 'Renamed. Its link and preview stay the same.';
+
+/** Back to exploring, in one line: the exploration runs again. */
+export const BACK_TO_EXPLORING_LINE = 'Back to exploring. Say Done exploring again when it is ready for developers.';
+
 /**
  * What an exploration's page says when it cannot read it. A product's own repository that is private is not read for
  * people who are signed out (Bridge's proxy reads only public product repositories for visitors), so they are told to

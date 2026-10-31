@@ -6,13 +6,16 @@
 // The pure rules are in explorations.ts (doneExploringPlan, explorationStatus).
 
 import {
+  EXPLORATION_LABEL,
   EXPLORATION_PREFIX,
+  EXPLORATION_READY_LABEL,
   doneExploringPlan,
   explorationStartingPoint,
   explorationStatus,
   isGuardedExploration,
   parseExplorationBody,
   withDoneExploring,
+  withoutDoneExploring,
   type DoneExploringPlan,
   type ExplorationChecks,
   type ExplorationStatus,
@@ -111,5 +114,36 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   const latest = await gh.getPullRequest(p.number).catch(() => p);
   const doneAt = parseExplorationBody(plan.body)?.doneAt ?? (input.date ?? new Date()).toISOString();
   await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneSha, checks }) });
+  return out;
+}
+
+export interface BackToExploring {
+  number: number;
+  url: string;
+  branch: string;
+  /** Labels that could not be changed (a token without the right to edit labels): the body still says it runs. */
+  warnings: string[];
+}
+
+/**
+ * "Back to exploring": undoes Done exploring while no developer has pushed since (status ready, not building). The
+ * body loses the developer section and the done marker first, which is enough on its own (explorationStatus reads it);
+ * then the `exploration` label comes back and `ready-for-devs` goes. A refused label write is a warning, never a
+ * failure. Pieces already sent to the library stay sent.
+ */
+export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { date?: Date | undefined } = {}): Promise<BackToExploring> {
+  if (!gh.canWrite) throw new GitHubError(401, 'Going back to exploring needs a GitHub token (pull requests: write).');
+  const p = await findExplorationOnGitHub(gh, ref);
+  const status = explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body, headSha: p.headSha, draft: p.draft });
+  if (status === 'active') throw new GitHubError(422, `#${p.number} is still being explored.`);
+  if (status === 'building') throw new GitHubError(422, `Developers already work on #${p.number}: it stays with them.`);
+  if (status !== 'ready') throw new GitHubError(422, `#${p.number} is ${status === 'shipped' ? 'shipped' : status === 'closed' ? 'closed' : 'in review'}: only an exploration waiting for code goes back to exploring.`);
+  const out: BackToExploring = { number: p.number, url: p.url, branch: p.headRef, warnings: [] };
+  await gh.updatePullRequest(p.number, { body: withoutDoneExploring(p.body, (opts.date ?? new Date()).toISOString()) });
+  const x = gh.withBranchPrefix(EXPLORATION_PREFIX);
+  if (!(await x.addLabels(p.number, [EXPLORATION_LABEL]))) out.warnings.push(`The ${EXPLORATION_LABEL} label could not be added back.`);
+  await x.removeLabel(p.number, EXPLORATION_READY_LABEL).catch((e: Error) => {
+    if (!(e instanceof GitHubError && e.status === 404)) out.warnings.push(`The ${EXPLORATION_READY_LABEL} label is still on (${e.message}).`);
+  });
   return out;
 }
