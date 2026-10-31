@@ -4,7 +4,7 @@
 // The Library is the site; the Studio is a space inside it:
 //   Library  the public site, reads the latest release of main. No token needed. No space switch: one quiet
 //            "Open Studio" button in the header is the team entry.
-//   Studio   changes it: tokens, changes (in review and history), quality, settings. Its own header (Bridge Studio) and
+//   Studio   changes it: tokens, changes (in progress and shipped), being built, quality, settings. Its own header (Bridge Studio) and
 //            nav; "Library, view published library" at the bottom of its nav is the way back.
 //
 // Side nav rules (apps/docs-site/DESIGN.md): at most 7 top-level entries per space, no group headings, one count
@@ -77,11 +77,13 @@ export const FOUNDATIONS: NavItem[] = LIBRARY_FOUNDATION_PAGES.map((p) => ({ hre
 /** The Use pages: one list with a team's Library (lib/library-shells.ts), at this site's root. */
 export const LIBRARY_USE: NavItem[] = LIBRARY_USE_PAGES.map((p) => ({ href: `/${p.route}`, label: p.label, icon: p.icon as IconName, meta: p.meta }));
 
-/** Changes is one page with two views (In review, History); the old Drafts, Branches, Reviews, Versions and Visual
- * impact pages redirect to the right view (lib/redirects.ts). */
+/** Changes is one page, its tabs from in progress to Shipped; the old Drafts, Branches, Reviews and Visual impact pages
+ * redirect to it, Versions and History to the Library changelog or the Shipped tab (lib/redirects.ts,
+ * lib/history-moved). */
 export const STUDIO_CHANGES_HREF = '/studio/changes/';
 
-/** Being built: the build requests sent from Figma (docs/BUILD-REQUESTS.md), read only. */
+/** Being built: the build requests sent from Figma (docs/BUILD-REQUESTS.md), read only, and on top the next release
+ * for whoever may publish it. */
 export const STUDIO_BUILDING_HREF = '/studio/building/';
 
 /** Quality is one page: the contrast gate, token validation, docs completeness and adoption. The old Checks and
@@ -118,8 +120,8 @@ export function libraryNav(): NavEntry[] {
 export function studioNav(): NavEntry[] {
   return [
     { href: STUDIO_HOME, label: 'Home', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
-    { href: STUDIO_CHANGES_HREF, label: VOCAB.Branches, icon: 'branch', badge: 'reviews', meta: 'Changes in review, explorations and the history of token changes added to the library, with undo' },
-    { href: STUDIO_BUILDING_HREF, label: 'Being built', icon: 'wrench', meta: 'Changes sent from Figma that developers are building, and where each one stands' },
+    { href: STUDIO_CHANGES_HREF, label: VOCAB.Branches, icon: 'branch', badge: 'reviews', meta: 'Changes in review, explorations, and everything that shipped, by month' },
+    { href: STUDIO_BUILDING_HREF, label: 'Being built', icon: 'wrench', meta: 'Changes sent from Figma that developers are building, where each one stands, and the next release' },
     { href: '/studio/components/', label: 'Components', icon: 'diamonds', branchAware: true, meta: 'Status, tokens, code and Figma links per component' },
     { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', branchAware: true, meta: 'Edit tokens into a draft, with live preview and guardrails' },
     { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', branchAware: true, meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },

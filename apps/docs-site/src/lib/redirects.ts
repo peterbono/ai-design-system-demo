@@ -9,14 +9,15 @@ export const REDIRECTS: Record<string, string> = {
   '/for-ai-agents': '/agents/',
   '/connect/mcp': '/agents/',
   '/reviews': '/studio/changes/',
-  '/history': '/studio/changes/?view=history',
+  // History moved: the token changes to the Library changelog, what shipped to Changes > Shipped (lib/history-moved).
+  '/history': '/changelog/#token-changes',
   '/branches': '/studio/changes/#other-branches',
-  // Drafts, Branches, Reviews, Versions and Visual impact became one Changes page (In review, History).
+  // Drafts, Branches, Reviews and Visual impact became one Changes page; Versions is the Library changelog's token changes.
   '/studio/drafts': '/studio/changes/',
   '/studio/reviews': '/studio/changes/',
   '/studio/branches': '/studio/changes/#other-branches',
   '/studio/visual-impact': '/studio/changes/',
-  '/studio/versions': '/studio/changes/?view=history',
+  '/studio/versions': '/changelog/#token-changes',
   '/adoption': '/studio/quality/',
   // Checks and Adoption became one Quality page; each audit report has its own route under it.
   '/studio/checks': '/studio/quality/',

@@ -1,30 +1,28 @@
-// Changes > History: the next release on top (from the release pull request the changesets action keeps open, with
-// the action owned by whoever holds the ship right), then one timeline of shipped token changes grouped by release,
-// an entry detail with the designer diff, and "Undo this change" (the side panel in ./planner). Real history only in
-// production; in development the demo switch at the bottom swaps in the fixture report and a banner. Filters wait
-// behind the Filter button.
+// Library > Changelog > Token and guidance changes, by release (components/TokenChanges.astro, #token-changes): one
+// timeline of merged token and usage guidance changes grouped by release, and an entry detail in place (?entry=) with
+// the designer diff. Read only: undoing is Studio's (Tokens, "Restore this value"). Moved from Changes > History
+// (lib/history-moved): the next release is on Being built (scripts/next-release.ts), what shipped is the Shipped tab
+// of Changes. Real history only in production; in development the demo switch at the bottom swaps in the fixture
+// report and a banner. Filters wait behind the Filter button.
 import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge-ds/core';
 import { closingIssueNumbers, parseSuggestionOverrideComment, publishedWithoutReview, tier1PublishOf, type SuggestionOverrideRecord } from '@bridge-ds/core';
 import { authorsOf, countsLabel, shortDate, viewTimeline } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';
-import { currentViewer, esc, ghGet, hasWorkingToken, signedInWithGitHub, initGitHubConnect, readRepo } from '../github-session';
+import { esc, ghGet, hasWorkingToken, signedInWithGitHub, initGitHubConnect, readRepo } from '../github-session';
 import { mdTitleHtml } from '../../lib/markdown';
-import { approvalNeedLabel, releasePull, type QueuePull } from '../../lib/review-queue';
-import { historySummary, parseReleaseBody, releaseCard } from '../../lib/release-view';
-import { owners, shippers } from '../pr-status';
-import { loadTeams } from '../teams';
-import { openRevertPlanner } from './planner';
+import { approvalNeedLabel } from '../../lib/review-queue';
+import { historySummary } from '../../lib/release-view';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, teamEntryReview, type Loaded } from './state';
-import { isHosted } from '../../lib/team-path';
+import { isHosted, studioHref, studioHrefAt, teamHref } from '../../lib/team-path';
+import { libraryFromPath, ownLibrary, sameTeam } from '../../lib/library-shells';
+import { TOKEN_CHANGES_ID } from '../../lib/history-moved';
 import { parseOverrideComment, type OverrideRecord } from '../../lib/review-rules';
 import { overrideLine, suggestionOverrideLine } from '../../lib/history-view';
 import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
 import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
 import { agentMade } from '../../lib/work-nature';
 import { displayName, paintPeople, personHtml } from '../people';
-import { markLogins } from '../../lib/people';
 import { attrUrl } from '../../lib/html';
-import { studioHref } from '../../lib/team-path';
 import { GUIDANCE_TAG, groupCountLine, isGuidanceEntry } from '../../lib/history-guidance';
 
 /** Claude made the change when its description carries an AI agent marker (lib/work-nature). */
@@ -37,12 +35,27 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 /** The Token filter field. The DS Input's Field gives the input its own id, so the page marks it with an attribute. */
 const tokenField = () => document.querySelector<HTMLInputElement>('[data-hs-token]')!;
 let L: Loaded | null = null;
-const BASE = studioHref('changes/?view=history');
+
+/** A team's Library (/library/<owner>/<repo>/changelog/), not this site's own: read only, the team's repository. */
+const teamLibrary = () => {
+  const t = libraryFromPath(location.pathname);
+  return t && !sameTeam(t, ownLibrary()) ? t : null;
+};
+/** The list of this page, on the token changes. */
+const listHref = () => `${location.pathname}#${TOKEN_CHANGES_ID}`;
+/** The repository the history is read from: the one the report names, else this page's. */
+const ghRepo = (): { owner: string; repo: string } => {
+  const r = L?.config.repo;
+  return r ? { owner: r.owner, repo: r.name } : (teamLibrary() ?? readRepo());
+};
+/** A Studio address of the library this page documents: the team's Studio on a team's Library. */
+const studioOf = (route: string) => {
+  const t = teamLibrary();
+  return t ? studioHrefAt(teamHref(t.owner, t.repo, null), route) : studioHref(route);
+};
 
 const repoUrl = () => {
-  const r = L?.config.repo;
-  if (r) return `https://github.com/${r.owner}/${r.name}`;
-  const x = readRepo();
+  const x = ghRepo();
   return `https://github.com/${x.owner}/${x.repo}`;
 };
 
@@ -57,7 +70,7 @@ function filter(): HistoryFilter {
   return { ...(token ? { token } : {}), ...(author ? { author } : {}), ...(tier ? { tier: tier as 1 | 2 | 3 } : {}) };
 }
 
-const entryHref = (e: HistoryEntry) => `${BASE}&entry=${encodeURIComponent(e.id)}`;
+const entryHref = (e: HistoryEntry) => `${location.pathname}?entry=${encodeURIComponent(e.id)}#${TOKEN_CHANGES_ID}`;
 const dayMonth = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -101,10 +114,9 @@ function paintList() {
 
   // No report: why (signed out on a team page, or history that could not be read), with the one way forward.
   const note = L?.data.realNote ?? null;
-  // Nothing to filter without a report: the line and the Filter button wait for one. Signing in is offered once, by
-  // the page (the guest banner and the side bar), not again here.
-  const head = document.querySelector<HTMLElement>('.cg-hs-head');
-  if (head) head.hidden = !report;
+  // Nothing to filter without a report: the Filter button waits for one. Signing in is offered once, by the page (the
+  // guest banner and the side bar), not again here.
+  $('hs-filter-toggle').hidden = !report;
   if (!report && note && !demo) {
     $('hs-filters').hidden = true;
     tl.innerHTML = `<div class="cg-empty"><p class="cg-muted">${esc(note)}</p></div>`;
@@ -112,7 +124,7 @@ function paintList() {
     return;
   }
   if (!report || !entries.length) {
-    tl.innerHTML = `<p class="cg-muted">No merged change yet. Token and usage guidance changes land here once they are merged.</p>`;
+    tl.innerHTML = `<p class="cg-muted">Nothing added to the library yet. Token and usage guidance changes land here once they are in the library.</p>`;
     $('hs-none').hidden = true;
     return;
   }
@@ -127,7 +139,7 @@ function paintList() {
       const facts = [groupCountLine(g.items), g.breaking ? 'breaking' : '', `${g.pending ? 'latest' : 'released'} ${shortDate(g.date)}`].filter(Boolean).join(', ');
       const reviewable = g.items.filter((e) => !e.bulk);
       const imports = g.items.filter((e) => e.bulk);
-      return `<section class="cg-rel" aria-label="${esc(name)}"><h2 class="cg-rel-h">${esc(name)} <span class="cg-rel-meta">${esc(facts)}</span></h2>
+      return `<section class="cg-rel" aria-label="${esc(name)}"><h3 class="cg-rel-h">${esc(name)} <span class="cg-rel-meta">${esc(facts)}</span></h3>
         <ul class="fg-card cg-list">${reviewable.map((e) => row(e, demo)).join('')}${importsRow(imports, demo)}</ul></section>`;
     })
     .join('') + cap;
@@ -135,14 +147,14 @@ function paintList() {
 }
 
 /** A team's entries carry no diff from the build: it is read from GitHub when the entry opens. */
-const teamDiff = (e: HistoryEntry, demo: boolean) => !demo && isHosted() && !e.bulk && Boolean(e.baseSha);
+const teamDiff = (e: HistoryEntry, demo: boolean) => !demo && (isHosted() || teamLibrary() !== null) && !e.bulk && Boolean(e.baseSha);
 
-/** A usage guidance change: what it changed in words, and the way to its page; no token diff, no Undo. */
+/** A usage guidance change: what it changed in words, and the way to its page; no token diff. */
 function paintGuidanceDetail(e: HistoryEntry, ref: string) {
-  const at = e.pr ? studioHref(`changes/?pr=${e.pr.number}`) : null;
-  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(title(e))}</span></nav>
-    <header class="zone cg-pr-open">
-      <h2 class="cg-pr-title" tabindex="-1">${esc(withoutJiraKey(historySummary(e, { full: true })))}</h2>
+  const at = e.pr ? studioOf(`changes/?pr=${e.pr.number}`) : null;
+  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${attrUrl(listHref())}" data-hs-back>Token changes</a><span aria-hidden="true">/</span><span>${esc(title(e))}</span></nav>
+    <header class="fg-card cg-pr-open">
+      <h3 class="cg-pr-title" tabindex="-1">${esc(withoutJiraKey(historySummary(e, { full: true })))}</h3>
       <p class="cg-pr-meta"><span class="cg-who">${personHtml(e.author, { agent: agentOf(e), size: 'sm' })}<span>, ${esc(shortDate(e.date))}</span></span><span>${esc([GUIDANCE_TAG, e.version && e.version !== 'Unreleased' ? e.version : 'next release'].join(', '))}</span>${ref}</p>
       <p class="cg-pr-state">Usage guidance changed. No token changed.</p>
       ${at ? `<p class="cg-pr-cta"><a class="btn btn-secondary" href="${attrUrl(at)}">See the change</a></p>` : ''}
@@ -177,13 +189,12 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
   // The developer view of it (the merged branch, else what landed on main) is one quiet link on the author line.
   const ref = demo ? '<span>Fixture change</span>' : githubRef(e);
   const facts = [e.bulk ? 'Import' : approvalNeedLabel(e.tier), e.breaking ? 'breaking' : '', e.version && e.version !== 'Unreleased' ? e.version : 'next release'].filter(Boolean).join(', ');
-  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(title(e))}</span></nav>
-    <header class="zone cg-pr-open">
-      <h2 class="cg-pr-title" tabindex="-1">${esc(withoutJiraKey(historySummary(e, { full: true })))}</h2>
+  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${attrUrl(listHref())}" data-hs-back>Token changes</a><span aria-hidden="true">/</span><span>${esc(title(e))}</span></nav>
+    <header class="fg-card cg-pr-open">
+      <h3 class="cg-pr-title" tabindex="-1">${esc(withoutJiraKey(historySummary(e, { full: true })))}</h3>
       <p class="cg-pr-meta"><span class="cg-who">${personHtml(e.author, { agent: agentOf(e), size: 'sm' })}<span>, ${esc(shortDate(e.date))}</span></span><span>${esc(facts)}</span>${ref}</p>
       <p class="cg-pr-state">${e.why !== e.title && e.why.replace(/\.$/, '') !== withoutJiraKey(historySummary(e, { full: true })).replace(/\.$/, '') ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
       <p class="cg-pr-state hs-override" data-hs-override hidden></p>
-      ${e.bulk ? '' : `<p class="cg-pr-cta"><button type="button" class="btn btn-primary" data-hs-undo="${esc(e.id)}">Undo this change</button></p>`}
     </header>
     <div class="cg-secs">
       <details class="cg-sec" open><summary class="cg-sec-head"><span class="cg-sec-title">Token changes</span><span class="cg-sec-meta">${esc(countsLabel(e.counts))}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${diff}</div></details>
@@ -216,7 +227,7 @@ const overrides = new Map<number, Promise<OverrideRecord | null>>();
 async function paintOverride(e: HistoryEntry, n: number) {
   let read = overrides.get(n);
   if (!read) {
-    const r = readRepo();
+    const r = ghRepo();
     read = ghGet<{ body?: string | null }[]>(`/repos/${r.owner}/${r.repo}/issues/${n}/comments?per_page=100`)
       .then((f) => f.data.map((c) => parseOverrideComment(c.body)).filter((x): x is OverrideRecord => x !== null && x.merged).pop() ?? null)
       .catch(() => null);
@@ -241,7 +252,7 @@ const suggestionOverrides = new Map<number, Promise<SuggestionOverrideRecord | n
 async function paintSuggestionOverride(e: HistoryEntry, n: number, el: HTMLElement) {
   let read = suggestionOverrides.get(n);
   if (!read) {
-    const r = readRepo();
+    const r = ghRepo();
     read = ghGet<{ body?: string | null }>(`/repos/${r.owner}/${r.repo}/pulls/${n}`)
       .then(async (pr) => {
         for (const issue of closingIssueNumbers(pr.data.body)) {
@@ -271,7 +282,7 @@ const published = new Map<number, Promise<string | null>>();
 async function paintPublished(e: HistoryEntry, n: number, el: HTMLElement) {
   let read = published.get(n);
   if (!read) {
-    const r = readRepo();
+    const r = ghRepo();
     read = ghGet<{ state: string; body?: string | null }[]>(`/repos/${r.owner}/${r.repo}/pulls/${n}/reviews?per_page=100`)
       .then((f) => tier1PublishOf(f.data))
       .catch(() => null);
@@ -283,116 +294,59 @@ async function paintPublished(e: HistoryEntry, n: number, el: HTMLElement) {
   el.hidden = false;
 }
 
-/** Paints the History view from the URL (?view=history, &entry=). */
+/** Paints the token changes from the URL (?entry=). */
 export function routeHistory() {
   const id = new URLSearchParams(location.search).get('entry');
   const { report, demo } = current();
   const e = id && report ? report.entries.find((x) => x.id === id) : undefined;
-  const head = document.querySelector<HTMLElement>('.cg-hs-head');
+  const toggle = $('hs-filter-toggle');
   if (e && report) {
     paintDetail(e, demo);
     $('hs-list-view').hidden = true;
-    if (head) head.hidden = true;
+    toggle.hidden = true;
     $('hs-filters').hidden = true;
     $('hs-detail').hidden = false;
-    // One Harbor zone per screen: the detail header is the zone, the next release card waits on the list.
-    $('hs-next').hidden = true;
-    ($('hs-detail').querySelector('h2') as HTMLElement | null)?.focus();
+    ($('hs-detail').querySelector('h3') as HTMLElement | null)?.focus();
   } else {
     $('hs-detail').hidden = true;
     $('hs-list-view').hidden = false;
-    $('hs-next').hidden = false;
-    if (head) head.hidden = false;
-    $('hs-filters').hidden = $('hs-filter-toggle').getAttribute('aria-expanded') !== 'true';
+    toggle.hidden = false;
+    $('hs-filters').hidden = toggle.getAttribute('aria-expanded') !== 'true';
     paintList();
   }
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// Next release: the release pull request in plain words, the action for whoever holds the ship right
-
-interface ReleasePullLike extends QueuePull {
-  number: number;
-  body: string | null;
-}
-
-const at = (xs: string[]) => (xs.length <= 2 ? xs.map((x) => `@${x}`).join(' or ') : `${xs.slice(0, 2).map((x) => `@${x}`).join(', ')} or ${xs.length - 2} more`);
-
-let release: ReleasePullLike | null = null;
-
-/** Fills the "Next release" card. Without a release pull request the build-time line stays. Never writes. */
-function paintNextRelease() {
-  if (!release) return;
-  const card = releaseCard(parseReleaseBody(release.body));
-  $('hs-next-title').textContent = card.breaking ? `${card.title} Some of it needs action from product teams.` : card.title;
-  const lines = $('hs-next-lines');
-  lines.innerHTML = [...card.lines, ...(card.tools ? [card.tools] : [])].map((l) => `<li>${esc(l)}</li>`).join('');
-  lines.hidden = !lines.innerHTML;
-  // Publishing is merging the release: whoever holds the merge right (governance.rights), else the owners.
-  const o = owners();
-  const holders = (shippers() ?? [...new Set([...o.design, ...o.tech])]).map((x) => x.replace(/^@/, ''));
-  const viewer = hasWorkingToken() ? currentViewer()?.login : null;
-  const mine = Boolean(viewer && holders.some((h) => h.toLowerCase() === viewer.toLowerCase()));
-  const cta = $<HTMLAnchorElement>('hs-next-cta');
-  cta.href = studioHref(`changes/?pr=${release.number}`);
-  cta.dataset.openPr = String(release.number);
-  cta.hidden = !mine;
-  const who = $('hs-next-who');
-  who.hidden = mine;
-  who.innerHTML = markLogins(`${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="${studioHref(`changes/?pr=${esc(String(release.number))}`)}" data-open-pr="${esc(String(release.number))}">See what it holds</a>`);
-  void paintPeople(who);
-}
-
-function loadNextRelease() {
-  const r = readRepo();
-  ghGet<ReleasePullLike[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
-    .then((f) => {
-      release = releasePull(f.data);
-      paintNextRelease();
-    })
-    .catch(() => {
-      /* rate limited with nothing saved: the build-time line stays */
-    });
-}
-
 let started = false;
 
-/** Wires the History view once, the first time it is shown, then loads the history data. */
+/** Wires the token changes once, then loads the history data. */
 export function initHistory() {
   if (started) {
     routeHistory();
     return;
   }
   started = true;
-  // The card's action depends on who is connected: repaint it when the viewer changes.
-  // GitHub teams in the owner lists count as their members once read (no request without teams).
-  initGitHubConnect(() => void loadTeams().then(paintNextRelease));
-  loadNextRelease();
+  // The GitHub link of an entry depends on who is connected (a GitHub account, not an email sign-in).
+  initGitHubConnect(() => L && routeHistory());
+  window.addEventListener('popstate', () => L && routeHistory());
   document.addEventListener('click', (ev) => {
     const t = ev.target as HTMLElement;
     const open = t.closest<HTMLAnchorElement>('[data-hs-open]');
     if (open && !(ev as MouseEvent).metaKey && !(ev as MouseEvent).ctrlKey) {
       ev.preventDefault();
-      history.pushState({}, '', `${BASE}&entry=${encodeURIComponent(open.dataset.hsOpen!)}`);
+      history.pushState({}, '', `${location.pathname}?entry=${encodeURIComponent(open.dataset.hsOpen!)}#${TOKEN_CHANGES_ID}`);
       routeHistory();
       return;
     }
     if (t.closest('[data-hs-back]')) {
       ev.preventDefault();
-      history.pushState({}, '', BASE);
+      history.pushState({}, '', listHref());
       routeHistory();
+      document.getElementById(TOKEN_CHANGES_ID)?.scrollIntoView();
       return;
     }
     if (t.closest('[data-hs-clear]')) {
       ($('hs-filters') as HTMLFormElement).reset();
       paintList();
-      return;
-    }
-    const undo = t.closest<HTMLElement>('[data-hs-undo]');
-    if (undo) {
-      const { report, demo } = current();
-      const e = report?.entries.find((x) => x.id === undo.dataset.hsUndo);
-      if (e && report) void openRevertPlanner(e, report, demo);
     }
   });
   const toggle = $('hs-filter-toggle');
@@ -404,7 +358,7 @@ export function initHistory() {
   });
   document.getElementById('hs-demo')?.addEventListener('click', () => setDemo(!demoOn()));
   document.addEventListener(DEMO_EVENT, () => {
-    history.replaceState({}, '', BASE);
+    history.replaceState({}, '', listHref());
     routeHistory();
   });
   let timer = 0;
@@ -421,7 +375,7 @@ export function initHistory() {
     setSelect(TIER, { value: '' });
     setTimeout(paintList, 0);
   });
-  // Deep link from a token drawer: ?view=history&token=color.text.muted opens the filters, prefilled.
+  // Deep link from a token drawer: ?token=color.text.muted opens the filters, prefilled.
   const token = new URLSearchParams(location.search).get('token');
   const tokenInput = document.querySelector<HTMLInputElement>('[data-hs-token]');
   if (token && tokenInput) {

@@ -1,0 +1,21 @@
+---
+// Being built > the next release (the end of the build pipeline: built, then released): the release pull request the
+// changesets action keeps open, in plain words, with "Review and publish" for whoever holds the ship right. Shown
+// only when there is something to publish and the viewer can publish it; it is then the page's one Harbor zone (the
+// list's sentence steps down, styles/building.css). Painted by scripts/next-release.ts. Self-hosted and team shell.
+import ButtonLink from './ds/ButtonLink';
+import { NEXT_RELEASE_ID } from '../lib/history-moved';
+import { studioHref } from '../lib/team-path';
+---
+
+<section class="zone bb-release" id={NEXT_RELEASE_ID} aria-live="polite" aria-labelledby="bb-release-title" hidden>
+  <div class="bb-release-text">
+    <p class="bb-release-title" id="bb-release-title">Next release</p>
+    <ul class="bb-release-lines" id="bb-release-lines" hidden></ul>
+  </div>
+  <ButtonLink variant="primary" href={studioHref('changes/')} id="bb-release-cta">Review and publish</ButtonLink>
+</section>
+<script>
+  import { initNextRelease } from '../scripts/next-release';
+  initNextRelease();
+</script>

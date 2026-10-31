@@ -12,9 +12,9 @@ describe('teamBranchesRoute', () => {
     expect(teamBranchesRoute('?pr=-2')).toEqual({ view: 'list' });
   });
 
-  it('opens History, a request in place and the exploration start form, like the self-hosted page', () => {
-    expect(teamBranchesRoute('?view=history')).toEqual({ view: 'history' });
-    expect(teamBranchesRoute('?view=history&entry=abc')).toEqual({ view: 'history' });
+  it('opens a request in place and the exploration start form, like the self-hosted page', () => {
+    // The old History moved (lib/history-moved): its address is redirected before routing, else it is the list.
+    expect(teamBranchesRoute('?view=history')).toEqual({ view: 'list' });
     expect(teamBranchesRoute('?request=9')).toEqual({ view: 'request', n: 9 });
     expect(teamBranchesRoute('?view=explorations&start=new')).toEqual({ view: 'explorations', forRequest: null });
     expect(teamBranchesRoute('?view=explorations&for=9')).toEqual({ view: 'explorations', forRequest: 9 });

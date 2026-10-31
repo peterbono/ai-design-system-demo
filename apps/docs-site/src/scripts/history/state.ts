@@ -1,4 +1,5 @@
-// History data in the browser: one fetch of /studio/versions/data.json per page, and the demo toggle. Real and demo
+// History data in the browser (the Library changelog's token changes, the token drawer's History): one fetch of
+// /studio/versions/data.json per page, and the demo toggle. Real and demo
 // reports stay separate; the toggle only picks which one a view shows, and every demo view carries a banner.
 // On a team shell (multi-team PR 3b) there is no build-time history: it is read from GitHub with core
 // loadGitHubHistory, lazily (only when a view asks), when signed in (it costs a few reads per change); a guest reads
@@ -10,6 +11,13 @@ import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import type { HistoryData } from '../../lib/history';
 import { isHosted, studioHref } from '../../lib/team-path';
 import { loadTeamData, teamClient } from '../team-data';
+import { libraryFromPath, ownLibrary, sameTeam } from '../../lib/library-shells';
+
+/** A team's Library page, not this site's own Library. */
+const teamLibraryPage = (): boolean => {
+  const t = typeof location === 'undefined' ? null : libraryFromPath(location.pathname);
+  return Boolean(t && !sameTeam(t, ownLibrary()));
+};
 import { guestHistory } from '../guest-activity';
 import { explorerConfig } from '../explorer/data';
 
@@ -26,7 +34,8 @@ export const teamHistoryCapNote = (limit: number) => `The ${limit} latest token 
 let data: Promise<HistoryData> | null = null;
 
 export function loadHistoryData(): Promise<HistoryData> {
-  data ??= isHosted()
+  // A team's Studio or a team's Library (its changelog): the team's history, never this build's.
+  data ??= isHosted() || teamLibraryPage()
     ? teamHistoryData()
     : fetch(studioHref('versions/data.json')).then((r) => {
         if (!r.ok) throw new Error(`History data is missing (${r.status}). Rebuild the site.`);

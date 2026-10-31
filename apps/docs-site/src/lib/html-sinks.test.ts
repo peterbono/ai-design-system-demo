@@ -43,6 +43,7 @@ const ALLOWED: Record<string, string> = {
   'scripts/explorer/review.ts': 'esc, attrUrl, cssValue',
   'scripts/github-session.ts': 'esc, attrUrl (showGhError, prLinksHtml)',
   'scripts/history/page.ts': 'esc, attrUrl on PR URLs',
+  'scripts/next-release.ts': 'esc on each release line (next-release.test.ts)',
   'scripts/history/planner.ts': 'esc, attrUrl, hex-only swatches',
   'scripts/history/token-panel.ts': 'esc, hex-only swatches',
   'scripts/integrations.ts': 'prLinksHtml (attrUrl)',

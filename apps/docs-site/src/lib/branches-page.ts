@@ -1,12 +1,12 @@
 // The Branches page (/studio/changes/), the rules and the words: all the work, not a second triage page. One
 // segmented control says where the work stands (All, Waiting on me, each state, Archived), one select says whose it is
 // (Everyone, You, each designer), another its kind; the rows are grouped by the product they belong
-// to, merged and closed branches stay behind one muted line, and token branches can be checked to preview them
-// together (lib/combine-changes holds the combination itself). Pure: no DOM, no fetch. Unit tested in
+// to, and token branches can be checked to preview them
+// together (lib/combine-changes holds the combination itself). What shipped has its own tab (Shipped: newest first,
+// by month), the history of the work; the library's token changelog lives in the Library (Changelog). Pure: no DOM, no fetch. Unit tested in
 // branches-page.test.ts; the page is components/ds/studio/BranchesList.tsx, fed by scripts/reviews.ts.
 import { DEFAULT_PRODUCTS, productOfBranch, type ProductConfig } from '@bridge-ds/core';
 import { MAX_TOGETHER } from './combine-changes';
-import type { Lifecycle } from './change-status';
 import { STATUS_WORDS, VOCAB } from './vocabulary';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -14,11 +14,12 @@ import { STATUS_WORDS, VOCAB } from './vocabulary';
 
 /**
  * The tabs of the page: where each change stands, in the words its tag shows. All (every open change, the default),
- * Waiting on me (the one rule of every surface, lib/waiting-on), then each state, Archived last. Whose work it is
+ * Waiting on me (the one rule of every surface, lib/waiting-on), then each state, Shipped (what was added to the
+ * library or to a product, newest first: the history of the work), Archived last. Whose work it is
  * belongs to the people filter only (You, then each designer by name), so the tabs never mix people and states.
  * Being built has its own page (Studio > Being built): those rows stay under All.
  */
-export type StateTab = 'all' | 'waiting' | 'not-started' | 'exploring' | 'draft' | 'review' | 'code' | 'archived';
+export type StateTab = 'all' | 'waiting' | 'not-started' | 'exploring' | 'draft' | 'review' | 'code' | 'shipped' | 'archived';
 
 export const STATE_TABS: { value: StateTab; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -28,6 +29,7 @@ export const STATE_TABS: { value: StateTab; label: string }[] = [
   { value: 'draft', label: STATUS_WORDS.draft },
   { value: 'review', label: STATUS_WORDS.inReview },
   { value: 'code', label: STATUS_WORDS.waitingShort },
+  { value: 'shipped', label: 'Shipped' },
   { value: 'archived', label: 'Archived' },
 ];
 
@@ -41,7 +43,7 @@ export const STABLE_TABS: readonly StateTab[] = ['all', 'waiting'];
  * "Exploring", "Waiting for code"; not read yet: Exploring, as its page says while its files load); a branch follows
  * its lifecycle, a Figma branch waiting for a developer under Waiting for code.
  */
-export function stateOf(r: { lifecycle: string; pill: { label: string } | null }): Exclude<StateTab, 'all' | 'waiting' | 'archived'> | null {
+export function stateOf(r: { lifecycle: string; pill: { label: string } | null }): Exclude<StateTab, 'all' | 'waiting' | 'shipped' | 'archived'> | null {
   if (r.lifecycle === 'exploration') {
     const l = r.pill?.label ?? null;
     if (l === 'Not started') return 'not-started';
@@ -73,7 +75,8 @@ export interface ChangesFilters {
 /**
  * The filters the page opens on, from the address: ?state=, ?kind=, ?people= (a designer key, or "you"). Old links
  * keep working: ?who=waiting opens Waiting on me, ?who=mine and ?view=mine open on You, ?by= is the old people
- * parameter, ?archived=1 opens Archived and ?status=draft|ready|waiting the matching state.
+ * parameter, ?archived=1 opens Archived, ?status=draft|ready|waiting the matching state, and the old merged line
+ * (?status=merged|shipped|closed) and History (?view=history) open Shipped.
  */
 export function changesFiltersParam(search: string): ChangesFilters {
   const q = new URLSearchParams(search);
@@ -88,7 +91,9 @@ export function changesFiltersParam(search: string): ChangesFilters {
         ? 'waiting'
         : q.get('archived') === '1'
           ? 'archived'
-          : status === 'draft'
+          : status === 'merged' || status === 'shipped' || status === 'closed' || q.get('view') === 'history'
+            ? 'shipped'
+            : status === 'draft'
             ? 'draft'
             : status === 'ready'
               ? 'review'
@@ -107,7 +112,7 @@ export function withChangesFilters(search: string, f: ChangesFilters): string {
   for (const old of ['who', 'by', 'archived']) q.delete(old);
   if (q.get('view') === 'mine') q.delete('view');
   const status = q.get('status');
-  if (status === 'draft' || status === 'ready' || status === 'waiting') q.delete('status');
+  if (status && ['draft', 'ready', 'waiting', 'merged', 'shipped', 'closed'].includes(status)) q.delete('status');
   if (f.state === 'all') q.delete('state');
   else q.set('state', f.state);
   if (f.kind === 'all') q.delete('kind');
@@ -182,6 +187,8 @@ export function emptyTabLine(tab: StateTab, signedIn: boolean): string {
       return `No ${VOCAB.branch} in review.`;
     case 'code':
       return 'Nothing waits for code. Approved changes land here until a developer builds them.';
+    case 'shipped':
+      return 'Nothing shipped yet. Changes and explorations land here once they are in the library or in a product.';
     case 'archived':
       return 'No archived exploration.';
     default:
@@ -247,42 +254,56 @@ export function groupByProduct<R extends { product: ProductKey }>(rows: R[], pro
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Finished branches: hidden behind one line
+// Shipped: the history of the work, newest first, by month
 
-/** How the address asks for finished or one-status lists (the old status filter's ?status= links keep working). */
-export type FinishedView = { finished: boolean; only: Exclude<Lifecycle, 'shipped' | 'closed'> | null };
-
-export function finishedParam(search: string): FinishedView {
-  const v = new URLSearchParams(search).get('status');
-  if (v === 'merged' || v === 'shipped' || v === 'closed') return { finished: true, only: null };
-  if (v === 'draft' || v === 'ready' || v === 'waiting') return { finished: false, only: v };
-  return { finished: false, only: null };
+/** What was shipped: merged rows only (a branch closed without merging never reached anyone), newest first. */
+export function shippedRows<R extends { merged_at?: string | null }>(rows: readonly R[]): R[] {
+  const at = (r: R) => (r.merged_at ? new Date(r.merged_at).getTime() : NaN);
+  return rows.filter((r) => !Number.isNaN(at(r))).sort((a, b) => at(b) - at(a));
 }
 
-/** Merged since the first day of the viewer's current month. */
-export function mergedThisMonth(rows: { merged_at?: string | null }[], now: Date): number {
-  const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  return rows.filter((r) => r.merged_at && new Date(r.merged_at).getTime() >= start).length;
+/** "October 2026": the month heading of a shipped row, in the viewer's time zone (UTC when `utc`, for tests). */
+export function shippedMonth(iso: string, utc = false): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'long', year: 'numeric', ...(utc ? { timeZone: 'UTC' } : {}) });
+}
+
+/** "Shipped Oct 30": when a row shipped, on its line. */
+export function shippedOn(iso: string, utc = false): string {
+  return `Shipped ${new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(utc ? { timeZone: 'UTC' } : {}) })}`;
+}
+
+export interface MonthGroup<R> {
+  key: string;
+  label: string;
+  rows: R[];
 }
 
 /**
- * "12 added to the library this month." (a merged branch, in designer words). The closed list GitHub gives is the most
- * recent `limit` only: when every one of them merged this month the count is a floor, and the line says so.
+ * Shipped rows into one group per month, newest month first, newest row first in each. `at` reads when a row shipped
+ * (default: its merged_at); rows that never shipped are left out.
  */
-export function mergedLine(count: number, read: number, limit: number): string {
-  if (count === 0) return 'Nothing added to the library this month.';
-  return `${count >= limit && read >= limit ? `${count}+` : count} added to the library this month.`;
+export function groupByMonth<R>(rows: readonly R[], at: (r: R) => string | null | undefined = (r) => (r as { merged_at?: string | null }).merged_at, utc = false): MonthGroup<R>[] {
+  const groups: MonthGroup<R>[] = [];
+  const dated = shippedRows(rows.map((r) => ({ r, merged_at: at(r) ?? null })));
+  for (const { r, merged_at } of dated) {
+    const label = shippedMonth(merged_at!, utc);
+    const last = groups[groups.length - 1];
+    if (last?.label === label) last.rows.push(r);
+    else groups.push({ key: `m-${groups.length}`, label, rows: [r] });
+  }
+  return groups;
+}
+
+/**
+ * Under the Shipped tab when the read was capped (one read gives the most recent `limit` finished ones): it shows
+ * the most recent only. Null when everything was read.
+ */
+export function shippedCapLine(read: number, limit: number): string | null {
+  return read >= limit ? 'Showing the most recent ones.' : null;
 }
 
 /** The line on the Archived tab: what an archived exploration still is. */
 export const ARCHIVED_NOTE = 'Archived explorations stay out of the other tabs. Their previews still work.';
-
-/** The words around mergedLine: the link that shows them, and the line once they are shown. */
-export const FINISHED_WORDS = {
-  show: 'Show them',
-  showing: 'Showing what was added to the library or closed.',
-  hide: 'Hide them',
-} as const;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Selection: preview token branches together
