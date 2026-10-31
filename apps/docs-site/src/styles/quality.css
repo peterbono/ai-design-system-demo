@@ -301,6 +301,8 @@ a.ql-act {
 
 .ql-tile {
   display: flex;
+  /* Not the prose list spacing (site.css li + li): every tile the same height on the grid. */
+  margin: 0;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
