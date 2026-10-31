@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { Accordion, AccordionItem, Badge, Card, CardBody, Link, Progress } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import ContrastFailTable, { type ContrastFailRow } from './ContrastFailTable';
-import { QualityScene } from './QualityScene';
+import { QuietScene } from './QuietScene';
 import { ADOPTION_MEANING, type ComboResult, type Finding } from '../../../lib/quality';
 import { HEALTH_SECTION } from '../../../lib/library-health';
 import { pctLabel as formatPct, productTrend, runDate, unusedLine, type AdoptionRun, type AdoptionView, type Pillar, type Verdict } from '../../../lib/quality-view';
@@ -67,7 +67,7 @@ function FindingRow({ f }: { f: Finding }) {
 function VerdictZone({ verdict }: { verdict: Verdict }) {
   return (
     <section className="zone ql-verdict" data-mood={verdict.mood} aria-labelledby="ql-verdict-title">
-      <QualityScene mood={verdict.mood} className="ql-scene" />
+      <QuietScene scene="lighthouse" mood={verdict.mood} width={256} className="ql-scene" />
       <div className="ql-verdict-text">
         <h2 id="ql-verdict-title" className="ql-verdict-title">
           {verdict.title}

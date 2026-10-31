@@ -193,20 +193,19 @@ a.ql-act {
   list-style: none;
 }
 
-.ql-pillars > li {
+/* Each card spans the same six rows (subgrid), so name, number, meter, sentence and link line up across cards. */
+.ql-pillars > li,
+.ql-pillars .ql-pillar-card,
+.ql-pillars .ql-pillar {
   display: grid;
+  grid-row: span 6;
+  grid-template-rows: subgrid;
+  row-gap: var(--space-1);
   margin: 0;
 }
 
-.ql-pillar-card {
-  display: grid;
-}
-
 .ql-pillar {
-  display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto;
   align-content: start;
-  gap: var(--space-1);
 }
 
 .ql-pillar > p {
@@ -357,97 +356,6 @@ a.ql-next {
   padding: var(--space-3) var(--space-5);
   font-size: var(--typography-ui-size);
   line-height: var(--typography-ui-line-height);
-}
-
-/* ---- The lighthouse (QualityScene.tsx). The beam swings across the lamp; the sea drifts; weather follows the mood. */
-.qs [data-fill="deep"] {
-  fill: var(--color-action-primary-bg);
-}
-
-.qs-beam {
-  fill: var(--color-surface-default);
-  opacity: 0.85;
-  transform-box: fill-box;
-  transform-origin: 0% 50%;
-  animation: qs-sweep calc(var(--motion-duration-slow) * 40) var(--motion-easing-standard) infinite;
-}
-
-:root[data-theme="dark"] .qs-beam {
-  fill: var(--color-text-default);
-  opacity: 0.3;
-}
-
-.qs-wave {
-  animation: qs-drift calc(var(--motion-duration-slow) * 24) var(--motion-easing-standard) infinite alternate;
-}
-
-.qs-wave-2 {
-  animation-direction: alternate-reverse;
-}
-
-.qs-band {
-  fill: var(--color-surface-default);
-  opacity: 0;
-  transition: opacity var(--motion-duration-slow) var(--motion-easing-standard);
-  animation: qs-drift calc(var(--motion-duration-slow) * 30) var(--motion-easing-standard) infinite alternate;
-}
-
-.qs-band-2 {
-  animation-direction: alternate-reverse;
-}
-
-:root[data-theme="dark"] .qs-band {
-  fill: var(--color-text-muted);
-}
-
-/* Haze: one band low over the sea. Fog: three, the beam dimmed and the sun gone. */
-.qs[data-mood="haze"] .qs-band-1 {
-  opacity: 0.8;
-}
-
-.qs[data-mood="fog"] .qs-band {
-  opacity: 0.9;
-}
-
-.qs[data-mood="fog"] .qs-beam {
-  opacity: 0.4;
-}
-
-.qs:not([data-mood="clear"]) .qs-sun {
-  display: none;
-}
-
-@keyframes qs-sweep {
-  0% {
-    transform: scaleX(1);
-  }
-
-  50% {
-    transform: scaleX(-1);
-  }
-
-  100% {
-    transform: scaleX(1);
-  }
-}
-
-@keyframes qs-drift {
-  from {
-    transform: translateX(0);
-  }
-
-  to {
-    transform: translateX(var(--space-2));
-  }
-}
-
-/* Reduced motion: the rest frame, the beam out to sea. */
-@media (prefers-reduced-motion: reduce) {
-  .qs-beam,
-  .qs-wave,
-  .qs-band {
-    animation: none;
-  }
 }
 
 @media (max-width: 760px) {
