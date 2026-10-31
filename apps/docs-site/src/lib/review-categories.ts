@@ -148,9 +148,12 @@ export function kindOptions(items: readonly QueueItem[], by: string | null): { v
 /** The designer option that keeps everyone (a key designerKey never makes: it strips "~"). */
 export const EVERYONE = '~everyone';
 
-/** The designers who wait, by name, with their counts (over what the kind filter keeps). Everyone first. */
-export function designerOptions(items: readonly QueueItem[], kind: KindFilter): { value: string; label: string; count: number }[] {
-  const kept = items.filter((x) => kind === 'all' || x.category === kind);
+/**
+ * The designers who wait, by name, with their counts (over what the kind filter, and `keep` when given, keep).
+ * Everyone first.
+ */
+export function designerOptions<I extends QueueItem>(items: readonly I[], kind: KindFilter, keep?: (x: I) => boolean): { value: string; label: string; count: number }[] {
+  const kept = items.filter((x) => (kind === 'all' || x.category === kind) && (!keep || keep(x)));
   const by = new Map<string, { name: string; count: number }>();
   for (const x of items) if (!by.has(x.designer.key)) by.set(x.designer.key, { name: x.designer.name, count: 0 });
   for (const x of kept) by.get(x.designer.key)!.count++;

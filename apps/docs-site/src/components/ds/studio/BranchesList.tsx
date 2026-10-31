@@ -1,12 +1,15 @@
 // Branches (/studio/changes/): all the work, not a second triage page (triage lives on Home and the review queue).
-//   - DS Tabs (underline) say where the work stands, the one lifecycle of every Studio page (lib/review-state): All
-//     (the default), Waiting on me, Exploring, Waiting for code, Being built, In review, Shipped and Archived, each
-//     with its count (lib/branches-page STATE_TABS, stateOf; ?state=). Every tab shows, even at 0, so the lifecycle
-//     stays readable. An In review exploration names who must review on its line; one whose review is asked of the
-//     viewer is in Waiting on me. On a phone the control scrolls sideways inside its row, never the page.
-//   - Two DS Selects narrow every tab: the kind of change (?kind=) and whose it is (?people=: Everyone, You, then each
-//     designer by display name). Old ?who=mine, ?view=mine, ?who=waiting, ?by=, ?archived=1 and ?status= links keep
-//     working (lib/branches-page changesFiltersParam).
+//   - DS Tabs (underline), alone on their row, are the page's primary navigation: the designer's tabs All (the
+//     default), Waiting on me, Exploring and Shipped, always there with their counts (lib/branches-page STABLE_TABS,
+//     stateOf; ?state=). Waiting for code, Being built and In review are the developers' side: the Being built page
+//     owns them, so here they show only when an old ?state= link opens one. Archived shows when something is archived.
+//     An In review exploration names who must review on its line; one whose review is asked of the viewer is in
+//     Waiting on me. On a phone the tab list scrolls sideways inside its row, never the page.
+//   - A quieter second row under the tabs, left-aligned above the list: two small DS Selects narrow every tab, the
+//     product (?product=: All products, then each configured product by name, the library included with its usage
+//     guidance; a product at 0 is left out) and whose it is (?people=: Everyone, You, then each designer by display
+//     name), then the count of what is listed. Old ?kind=, ?who=mine, ?view=mine, ?who=waiting, ?by=, ?archived=1
+//     and ?status= links keep working (lib/branches-page changesFiltersParam).
 //   - The open branches, explorations included, grouped by the product they belong to (lib/branches-page productOf,
 //     bridge.config.json products), each group a heading with its count. Rows are the home row (BranchRow), the
 //     person always by display name (lib/branches-page knownNames), the login only when no name is known.
@@ -29,7 +32,7 @@ import { Badge, Button, Checkbox, Link, Select, Skeleton, Tab, Tabs, TabsList, T
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
-import { ARCHIVED_NOTE, boxDisabled, changesFiltersParam, designRows, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, isYours, knownNames, peopleOptions, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type StateTab } from '../../../lib/branches-page';
+import { ALL_PRODUCTS, ARCHIVED_NOTE, boxDisabled, changesFiltersParam, listSummary, productOptions, designRows, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, isYours, knownNames, peopleOptions, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type StateTab } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
 import { CLAUDE, displayName, person, requesterPerson, SEP, type Person, type PillTone } from '../../../lib/home-model';
@@ -38,15 +41,12 @@ import {
   designerKey,
   designerOptions,
   groupByCategory,
-  kindOptions,
-  passes,
   queueSummary,
   reachLine,
-  type KindFilter,
   EVERYONE,
   type WaitingExtra,
 } from '../../../lib/review-categories';
-import { DEFAULT_PRODUCTS } from '@bridge-ds/core';
+import { DEFAULT_PRODUCTS, defaultProduct } from '@bridge-ds/core';
 import type { ThumbSpec } from '../../../lib/branch-thumb';
 import type { FileSignals } from '../../../lib/work-nature';
 import type { Lifecycle } from '../../../lib/change-status';
@@ -216,7 +216,7 @@ function tokenOnly(r: ListRow, e: Extra | undefined, tokensRoot: string): boolea
 }
 
 export function BranchesList(p: BranchesListProps) {
-  const [picked, setPicked] = useState<ChangesFilters>(() => changesFiltersParam(location.search));
+  const [picked, setPicked] = useState<ChangesFilters>(() => changesFiltersParam(location.search, p.products ?? DEFAULT_PRODUCTS));
   const [selected, setSelected] = useState<number[]>([]);
   const viewer = p.viewer ?? (p.seat ? `~${p.seat.toLowerCase()}` : null);
   const tab = picked.state;
@@ -263,6 +263,7 @@ export function BranchesList(p: BranchesListProps) {
     return {
       kind: 'branch' as const,
       x,
+      product: x.product.toLowerCase(),
       category: c.category,
       productName: c.product?.name ?? null,
       designer: { key: yours ? YOU : designerKey(pp), name: pp.name },
@@ -276,7 +277,7 @@ export function BranchesList(p: BranchesListProps) {
     ? (p.waiting ?? []).map((w) => {
         const pp = w.need.person ?? CLAUDE;
         const yours = Boolean(pp.login && viewer && pp.login.replace(/^@/, '').toLowerCase() === viewer.replace(/^@/, '').toLowerCase());
-        return { kind: 'extra' as const, w, category: w.category, productName: w.product?.name ?? null, designer: { key: yours ? YOU : designerKey(pp), name: pp.name } };
+        return { kind: 'extra' as const, w, product: (w.product?.key ?? defaultProduct(products).key).toLowerCase(), category: w.category, productName: w.product?.name ?? null, designer: { key: yours ? YOU : designerKey(pp), name: pp.name } };
       })
     : [];
   type Item = (typeof openItems)[number] | (typeof waitingExtras)[number];
@@ -295,11 +296,15 @@ export function BranchesList(p: BranchesListProps) {
   const queue = inTab(tab);
   // The person picked stays only while someone listed matches it (an address naming nobody listed keeps everyone).
   const by = picked.by && (picked.by === YOU ? Boolean(viewer) : queue.some((q) => q.designer.key === picked.by)) ? picked.by : null;
-  const active = { kind: picked.kind as KindFilter, by };
-  const filtered = active.kind !== 'all' || Boolean(active.by);
-  const kept = queue.filter((q) => passes(q, active));
+  // The product picked stays only while it is a configured product (an address naming another keeps all products).
+  const product = picked.product && products.some((pp) => pp.key.toLowerCase() === picked.product) ? picked.product : null;
+  const active = { product, by };
+  const filtered = Boolean(active.product) || Boolean(active.by);
+  const inProduct = (q: Item) => !active.product || q.product === active.product;
+  const passes = (q: Item) => inProduct(q) && (!active.by || q.designer.key === active.by);
+  const kept = queue.filter(passes);
   const counts = Object.fromEntries(
-    (['all', 'waiting', 'exploring', 'code', 'building', 'review', 'shipped', 'archived'] as StateTab[]).map((t) => [t, inTab(t).filter((q) => passes(q, active)).length]),
+    (['all', 'waiting', 'exploring', 'code', 'building', 'review', 'shipped', 'archived'] as StateTab[]).map((t) => [t, inTab(t).filter(passes).length]),
   ) as Record<StateTab, number>;
   const tabs = visibleTabs(counts, tab);
   // The page header's summary sentence (lib/page-summary): what is open, by where it stands, whatever the filters.
@@ -337,7 +342,7 @@ export function BranchesList(p: BranchesListProps) {
   const clear = useCallback(() => setSelected([]), []);
   const drop = useCallback((ns: number[]) => setSelected((s) => s.filter((n) => !ns.includes(n))), []);
 
-  // The tab, kind and person are kept together in the address (lib/branches-page withChangesFilters).
+  // The tab, product and person are kept together in the address (lib/branches-page withChangesFilters).
   const pick = (f: ChangesFilters) => {
     setPicked(f);
     const url = new URL(location.href);
@@ -345,7 +350,7 @@ export function BranchesList(p: BranchesListProps) {
     history.replaceState(history.state, '', url);
   };
   const pickTab = (v: string) => pick({ ...picked, state: v as StateTab });
-  const pickFilters = (f: { kind: KindFilter; by: string | null }) => pick({ ...picked, kind: f.kind, by: f.by });
+  const pickFilters = (f: { product: string | null; by: string | null }) => pick({ ...picked, product: f.product, by: f.by });
   // Shipped reads the closed list when it was not read yet (the page reads it after the open one).
   const readClosed = p.readClosed;
   useEffect(() => {
@@ -405,9 +410,13 @@ export function BranchesList(p: BranchesListProps) {
                 );
   };
 
-  // Waiting on me: every change that waits on the viewer, branches and the rest, by kind and by designer.
-  const kinds = kindOptions(queue, active.by);
-  const designers = peopleOptions(designerOptions(queue, active.kind), Boolean(viewer));
+  // The filters: the products (over what the people filter keeps), the people (over what the product filter keeps).
+  const productChoices = productOptions(
+    queue.filter((q) => !active.by || q.designer.key === active.by),
+    products,
+    active.product,
+  );
+  const designers = peopleOptions(designerOptions(queue, 'all', inProduct), Boolean(viewer));
   const reach = reachLine(products);
   const count = (n: number) => (
     <Badge tone="neutral" size="sm">
@@ -436,17 +445,6 @@ export function BranchesList(p: BranchesListProps) {
 
   const waitingList = (
     <>
-      <p className="t-body bl-summary">
-        {queueSummary(kept.length, queue.length, filtered)}
-        {filtered && (
-          <>
-            {' '}
-            <Button variant="link" onClick={() => pickFilters({ kind: 'all', by: null })}>
-              Clear filters
-            </Button>
-          </>
-        )}
-      </p>
       {groupByCategory(kept)
         .filter((g) => g.rows.length > 0 || !filtered)
         .map((g) => (
@@ -473,13 +471,14 @@ export function BranchesList(p: BranchesListProps) {
   );
 
   const clearLink = (
-    <Button variant="link" onClick={() => pickFilters({ kind: 'all', by: null })}>
+    <Button variant="link" onClick={() => pickFilters({ product: null, by: null })}>
       Clear filters
     </Button>
   );
 
   return (
     <div className={waitingView ? 'bl is-waiting' : 'bl'}>
+      {/* The tabs alone on their row: the page's primary navigation. */}
       <div className="bl-filters">
         <Tabs className="bl-tabs" value={tab} onValueChange={(v) => v !== null && pickTab(String(v))}>
           <TabsList aria-label={`Where the ${VOCAB.branches} stand`}>
@@ -490,26 +489,36 @@ export function BranchesList(p: BranchesListProps) {
             ))}
           </TabsList>
         </Tabs>
-        {/* The filters show once the tab holds something to narrow (or while one is picked). */}
-        {!(p.loading && !p.rows.length) && (queue.length > 0 || filtered) && (
+      </div>
+      {/* The quieter row under the tabs: the filters, then the count. It shows once the tab holds something to narrow
+          (or while a filter is picked). */}
+      {!(p.loading && !p.rows.length) && !(shippedTab && p.closed === null) && (queue.length > 0 || filtered) && (
+        <div className="bl-bar">
           <span className="bl-narrow">
             <Select
-              label="Kind of change"
+              label="Product"
               hideLabel
-              value={active.kind}
-              onValueChange={(v) => pickFilters({ ...active, kind: (v ?? 'all') as KindFilter })}
-              options={kinds.map((k) => ({ value: k.value, label: k.label, badge: count(k.count), disabled: k.count === 0 && k.value !== active.kind }))}
+              size="sm"
+              value={active.product ?? ALL_PRODUCTS}
+              onValueChange={(v) => pickFilters({ ...active, product: !v || v === ALL_PRODUCTS ? null : v })}
+              options={productChoices.map((o) => ({ value: o.value, label: o.label, badge: count(o.count) }))}
             />
             <Select
               label="People"
               hideLabel
+              size="sm"
               value={active.by ?? EVERYONE}
               onValueChange={(v) => pickFilters({ ...active, by: !v || v === EVERYONE ? null : v })}
               options={designers.map((d) => ({ value: d.value, label: d.label, badge: count(d.count), disabled: d.count === 0 && d.value !== (active.by ?? EVERYONE) }))}
             />
           </span>
-        )}
-      </div>
+          <p className="t-ui t-muted bl-summary" aria-live="polite">
+            {waitingView ? queueSummary(kept.length, queue.length, filtered) : listSummary(kept.length, queue.length, filtered)}
+            {/* With nothing left, the empty line under it offers Clear filters instead. */}
+            {filtered && kept.length > 0 && <> {clearLink}</>}
+          </p>
+        </div>
+      )}
       {p.tierLabel && (
         <p className="t-ui t-muted bl-note">
           Showing {p.tierLabel} only. <Link href={studioHref('changes/')}>Show all</Link>
@@ -525,10 +534,10 @@ export function BranchesList(p: BranchesListProps) {
             <Skeleton variant="rect" className="sh-skel" />
           </li>
         </ul>
-      ) : waitingView && queue.length > 0 ? (
-        waitingList
       ) : kept.length === 0 && filtered && queue.length > 0 ? (
         <p className="t-body t-muted bl-none">Nothing here matches these filters. {clearLink}</p>
+      ) : waitingView && queue.length > 0 ? (
+        waitingList
       ) : groups.length === 0 ? (
         <p className="t-body t-muted bl-none">{emptyTabLine(tab, Boolean(viewer))}</p>
       ) : shippedTab ? (

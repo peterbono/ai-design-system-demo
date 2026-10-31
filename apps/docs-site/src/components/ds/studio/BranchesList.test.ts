@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// Changes: the state tabs (All, Waiting on me, each state with something in it, Archived), and one filter bar on every
-// tab, the kind and the people (Everyone, You, then each designer), the picks kept across tabs.
+// Changes: the designer's state tabs (All, Waiting on me, Exploring, Shipped; the developers' states only from an old
+// ?state= link; Archived when something is), alone on their row, and one quieter filter row under them on every tab,
+// the product and the people (Everyone, You, then each designer), the picks kept across tabs.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { render, screen } from '@testing-library/react';
@@ -50,18 +51,28 @@ beforeEach(() => history.replaceState(null, '', '/studio/changes/'));
 const triggers = () => screen.getAllByRole('combobox').map((c) => c.textContent ?? '');
 
 describe('BranchesList tabs and filters', () => {
-  it('shows the state tabs with their counts, and the kind and people filters', async () => {
+  it('shows the designer tabs with their counts alone on their row, and the product and people filters under them', async () => {
     const { container } = render(createElement(BranchesList, props()));
-    expect(screen.getByRole('tab', { name: /^All\s*3$/ })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /^Waiting on me\s*1$/ })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /^In review\s*3$/ })).toBeTruthy();
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['All3', 'Waiting on me1', 'Exploring0', 'Shipped0']);
     expect(screen.queryByRole('tab', { name: /Mine/ })).toBeNull();
-    // Every lifecycle tab stays, even at 0, so the lifecycle stays readable.
-    expect(screen.getByRole('tab', { name: /^Exploring\s*0$/ })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /^Being built\s*0$/ })).toBeTruthy();
-    expect(triggers().some((t) => t.includes('All kinds'))).toBe(true);
+    // The developers' states belong to the Being built page: not tabs here, even with something in them.
+    expect(screen.queryByRole('tab', { name: /^In review/ })).toBeNull();
+    expect(screen.queryByRole('tab', { name: /^Being built/ })).toBeNull();
+    expect(triggers().some((t) => t.includes('All products'))).toBe(true);
     expect(triggers().some((t) => t.includes('Everyone'))).toBe(true);
+    // The tabs own their row; the filters and the count sit on the row under it.
+    expect(container.querySelector('.bl-filters [role="combobox"]')).toBeNull();
+    expect(container.querySelectorAll('.bl-bar [role="combobox"]').length).toBe(2);
+    expect(container.querySelector('.bl-bar')!.textContent).toContain('3 changes.');
     await expectNoAxeViolations(container);
+  });
+
+  it("opens a developers' state tab from an old ?state= link", () => {
+    history.replaceState(null, '', '/studio/changes/?state=review');
+    render(createElement(BranchesList, props()));
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['All3', 'Waiting on me1', 'Exploring0', 'In review3', 'Shipped0']);
+    expect(screen.getByRole('tab', { name: /^In review/ }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText('Change 1')).toBeTruthy();
   });
 
   it('lists each state under its tab, Archived last, without the old archived line', async () => {
@@ -69,7 +80,7 @@ describe('BranchesList tabs and filters', () => {
     const ex = (n: number, label: string) => row(n, 'ann', { opens: 'exploration', lifecycle: 'exploration', pill: { label, tone: 'neutral' } });
     render(createElement(BranchesList, props({ rows: [ex(1, 'Not started'), ex(2, 'Exploring'), ex(3, 'Exploring')], archived: [ex(4, 'Archived')] })));
     const names = screen.getAllByRole('tab').map((r) => r.textContent);
-    expect(names).toEqual(['All3', 'Waiting on me0', 'Exploring3', 'Waiting for code0', 'Being built0', 'In review0', 'Shipped0', 'Archived1']);
+    expect(names).toEqual(['All3', 'Waiting on me0', 'Exploring3', 'Shipped0', 'Archived1']);
     expect(screen.queryByText(/archived exploration\./)).toBeNull();
     await user.click(screen.getByRole('tab', { name: /^Exploring/ }));
     // Not started is a running exploration too: under Exploring.
@@ -84,6 +95,8 @@ describe('BranchesList tabs and filters', () => {
   it('lists an exploration in review under In review with who must review, and in Waiting on me when the review is asked of the viewer', async () => {
     const user = userEvent.setup();
     const xp = (n: number, over: Partial<ListRow>) => row(n, 'ann', { opens: 'exploration', lifecycle: 'exploration', ...over });
+    // In review is the developers' side: an old ?state= link opens it.
+    history.replaceState(null, '', '/studio/changes/?state=review');
     render(
       createElement(
         BranchesList,
@@ -98,8 +111,7 @@ describe('BranchesList tabs and filters', () => {
         }),
       ),
     );
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['All4', 'Waiting on me1', 'Exploring0', 'Waiting for code1', 'Being built1', 'In review2', 'Shipped0', 'Archived0']);
-    await user.click(screen.getByRole('tab', { name: /^In review/ }));
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['All4', 'Waiting on me1', 'Exploring0', 'In review2', 'Shipped0']);
     expect(screen.getByText('Change 6').closest('li')!.textContent).toContain('Changes requested by Lee');
     expect(screen.queryByText('Change 7')).toBeNull();
     await user.click(screen.getByRole('tab', { name: /^Waiting on me/ }));
@@ -115,15 +127,49 @@ describe('BranchesList tabs and filters', () => {
     expect(screen.queryByText('Change 1')).toBeNull();
   });
 
-  it('keeps a kind picked in the address when the tab changes', async () => {
-    history.replaceState(null, '', '/studio/changes/?kind=docs');
+  const products = [
+    { key: 'admin-app', name: 'Art print shop' },
+    { key: 'account', name: 'Account app' },
+    { key: 'library', name: 'Library', default: true },
+  ];
+
+  it('filters by product: all products, then each product with something listed, by name', async () => {
     const user = userEvent.setup();
-    render(createElement(BranchesList, props()));
+    const shop = { labels: [{ name: 'product: admin-app' }] };
+    const { container } = render(createElement(BranchesList, props({ products, rows: [row(1, 'ann', shop), row(2, 'dana', { yourTurn: true }), row(3, 'leo@acme.design', { mine: true })] })));
+    await user.click(screen.getAllByRole('combobox')[0]!);
+    const options = screen.getAllByRole('option').map((o) => o.textContent);
+    // Account app has nothing listed: left out.
+    expect(options).toEqual(['All products3', 'Art print shop1', 'Library2']);
+    await user.click(screen.getByRole('option', { name: /Art print shop/ }));
+    expect(new URLSearchParams(location.search).get('product')).toBe('admin-app');
+    expect(screen.getByText('Change 1')).toBeTruthy();
+    expect(screen.queryByText('Change 2')).toBeNull();
+    expect(container.querySelector('.bl-bar')!.textContent).toContain('1 of 3 changes.');
+  });
+
+  it('keeps a product picked in the address when the tab changes', async () => {
+    history.replaceState(null, '', '/studio/changes/?product=admin-app');
+    const user = userEvent.setup();
+    render(createElement(BranchesList, props({ products })));
     expect(screen.getByText(/Nothing here matches these filters/)).toBeTruthy();
+    expect(triggers().some((t) => t.includes('Art print shop'))).toBe(true);
     await user.click(screen.getByRole('tab', { name: /^Waiting on me/ }));
-    expect(new URLSearchParams(location.search).get('kind')).toBe('docs');
+    expect(new URLSearchParams(location.search).get('product')).toBe('admin-app');
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(screen.getByText('Change 2')).toBeTruthy();
+    expect(new URLSearchParams(location.search).get('product')).toBeNull();
+  });
+
+  it('opens old ?kind= links on the library product, its usage guidance included', async () => {
+    history.replaceState(null, '', '/studio/changes/?kind=docs');
+    const user = userEvent.setup();
+    render(createElement(BranchesList, props({ products })));
+    expect(triggers().some((t) => t.includes('Library'))).toBe(true);
+    expect(screen.getByText('Change 1')).toBeTruthy();
+    await user.click(screen.getByRole('tab', { name: /^Exploring/ }));
+    expect(new URLSearchParams(location.search).get('kind')).toBeNull();
+    expect(new URLSearchParams(location.search).get('product')).toBe('library');
   });
 
   it('shows one display name for one person, even where only the login is recorded', () => {

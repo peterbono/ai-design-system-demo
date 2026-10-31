@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ALL_PRODUCTS,
   barCopy,
+  listSummary,
+  productOptions,
   boxDisabled,
   changesFiltersParam,
   designRows,
@@ -28,31 +31,52 @@ import type { ProductConfig } from '@bridge-ds/core';
 
 describe('state tabs and the address', () => {
   it('opens on All, every filter read from the address', () => {
-    expect(changesFiltersParam('')).toEqual({ state: 'all', kind: 'all', by: null });
-    expect(changesFiltersParam('?state=exploring&kind=library&people=Ann-Leroy')).toEqual({ state: 'exploring', kind: 'library', by: 'ann-leroy' });
-    expect(changesFiltersParam('?state=nothing')).toEqual({ state: 'all', kind: 'all', by: null });
+    expect(changesFiltersParam('')).toEqual({ state: 'all', product: null, by: null });
+    expect(changesFiltersParam('?state=exploring&product=Admin-App&people=Ann-Leroy')).toEqual({ state: 'exploring', product: 'admin-app', by: 'ann-leroy' });
+    // An open exploration's ?product= is its product, not a filter.
+    expect(changesFiltersParam('?exploration=4&product=admin-app').product).toBeNull();
+    expect(changesFiltersParam('?state=nothing')).toEqual({ state: 'all', product: null, by: null });
     expect(changesFiltersParam('?people=you').by).toBe(YOU);
   });
 
   it('keeps old links working', () => {
-    expect(changesFiltersParam('?who=mine')).toEqual({ state: 'all', kind: 'all', by: YOU });
-    expect(changesFiltersParam('?view=mine')).toEqual({ state: 'all', kind: 'all', by: YOU });
-    expect(changesFiltersParam('?who=waiting')).toEqual({ state: 'waiting', kind: 'all', by: null });
+    expect(changesFiltersParam('?who=mine')).toEqual({ state: 'all', product: null, by: YOU });
+    expect(changesFiltersParam('?view=mine')).toEqual({ state: 'all', product: null, by: YOU });
+    expect(changesFiltersParam('?who=waiting')).toEqual({ state: 'waiting', product: null, by: null });
     expect(changesFiltersParam('?archived=1').state).toBe('archived');
     expect(changesFiltersParam('?status=waiting').state).toBe('code');
     expect(changesFiltersParam('?status=draft').state).toBe('building');
     // The tabs before the one lifecycle: Not started is Exploring, Draft is Being built.
     expect(changesFiltersParam('?state=not-started').state).toBe('exploring');
     expect(changesFiltersParam('?state=draft').state).toBe('building');
-    expect(changesFiltersParam('?by=dana&kind=docs')).toEqual({ state: 'all', kind: 'docs', by: 'dana' });
+    expect(changesFiltersParam('?by=dana&kind=docs')).toEqual({ state: 'all', product: 'library', by: 'dana' });
+    // The kind filter before the products: the library and its guidance are the library product, In a product is all.
+    expect(changesFiltersParam('?kind=library').product).toBe('library');
+    expect(changesFiltersParam('?kind=product').product).toBeNull();
+    expect(changesFiltersParam('?kind=docs', [{ key: 'shop', name: 'Shop' }, { key: 'ds', name: 'DS', default: true }]).product).toBe('ds');
     expect(changesFiltersParam('?by=~everyone').by).toBeNull();
   });
 
   it('writes the filters back, defaults out of the address, old parameters dropped', () => {
-    expect(withChangesFilters('?who=mine&pr=3', { state: 'all', kind: 'all', by: YOU })).toBe('?pr=3&people=you');
-    expect(withChangesFilters('?archived=1', { state: 'archived', kind: 'all', by: null })).toBe('?state=archived');
-    expect(withChangesFilters('?state=code&kind=docs&people=dana', { state: 'all', kind: 'all', by: null })).toBe('');
-    expect(withChangesFilters('?status=merged', { state: 'shipped', kind: 'all', by: null })).toBe('?state=shipped');
+    expect(withChangesFilters('?who=mine&pr=3', { state: 'all', product: null, by: YOU })).toBe('?pr=3&people=you');
+    expect(withChangesFilters('?archived=1', { state: 'archived', product: null, by: null })).toBe('?state=archived');
+    expect(withChangesFilters('?state=code&kind=docs&people=dana', { state: 'all', product: null, by: null })).toBe('');
+    expect(withChangesFilters('?kind=docs', { state: 'all', product: 'library', by: null })).toBe('?product=library');
+    expect(withChangesFilters('?exploration=4&product=admin-app', { state: 'all', product: null, by: null })).toBe('?exploration=4&product=admin-app');
+    expect(withChangesFilters('?status=merged', { state: 'shipped', product: null, by: null })).toBe('?state=shipped');
+  });
+
+  it('lists all products, then each configured product with its count, a product at 0 only while picked', () => {
+    const products = [{ key: 'admin-app', name: 'Art print shop' }, { key: 'account', name: 'Account app' }, { key: 'library', name: 'Library', default: true }];
+    const items = [{ product: 'admin-app' }, { product: 'library' }, { product: 'library' }];
+    expect(productOptions(items, products, null)).toEqual([
+      { value: ALL_PRODUCTS, label: 'All products', count: 3 },
+      { value: 'admin-app', label: 'Art print shop', count: 1 },
+      { value: 'library', label: 'Library', count: 2 },
+    ]);
+    expect(productOptions(items, products, 'account').map((o) => o.label)).toEqual(['All products', 'Art print shop', 'Account app', 'Library']);
+    expect(listSummary(3, 3, false)).toBe('3 changes.');
+    expect(listSummary(1, 4, true)).toBe('1 of 4 changes.');
   });
 
   it('puts each row under the tab its tag names', () => {
