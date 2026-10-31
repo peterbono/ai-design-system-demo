@@ -99,7 +99,6 @@ export const en = {
     average_basket: 'Average basket %{value}',
     pending_orders: 'Orders to ship',
     pending_orders_hint: '%{smart_count} order waiting |||| %{smart_count} orders waiting',
-    late: 'Late',
     see_all: 'See all orders',
     no_pending: 'Every order has shipped',
     no_pending_hint: 'New orders appear here as soon as customers check out.',
@@ -137,6 +136,7 @@ export const en = {
       line_total: 'Total',
     },
     returned_yes: 'Returned',
+    late: 'Late',
     returned_no: 'No',
     empty: {
       ordered: 'No orders to ship',

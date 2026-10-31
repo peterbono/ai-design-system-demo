@@ -6,6 +6,8 @@ import { ConfirmButton, DataTable, DateFilter, FilterBar, Page, SearchFilter, ty
 import { CustomerCell, MobileRow, Mono, Muted, fullName } from '../../ui';
 import { useFormat } from '../../format';
 import type { Customer, Order, OrderStatus } from '../../types';
+import { LateBadge } from './LateBadge';
+import { isLateOrder, lateCutoff } from './lateness';
 import styles from './orders.module.css';
 
 const STATUSES: OrderStatus[] = ['ordered', 'delivered', 'cancelled'];
@@ -84,9 +86,20 @@ function OrdersTable() {
   const ids = useMemo(() => Array.from(new Set((data ?? []).map((o) => o.customer_id))), [data]);
   const { data: customers } = useGetMany<Customer>('customers', { ids }, { enabled: ids.length > 0 });
   const byId = useMemo(() => new Map((customers ?? []).map((c) => [c.id, c])), [customers]);
+  const lateBefore = useMemo(() => lateCutoff(), []);
 
   const columns: Column<Order>[] = [
-    { source: 'date', label: translate('orders.fields.date'), sortable: true, render: (o) => <span className={styles.nowrap}>{fmt.dateTime(o.date)}</span> },
+    {
+      source: 'date',
+      label: translate('orders.fields.date'),
+      sortable: true,
+      render: (o) => (
+        <span className={styles.dateCell}>
+          <span className={styles.nowrap}>{fmt.dateTime(o.date)}</span>
+          {isLateOrder(o, lateBefore) && <LateBadge />}
+        </span>
+      ),
+    },
     { source: 'reference', label: translate('orders.fields.reference'), sortable: true, link: true, render: (o) => <Mono>{o.reference}</Mono> },
     {
       source: 'customer_id',
@@ -129,7 +142,12 @@ function OrdersTable() {
             title={fullName(c) || '…'}
             meta={`${o.reference} · ${fmt.dateTime(o.date)}`}
             end={<strong className={styles.amount}>{fmt.money(o.total)}</strong>}
-            endMeta={translate('orders.items', { smart_count: o.basket.reduce((n, b) => n + b.quantity, 0) })}
+            endMeta={
+              <span className={styles.dateCell}>
+                {isLateOrder(o, lateBefore) && <LateBadge />}
+                {translate('orders.items', { smart_count: o.basket.reduce((n, b) => n + b.quantity, 0) })}
+              </span>
+            }
           />
         );
       }}
