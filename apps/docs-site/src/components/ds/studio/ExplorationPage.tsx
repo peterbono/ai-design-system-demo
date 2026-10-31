@@ -413,14 +413,14 @@ function ExplorationBody(p: ExplorationPageProps) {
   const handoff = p.stage === 'handed-off' ? (p.handoff ?? null) : null;
   return (
     <ToolContext.Provider value={tab}>
-    <div className="xp">
+    <div className="xp-page">
       <div className="xp-top">
         <Breadcrumb items={p.crumbs} className="xp-crumbs" />
         <Link variant="subtle" href={p.crumbs[0]!.href ?? studioHref('changes/')} className="xp-crumbs-phone" data-back="">
           <Icon icon={ChevronLeft} size="sm" /> {p.crumbs[0]!.label}
         </Link>
-        <header className="xp-head">
-          <h1 className="xp-title" tabIndex={-1}>
+        <header className="xp-pagehead">
+          <h1 className="xp-pagetitle" tabIndex={-1}>
             {p.title}
           </h1>
           {p.stage !== 'loading' && <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} />}
@@ -495,7 +495,7 @@ function ExplorationBody(p: ExplorationPageProps) {
         // The preview and the Harbor zone end on one line: the preview's frame takes the height the zone beside it needs
         // (within a screen-like ratio). While exploring, the activity sits under the Harbor card; after Done exploring,
         // under the preview, so the hand-off and the preview stay side by side (styles/exploration-page.css).
-        <div className={handoff ? 'xp-grid is-handoff' : 'xp-grid'}>
+        <div className={handoff ? 'xp-board is-handoff' : 'xp-board'}>
           <section className="xp-preview" aria-label="Preview">
             <ShotFrame p={p} />
             <div className={handoff ? 'xp-acts' : 'xp-acts xp-preview-acts'}>
@@ -565,7 +565,7 @@ let host: HTMLElement | null = null;
 
 /** Renders the page into `el` (synchronously the first time). */
 export function paintExplorationPage(el: HTMLElement, props: ExplorationPageProps) {
-  if (host === el && !el.querySelector(':scope > .xp')) {
+  if (host === el && !el.querySelector(':scope > .xp-page')) {
     root = null;
     host = null;
   }

@@ -391,7 +391,7 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
 
   it('puts the activity under the preview, beside the taller hand-off zone', () => {
     handed();
-    const grid = document.querySelector('.xp-grid')!;
+    const grid = document.querySelector('.xp-board')!;
     expect(grid.classList.contains('is-handoff')).toBe(true);
     expect([...grid.children].map((c) => c.className.split(' ')[0])).toEqual(['xp-preview', 'xp-side', 'xp-activity']);
   });
