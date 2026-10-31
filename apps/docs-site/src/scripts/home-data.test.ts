@@ -7,6 +7,7 @@ const s = vi.hoisted(() => ({
   pulls: null as null | (() => Promise<unknown>),
   requests: vi.fn(),
   account: { email: 'sam@acme.com' } as null | { email: string },
+  site: { name: 'Acme Product' } as Record<string, unknown>,
 }));
 
 vi.mock('./github-session', () => ({
@@ -20,7 +21,7 @@ vi.mock('./github-session', () => ({
   ghGet: (path: string) => (path.includes('/pulls?') && s.pulls ? s.pulls() : Promise.reject(new Error('not in this test'))),
 }));
 vi.mock('./entry-session', () => ({ listJoinRequests: s.requests }));
-vi.mock('./repo-context', () => ({ siteConfig: () => ({ name: 'Acme Product' }) }));
+vi.mock('./repo-context', () => ({ siteConfig: () => s.site }));
 vi.mock('../lib/team-path', async (orig) => ({ ...(await orig<object>()), isHosted: () => true }));
 vi.mock('./teams', () => ({ loadTeams: async () => undefined }));
 vi.mock('./pr-status', () => ({ loadStatuses: async () => undefined, owners: () => ({ design: [], tech: [] }), shippers: () => [], rowWho: () => null }));
@@ -34,6 +35,7 @@ const STAT = { guidance: [], contrastFail: 0 };
 const joinRows = (d: HomeData | undefined) => (d?.needs ?? []).filter((r) => r.request);
 
 beforeEach(() => {
+  s.site = { name: 'Acme Product' };
   s.account = { email: 'sam@acme.com' };
   s.requests.mockReset();
   s.requests.mockResolvedValue([REQUEST]);
@@ -80,5 +82,17 @@ describe('loadHome and join requests', () => {
     await vi.waitFor(() => expect(seen.at(-1)?.settled).toBe(true));
     expect(s.requests).not.toHaveBeenCalled();
     expect(joinRows(seen.at(-1))).toHaveLength(0);
+  });
+
+  it("leaves Bridge's own pull requests out of the viewer's library changes (bridge.config.json tooling)", async () => {
+    s.requests.mockResolvedValue([]);
+    s.site = { name: 'Acme Product', tooling: { paths: ['apps/docs-site/'], scopes: ['studio'] } };
+    const pull = (number: number, title: string) => ({ number, title, html_url: '', updated_at: '2026-10-30T10:00:00Z', created_at: '2026-10-30T10:00:00Z', user: { login: 'sam' }, labels: [], body: '', draft: false, state: 'open', base: { ref: 'main', sha: 'b' }, head: { ref: `feat/${number}`, sha: `h${number}` } });
+    const open = [pull(1, 'fix(studio): Being built filters as underline Tabs'), pull(2, 'Button: a new size')];
+    s.pulls = () => Promise.resolve({ data: open });
+    const seen: HomeData[] = [];
+    void loadHome(STAT, (d) => seen.push(d));
+    await vi.waitFor(() => expect(seen.at(-1)?.branches.length).toBeGreaterThan(0));
+    expect(seen.at(-1)!.branches.map((b) => b.number)).toEqual([2]);
   });
 });

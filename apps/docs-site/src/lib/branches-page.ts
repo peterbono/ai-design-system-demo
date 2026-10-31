@@ -5,7 +5,7 @@
 // together (lib/combine-changes holds the combination itself). What shipped has its own tab (Shipped: newest first,
 // by month), the history of the work; the library's token changelog lives in the Library (Changelog). Pure: no DOM, no fetch. Unit tested in
 // branches-page.test.ts; the page is components/ds/studio/BranchesList.tsx, fed by scripts/reviews.ts.
-import { DEFAULT_PRODUCTS, productOfBranch, type ProductConfig } from '@bridge-ds/core';
+import { DEFAULT_PRODUCTS, isToolingPull, productOfBranch, type ProductConfig, type ToolingConfig } from '@bridge-ds/core';
 import { MAX_TOGETHER } from './combine-changes';
 import { STATUS_WORDS, VOCAB } from './vocabulary';
 
@@ -212,6 +212,26 @@ export function ownedBy(row: { author: string; number: number; headRef?: string 
  * changes to make wait on them.
  */
 export const contributorTurn = (row: { own: boolean; changesRequested?: string[] | null; open: boolean }): boolean => row.own && row.open && Boolean(row.changesRequested?.length);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Bridge's own work: out of the list
+
+/**
+ * The rows designers see: pull requests that only change the tool around the design system (bridge.config.json
+ * `tooling`, core isToolingPull: Studio, the core, the CLI in Bridge's own repository) stay out of every tab, count and
+ * filter, as the release card keeps "Bridge tool updates" apart. The changed files decide once read (`files`), the
+ * title's scope before. Explorations and product repositories' rows always stay. No `tooling` (a team's DS
+ * repository): every row stays.
+ */
+export function designRows<R extends { opens: 'pr' | 'exploration'; rawTitle?: string | null; title: string; head: { ref: string }; labels?: { name: string }[] | null; product?: string | null }>(
+  rows: readonly R[],
+  files: (r: R) => readonly string[] | null | undefined,
+  tooling: ToolingConfig | null | undefined,
+  neverPrefixes: readonly string[] = [],
+): R[] {
+  if (!tooling?.paths.length && !tooling?.scopes?.length) return [...rows];
+  return rows.filter((r) => r.opens === 'exploration' || Boolean(r.product) || !isToolingPull({ title: r.rawTitle ?? r.title, headRef: r.head.ref, labels: r.labels ?? null, files: files(r) ?? null }, tooling, neverPrefixes));
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Groups: the product a branch belongs to

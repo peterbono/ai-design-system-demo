@@ -10,6 +10,7 @@ import { parseComponentSpecs, type ComponentSpecsFile, type SpecCoverage } from 
 import { evaluateContrastPairs, parseContrastSpecs, type ContrastPairResult, type ContrastPairSpec } from './contrast-model';
 import { globToRegExp, selectTokenFiles } from './layered';
 import { DEFAULT_PRODUCTS, type ProductConfig } from './products';
+import type { ToolingConfig } from './tooling';
 import { readRepoTexts, parentDir, type RepoSource, type RepoSourceRef } from './repo-source';
 import type { IntegrationsConfig } from './requests';
 import type { Rights, VisualImpactMode } from './rights';
@@ -55,6 +56,8 @@ export interface SiteRepo {
   products: ProductConfig[];
   /** How changes reach the code: "suggest" (default) or "direct". */
   changes: ChangesMode;
+  /** Bridge's own folders in this repository (config "tooling"): their pull requests stay out of Changes. Absent: none. */
+  tooling?: ToolingConfig;
   /** A public demo's persona (config "demo"), when set. */
   demo?: DemoConfig;
 }
@@ -87,6 +90,7 @@ export function siteRepoFromConfig(
     integrations: config.integrations ?? {},
     products: config.products.length ? config.products : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
     changes: config.changes ?? DEFAULT_CHANGES_MODE,
+    ...(config.tooling ? { tooling: { paths: [...config.tooling.paths], ...(config.tooling.scopes ? { scopes: [...config.tooling.scopes] } : {}) } } : {}),
     ...(config.demo ? { demo: { ...config.demo } } : {}),
     ...(config.name ? { name: config.name } : {}),
   };

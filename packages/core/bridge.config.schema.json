@@ -699,6 +699,32 @@
         }
       }
     },
+    "tooling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paths"
+      ],
+      "description": "The code in this repository that is the tool around the design system, not the design system (Bridge's own repository holds Bridge Studio, its core, CLI and MCP server next to the design system). Studio leaves the pull requests that only change these paths out of Changes and the home counts. Explorations and branches Bridge opens for a designer are never left out. Leave it out on a repository that holds only the design system: nothing is tooling.",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Folders (apps/docs-site/) or files (CLAUDE.md), relative to the root. Start an entry with ! to keep a file of a listed folder as design system (!docs/DESIGN-LANGUAGE.md). Changeset notes never count either way."
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Pull request title scopes that mean tooling (studio for fix(studio): ..., toolbar for Toolbar: ...): the guess until the changed files are read. The files decide once known."
+        }
+      }
+    },
     "library": {
       "type": "object",
       "additionalProperties": false,

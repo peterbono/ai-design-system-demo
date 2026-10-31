@@ -28,7 +28,7 @@ import { Badge, Button, Checkbox, Link, Select, Skeleton, Tab, Tabs, TabsList, T
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
-import { ARCHIVED_NOTE, boxDisabled, changesFiltersParam, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, isYours, knownNames, peopleOptions, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type StateTab } from '../../../lib/branches-page';
+import { ARCHIVED_NOTE, boxDisabled, changesFiltersParam, designRows, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, isYours, knownNames, peopleOptions, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type StateTab } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
 import { CLAUDE, displayName, person, requesterPerson, SEP, type Person, type PillTone } from '../../../lib/home-model';
@@ -50,13 +50,15 @@ import type { ThumbSpec } from '../../../lib/branch-thumb';
 import type { FileSignals } from '../../../lib/work-nature';
 import type { Lifecycle } from '../../../lib/change-status';
 import { VOCAB } from '../../../lib/vocabulary';
-import type { ProductConfig } from '@bridge-ds/core';
+import type { ProductConfig, ToolingConfig } from '@bridge-ds/core';
 import { studioHref } from '../../../lib/team-path';
 
 export interface ListRow {
   number: number;
   /** The human title, without its Jira key. */
   title: string;
+  /** The pull request title as written ("fix(studio): ..."): its scope tells Bridge's own work (lib/branches-page designRows). */
+  rawTitle?: string | null;
   jira: string | null;
   author: string;
   /** Claude made it: Claude's identity on the row. */
@@ -110,6 +112,8 @@ export interface BranchesListProps {
   tokensRoot: string;
   /** bridge.config.json products, in group order (lib/config). Absent: the default products. */
   products?: ProductConfig[];
+  /** bridge.config.json tooling: pull requests that only change Bridge itself stay out of the list. Absent: none. */
+  tooling?: ToolingConfig | null;
   /** ?tier= keeps working: the one kind of change shown, in words, or null. */
   tierLabel: string | null;
   failure: (err: unknown) => string;
@@ -216,6 +220,10 @@ export function BranchesList(p: BranchesListProps) {
   const shipped = useMemo(() => shippedRows(p.closed ?? []), [p.closed]);
   const shown = archivedTab ? archived : shippedTab ? shipped : open;
   const { extras, people } = useExtras(shown, p.connected ? 'all' : p.seat ? 'seat' : 'none');
+  // Bridge's own pull requests stay out of every tab and count (lib/branches-page designRows): the files once read.
+  const filesOfRow = (r: ListRow) => (r.product ? null : extras.get(r.number)?.files);
+  const openDesign = designRows(open, filesOfRow, p.tooling);
+  const shippedDesign = designRows(shipped, filesOfRow, p.tooling);
   const shots = useShots(shown);
   const names = useMemo(
     () => knownNames([...p.rows, ...archived, ...(p.closed ?? [])], p.viewer ? { login: p.viewer, name: p.viewerName ?? null } : null),
@@ -253,9 +261,9 @@ export function BranchesList(p: BranchesListProps) {
       state: (fixed ?? stateOf(r)) as StateTab | null,
     };
   };
-  const openItems = open.map((r) => classify(r, null));
+  const openItems = openDesign.map((r) => classify(r, null));
   const archivedItems = archived.map((r) => classify(r, 'archived'));
-  const shippedItems = shipped.map((r) => classify(r, 'shipped'));
+  const shippedItems = shippedDesign.map((r) => classify(r, 'shipped'));
   const waitingExtras = viewer
     ? (p.waiting ?? []).map((w) => {
         const pp = w.need.person ?? CLAUDE;

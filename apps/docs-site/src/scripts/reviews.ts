@@ -7,7 +7,7 @@
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
 import { figmaPushFor, tokenValuesFor } from './figma-push-read';
-import { EXPLORATION_USE_CASES, explorationStateLabel, isArchivedExploration, isGuardedExploration, shortAgo, type ExplorationStatus, isHeldExploration, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, isExplorationPull, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_USE_CASES, explorationStateLabel, isArchivedExploration, isGuardedExploration, shortAgo, type ExplorationStatus, isHeldExploration, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, isExplorationPull, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy, type ToolingConfig } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -387,6 +387,7 @@ function listRow(r: Row): ListRow {
   return {
     number: r.number,
     title: humanTitle(mdTitleText(withoutJiraKey(r.title))),
+    rawTitle: r.title,
     jira: jiraKeyOf(r.title),
     author: r.user.login,
     agent: Boolean(r.agent) || agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
@@ -440,6 +441,7 @@ function paintRows(rows: Row[], loading: boolean) {
     admin: el.dataset.admin || null,
     tokensRoot: el.dataset.tokensRoot || 'packages/tokens/src',
     ...(SITE.products?.length ? { products: SITE.products } : {}),
+    tooling: siteTooling(),
     tierLabel: tier ? approvalNeedLong(tier).toLowerCase() : null,
     failure: (err) =>
       err instanceof RateLimitError ? (limitLine(err, `A preview of ${VOCAB.branches} together`) ?? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to preview ${VOCAB.branches} together.`) : `Could not read a checked ${VOCAB.branch}: ${(err as Error).message}`,
@@ -453,6 +455,15 @@ function paintRows(rows: Row[], loading: boolean) {
   void import('../components/ds/studio/BranchesList').then(({ paintBranchesList }) => latestList && paintBranchesList(el, latestList));
 }
 let latestList: BranchesListProps | null = null;
+
+/** bridge.config.json tooling, read at paint time (a team shell knows its config once its model is read). */
+function siteTooling(): ToolingConfig | null {
+  try {
+    return (siteConfig() as { tooling?: ToolingConfig }).tooling ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function showEmpty(empty: boolean) {
   $('cg-list').hidden = empty;

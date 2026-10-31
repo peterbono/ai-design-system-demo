@@ -3,6 +3,7 @@ import {
   barCopy,
   boxDisabled,
   changesFiltersParam,
+  designRows,
   emptyTabLine,
   isYours,
   knownNames,
@@ -240,5 +241,29 @@ describe('email contributors on Branches', () => {
     expect(contributorTurn({ own: true, changesRequested: [], open: true })).toBe(false);
     expect(contributorTurn({ own: false, changesRequested: ['dana'], open: true })).toBe(false);
     expect(contributorTurn({ own: true, changesRequested: ['dana'], open: false })).toBe(false);
+  });
+});
+
+describe("designRows: Bridge's own pull requests stay out of Changes", () => {
+  const tooling = { paths: ['apps/docs-site/', 'packages/core/'], scopes: ['studio'] };
+  const r = (n: number, rawTitle: string, ref: string, opens: 'pr' | 'exploration' = 'pr', product: string | null = null) => ({ number: n, title: rawTitle, rawTitle, head: { ref }, opens, labels: null, product });
+  const rows = [
+    r(1, 'fix(studio): Being built filters as underline Tabs', 'fix/being-built-tabs'),
+    r(2, 'Library: Copy for Confluence', 'feat/library-confluence-export'),
+    r(3, 'Button: new size', 'feat/button-size'),
+    r(4, 'Exploration: new card', 'explore/new-card', 'exploration'),
+    r(5, 'fix(studio): x', 'feat/x', 'exploration', 'admin-app'),
+    r(6, 'feat(studio): Studio touches a component', 'feat/studio-button'),
+  ];
+  const files: Record<number, string[]> = { 2: ['apps/docs-site/src/a.ts', '.changeset/a.md'], 4: ['apps/docs-site/x.ts'], 6: ['apps/docs-site/a.ts', 'packages/react/src/components/Button/Button.tsx'] };
+
+  it('hides by title scope until the files are read, then by the files', () => {
+    expect(designRows(rows, () => null, tooling).map((x) => x.number)).toEqual([2, 3, 4, 5]);
+    expect(designRows(rows, (x) => files[x.number], tooling).map((x) => x.number)).toEqual([3, 4, 5, 6]);
+  });
+
+  it('keeps every row without tooling (a team repository)', () => {
+    expect(designRows(rows, (x) => files[x.number], null)).toHaveLength(rows.length);
+    expect(designRows(rows, (x) => files[x.number], { paths: [] })).toHaveLength(rows.length);
   });
 });

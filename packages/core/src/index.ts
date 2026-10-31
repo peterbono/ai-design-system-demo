@@ -72,6 +72,7 @@ export * from './share-branch';
 export * from './try-in-product';
 export * from './combine-branches';
 export * from './products';
+export * from './tooling';
 export * from './prod-branch';
 export * from './prod-branch-github';
 export * from './token-proposal';
