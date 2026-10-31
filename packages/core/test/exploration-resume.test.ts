@@ -82,6 +82,12 @@ describe('what changed, in words', () => {
     expect(subjectWords('Bulk actions bar — three actions')).toBe('changed bulk actions bar, three actions');
     expect(subjectWords('fix: fix spacing (#12)')).toBe('fixed spacing');
   });
+  it('says a merge in designer words, never git ones', () => {
+    expect(subjectWords("Merge branch 'main' into explore/dashboard-orders-waiting-to-ship")).toBe('brought in the latest product');
+    expect(subjectWords('Merge pull request #3 from peterbono/main')).toBe('brought in the latest product');
+    expect(subjectWords("Merge remote-tracking branch 'origin/main'")).toBe('brought in the latest product');
+    expect(subjectWords('Merged the two tables')).toBe('changed merged the two tables');
+  });
 });
 
 describe('activity', () => {
@@ -111,6 +117,11 @@ describe('activity', () => {
     expect(lastActivity({ commits, files: ['apps/admin/src/OrdersTable.tsx', 'apps/admin/src/BulkActionsBar.tsx'], author: 'florian' })).toMatchObject({ who: 'florian', claude: false, withClaude: true, text: 'changed Orders table and Bulk actions bar' });
     expect(lastActivity({ commits, files: ['apps/admin/src/lib/x.ts'], author: 'florian' })?.text).toBe('added a Bulk actions bar');
     expect(lastActivity({ commits: commits.slice(0, 1), files: [], author: 'florian' })).toBeNull();
+  });
+  it('lists a merge as bringing in the latest product, and the headline skips it', () => {
+    const merged = [...commits, commit('d', "Merge branch 'main' into explore/orders", '2026-10-30T13:00:00Z')];
+    expect(explorationActivity({ commits: merged, author: 'florian', limit: 1 })[0]).toMatchObject({ who: 'florian', text: 'brought in the latest product' });
+    expect(lastActivity({ commits: merged, files: [], author: 'florian' })?.text).toBe('added a Bulk actions bar');
   });
   it('says where it stands without technical words', () => {
     const events = explorationActivity({ commits, author: 'florian' });

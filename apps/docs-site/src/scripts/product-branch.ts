@@ -182,8 +182,8 @@ async function readView(r: ExplorationRow, gh: ReturnType<typeof client>, produc
   }
 }
 
-/** Paints a product branch in place. `reopen` reloads it after a write. */
-export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull: ExplorationPullLike, product: ProductConfig, products: readonly ProductConfig[], reopen: () => void) {
+/** Paints a product branch in place. `reopen` reads it again after a write, with the line it produced (`said`). */
+export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull: ExplorationPullLike, product: ProductConfig, products: readonly ProductConfig[], reopen: (said?: string) => void, said?: string) {
   mod ??= await import('../components/ds/studio/ProductBranch');
   const record = parsePiecesRecord(pull.body);
   const jira = jiraKeyOf(pull.title);
@@ -260,7 +260,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       focus,
       after: (line) => {
         repaint(d, { said: line });
-        reopen();
+        reopen(line);
       },
     });
   // Suggest mode: done exploring and archive are branch writes, so they are not offered. They have no suggestion
@@ -292,8 +292,9 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       onArchive: writable
         ? async () => {
             await archiveExplorationOnGitHub(gh, r.number, { archived: !r.archived });
-            reopen();
-            return r.archived ? 'Back in the lists.' : ARCHIVED_LINE;
+            const line = r.archived ? 'Back in the lists.' : ARCHIVED_LINE;
+            reopen(line);
+            return line;
           }
         : null,
       archived: Boolean(r.archived),
@@ -303,6 +304,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       take: r.status === 'closed' ? null : takeItLines(r.branch),
       githubUrl: safeUrl(r.url, '#'),
       ask: ASK_CLAUDE,
+      ...(said ? { said } : {}),
     },
   };
   d.innerHTML = '';

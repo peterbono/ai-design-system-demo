@@ -17,6 +17,7 @@ import {
   checkFor,
   needsCheck,
   okCheck,
+  readCacheMode,
   rejectedCheck,
   sessionState,
   rejectedText,
@@ -644,8 +645,11 @@ export function markTokenRejected() {
  * fetch for the core GitHubClient in the Studio: once the token is refused, reads go out anonymously (public repos
  * keep working) and writes fail at once with the same 401; any 401 to a call that carried the token marks it.
  */
-export const studioFetch: FetchLike = async (url, init = {}) => {
-  const method = (init.method ?? 'GET').toUpperCase();
+export const studioFetch: FetchLike = async (url, init0 = {}) => {
+  const method = (init0.method ?? 'GET').toUpperCase();
+  if (method !== 'GET') noteWrite();
+  // Shortly after a write, a read asks GitHub again rather than the browser's copy (lib/token-session readCacheMode).
+  const init: typeof init0 & { cache?: RequestCache } = method === 'GET' ? { ...init0, cache: freshRead() } : init0;
   let headers = init.headers ?? {};
   // An email contributor: every call to the team's repository goes through this site's proxy, the rest as a guest.
   if (isContribAuth(headers.Authorization)) return contributeFetch(pageRepo(), url, init as RequestInit, pageProductRepos());
@@ -778,6 +782,13 @@ function cacheSet(url: string, data: unknown) {
   }
 }
 
+/** When this tab last wrote to GitHub: reads ask GitHub again for a while after (lib/token-session readCacheMode). */
+let wroteAt: number | null = null;
+const noteWrite = () => {
+  wroteAt = Date.now();
+};
+const freshRead = (): RequestCache => readCacheMode(wroteAt, Date.now());
+
 /** fetch for a call with the session's headers: the proxy for an email contributor, GitHub otherwise. */
 const ghFetch = (url: string, init: RequestInit & { headers: Record<string, string> }): Promise<Response> =>
   isContribAuth(init.headers.Authorization) ? contributeFetch(pageRepo(), url, init, pageProductRepos()) : fetch(url, init);
@@ -808,7 +819,8 @@ export function ghGet<T>(path: string, opts: { accept?: string; raw?: boolean } 
   const user = /^\/users\/([^/?]+)/.exec(path);
   if (user && !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:%5Bbot%5D|\[bot\])?$/.test(user[1]!)) return Promise.reject(new GitHubError(404, `GitHub answered 404 for ${path}`));
   const url = path.startsWith('http') ? path : `${API}${path}`;
-  const key = `${url}|${opts.accept ?? ''}|${opts.raw ? 'raw' : ''}|${hasWorkingToken() ? 'auth' : 'anon'}`;
+  // A read after a write never joins one started before it (the write is part of the key).
+  const key = `${url}|${opts.accept ?? ''}|${opts.raw ? 'raw' : ''}|${hasWorkingToken() ? 'auth' : 'anon'}|${wroteAt ?? 0}`;
   const pending = inflight.get(key);
   if (pending) return pending as Promise<Fetched<T>>;
   const p = ghGetOnce<T>(url, path, `${url}|${opts.accept ?? ''}`, opts).finally(() => inflight.delete(key));
@@ -850,7 +862,8 @@ async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { ac
     const isApi = url.startsWith(API);
     const h = headers(opts.accept ? { Accept: opts.accept } : {});
     // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
-    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '', pageProductRepos())) ?? fetch(url, { headers: h })) : isApi ? await ghFetch(url, { headers: h }) : await fetch(url);
+    const cache = freshRead();
+    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '', pageProductRepos())) ?? fetch(url, { headers: h, cache })) : isApi ? await ghFetch(url, { headers: h, cache }) : await fetch(url, { cache });
     // GitHub refused the token: mark it, then read anonymously (public repos keep working).
     if (res.status === 401 && isApi && hasWorkingToken()) {
       markTokenRejected();
@@ -883,6 +896,7 @@ async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { ac
 export async function ghWrite<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
   if (!getToken()) throw new GitHubError(401, `${ghVerb(prefersSignIn())} first.`, 'no-token');
   if (tokenRejected()) throw new GitHubError(401, rejectedText(sessionMode(), prefersSignIn()), 'Bad credentials', { auth: 'rejected' });
+  noteWrite();
   // A code write on a team page in direct mode goes out with Bridge Direct (or waits for its OK: this throws).
   const headers = authHeaders({ 'Content-Type': 'application/json' });
   const contributor = isContribAuth(headers.Authorization);

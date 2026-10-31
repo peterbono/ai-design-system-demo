@@ -12,6 +12,8 @@ import {
   STUDIO_SIGNIN_REJECTED,
   needsCheck,
   okCheck,
+  readCacheMode,
+  READ_AFTER_WRITE_MS,
   rejectedCheck,
   sessionState,
   STUDIO_TOKEN_REJECTED,
@@ -95,4 +97,11 @@ test('a Sign in with GitHub session: expired sign-in, and missing app permission
   });
   assert.match(appMissingPermissionMessage(undefined), /^The Bridge GitHub App is missing a permission for this\. Ask the repository owner/);
   assert.doesNotMatch(STUDIO_SIGNIN_EXPIRED, /\u2014/);
+});
+
+test('readCacheMode: reads ask GitHub again for a while after a write, then use the browser cache', () => {
+  assert.equal(readCacheMode(null, 1_000), 'default');
+  assert.equal(readCacheMode(1_000, 1_000), 'no-cache');
+  assert.equal(readCacheMode(1_000, 1_000 + READ_AFTER_WRITE_MS - 1), 'no-cache');
+  assert.equal(readCacheMode(1_000, 1_000 + READ_AFTER_WRITE_MS), 'default');
 });

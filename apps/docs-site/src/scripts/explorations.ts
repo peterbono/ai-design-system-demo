@@ -553,7 +553,15 @@ async function readOne(n: number, product: string | null): Promise<ExplorationRo
   return explorationRows([tagged], CFG, { archived: 'include', ...(at ? { inProduct: at } : {}) })[0] ?? null;
 }
 
-async function rowFor(n: number, product: string | null): Promise<ExplorationRow | null> {
+async function rowFor(n: number, product: string | null, fresh = false): Promise<ExplorationRow | null> {
+  // After a write (Done exploring, Archive) the list read at page load still holds the state it just left: read the
+  // pull request again, and the lists after it.
+  if (fresh) {
+    if (product) void readProductPulls(true);
+    void loadExplorations(undefined, true);
+    const one = await readOne(n, product).catch(() => null);
+    if (one) return one;
+  }
   const list = await loadExplorations();
   const key = explorationKey({ number: n, product });
   const hit = list.find((x) => explorationKey(x) === key);
@@ -566,20 +574,24 @@ async function rowFor(n: number, product: string | null): Promise<ExplorationRow
   }
 }
 
-/** Opens an exploration in place (?exploration=N, &product=<key> when it lives in a product's own repository). */
-export async function openExploration(n: number, push = true, product: string | null = null) {
+/**
+ * Opens an exploration in place (?exploration=N, &product=<key> when it lives in a product's own repository).
+ * `after`: a write just changed it. `fresh` reads it again, `said` is the line the page it lands on shows.
+ */
+export async function openExploration(n: number, push = true, product: string | null = null, after: { fresh?: boolean; said?: string } = {}) {
   if (push) history.pushState({ exploration: n, product }, '', explorationHref({ number: n, product }));
   const d = $('rv-detail');
   d.hidden = false;
   d.innerHTML = `${crumbs(n, product)}<p class="rv-loading">Loading exploration #${n}</p>`;
   window.scrollTo({ top: 0 });
-  const r = await rowFor(n, product);
+  const r = await rowFor(n, product, after.fresh === true);
+  // Taken now: a list read finishing later replaces what the rows were read from.
+  const pull = r ? pullOf(r) : undefined;
   const asked = explorationParam(location.search);
   if (asked?.number !== n || asked.product !== product) return;
   current = r;
   // A branch started for a product: the product branch page (its missing pieces and their library branches). In the
   // product's own repository, the repository says which product it is.
-  const pull = r ? pullOf(r) : undefined;
   if (r && pull) void repairLabel(r, pull);
   if (r && pull) {
     const pb = await import('./product-branch');
@@ -587,12 +599,14 @@ export async function openExploration(n: number, push = true, product: string | 
     const of = productRepoByKey(r.product)?.product ?? isProductBranch(pull.labels, products);
     // While it runs (boards X1 and X2): not started or exploring, for a product or the library.
     const xp = await import('./exploration-page');
+    // After a write: read again, and the page it lands on says what happened.
+    const reopen = (said?: string) => void openExploration(n, false, product, { fresh: true, ...(said ? { said } : {}) });
     if (xp.runsHere(r)) {
       pb.closeProductBranch();
-      return xp.openExplorationPage(d, r, pull, of ?? defaultProduct(products), products, () => void openExploration(n, false, product));
+      return xp.openExplorationPage(d, r, pull, of ?? defaultProduct(products), products, reopen, after.said);
     }
     xp.closeExplorationPage();
-    if (of) return pb.openProductBranch(d, r, pull, of, products, () => void openExploration(n, false, product));
+    if (of) return pb.openProductBranch(d, r, pull, of, products, reopen, after.said);
   }
   const at = product ? productRepoByKey(product) : null;
   const where = product ? (at?.product.name ?? product) : `${CFG.owner}/${CFG.repo}`;
@@ -602,6 +616,7 @@ export async function openExploration(n: number, push = true, product: string | 
   d.innerHTML = r
     ? renderExplorationDetail(r, { connected: connected(), keeper: keeperOf(r) })
     : `${crumbs(n, product)}<p class="cg-muted">${esc(line)}${ghLink ? ` <a href="${attrUrl(ghLink)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}</a>.` : ''}</p>`;
+  if (r && after.said) saySaid(after.said);
   if (r) {
     void paintTryIt(r);
     void paintVisual(r);
@@ -616,17 +631,21 @@ function actionError(message: string | null, err?: unknown, action?: string) {
   el.hidden = message === null;
 }
 
+/** The line a write produced, in the state line of the detail. */
+function saySaid(said: string) {
+  const state = document.querySelector('#rv-detail .cg-pr-state');
+  if (!state) return;
+  state.textContent = said;
+  state.setAttribute('role', 'status');
+}
+
 /** Paints the detail again from a fresh read of the pull request (after Done exploring or Archive). */
 async function repaintDetail(target: Pick<ExplorationRow, 'number' | 'product'>, said: string) {
   const r = await readOne(target.number, target.product ?? null).catch(() => null);
   if (!r || !isCurrent(r)) return;
   current = r;
   $('rv-detail').innerHTML = renderExplorationDetail(r, { connected: connected(), keeper: keeperOf(r) });
-  const state = document.querySelector('#rv-detail .cg-pr-state');
-  if (state && said) {
-    state.textContent = said;
-    state.setAttribute('role', 'status');
-  }
+  if (said) saySaid(said);
   void paintTryIt(r);
   void paintVisual(r);
 }

@@ -204,11 +204,19 @@ export function isClaudeCommit(c: BranchCommitLike): boolean {
 /** True for the commit Bridge writes when it starts an exploration (only the note file). */
 export const isStartCommit = (c: BranchCommitLike): boolean => /^chore\(explore\): start /.test(c.commit.message);
 
+/** Git's own subject for a merge ("Merge branch 'main' into explore/x", "Merge pull request #3 from ..."). */
+export const isMergeSubject = (subject: string): boolean => /^Merge (branch|remote-tracking branch|pull request|commit)\b/.test(subject.trim());
+
+/** What a merge of the latest work into the branch reads as, after the actor: never git's own words. */
+export const MERGE_WORDS = 'brought in the latest product';
+
 /**
  * A commit subject in words after the actor: "feat(orders): add row selection" -> "added row selection". Conventional
- * prefixes go, an imperative first verb turns past, em dashes become commas. Other subjects: "changed things: <subject>".
+ * prefixes go, an imperative first verb turns past, em dashes become commas. A merge reads MERGE_WORDS. Other
+ * subjects: "changed things: <subject>".
  */
 export function subjectWords(subject: string): string {
+  if (isMergeSubject(subject)) return MERGE_WORDS;
   const s = subject
     .replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')
     .replace(/\s*—\s*/g, ', ')
@@ -249,7 +257,8 @@ export function explorationActivity(input: { commits: readonly BranchCommitLike[
  * or components ("changed Orders table and Bulk actions bar"), else the latest commit in words. Null before any change.
  */
 export function lastActivity(input: { commits: readonly BranchCommitLike[]; files: readonly string[] | null | undefined; author: string }): { who: string; claude: boolean; withClaude?: boolean; text: string; at: string } | null {
-  const latest = explorationActivity({ commits: input.commits, author: input.author }).find((e) => e.text !== 'started the exploration');
+  // A merge brought in other people's work: the line says what changed on the branch itself.
+  const latest = explorationActivity({ commits: input.commits, author: input.author }).find((e) => e.text !== 'started the exploration' && e.text !== MERGE_WORDS);
   if (!latest) return null;
   const things = changedThings(input.files ?? []);
   return { who: latest.who, claude: latest.claude, ...(latest.withClaude ? { withClaude: true } : {}), text: things.length ? `changed ${listThings(things)}` : latest.text, at: latest.at };

@@ -55,6 +55,14 @@ describe('exploration page model', () => {
     expect(rows[0]!.who).toMatchObject({ login: 'florian', agent: false, avatar: 'https://github.com/florian.png?size=64' });
   });
 
+  it('shows a merge of the latest product in designer words, never git ones', () => {
+    const merged = [...commits, c('m', "Merge branch 'main' into explore/dashboard-orders-waiting-to-ship", '2026-10-30T13:00:00Z')];
+    const rows = activityRows({ commits: merged, author: 'florian', names: { florian: 'Florian' }, now: NOW });
+    expect(`${rows[0]!.who.name} ${rows[0]!.text}`).toBe('Florian brought in the latest product');
+    expect(rows.map((r) => r.text).join(' ')).not.toMatch(/merge|branch|main/i);
+    expect(headlineOf({ commits: merged, files: [], author: 'florian', now: NOW })?.text).toBe('added a Bulk actions bar: Mark shipped, Export, Cancel');
+  });
+
   it('says the last change from the files, else from the latest commit; nothing before the first change', () => {
     expect(headlineOf({ commits, files: ['apps/admin/src/OrdersTable.tsx', 'apps/admin/src/BulkActionsBar.tsx'], author: 'florian', now: NOW })).toMatchObject({ who: { name: 'florian with Claude', agent: false }, text: 'changed Orders table and Bulk actions bar', when: '2 h ago' });
     expect(headlineOf({ commits, files: ['apps/admin/src/lib/x.ts'], author: 'florian', now: NOW })?.text).toBe('added a Bulk actions bar: Mark shipped, Export, Cancel');
