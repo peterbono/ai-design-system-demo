@@ -13,25 +13,32 @@
 //   when, the preview with one action, and the one Harbor zone on what happens next: the hand-off in three steps (the
 //   DS Checklist), then what the library gets from it (the pieces Bridge found, each with its request status; Bridge
 //   runs that check itself, the page shows it while it runs). The activity under it. A write's line is a DS toast.
-// The "..." menu holds Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
+// The "..." menu holds Rename (a DS Dialog), Back to exploring (a confirmation, waiting for code only) and Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
 // over lib/exploration-page.ts. Styles: styles/exploration-page.css.
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { ChevronLeft, Ellipsis, ExternalLink } from 'lucide-react';
 import {
   Accordion,
   AccordionItem,
+  AlertDialog,
+  AlertDialogContent,
   Avatar,
   Badge,
   Breadcrumb,
   Button,
+  ButtonGroup,
   Card,
   CardBody,
   Checklist,
   ChecklistRow,
+  Dialog,
+  DialogClose,
+  DialogContent,
   Icon,
   IconButton,
+  Input,
   Link,
   Menu,
   MenuContent,
@@ -107,6 +114,10 @@ export interface ExplorationPageProps {
   activity: ActivityRow[] | null;
   done: DoneAction;
   onDone: (focus: HTMLElement | null) => void;
+  /** Rename in the "..." menu: saves the new name on GitHub; null when not offered. */
+  onRename?: ((name: string) => Promise<string | void>) | null;
+  /** Back to exploring in the "..." menu (waiting for code, no developer push yet); null when not offered. */
+  onReopen?: (() => Promise<string | void>) | null;
   /** Archive in the "..." menu; null when not offered. */
   onArchive: (() => Promise<string | void>) | null;
   /** Copies a line (clipboard, else a selection fallback). */
@@ -403,11 +414,24 @@ function ExplorationBody(p: ExplorationPageProps) {
   const line = lines[tab];
   const only = view.tools.length === 1 ? view.tools[0] : null;
   const withWhat = only === 'copilot' ? 'GitHub Copilot' : only ? 'Claude AI' : 'your AI tool';
+  const [ask, setAsk] = useState<'rename' | 'reopen' | null>(null);
+  const [reopening, setReopening] = useState(false);
   const archive = () => {
     setSaid('');
     p.onArchive?.()
       .then((r) => setSaid(r ?? ''))
       .catch((err: Error) => setSaid(err.message));
+  };
+  const reopenIt = () => {
+    setSaid('');
+    setReopening(true);
+    p.onReopen?.()
+      .then((r) => setSaid(r ?? ''))
+      .catch((err: Error) => setSaid(err.message))
+      .finally(() => {
+        setReopening(false);
+        setAsk(null);
+      });
   };
   const notStarted = p.stage === 'not-started';
   const handoff = p.stage === 'handed-off' ? (p.handoff ?? null) : null;
@@ -425,13 +449,15 @@ function ExplorationBody(p: ExplorationPageProps) {
           </h1>
           {p.stage !== 'loading' && <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} />}
           <span className="xp-spacer" />
-          {p.onArchive && (
+          {(p.onRename || p.onReopen || p.onArchive) && (
             <Menu>
               <Tooltip content="More actions">
                 <MenuTrigger render={<IconButton icon={Ellipsis} label="More actions" variant="secondary" size="lg" />} />
               </Tooltip>
               <MenuContent align="end">
-                <MenuItem onClick={archive}>Archive</MenuItem>
+                {p.onRename && <MenuItem onClick={() => setAsk('rename')}>Rename</MenuItem>}
+                {p.onReopen && <MenuItem onClick={() => setAsk('reopen')}>Back to exploring</MenuItem>}
+                {p.onArchive && <MenuItem onClick={archive}>Archive</MenuItem>}
               </MenuContent>
             </Menu>
           )}
@@ -532,6 +558,33 @@ function ExplorationBody(p: ExplorationPageProps) {
       <p className="xp-said" role="status" aria-live="polite">
         {said}
       </p>
+      {p.onRename && (
+        <RenameDialog
+          open={ask === 'rename'}
+          name={p.title}
+          onOpenChange={(o) => setAsk(o ? 'rename' : null)}
+          onSave={async (name) => {
+            setSaid('');
+            const r = await p.onRename!(name);
+            setAsk(null);
+            setSaid(r ?? '');
+          }}
+        />
+      )}
+      {p.onReopen && (
+        <AlertDialog open={ask === 'reopen'} onOpenChange={(o) => !reopening && setAsk(o ? 'reopen' : null)}>
+          <AlertDialogContent
+            title="Back to exploring?"
+            description="Your developers have not started yet. The exploration runs again and Done exploring comes back."
+            confirmLabel="Back to exploring"
+            cancelLabel="Cancel"
+            tone="primary"
+            closeOnConfirm={false}
+            loading={reopening}
+            onConfirm={reopenIt}
+          />
+        </AlertDialog>
+      )}
       <Accordion className="xp-dev" headingLevel={2}>
         <AccordionItem value="dev" title="For developers">
           {p.take && (
@@ -557,6 +610,62 @@ function ExplorationBody(p: ExplorationPageProps) {
       </Accordion>
     </div>
     </ToolContext.Provider>
+  );
+}
+
+/** "Rename this exploration": the name prefilled, Save writes it on GitHub; a refusal shows under the field. */
+function RenameDialog({ open, name, onOpenChange, onSave }: { open: boolean; name: string; onOpenChange: (open: boolean) => void; onSave: (name: string) => Promise<void> }) {
+  const formId = useId();
+  const input = useRef<HTMLInputElement>(null);
+  const [value, setValue] = useState(name);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    setValue(name);
+    setError(null);
+  }, [open, name]);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const next = value.trim();
+    if (!next) return setError('Name the exploration, for example "Denser data tables".');
+    if (next === name.trim()) return onOpenChange(false);
+    setBusy(true);
+    onSave(next)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
+      <DialogContent
+        title="Rename this exploration"
+        size="sm"
+        initialFocus={input}
+        hideClose
+        footer={
+          <ButtonGroup align="end">
+            <DialogClose render={<Button variant="secondary" disabled={busy} />}>Cancel</DialogClose>
+            <Button type="submit" form={formId} variant="primary" loading={busy} disabled={busy}>
+              Save
+            </Button>
+          </ButtonGroup>
+        }
+      >
+        <form id={formId} onSubmit={submit} noValidate>
+          <Input
+            ref={input}
+            label="Name"
+            autoComplete="off"
+            value={value}
+            onValueChange={(v) => {
+              setValue(v);
+              if (error) setError(null);
+            }}
+            error={error ?? undefined}
+          />
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

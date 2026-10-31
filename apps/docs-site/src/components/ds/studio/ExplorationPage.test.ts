@@ -6,6 +6,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ExplorationPage, type ExplorationPageProps } from './ExplorationPage';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
+import { userEvent } from '@testing-library/user-event';
+import { explorationMenu } from '../../../lib/exploration-page';
 
 const florian = { login: 'florian', name: 'Florian', agent: false, avatar: null };
 const claude = { login: 'claude', name: 'Claude', agent: true, avatar: null };
@@ -406,5 +408,78 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
   it('has no axe violations', async () => {
     const { container } = handed({ pieces: { state: 'rows', rows: [{ id: 'a', title: 'Alert: count', href: '?request=81', line: 'Requested', tone: 'neutral', opens: 'request', number: 81 }] } });
     await expectNoAxeViolations(container);
+  });
+});
+
+describe('the "..." menu: Rename, Back to exploring, Archive', () => {
+  it('who sees what: only the keeper; Back to exploring only while waiting for code, never once developers build', () => {
+    expect(explorationMenu({ writable: false, status: 'ready' })).toEqual({ rename: false, reopen: false, archive: false });
+    expect(explorationMenu({ writable: true, status: 'active' })).toEqual({ rename: true, reopen: false, archive: true });
+    expect(explorationMenu({ writable: true, status: 'ready' })).toEqual({ rename: true, reopen: true, archive: true });
+    expect(explorationMenu({ writable: true, status: 'building' })).toEqual({ rename: true, reopen: false, archive: true });
+    expect(explorationMenu({ writable: true, status: 'shipped' }).rename).toBe(false);
+  });
+
+  it('nothing offered: no menu at all', () => {
+    paint({ onArchive: null, onRename: null, onReopen: null });
+    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+  });
+
+  it('the keeper: the three items in order', async () => {
+    paint({ onRename: async () => undefined, onReopen: async () => undefined });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await screen.findByRole('menuitem', { name: 'Rename' });
+    expect(screen.getAllByRole('menuitem').map((x) => x.textContent)).toEqual(['Rename', 'Back to exploring', 'Archive']);
+  });
+
+  it('building (no Back to exploring offered): Rename and Archive only', async () => {
+    paint({ onRename: async () => undefined, onReopen: null });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await screen.findByRole('menuitem', { name: 'Rename' });
+    expect(screen.getAllByRole('menuitem').map((x) => x.textContent)).toEqual(['Rename', 'Archive']);
+  });
+
+  it('Rename: a DS dialog with the name prefilled, Save sends the new name and says it', async () => {
+    const onRename = vi.fn(async () => 'Renamed. Its link and preview stay the same.');
+    paint({ onRename });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Rename this exploration' });
+    const field = within(dialog).getByRole('textbox', { name: 'Name' }) as HTMLInputElement;
+    expect(field.value).toBe('Orders: bulk actions');
+    await expectNoAxeViolations(dialog);
+    await user.clear(field);
+    await user.type(field, 'Orders: faster bulk actions');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onRename).toHaveBeenCalledWith('Orders: faster bulk actions'));
+    expect(await screen.findByText('Renamed. Its link and preview stay the same.')).toBeTruthy();
+  });
+
+  it('Rename refused: the reason under the field, the dialog stays', async () => {
+    paint({ onRename: async () => Promise.reject(new Error('Keep the name under 60 characters.')) });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Rename this exploration' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), ' again');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await within(dialog).findByText('Keep the name under 60 characters.')).toBeTruthy();
+  });
+
+  it('Back to exploring: a confirmation first, then the line', async () => {
+    const onReopen = vi.fn(async () => 'Back to exploring. Say Done exploring again when it is ready for developers.');
+    paint({ onReopen });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Back to exploring' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Back to exploring?' });
+    expect(within(dialog).getByText('Your developers have not started yet. The exploration runs again and Done exploring comes back.')).toBeTruthy();
+    expect(onReopen).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Back to exploring' }));
+    await waitFor(() => expect(onReopen).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Back to exploring. Say Done exploring again when it is ready for developers.')).toBeTruthy();
   });
 });

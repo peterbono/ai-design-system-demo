@@ -42,6 +42,11 @@ import { realConfig } from './helpers';
 import {
   archiveExplorationOnGitHub,
   doneExploringOnGitHub,
+  renameExplorationOnGitHub,
+  renamedExplorationTitle,
+  reopenExplorationOnGitHub,
+  withExplorationName,
+  withoutDoneExploring,
   doneExploringPlan,
   EXPLORATION_READY_LABEL,
   isHeldExploration,
@@ -232,6 +237,82 @@ describe('done exploring and archive on GitHub', () => {
     await c.withBranchPrefix('explore/').commitToBranch({ branch: 'explore/billing-screen', message: 'feat: real code', files: [{ path: 'apps/admin/x.ts', content: 'x' }] });
     expect((await listExplorationsOnGitHub(c, settings)).map((x) => x.status)).toEqual(['building']);
     await expect(doneExploringOnGitHub(gh.client(''), 1)).rejects.toThrow(/needs a GitHub token/);
+  });
+
+  it('back to exploring: undoes done exploring while developers have not pushed, labels back, pieces stay sent', async () => {
+    const gh = fakeGitHub();
+    const c = gh.client();
+    await startExplorationOnGitHub(c, { name: 'Billing screen', purpose: 'Overdue invoices.' }, settings);
+    gh.pulls[0].body = withPiecesRecord(gh.pulls[0].body, { checkedAt: '2026-10-30', pieces: [BADGE], links: [] });
+    await doneExploringOnGitHub(c, 1, { pieces: ['badge-overdue-tone'] });
+    expect((await listExplorationsOnGitHub(c, settings)).map((x) => x.status)).toEqual(['ready']);
+    const r = await reopenExplorationOnGitHub(c, 1, { date: new Date('2026-10-31T10:00:00Z') });
+    expect(r).toMatchObject({ number: 1, warnings: [] });
+    const pr = gh.pulls[0];
+    expect(pr.labels.map((l: any) => l.name)).toEqual(['exploration']);
+    expect(pr.body).not.toContain('### For developers');
+    const block = parseExplorationBody(pr.body)!;
+    expect(block.doneAt).toBeUndefined();
+    expect(block.doneSha).toBeUndefined();
+    expect(block.reopenedAt).toBe('2026-10-31T10:00:00.000Z');
+    expect(parsePiecesRecord(pr.body)!.links.map((l) => l.number)).toEqual([100]);
+    expect(pr.state).toBe('open');
+    expect((await listExplorationsOnGitHub(c, settings)).map((x) => x.status)).toEqual(['active']);
+    // Done exploring works again, and only an exploration waiting for code goes back.
+    await expect(reopenExplorationOnGitHub(c, 1)).rejects.toThrow(/still being explored/);
+    await doneExploringOnGitHub(c, 1);
+    expect((await listExplorationsOnGitHub(c, settings)).map((x) => x.status)).toEqual(['ready']);
+    await c.withBranchPrefix('explore/').commitToBranch({ branch: 'explore/billing-screen', message: 'feat: real code', files: [{ path: 'apps/admin/x.ts', content: 'x' }] });
+    await expect(reopenExplorationOnGitHub(c, 1)).rejects.toThrow(/Developers already work on #1/);
+    await expect(reopenExplorationOnGitHub(gh.client(''), 1)).rejects.toThrow(/needs a GitHub token/);
+  });
+
+  it('back to exploring with a token that cannot edit labels: still running, from the body', async () => {
+    const gh = fakeGitHub();
+    const c = gh.client();
+    await startExplorationOnGitHub(c, { name: 'Pill buttons', purpose: 'Rounder.' }, settings);
+    await doneExploringOnGitHub(c, 1);
+    gh.opts.labelsDenied = true;
+    const r = await reopenExplorationOnGitHub(c, 1);
+    expect(r.warnings).toHaveLength(2);
+    expect(gh.pulls[0].labels.map((l: any) => l.name)).toEqual(['ready-for-devs']);
+    expect((await listExplorationsOnGitHub(c, settings)).map((x) => x.status)).toEqual(['active']);
+    expect(explorationStatus({ state: 'open', labels: ['ready-for-devs'], body: gh.pulls[0].body })).toBe('active');
+    expect(isUnlabeledExploration({ state: 'open', draft: true, labels: ['ready-for-devs'], headRef: 'explore/pill-buttons', body: gh.pulls[0].body })).toBe(true);
+  });
+
+  it('rename: the title keeps its format and Jira key, the body block and heading get the name, the branch stays', async () => {
+    const gh = fakeGitHub();
+    const c = gh.client();
+    await startExplorationOnGitHub(c, { name: 'Pill buttons', purpose: 'Rounder.', jira: 'DS-42' }, settings);
+    const r = await renameExplorationOnGitHub(c, 1, '  Rounder buttons ');
+    expect(r).toMatchObject({ number: 1, branch: 'explore/pill-buttons', name: 'Rounder buttons', title: 'DS-42 Exploration: Rounder buttons' });
+    const pr = gh.pulls[0];
+    expect(pr.title).toBe('DS-42 Exploration: Rounder buttons');
+    expect(pr.body).toContain('## Exploration: Rounder buttons');
+    expect(parseExplorationBody(pr.body)).toMatchObject({ name: 'Rounder buttons', slug: 'pill-buttons', purpose: 'Rounder.' });
+    expect(pr.head.ref).toBe('explore/pill-buttons');
+    await expect(renameExplorationOnGitHub(c, 1, '   ')).rejects.toThrow(/Name the exploration/);
+    await expect(renameExplorationOnGitHub(c, 1, 'x'.repeat(61))).rejects.toThrow(/under 60 characters/);
+    await expect(renameExplorationOnGitHub(gh.client(''), 1, 'New')).rejects.toThrow(/needs a GitHub token/);
+    gh.pulls[0].state = 'closed';
+    await expect(renameExplorationOnGitHub(c, 1, 'New')).rejects.toThrow(/only an open exploration is renamed/);
+  });
+
+  it('rename and back to exploring: pure body and title rules', () => {
+    expect(renamedExplorationTitle('Exploration: Old', 'New: name')).toBe('Exploration: New, name');
+    expect(renamedExplorationTitle(null, 'New')).toBe('Exploration: New');
+    const body = explorationPrBody({ name: 'Old', purpose: '' }, { owner: 'acme', repo: 'ds', packages, apps });
+    expect(parseExplorationBody(withExplorationName(body, 'New'))).toMatchObject({ name: 'New', slug: 'old' });
+    const done = withDoneExploring(body, { branch: 'explore/old', doneAt: '2026-10-30T09:00:00Z', doneSha: 'aaa' });
+    const back = withoutDoneExploring(done, '2026-10-31T00:00:00Z');
+    expect(back).not.toContain('### For developers');
+    expect(back).not.toMatch(/\u2014/);
+    expect(parseExplorationBody(back)).toMatchObject({ name: 'Old', reopenedAt: '2026-10-31T00:00:00Z' });
+    expect(explorationStatus({ state: 'open', labels: ['exploration'], body: back })).toBe('active');
+    // Done exploring said again: the new done marker wins over reopenedAt.
+    const again = withDoneExploring(back, { branch: 'explore/old', doneAt: '2026-11-01T00:00:00Z', doneSha: 'bbb' });
+    expect(explorationStatus({ state: 'open', labels: ['ready-for-devs'], body: again, headSha: 'bbb', draft: true })).toBe('ready');
   });
 
   it('archive: a label on the open pull request, hidden from the default list, back with unarchive', async () => {
@@ -449,6 +530,8 @@ function fakeGitHub() {
   const issues: any[] = [];
   const comments: { n: number; body: string }[] = [];
   const calls: { method: string; path: string; body?: any }[] = [];
+  // A token without the right to edit labels: every label write is refused.
+  const opts = { labelsDenied: false };
   const res = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) });
   const f: FetchLike = async (url, init) => {
     const method = init?.method ?? 'GET';
@@ -512,6 +595,7 @@ function fakeGitHub() {
       const base = trees.get(refs.get('main')!)!;
       return res(200, [...head.keys()].filter((k) => head.get(k) !== base.get(k)).map((filename) => ({ filename, status: base.has(filename) ? 'modified' : 'added', additions: 1, deletions: 0 })));
     }
+    if (opts.labelsDenied && /^\/issues\/\d+\/labels/.test(path) && method !== 'GET') return res(403, { message: 'Resource not accessible by integration' });
     if (method === 'POST' && (m = /^\/issues\/(\d+)\/labels$/.exec(path))) {
       const pr = pulls[Number(m[1]) - 1];
       for (const name of body.labels) if (!pr.labels.some((l: any) => l.name === name)) pr.labels.push({ name });
@@ -532,7 +616,7 @@ function fakeGitHub() {
   };
   const noRetry = { attempts: 1, baseDelayMs: 0, sleep: async () => {} };
   const client = (token = 't') => new GitHubClient('acme/ds', token, f, noRetry, { protectedBranches: ['main'], branchPrefix: 'bridge/' });
-  return { client, refs, trees, pulls, issues, calls, comments };
+  return { client, refs, trees, pulls, issues, calls, comments, opts };
 }
 
 describe('explorations on GitHub', () => {

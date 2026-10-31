@@ -90,6 +90,17 @@ export function doneActionFor(v: { direct: boolean; demo: boolean; connected: bo
   return v.keeper ? { kind: 'run' } : { kind: 'note', text: v.keeperNote };
 }
 
+/**
+ * The "..." menu of the page, in order: Rename, Back to exploring, Archive. Only the keeper with GitHub in direct mode
+ * (`writable`: the person who started it or a reviewer) gets it. Rename while it is open (not shipped). Back to
+ * exploring only after Done exploring while no developer pushed since (status ready, not building). Nothing offered:
+ * no menu at all.
+ */
+export function explorationMenu(v: { writable: boolean; status: string }): { rename: boolean; reopen: boolean; archive: boolean } {
+  if (!v.writable) return { rename: false, reopen: false, archive: false };
+  return { rename: v.status !== 'shipped', reopen: v.status === 'ready', archive: true };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // After Done exploring (Waiting for code, Being built, Shipped): the same page family as X1 and X2. The status tag,
 // who said done and when, the preview, the hand-off in three steps, the pieces sent to the library, the activity.
