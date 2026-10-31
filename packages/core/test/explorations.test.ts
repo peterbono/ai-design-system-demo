@@ -118,6 +118,8 @@ describe('done exploring: status, plan and body', () => {
     const again = withDoneExploring(plan.body, { branch: 'explore/pill-buttons', doneAt: '2026-10-30T09:00:00.000Z', doneSha: 'c9' });
     expect(again.match(/### For developers/g)).toHaveLength(1);
     expect(parseExplorationBody(again)?.doneSha).toBe('c9');
+    expect(parseExplorationBody(again)?.doneBy).toBeUndefined();
+    expect(parseExplorationBody(withDoneExploring(plan.body, { branch: 'explore/pill-buttons', doneAt: '2026-10-30T09:00:00.000Z', doneBy: 'ann' }))?.doneBy).toBe('ann');
   });
 
   it('pieceRequest: always a request for the DS lead, with the preview link and who needs it', () => {
@@ -224,6 +226,8 @@ describe('done exploring and archive on GitHub', () => {
     expect(gh.trees.get(gh.refs.get('explore/billing-screen')!)!.has('.bridge/explorations/billing-screen.md')).toBe(false);
     expect(parsePiecesRecord(pr.body)!.links.map((l) => [l.piece, l.kind, l.number])).toEqual([['badge-overdue-tone', 'request', 100]]);
     expect(pr.body).toContain('### For developers');
+    // Who said it, for Being built.
+    expect(parseExplorationBody(pr.body)?.doneBy).toBe('ann');
     expect(gh.calls.some((x) => x.path === '/graphql')).toBe(false);
     expect((await listExplorationsOnGitHub(c, settings)).map((x) => x.status)).toEqual(['ready']);
 

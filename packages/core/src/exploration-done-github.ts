@@ -80,7 +80,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   if (status === 'promoted') throw new GitHubError(422, `#${p.number} was already sent to review.`);
   const fresh = status === 'active';
   const files = fresh ? await gh.listPullRequestFiles(p.number) : [];
-  const plan = fresh ? doneExploringPlan({ body: p.body, branch: p.headRef, files: files.map((f) => ({ path: f.filename, status: f.status })), date: input.date }) : null;
+  const plan = fresh ? doneExploringPlan({ body: p.body, branch: p.headRef, files: files.map((f) => ({ path: f.filename, status: f.status })), date: input.date, doneBy: input.openedBy }) : null;
   const take = plan?.take ?? (['git fetch origin', `git checkout ${p.headRef}`] as [string, string]);
   // The checks of the head the developers start from, so the note says truthfully whether anything ran or passed.
   const checks: ExplorationChecks | null = p.headSha ? await Promise.resolve(p.headSha).then((sha) => gh.getChecks(sha, { exploration: isGuardedExploration({ state: p.state, draft: p.draft, labels: p.labels, headRef: p.headRef, body: p.body }) })).then((c) => c.state, () => null) : null;
@@ -113,7 +113,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   // The pieces wrote their links into the body: read it again before the developer section goes in.
   const latest = await gh.getPullRequest(p.number).catch(() => p);
   const doneAt = parseExplorationBody(plan.body)?.doneAt ?? (input.date ?? new Date()).toISOString();
-  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneSha, checks }) });
+  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneBy: input.openedBy, doneSha, checks }) });
   return out;
 }
 

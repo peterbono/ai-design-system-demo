@@ -9,7 +9,7 @@ import { explorationsConfig } from './exploration-start';
 import { siteConfig } from './repo-context';
 
 /** bridge.config.json products (the same read as product-branch.ts siteProducts, without loading that page module). */
-function products(): ProductConfig[] {
+export function configuredProducts(): ProductConfig[] {
   try {
     const site = siteConfig() as { products?: ProductConfig[] };
     return site.products?.length ? site.products : DEFAULT_PRODUCTS;
@@ -19,7 +19,7 @@ function products(): ProductConfig[] {
 }
 
 /** The site's products that have their own repository. */
-export const siteProductRepos = (): ProductRepo[] => productReposOf(products(), explorationsConfig());
+export const siteProductRepos = (): ProductRepo[] => productReposOf(configuredProducts(), explorationsConfig());
 
 /** The product repository of a product key, when the site gives it one. */
 export const productRepoByKey = (key: string | null | undefined): ProductRepo | null => (key ? (siteProductRepos().find((x) => x.product.key === key.toLowerCase()) ?? null) : null);
