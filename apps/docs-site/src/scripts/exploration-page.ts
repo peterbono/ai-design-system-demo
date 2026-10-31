@@ -23,6 +23,8 @@ import { viewerRole } from './needs-you';
 import { sampleVisitor } from './demo-gate';
 import { copyText } from './explorer/util';
 import { loadVisualImpact } from './reviews/visual-impact';
+import { knownNames } from './people';
+import { loginKey } from '../lib/people';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -54,6 +56,22 @@ async function publicName(login: string): Promise<Record<string, string>> {
   const { personOf } = await import('./home-data');
   const p = await personOf(login);
   return p.name && p.name !== login ? { [login]: p.name } : {};
+}
+
+/**
+ * The names this browser already knows for these logins, with no call to GitHub: the viewer's own profile name, then
+ * the names Studio looked up this week (scripts/people.ts). "Started by Florian", not the login, even when GitHub's
+ * hourly limit stops the profile reads; the login stays only when no name is known.
+ */
+export function knownNamesOf(logins: readonly string[]): Record<string, string> {
+  const cache = knownNames();
+  const v = currentViewer();
+  const out: Record<string, string> = {};
+  for (const login of logins) {
+    const name = v?.name?.trim() && loginKey(v.login) === loginKey(login) ? v.name.trim() : cache[loginKey(login)]?.name?.trim();
+    if (name && name !== login) out[login] = name;
+  }
+  return out;
 }
 
 /** True when the page shows this exploration while it runs (X1 or X2); later states keep their own pages. */
@@ -112,7 +130,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       crumbs: productCrumbs(product.name, jiraKeyOf(pull.title), r.name),
       title: r.name,
       stage: 'loading',
-      author: faceOf(r.author, false),
+      author: faceOf(r.author, false, knownNamesOf([r.author])),
       startedTail: startedTail(product.name, pull.created_at ?? null),
       lines,
       todayUrl: null,
@@ -160,7 +178,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const todayUrl = todayRaw ? safeUrl(todayRaw) || null : null;
   const logins = [...new Set([r.author, ...commits.map((c) => c.author?.login ?? '').filter(Boolean)])];
   // Signed in: the GitHub profile names. Signed out: the git names on the commits, then the author's public profile.
-  const names = { ...gitNamesOf(commits), ...(await (connected() ? namesOf(logins) : publicName(r.author)).catch(() => ({}) as Record<string, string>)) };
+  // A name already known on this browser (the viewer's own, the week's cache) beats a login a failed read left.
+  const looked = await (connected() ? namesOf(logins) : publicName(r.author)).catch(() => ({}) as Record<string, string>);
+  const known = knownNamesOf(logins);
+  const names = { ...gitNamesOf(commits), ...known, ...Object.fromEntries(Object.entries(looked).filter(([l, n]) => n && n !== l)) };
   if (current?.key !== key) return;
   const preview = productPreviewOf(r, reported, app);
   // The branch's own build. Open the preview opens it with the Bridge toolbar (tryUrl) for a product

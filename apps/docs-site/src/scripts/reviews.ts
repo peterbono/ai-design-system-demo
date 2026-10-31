@@ -52,7 +52,7 @@ import { badgeHtml, closeDialog, openDialog, tokenValueHtml } from '@bridge-ds/r
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
 import { cssValue } from '../lib/html';
-import { currentContributor, currentViewer, esc, getToken, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError, signedInWithGitHub } from './github-session';
+import { currentContributor, currentViewer, esc, getToken, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, limitLine, prefersSignIn, RateLimitError, readRepo, showGhError, signedInWithGitHub } from './github-session';
 import { approvedSaid, askBridgeToShip, shipHeldLine, shouldAskToShip, type ShipAnswer } from '../lib/values-ship';
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
@@ -442,7 +442,7 @@ function paintRows(rows: Row[], loading: boolean) {
     ...(SITE.products?.length ? { products: SITE.products } : {}),
     tierLabel: tier ? approvalNeedLong(tier).toLowerCase() : null,
     failure: (err) =>
-      err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to preview ${VOCAB.branches} together.` : `Could not read a checked ${VOCAB.branch}: ${(err as Error).message}`,
+      err instanceof RateLimitError ? (limitLine(err, `A preview of ${VOCAB.branches} together`) ?? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to preview ${VOCAB.branches} together.`) : `Could not read a checked ${VOCAB.branch}: ${(err as Error).message}`,
     readClosed: () => void loadClosed(),
     seat: demoSeat(),
     waiting: waitingExtras,
@@ -546,7 +546,7 @@ function loadClosed(): Promise<void> {
       closedRows = f.data.filter((p) => !isAutomationPull(p)).map((p) => toRow(p, pullState(p) === 'merged' ? 'merged' : 'closed'));
     } catch (err) {
       closedRows = [];
-      showNotice('warn', err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to see ${VOCAB.branches} added to the library or closed.` : `Could not read recent ${VOCAB.branches}: ${(err as Error).message}`);
+      showNotice('warn', err instanceof RateLimitError ? (limitLine(err, `${VOCAB.Branches} added to the library or closed`) ?? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to see ${VOCAB.branches} added to the library or closed.`) : `Could not read recent ${VOCAB.branches}: ${(err as Error).message}`);
     }
     paintRows(openRows, listLoading);
   })();
@@ -596,7 +596,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     paintRows([], false);
     paintAsOf(
       failure instanceof RateLimitError
-        ? `GitHub limits anonymous reads to 60 an hour and this browser has used them, with no saved list yet. ${ghVerb(prefersSignIn())}, or try again later.`
+        ? (limitLine(failure, VOCAB.Branches) ?? `GitHub limits anonymous reads to 60 an hour and this browser has used them, with no saved list yet. ${ghVerb(prefersSignIn())}, or try again later.`)
         : `Could not load ${VOCAB.branches}: ${(failure as Error | null)?.message ?? 'GitHub did not answer'}.`,
     );
     return [];
@@ -880,7 +880,7 @@ export async function openPr(n: number, push = true) {
   } catch (err) {
     if (seq !== openSeq) return;
     d.innerHTML = `<p class="rv-loading"><a href="./" data-back>${VOCAB.Branches}</a></p>`;
-    if (err instanceof RateLimitError) showNotice('warn', `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())}, or try again later.`);
+    if (err instanceof RateLimitError) showNotice('warn', limitLine(err, `This ${VOCAB.branch}`) ?? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())}, or try again later.`);
     else showNotice('fail', `Could not load this ${VOCAB.branch}: ${(err as Error).message}`);
   }
 }

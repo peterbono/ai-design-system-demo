@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb, notSentLine, rateLimitedLine, SEE_SUGGESTION, SENT_FOR_REVIEW, sendButton, sendDialogTitle, sendGoal, sendingLine, SUGGEST_NEXT, suggestionSentLine, SUGGESTION_SENT, suggestOnlyLine } from './gh-wording';
+import { accountLimitLine, askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb, notSentLine, rateLimitedLine, resetClock, SEE_SUGGESTION, SENT_FOR_REVIEW, sendButton, sendDialogTitle, sendGoal, sendingLine, SUGGEST_NEXT, suggestionSentLine, SUGGESTION_SENT, suggestOnlyLine } from './gh-wording';
 
 describe('gh-wording', () => {
   it('says Sign in when the site has a GitHub App', () => {
@@ -21,6 +21,18 @@ describe('gh-wording', () => {
   it('words the rate limit for each way in', () => {
     expect(rateLimitedLine(true)).toBe('GitHub limits anonymous reads to 60 an hour and this browser has used them. Sign in, or try again later.');
     expect(rateLimitedLine(false)).toMatch(/Connect GitHub, or try again later\.$/);
+  });
+
+  it('signed in, says the account limit and when it resets, never anonymous nor Sign in', () => {
+    const now = Date.UTC(2026, 9, 31, 14, 9);
+    const at = new Date(now + 23 * 60_000);
+    const lines = [rateLimitedLine(true, { signedIn: true, resetAt: at, now }), rateLimitedLine(false, { signedIn: true, resetAt: null, now }), accountLimitLine(at, now, 'Explorations')];
+    expect(lines[0]).toBe(`GitHub's hourly limit for your account is reached. It resets at ${resetClock(at)} (in 23 min), then reload the page.`);
+    expect(lines[1]).toBe("GitHub's hourly limit for your account is reached. It resets within the hour, then reload the page.");
+    expect(lines[2]).toBe(`Explorations cannot be shown right now: GitHub's hourly limit for your account is reached. It resets at ${resetClock(at)} (in 23 min), then reload the page.`);
+    for (const line of lines) {
+      expect(line).not.toMatch(/anonymous|sign in|connect github|\u2014/i);
+    }
   });
 });
 
