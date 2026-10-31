@@ -54,18 +54,17 @@ export default function AccessibilityView({ data }: { data: LibraryData }) {
         studio={studioLink(data, ACCESSIBILITY_PAGE.studio)}
         studioLabel={ACCESSIBILITY_PAGE.studioLabel}
         canEdit={data.extras.canEdit}
-        actions={
-          <>
-            <Link href="#how-we-check" variant="standalone" data-a11y-how>
-              How we check
-            </Link>
-            <ConfluenceCopy data={data} route={pageHref(data, 'foundations/accessibility/')} />
-          </>
-        }
+        actions={<ConfluenceCopy data={data} route={pageHref(data, 'foundations/accessibility/')} />}
       >
+        {/* "How we check" ends the sentence it explains (proximity); the page action stays alone. */}
         <p className="a11y-status" data-state={summary.failing ? 'fail' : 'pass'}>
           <Icon icon={summary.failing ? CircleAlert : CircleCheck} size="md" className="a11y-status-icon" />
-          <span>{statusSentence(summary)}</span>
+          <span>
+            {statusSentence(summary)}{' '}
+            <Link href="#how-we-check" data-a11y-how>
+              How we check
+            </Link>
+          </span>
         </p>
       </LibraryHeader>
 
