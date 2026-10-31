@@ -49,6 +49,9 @@ const VIEW_TITLE: Record<View, string> = { review: 'Changes', requests: 'Request
 function selectTab(view: View) {
   const title = document.querySelector<HTMLElement>('#cg-main .st-title');
   if (title) title.textContent = VIEW_TITLE[view];
+  // The header's summary sentence speaks for the list only (components/ds/studio/BranchesList writes it).
+  const summary = document.querySelector<HTMLElement>('#cg-main [data-st-summary]');
+  if (summary) summary.hidden = view !== 'review';
   $('cg-back-link').hidden = view === 'review';
   // One primary per view: the start form has its own, so Start an exploration steps down to secondary there
   // (components/ds/studio/StartExploration START_CHANGE_EVENT; on the list the selection bar decides).

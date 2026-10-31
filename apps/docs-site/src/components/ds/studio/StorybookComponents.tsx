@@ -4,6 +4,7 @@
 // drawer per component with a live preview of one story at a time. Preview through iframe.html when the host allows
 // framing; otherwise the drawer says so and links out. What needs the repository (tokens, contrast checks,
 // suggestions) is said once on the page and once in the drawer, calmly, with the way to connect it.
+import { StudioHead } from './StudioHead';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ExternalLink, Lock, RefreshCw, Search } from 'lucide-react';
 import { storybookIframeUrl, storybookManagerUrl, type StorybookComponent } from '@bridge-ds/core';
@@ -253,34 +254,27 @@ export default function StorybookComponents({ suggestion }: StorybookComponentsP
   const host = url ? storybookHost(url) : null;
 
   const head = (lead: ReactNode, actions?: ReactNode) => (
-    <header className="st-head">
-      <div className="st-head-main">
-        <div className="st-title-row">
-          <h1 className="st-title">Components</h1>
+    <StudioHead title="Components" summary={lead} scene="components" actions={actions}>
+      {host && (
+        <p className="sbq-source">
+          From <span className="mono">{host}</span>
+          {ws.storybook && <span> · {checkedAgo(ws.storybook.checkedAt, Date.now())}</span>}
+          {!changing && (
+            <>
+              {' · '}
+              <Button variant="link" onClick={() => setChanging(true)}>
+                Change
+              </Button>
+            </>
+          )}
+        </p>
+      )}
+      {changing && (
+        <div className="sbq-change">
+          <StorybookField saved={ws.storybook} seeLink={false} id="sbq-change-url" onCancel={() => setChanging(false)} />
         </div>
-        <p className="cm-lead">{lead}</p>
-        {host && (
-          <p className="sbq-source">
-            From <span className="mono">{host}</span>
-            {ws.storybook && <span> · {checkedAgo(ws.storybook.checkedAt, Date.now())}</span>}
-            {!changing && (
-              <>
-                {' · '}
-                <Button variant="link" onClick={() => setChanging(true)}>
-                  Change
-                </Button>
-              </>
-            )}
-          </p>
-        )}
-        {changing && (
-          <div className="sbq-change">
-            <StorybookField saved={ws.storybook} seeLink={false} id="sbq-change-url" onCancel={() => setChanging(false)} />
-          </div>
-        )}
-      </div>
-      {actions && <div className="st-head-actions">{actions}</div>}
-    </header>
+      )}
+    </StudioHead>
   );
 
   if (!url) {

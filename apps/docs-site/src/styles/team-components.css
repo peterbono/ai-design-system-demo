@@ -1,17 +1,11 @@
-/* Team Components (components/ds/studio/TeamComponents.tsx, TokenSpecimens.tsx): the lead, search and family on one
-   row, one table per family, the drawer with one Storybook preview, and the token specimens band for a team without
-   a Storybook. Tokens only. */
+/* Team Components (components/ds/studio/TeamComponents.tsx, TokenSpecimens.tsx): search and family on one row (the
+   summary sentence is in the page header), one table per family, the drawer with one Storybook preview, and the token
+   specimens band for a team without a Storybook. Tokens only. */
 
 .tcm {
   display: grid;
   gap: var(--space-5);
   max-width: var(--studio-page-max);
-}
-
-.tcm-lead {
-  margin: 0;
-  font-size: var(--typography-body-size);
-  line-height: var(--typography-body-line-height);
 }
 
 .tcm-muted {

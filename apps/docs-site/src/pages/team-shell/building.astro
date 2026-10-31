@@ -11,7 +11,11 @@ import BeingBuilt from '../../components/ds/studio/BeingBuilt';
 import NextRelease from '../../components/NextRelease.astro';
 ---
 
-<TeamShell route="building/" title="Being built" what="build requests" description="The explorations handed to this team's developers and the changes sent from Figma that they are building, and where each one stands.">
+<TeamShell route="building/" title="Being built" scene="building" what="build requests" description="The explorations handed to this team's developers and the changes sent from Figma that they are building, and where each one stands.">
+  <Fragment slot="how">
+    <p>Explorations handed to developers, and changes from Figma or from Components that need code, land here. Developers pick them up in GitHub or Jira; each one reads Shipped once it is in the library.</p>
+    <p>Claude's fixes from Figma show here too: someone on your team reviews each one.</p>
+  </Fragment>
   <NextRelease />
   <BeingBuilt client:only="react" />
 </TeamShell>

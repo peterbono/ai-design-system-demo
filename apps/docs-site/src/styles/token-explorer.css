@@ -1491,51 +1491,9 @@
   grid-row: 2;
 }
 
+/* The Studio page header (styles/studio-app.css .st-head) spans the explorer's grid. */
 .xp-apphead {
   grid-column: 1 / -1;
-  min-height: var(--size-12);
-  margin: 0;
-  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-5);
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
-  background-color: var(--color-bg-default);
-}
-
-.xp-apphead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-4);
-}
-
-.xp-apphead .st-title {
-  margin: 0;
-}
-
-.xp-apphead-sub {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--space-2);
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
-.xp-apphead-hint::before {
-  content: "·";
-  margin-right: var(--space-2);
-}
-
-.xp-crumb {
-  overflow: hidden;
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-medium);
-  text-overflow: ellipsis;
-}
-
-.xp-apphead .xp-count {
-  font-size: var(--typography-ui-size);
 }
 
 /* Left: slim collections tree */
@@ -1834,10 +1792,6 @@
   .xp[data-surface="app"] {
     height: auto;
     margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) 0;
-  }
-
-  .xp-apphead {
-    padding: var(--space-2) var(--space-4);
   }
 
   .xp-tools .xp-new > span:not(.icon) {
@@ -3387,26 +3341,6 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
 .xp[data-surface="app"] > .xp-detail {
   grid-row: 2;
   padding-bottom: var(--space-5);
-}
-
-.xp[data-surface="app"] .xp-apphead {
-  min-height: 0;
-  padding: var(--space-2) 0 var(--space-5);
-  border-bottom: 0;
-  background-color: transparent;
-}
-
-.xp[data-surface="app"] .xp-crumb {
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-regular);
-}
-
-.xp[data-surface="app"] .xp-apphead-hint::before {
-  content: none;
-}
-
-.xp[data-surface="app"] .xp-apphead-sub {
-  display: block;
 }
 
 .xp[data-surface="app"] .xp-toolbar {

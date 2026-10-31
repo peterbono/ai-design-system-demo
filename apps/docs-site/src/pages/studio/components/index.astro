@@ -37,6 +37,7 @@ import { COPY_MESSAGE, FRAME_MISSING, PICK_COMPONENT_LINE } from '../../../lib/c
 import { signInConfig } from '../../../lib/signin-config';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import { studioHref } from '../../../lib/team-path';
+import { componentsHead } from '../../../lib/team-components';
 
 const components = loadComponents();
 const updated = freshness(PAGE_SOURCES.components);
@@ -79,18 +80,19 @@ const signIn = Boolean(signInConfig());
   wide
 >
   <div class="cm">
-    <StudioHeader title="Components">
-      <p class="cm-lead">
-        {lead.status}
-        {lead.guidance && (
+    <StudioHeader title="Components" scene="components">
+      <Fragment slot="summary">
+        {componentsHead(rows.length, families.length)}{lead.guidance ? (
           <>
-            {' '}
+            {', '}
             <Button variant="link" pressed={false} data-cm-guidance title="Show only these">
               {lead.guidance.replace(/\.$/, '')}
-            </Button>{lead.guidance.endsWith('.') && '.'}
+            </Button>.
           </>
+        ) : (
+          ', each with usage guidance.'
         )}
-      </p>
+      </Fragment>
       {primary && <Fragment slot="actions"><ButtonLink variant="primary" href={primary.href} iconStart={FileText} data-latest-only>{primary.label}</ButtonLink></Fragment>}
     </StudioHeader>
     <div class="view-banner" data-view-banner hidden></div>

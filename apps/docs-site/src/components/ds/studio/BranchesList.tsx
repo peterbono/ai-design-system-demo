@@ -50,6 +50,7 @@ import type { ThumbSpec } from '../../../lib/branch-thumb';
 import type { FileSignals } from '../../../lib/work-nature';
 import type { Lifecycle } from '../../../lib/change-status';
 import { VOCAB } from '../../../lib/vocabulary';
+import { changesSummary, setPageSummary } from '../../../lib/page-summary';
 import type { ProductConfig, ToolingConfig } from '@bridge-ds/core';
 import { studioHref } from '../../../lib/team-path';
 
@@ -294,6 +295,9 @@ export function BranchesList(p: BranchesListProps) {
     (['all', 'waiting', 'not-started', 'exploring', 'draft', 'review', 'code', 'shipped', 'archived'] as StateTab[]).map((t) => [t, inTab(t).filter((q) => passes(q, active)).length]),
   ) as Record<StateTab, number>;
   const tabs = visibleTabs(counts, tab);
+  // The page header's summary sentence (lib/page-summary): what is open, by where it stands, whatever the filters.
+  const summary = p.loading && !p.rows.length ? '' : changesSummary(Object.fromEntries((['not-started', 'exploring', 'draft', 'review', 'code'] as const).map((t) => [t, openItems.filter((q) => q.state === t).length])));
+  useEffect(() => setPageSummary(summary), [summary]);
   const waitingView = tab === 'waiting' && Boolean(viewer);
   const rowKey = (r: ListRow) => (r.product ? `${r.product}#${r.number}` : String(r.number));
   const rows = kept.flatMap((q) => (q.kind === 'branch' ? [q.x] : []));

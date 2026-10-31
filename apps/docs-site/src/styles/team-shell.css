@@ -1,4 +1,4 @@
-/* Team shells (components/TeamShell.astro): the Studio page header with the team under the title, then one empty
+/* Team shells (components/TeamShell.astro): the Studio page header (no team name under the title), then one empty
    state while team pages are not rendered from the repository yet. */
 
 .ts {
@@ -7,15 +7,7 @@
   max-width: var(--studio-page-max);
 }
 
-.ts-repo {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-  overflow-wrap: anywhere;
-}
-
-.ts-repo-name {
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-semibold);
+.ts > .st-head {
+  /* The grid gap already spaces it: the header sits as close to the content as on the self-hosted pages. */
+  margin-bottom: calc(var(--space-6) - var(--space-8));
 }

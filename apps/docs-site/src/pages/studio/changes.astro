@@ -72,7 +72,7 @@ const signIn = Boolean(signInConfig());
   <div class="rv cg">
     <p class="rv-notice" id="rv-notice" role="status" hidden></p>
     <div id="cg-main">
-      <StudioHeader title="Changes">
+      <StudioHeader title="Changes" scene="changes">
         <Fragment slot="actions">
           <Link href={studioHref('changes/')} id="cg-back-link" data-back hidden>All {VOCAB.branches}</Link>
           <span class="cg-create" data-greet><StartExploration client:load components={startComponents} /></span>

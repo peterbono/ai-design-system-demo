@@ -80,6 +80,8 @@ export async function initTeamBranches(): Promise<void> {
     if (view === null) return;
     const title = header?.querySelector('.st-title');
     if (title) title.textContent = TEAM_VIEW_TITLE[view];
+    const summary = header?.querySelector<HTMLElement>('[data-st-summary]');
+    if (summary) summary.hidden = view !== 'list';
     const backLink = $('cg-back-link');
     if (backLink) backLink.hidden = view === 'list';
     for (const [k, el] of Object.entries(panels)) if (el) el.hidden = k !== view;

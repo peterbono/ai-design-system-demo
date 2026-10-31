@@ -1,14 +1,8 @@
-/* Studio Components (pages/studio/components/index.astro): a sentence and one primary, a filter row, the list
+/* Studio Components (pages/studio/components/index.astro): the page header (summary sentence, one primary), a filter row, the list
    grouped by family, and the detail drawer. Type: h2 (title), body (lead), ui (everything else), caption (none). */
 
 .cm {
   max-width: var(--studio-page-max);
-}
-
-.cm-lead {
-  margin: 0;
-  font-size: var(--typography-body-size);
-  line-height: var(--typography-body-line-height);
 }
 
 .cm-tools {
