@@ -3,17 +3,17 @@
    panel beside the empty preview frame (X1) or the preview beside the Harbor card and the activity (X2, 3 to 2).
    "For developers" folded at the bottom. Four type sizes: h1, h2 (the panel title), body, ui. */
 
-.xp {
+.xp-page {
   display: grid;
   gap: var(--space-6);
   font-size: var(--typography-ui-size);
   line-height: var(--typography-ui-line-height);
 }
 
-.xp p,
-.xp h1,
-.xp h2,
-.xp h3 {
+.xp-page p,
+.xp-page h1,
+.xp-page h2,
+.xp-page h3 {
   margin: 0;
 }
 
@@ -52,13 +52,13 @@
   display: none;
 }
 
-.xp-head {
+.xp-pagehead {
   display: flex;
   align-items: center;
   gap: var(--space-4);
 }
 
-.xp-title {
+.xp-pagetitle {
   min-width: 0;
   font-family: var(--typography-h1-family);
   font-size: var(--typography-h1-size);
@@ -68,7 +68,7 @@
   overflow-wrap: anywhere;
 }
 
-.xp-title:focus {
+.xp-pagetitle:focus {
   outline: none;
 }
 
@@ -84,7 +84,7 @@
   line-height: var(--typography-body-line-height);
 }
 
-.xp strong {
+.xp-page strong {
   font-weight: var(--font-weight-semibold);
 }
 
@@ -167,7 +167,7 @@
   padding: var(--space-4);
 }
 
-.xp-line {
+.xp-cmdline {
   flex: 1;
   min-width: 0;
   padding: 0;
@@ -285,7 +285,7 @@
 }
 
 /* "Exploring" in Harbor, as on the validated board: the selected surface and the link text, its dot the same. */
-.xp .xp-head .xp-exploring {
+.xp-page .xp-pagehead .xp-exploring {
   --_bg: var(--color-surface-selected);
   --_border: transparent;
   --_text: var(--color-text-link);
@@ -368,7 +368,7 @@
    two, the preview's frame grows into it (within a screen-like ratio, 30 to 75 percent of its width) and the Harbor
    zone after Done exploring grows to the preview. While exploring, the activity sits under the Harbor card; after
    Done exploring, under the preview, the width of the preview. */
-.xp-grid {
+.xp-board {
   display: grid;
   grid-template-areas:
     'preview side'
@@ -379,19 +379,19 @@
 }
 
 /* While exploring the activity is in the side column: one row. */
-.xp-grid:not(.is-handoff) {
+.xp-board:not(.is-handoff) {
   grid-template-areas: 'preview side';
 }
 
-.xp-grid > .xp-preview {
+.xp-board > .xp-preview {
   grid-area: preview;
 }
 
-.xp-grid > .xp-side {
+.xp-board > .xp-side {
   grid-area: side;
 }
 
-.xp-grid > .xp-activity {
+.xp-board > .xp-activity {
   grid-area: activity;
 }
 
@@ -609,11 +609,11 @@
 /* Narrow windows: one column, the frame under the panel. Phones: the way back instead of the breadcrumb. */
 @media (max-width: 960px) {
   .xp-start,
-  .xp-grid {
+  .xp-board {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .xp-grid {
+  .xp-board {
     grid-template-areas:
       'preview'
       'side'
@@ -644,7 +644,7 @@
     min-height: var(--size-6);
   }
 
-  .xp-head {
+  .xp-pagehead {
     flex-wrap: wrap;
   }
 

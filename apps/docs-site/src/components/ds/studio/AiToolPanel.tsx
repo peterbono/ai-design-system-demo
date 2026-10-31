@@ -161,7 +161,7 @@ export function ToolPanel({ tools, tab, setTab, chosen, lines, setup, onCopy, sa
         )}
       </div>
       <div className="xp-paste-body">
-        <code className="xp-line" id="xp-line">
+        <code className="xp-cmdline" id="xp-cmdline">
           {line}
         </code>
         <Tooltip content="Copy">
