@@ -179,9 +179,12 @@ export interface HandoffReview {
  * developers' work checked before it ships), Shipped. `builders`: the developers known on it (assigned, or who pushed
  * after Done exploring). `review`: read once the developers have started; without it, they are still building.
  */
-export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | null; doneAt: string | null; builders: readonly PageFace[]; shippedAt?: string | null; product: string; review?: HandoffReview | null; nextRelease?: boolean; now?: Date }): HandoffStep[] {
+export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | null; doneAt: string | null; builders: readonly PageFace[]; shippedAt?: string | null; product: string; library?: boolean; review?: HandoffReview | null; nextRelease?: boolean; now?: Date }): HandoffStep[] {
   const when = dayOf(input.doneAt, input.now);
-  const done: HandoffStep = { status: 'done', title: 'Done exploring', detail: [input.doneBy?.name, when].filter(Boolean).join(', ') || 'Handed to your developers' };
+  // Say where the work went: Done exploring put it in the developers' task list.
+  const sentTo = `Sent to the ${input.library ? 'library' : input.product} developers.`;
+  const doneWho = [input.doneBy?.name, when].filter(Boolean).join(', ');
+  const done: HandoffStep = { status: 'done', title: 'Done exploring', detail: doneWho ? `${doneWho}. ${sentTo}` : sentTo };
   const who = input.builders.length ? names(input.builders) : null;
   const rv = input.review ?? null;
   // Building: still a draft (or nothing read yet), with no decision. Then the developers have asked for a review.
@@ -199,7 +202,7 @@ export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | 
               : 'building';
   const build: HandoffStep =
     stage === 'ready'
-      ? { status: 'waiting', title: 'Developers build it', detail: who ? `Waiting for ${who}` : 'Waiting for a developer', current: true }
+      ? { status: 'waiting', title: 'Developers build it', detail: who ? `Waiting for ${who}` : 'In their task list. You see here when one picks it up.', current: true }
       : stage === 'building'
         ? { status: 'waiting', title: 'Developers build it', detail: who ? `${who} ${input.builders.length === 1 ? 'is' : 'are'} building it` : 'Being built', current: true }
         : { status: 'done', title: 'Built', detail: who ? `By ${who}` : 'By your developers' };

@@ -134,12 +134,14 @@ describe('after Done exploring (Waiting for code, Being built, Shipped)', () => 
   it('says the hand-off in four steps, in designer words', () => {
     const waiting = handoffSteps({ status: 'ready', doneBy: florian, doneAt: '2026-10-30T12:20:00Z', builders: [], product: 'Admin demo', now: NOW });
     expect(waiting.map((s) => [s.status, s.title, s.detail, Boolean(s.current)])).toEqual([
-      ['done', 'Done exploring', 'Florian, today', false],
-      ['waiting', 'Developers build it', 'Waiting for a developer', true],
+      ['done', 'Done exploring', 'Florian, today. Sent to the Admin demo developers.', false],
+      ['waiting', 'Developers build it', 'In their task list. You see here when one picks it up.', true],
       ['waiting', 'Review', 'After the developers', false],
       ['waiting', 'Shipped', 'Then live in Admin demo', false],
     ]);
     expect(handoffSteps({ status: 'ready', doneBy: florian, doneAt: null, builders: [sam], product: 'Admin demo', now: NOW })[1]!.detail).toBe('Waiting for Sam');
+    expect(handoffSteps({ status: 'ready', doneBy: null, doneAt: null, builders: [], product: 'Admin demo', now: NOW })[0]!.detail).toBe('Sent to the Admin demo developers.');
+    expect(handoffSteps({ status: 'ready', doneBy: florian, doneAt: null, builders: [], product: 'the library', library: true, now: NOW })[0]!.detail).toBe('Florian. Sent to the library developers.');
     expect(handoffSteps({ status: 'building', doneBy: florian, doneAt: null, builders: [sam], product: 'Admin demo', now: NOW })[1]!.detail).toBe('Sam is building it');
     const shipped = handoffSteps({ status: 'shipped', doneBy: florian, doneAt: '2026-10-29T12:00:00Z', builders: [], shippedAt: '2026-10-30T09:00:00Z', product: 'Admin demo', now: NOW });
     expect(shipped.map((s) => s.status)).toEqual(['done', 'done', 'done', 'done']);

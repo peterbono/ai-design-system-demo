@@ -369,7 +369,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     viewer,
     compareUrl: v.state === 'branch' ? v.url : null,
   };
-  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, review, nextRelease });
+  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease });
   const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
   // Who may run the check: someone who can write it, signed in with GitHub, in a team that writes branches.
   const canCheck = connected() && direct && !emailOnProduct && (keeper || currentAccess()?.write === true);

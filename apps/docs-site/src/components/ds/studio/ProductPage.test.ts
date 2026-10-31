@@ -3,8 +3,8 @@
 // with the one action. The sidebar's Products group: one link per configured product, the current one marked.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import type { ProductConfig } from '@bridge-ds/core';
 import { ProductPageView } from './ProductPage';
@@ -95,6 +95,79 @@ describe('ProductPageView', () => {
   it('says when the team lists no such product', () => {
     render(createElement(ProductPageView, { productKey: 'shop', components: [], data: data({ product: null }) }));
     expect(screen.getByRole('heading', { level: 1, name: 'Product not found' })).toBeTruthy();
+  });
+});
+
+describe('ProductPageView, rename (admins)', () => {
+  const view = (rename: Parameters<typeof ProductPageView>[0]['rename']) => render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }), rename }));
+
+  it('read only without the rename: no pencil', () => {
+    view(null);
+    expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();
+  });
+
+  it('a pencil after the title opens the name in place; Escape cancels', async () => {
+    const onSend = vi.fn(async () => {});
+    const { container } = view({ state: 'offer', onSend });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Product admin' }));
+    const field = screen.getByRole('textbox', { name: 'Product name' }) as HTMLInputElement;
+    expect(field.value).toBe('Product admin');
+    expect(screen.getByRole('heading', { level: 1, name: 'Product admin' })).toBeTruthy();
+    await expectNoAxeViolations(container);
+    fireEvent.keyDown(field, { key: 'Escape' });
+    expect(screen.queryByRole('textbox', { name: 'Product name' })).toBeNull();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('checks the name before sending, and says how to fix it', () => {
+    const onSend = vi.fn(async () => {});
+    view({ state: 'offer', onSend });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Product admin' }));
+    const field = screen.getByRole('textbox', { name: 'Product name' });
+    fireEvent.change(field, { target: { value: 'library' } });
+    fireEvent.submit(field.closest('form')!);
+    expect(screen.getByText('Another product already has this name. Pick a different one.')).toBeTruthy();
+    fireEvent.change(field, { target: { value: '  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByText('Type a name for the product.')).toBeTruthy();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('Enter sends it for review; the title keeps the current name until it merges', async () => {
+    const onSend = vi.fn(async () => {});
+    view({ state: 'offer', onSend });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Product admin' }));
+    const field = screen.getByRole('textbox', { name: 'Product name' });
+    fireEvent.change(field, { target: { value: ' Back office ' } });
+    await act(async () => {
+      fireEvent.submit(field.closest('form')!);
+    });
+    expect(onSend).toHaveBeenCalledWith(' Back office ');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Rename sent for review. It shows everywhere once merged.'));
+    expect(screen.getByRole('heading', { level: 1, name: 'Product admin' })).toBeTruthy();
+    expect(screen.getByText('Rename waiting for review')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();
+  });
+
+  it('a refused write: one plain sentence, the details in the console', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    view({ state: 'offer', onSend: async () => Promise.reject(new Error('Resource not accessible by integration')) });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Product admin' }));
+    const field = screen.getByRole('textbox', { name: 'Product name' });
+    fireEvent.change(field, { target: { value: 'Back office' } });
+    await act(async () => {
+      fireEvent.submit(field.closest('form')!);
+    });
+    expect(screen.getByText('Bridge could not send the rename. Ask an admin of the repository.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Resource not accessible');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('a rename already waiting: says so, no second one', () => {
+    view({ state: 'waiting', onSend: async () => {} });
+    expect(screen.getByText('Rename waiting for review')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();
   });
 });
 
