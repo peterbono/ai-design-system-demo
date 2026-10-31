@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-31T13:22:14.930Z",
-  "durationMs": 106354,
+  "createdAt": "2026-10-31T13:26:38.047Z",
+  "durationMs": 96590,
   "base": {
     "ref": "fedd0c0f64b193c3744908d6e67d76bfbcb6c9ff",
     "sha": "fedd0c0f64b193c3744908d6e67d76bfbcb6c9ff"
   },
   "head": {
-    "ref": "cf1fb5806955daa8965478f5544f794559d85e90",
-    "sha": "cf1fb5806955daa8965478f5544f794559d85e90"
+    "ref": "55c12b9e9c976e8a7172984c01df7c92307cb343",
+    "sha": "55c12b9e9c976e8a7172984c01df7c92307cb343"
   },
   "options": {
     "only": [
@@ -94,20 +94,20 @@
       "brand": "bridge",
       "theme": "light",
       "status": "changed",
-      "changedPixels": 24209,
+      "changedPixels": 24044,
       "totalPixels": 1024000,
-      "percent": 2.36,
+      "percent": 2.35,
       "boxes": [
         {
-          "x": 448,
+          "x": 528,
           "y": 304,
-          "width": 448,
+          "width": 384,
           "height": 496
         },
         {
           "x": 944,
           "y": 304,
-          "width": 64,
+          "width": 80,
           "height": 16
         },
         {
@@ -119,7 +119,7 @@
         {
           "x": 976,
           "y": 352,
-          "width": 32,
+          "width": 48,
           "height": 16
         },
         {
@@ -131,7 +131,7 @@
         {
           "x": 976,
           "y": 400,
-          "width": 32,
+          "width": 48,
           "height": 400
         },
         {
@@ -292,20 +292,20 @@
       "brand": "bridge",
       "theme": "dark",
       "status": "changed",
-      "changedPixels": 23878,
+      "changedPixels": 23687,
       "totalPixels": 1024000,
-      "percent": 2.33,
+      "percent": 2.31,
       "boxes": [
         {
-          "x": 448,
+          "x": 528,
           "y": 304,
-          "width": 448,
+          "width": 384,
           "height": 496
         },
         {
           "x": 944,
           "y": 304,
-          "width": 64,
+          "width": 80,
           "height": 16
         },
         {
@@ -317,7 +317,7 @@
         {
           "x": 976,
           "y": 352,
-          "width": 32,
+          "width": 48,
           "height": 16
         },
         {
@@ -329,7 +329,7 @@
         {
           "x": 976,
           "y": 400,
-          "width": 32,
+          "width": 48,
           "height": 400
         },
         {
@@ -490,32 +490,26 @@
       "brand": "ocean",
       "theme": "light",
       "status": "changed",
-      "changedPixels": 25041,
+      "changedPixels": 25121,
       "totalPixels": 1024000,
       "percent": 2.45,
       "boxes": [
         {
-          "x": 448,
+          "x": 512,
           "y": 304,
-          "width": 464,
+          "width": 416,
           "height": 496
         },
         {
           "x": 960,
           "y": 304,
-          "width": 48,
-          "height": 16
-        },
-        {
-          "x": 1040,
-          "y": 304,
-          "width": 80,
+          "width": 160,
           "height": 16
         },
         {
           "x": 976,
           "y": 352,
-          "width": 32,
+          "width": 48,
           "height": 16
         },
         {
@@ -527,7 +521,7 @@
         {
           "x": 976,
           "y": 400,
-          "width": 32,
+          "width": 48,
           "height": 400
         },
         {
@@ -688,32 +682,26 @@
       "brand": "ocean",
       "theme": "dark",
       "status": "changed",
-      "changedPixels": 24677,
+      "changedPixels": 24784,
       "totalPixels": 1024000,
-      "percent": 2.41,
+      "percent": 2.42,
       "boxes": [
         {
-          "x": 448,
+          "x": 512,
           "y": 304,
-          "width": 464,
+          "width": 416,
           "height": 496
         },
         {
           "x": 960,
           "y": 304,
-          "width": 48,
-          "height": 16
-        },
-        {
-          "x": 1040,
-          "y": 304,
-          "width": 80,
+          "width": 160,
           "height": 16
         },
         {
           "x": 976,
           "y": 352,
-          "width": 32,
+          "width": 48,
           "height": 16
         },
         {
@@ -725,7 +713,7 @@
         {
           "x": 976,
           "y": 400,
-          "width": 32,
+          "width": 48,
           "height": 400
         },
         {
