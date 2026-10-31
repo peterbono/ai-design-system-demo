@@ -444,3 +444,31 @@
     padding: var(--space-4);
   }
 }
+
+/* Library > Changelog > Token and guidance changes (components/TokenChanges.astro): after the release notes, its own
+   heading and a Filter; the rows are the History rows of changes.css. */
+.tc {
+  margin-top: var(--space-12);
+  padding-top: var(--space-8);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  scroll-margin-top: var(--space-8);
+}
+
+.tc-head {
+  align-items: flex-end;
+}
+
+.tc-intro {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.tc-intro h2,
+.tc-intro p {
+  margin: 0;
+}
+
+.tc [id="hs-filter-toggle"][hidden] {
+  display: none;
+}

@@ -3,8 +3,7 @@
 // in-place reviews (?pr=N: the branch review; ?suggestion=N: the suggestion review). The team's repo model is read
 // first (scripts/team-data.ts, with its progress) because reviews.ts reads the team's settings (owners, rights,
 // products) when it loads. The views the self-hosted page reaches by address work for the team too, with the same
-// modules: History (scripts/history/page.ts, read from the team's GitHub history when signed in, from its published
-// activity.json for a guest), a component change
+// modules (the old History address moved: scripts/history-links historyRedirect), a component change
 // request in place (scripts/requests.ts, the team's request issues), Requests when triage is on in Studio, and the
 // exploration start form (scripts/explorations.ts, against the team's repository, following its "changes" mode; in
 // direct mode the first write asks for Bridge Direct's OK, scripts/github-session.ts).
@@ -20,6 +19,7 @@ import type { ExplorationPullLike } from '../lib/explorations-view';
 import { studioHref } from '../lib/team-path';
 import { teamGuidance } from '../lib/team-facts';
 import { readWaitingExtras } from './waiting-extras';
+import { historyRedirect } from './history-links';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -71,7 +71,7 @@ export async function initTeamBranches(): Promise<void> {
   let extrasLoaded: Promise<void> | null = null;
 
   type MainView = keyof typeof TEAM_VIEW_TITLE;
-  const panels: Record<MainView, HTMLElement | null> = { list: $('cg-review'), history: $('cg-history'), requests: $('cg-requests'), explorations: $('cg-explore') };
+  const panels: Record<MainView, HTMLElement | null> = { list: $('cg-review'), requests: $('cg-requests'), explorations: $('cg-explore') };
   // The list, or one of the views the header and addresses reach; null: a branch, suggestion or request in place,
   // which has its own title and way back.
   const showMain = (view: MainView | null) => {
@@ -80,9 +80,7 @@ export async function initTeamBranches(): Promise<void> {
     if (view === null) return;
     const title = header?.querySelector('.st-title');
     if (title) title.textContent = TEAM_VIEW_TITLE[view];
-    const historyLink = $('cg-history-link');
     const backLink = $('cg-back-link');
-    if (historyLink) historyLink.hidden = view !== 'list';
     if (backLink) backLink.hidden = view === 'list';
     for (const [k, el] of Object.entries(panels)) if (el) el.hidden = k !== view;
   };
@@ -128,6 +126,16 @@ export async function initTeamBranches(): Promise<void> {
   };
 
   const route = async () => {
+    // An old History address: Shipped here (the list opens on it), or another page.
+    const moved = historyRedirect();
+    if (moved) {
+      const to = new URL(moved, location.href);
+      if (to.pathname !== location.pathname) {
+        location.replace(to.href);
+        return;
+      }
+      history.replaceState(history.state, '', `${to.search}${to.hash}`);
+    }
     const r = teamBranchesRoute(location.search);
     if (r.view !== 'suggestion') suggestions.closeSuggestion(sgHost);
     if (r.view === 'pr') {
@@ -152,12 +160,6 @@ export async function initTeamBranches(): Promise<void> {
       showMain(null);
       const m = await loadRequestsModule();
       void m.openRequest(r.n, false, openPulls<PullLike>());
-      return;
-    }
-    if (r.view === 'history') {
-      showMain('history');
-      const { initHistory } = await import('./history/page');
-      initHistory();
       return;
     }
     if (r.view === 'requests') {
@@ -220,11 +222,6 @@ export async function initTeamBranches(): Promise<void> {
       e.preventDefault();
       go('');
       return;
-    }
-    const tab = t.closest<HTMLElement>('[data-cg-view]');
-    if (tab) {
-      e.preventDefault();
-      go(tab.dataset.cgView === 'history' ? '?view=history' : '');
     }
   });
   window.addEventListener('popstate', () => void route());

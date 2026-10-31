@@ -71,7 +71,8 @@ specs aside).
 GitHub gives a visitor who is not signed in 60 API requests an hour. A busy team's Branches page alone used to take
 about 20, so a guest ran out after three page views. `bridge snapshot --activity` reads, in CI with the run's
 `GITHUB_TOKEN`, what the guest pages read, and writes it to `activity.json`. A guest's Home, Branches, a branch
-page, Review, History, a suggestion and a request then make no GitHub API request at all.
+page, Review, the Library changelog's token changes, a suggestion and a request then make no GitHub API request at
+all.
 
 `activity.json` (`kind: "bridge-activity"`, `schemaVersion: 1`):
 
@@ -82,7 +83,7 @@ page, Review, History, a suggestion and a request then make no GitHub API reques
 | `suggestions` | Open suggestions with their parsed payload, status and approvers |
 | `requests` | Component change requests with their kind, component and status |
 | `merged` | Recently merged pull requests |
-| `history` | The token history report of the default branch (what History shows) |
+| `history` | The token history report of the default branch (what the Library changelog's token changes show) |
 | `responses` | The GitHub REST reads (GET) the guest pages make, as GitHub answered them, trimmed: no API links, no diffs, trees cut to token, config and changeset files |
 | `truncated`, `problems` | What was left out to stay small, and what could not be read |
 

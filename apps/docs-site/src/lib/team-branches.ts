@@ -7,7 +7,8 @@ import { REQUEST_TRIAGE_IN_STUDIO } from './studio-flags';
 
 /**
  * What the page shows, from its address, with the same rules as the self-hosted Branches page (scripts/changes.ts):
- * a branch, a suggestion or a component change request in place; History (?view=history); the exploration start form
+ * a branch, a suggestion or a component change request in place; the old History (?view=history), which moved
+ * (lib/history-moved: the page redirects before it routes); the exploration start form
  * (?view=explorations with &start=new or &for=<request>); Requests (?view=requests) only when request triage is on in
  * Studio. Anything else is the list. A running exploration is a branch: it opens as one.
  */
@@ -18,7 +19,6 @@ export type TeamBranchesRoute =
   | { view: 'exploration'; n: number; product: string }
   | { view: 'suggestion'; n: number }
   | { view: 'request'; n: number }
-  | { view: 'history' }
   | { view: 'requests' }
   | { view: 'explorations'; forRequest: number | null };
 
@@ -35,17 +35,13 @@ export function teamBranchesRoute(search: string, requestTriage: boolean = REQUE
   if (pr) return { view: 'pr', n: pr };
   if (num('request')) return { view: 'request', n: num('request') };
   const v = p.get('view');
-  if (v === 'history') return { view: 'history' };
   if (v === 'requests' && requestTriage) return { view: 'requests' };
   if (v === 'explorations' && (num('for') || p.get('start') === 'new')) return { view: 'explorations', forRequest: num('for') || null };
   return { view: 'list' };
 }
 
-/** The History card's sentence until the team's release branch is read (it replaces it when there is one). */
-export const TEAM_HISTORY_LINE = 'Every token and usage guidance change your team added to the library, by release.';
-
 /** The page title per view, as on the self-hosted page. */
-export const TEAM_VIEW_TITLE = { list: 'Changes', history: 'History', requests: 'Requests', explorations: 'Explorations' } as const;
+export const TEAM_VIEW_TITLE = { list: 'Changes', requests: 'Requests', explorations: 'Explorations' } as const;
 
 export interface SuggestionRow {
   number: number;

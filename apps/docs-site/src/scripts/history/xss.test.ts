@@ -51,9 +51,6 @@ vi.mock('../github-session', async (orig) => ({
   currentViewer: () => null,
   readRepo: () => ({ owner: 'o', repo: 'r' }),
 }));
-vi.mock('../../lib/review-queue', async (orig) => ({ ...(await orig<typeof import('../../lib/review-queue')>()), releasePull: (xs: unknown[]) => xs[0] ?? null }));
-vi.mock('../pr-status', () => ({ owners: () => ({ design: [], tech: [] }), shippers: () => null }));
-vi.mock('../teams', () => ({ loadTeams: () => Promise.resolve() }));
 vi.mock('../people', () => ({ displayName: (login: string) => login, knownNames: () => ({}), paintPeople: () => Promise.resolve(), personHtml: () => '' }));
 vi.mock('../../lib/select-bridge', () => ({ onSelectPick: () => {}, selectValue: () => '', setSelect: () => {} }));
 
@@ -90,29 +87,28 @@ describe('history sinks with hostile repository data', () => {
     body.remove();
   });
 
-  it('the History page: timeline rows, entry detail and the next release card', async () => {
+  it('the Library changelog token changes: timeline rows and entry detail', async () => {
     document.body.innerHTML = `<div class="cg-hs-head"></div>
       <div id="hs-banner"></div><button id="hs-demo"></button><button id="hs-filter-toggle" aria-expanded="false"></button>
       <form id="hs-filters"><input data-hs-token /></form><datalist id="hs-paths"></datalist>
-      <div id="hs-list-view"><div id="hs-timeline"></div><p id="hs-none"></p></div><div id="hs-detail"></div>
-      <section id="hs-next"><h2 id="hs-next-title"></h2><ul id="hs-next-lines"></ul><a id="hs-next-cta"></a><p id="hs-next-who"></p></section>`;
-    history.replaceState(null, '', '/studio/changes/?view=history');
+      <div id="hs-list-view"><div id="hs-timeline"></div><p id="hs-none"></p></div><div id="hs-detail"></div>`;
+    history.replaceState(null, '', '/changelog/');
     initHistory();
     await flush();
     const tl = document.getElementById('hs-timeline')!;
     expect(tl.textContent).toContain(IMG);
     expect(tl.textContent).not.toContain(SVG);
     expectInert(tl);
-    const who = document.getElementById('hs-next-who')!;
-    expect(who.querySelector('a')).not.toBeNull();
-    expectInert(who);
+    // Read only: no Undo in the Library.
+    expect(tl.querySelector('[data-hs-undo]')).toBeNull();
 
-    history.replaceState(null, '', '/studio/changes/?view=history&entry=pr-1');
+    history.replaceState(null, '', '/changelog/?entry=pr-1');
     routeHistory();
     const detail = document.getElementById('hs-detail')!;
     expect(detail.textContent).toContain(IMG);
     expect(detail.querySelector('a.cg-gh')?.getAttribute('href')).toBe('#');
     expectInert(detail);
+    expect(detail.querySelector('[data-hs-undo]')).toBeNull();
   });
 
   it('the undo planner: contrast samples take hex colors only, names and minimums stay text', () => {

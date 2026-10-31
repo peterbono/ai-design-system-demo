@@ -8,8 +8,8 @@ What happens when a designer pushes from the Bridge Figma plugin to the library.
 
 A push from the Figma plugin counts as design-approved. Keeping unvalidated work out of Figma main is the team's
 own discipline, not Bridge's: there is no declaration and no approver to name. Who pushed is recorded as usual (the
-pull request or issue author, the "Requested by" line), and History keeps **Undo this change** for anything that
-shipped.
+pull request or issue author, the "Requested by" line), the Library changelog lists every token change that shipped,
+and Studio Tokens keeps **Restore this value** (or `bridge revert`) to undo one.
 
 | What the push changes | Where it goes | Who acts |
 | --- | --- | --- |
@@ -179,7 +179,9 @@ out a token push that ships by itself until something holds it (a failing check,
   filters (All, Waiting to be picked up, In progress, Shipped this week) and one row per build request with who
   builds it, when it was sent and one status tag (a request nobody picked up for a week is highlighted). A row opens
   the detail in place (`?request=N`, `?pull=N`): what was sent, where it stands, and a "For developers" fold with
-  the GitHub and Jira links and **Copy brief for Claude**. Read only.
+  the GitHub and Jira links and **Copy brief for Claude**. Read only. On top, for whoever may publish it (the merge
+  right, else the owners) and only while there is one, the next release: what it holds in plain words and **Review
+  and publish**, which opens the release in Changes. Built, then released: it is the end of the same pipeline.
 - **Home:** a calm line under the zone ("Build requests: 3 being built, 1 waiting to be picked up."), never a Needs you
   row. A token push that ships by itself (`autoShip`) waits on nobody until something holds it (a failing check, a
   conflict, changes requested), like `bridge_what_needs_me`.

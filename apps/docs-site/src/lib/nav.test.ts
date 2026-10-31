@@ -209,8 +209,10 @@ describe('redirects', () => {
     expect(redirectTarget(REDIRECTS['/studio/reviews']!, '?pr=3', '')).toBe('/studio/changes/?pr=3');
     expect(redirectTarget(REDIRECTS['/studio/branches']!, '', '')).toBe('/studio/changes/#other-branches');
     expect(redirectTarget(REDIRECTS['/studio/visual-impact']!, '', '')).toBe('/studio/changes/');
-    expect(redirectTarget(REDIRECTS['/studio/versions']!, '', '')).toBe('/studio/changes/?view=history');
-    expect(redirectTarget(REDIRECTS['/studio/versions']!, '?token=color.text.muted', '')).toBe('/studio/changes/?view=history&token=color.text.muted');
+    // Versions and History are the Library changelog's token changes now (lib/history-moved).
+    expect(redirectTarget(REDIRECTS['/studio/versions']!, '', '')).toBe('/changelog/#token-changes');
+    expect(redirectTarget(REDIRECTS['/studio/versions']!, '?token=color.text.muted', '')).toBe('/changelog/?token=color.text.muted#token-changes');
+    expect(redirectTarget(REDIRECTS['/history']!, '?entry=pr-1', '')).toBe('/changelog/?entry=pr-1#token-changes');
     expect(redirectTarget(REDIRECTS['/reviews']!, '?pr=12', '')).toBe('/studio/changes/?pr=12');
   });
 
@@ -220,7 +222,7 @@ describe('redirects', () => {
   });
 
   it('inlines the same rules in the redirect page script', () => {
-    const script = redirectScript('/studio/changes/?view=history');
+    const script = redirectScript('/studio/changes/?state=shipped');
     const m = script.match(/^<script data-to="([^"]*)">(.*)<\/script>$/)!;
     expect(m[2]).toBe(REDIRECT_SCRIPT_BODY);
     const to = m[1]!.replace(/&amp;/g, '&');
@@ -228,7 +230,7 @@ describe('redirects', () => {
     const fakeLocation = { search: '?entry=abc', hash: '', replace: (u: string) => (landed = u) };
     const fakeDocument = { currentScript: { getAttribute: () => to } };
     new Function('location', 'document', m[2]!)(fakeLocation, fakeDocument);
-    expect(landed).toBe(redirectTarget('/studio/changes/?view=history', '?entry=abc', ''));
+    expect(landed).toBe(redirectTarget('/studio/changes/?state=shipped', '?entry=abc', ''));
   });
 
   it('never shadows a real page', () => {

@@ -1,0 +1,71 @@
+---
+// Library > Changelog > Token and guidance changes, by release (#token-changes): every merged token and usage guidance
+// change grouped by release, with a Filter (token, author, kind of change) and an entry in place (?entry=), painted by
+// scripts/history/page.ts. Read only: undoing goes through Studio (Tokens, "Restore this value") or the CLI and the
+// MCP server (bridge revert). Moved from Changes > History (lib/history-moved). On this site's Library the history is the
+// build's (/studio/versions/data.json); on a team's Library it is read from the team's GitHub history (signed in) or
+// from what its CI published (scripts/history/state.ts).
+import { Alert, Button, Input, Switch } from '@bridge-ds/react';
+import BridgedSelect from './ds/BridgedSelect';
+import { TOKEN_CHANGES_ID } from '../lib/history-moved';
+import '../styles/reviews.css';
+import '../styles/history.css';
+import '../styles/changes.css';
+
+interface Props {
+  /** Development only: the switch to fixture history. */
+  demoHistory?: boolean;
+}
+const { demoHistory = false } = Astro.props;
+---
+
+<section class="tc" id={TOKEN_CHANGES_ID} aria-labelledby="tc-title">
+  <div class="cg-hs-head tc-head">
+    <div class="tc-intro">
+      <h2 id="tc-title">Token and guidance changes, by release</h2>
+      <p class="muted">Every token and usage guidance change added to the library, with what it changed.</p>
+    </div>
+    <Button variant="secondary" size="sm" id="hs-filter-toggle" aria-expanded="false" aria-controls="hs-filters" hidden>Filter</Button>
+  </div>
+  <form class="hs-filters" id="hs-filters" role="search" aria-label="Filter token changes" hidden>
+    <Input label="Token" size="md" data-hs-token list="hs-paths" placeholder="color.text.muted or color.text" autoComplete="off" spellCheck={false} />
+    <datalist id="hs-paths"></datalist>
+    <BridgedSelect client:load id="hs-author" label="Author" size="md" value="" options={[{ value: '', label: 'Anyone' }]} />
+    <BridgedSelect
+      client:load
+      id="hs-tier"
+      label="Kind of change"
+      size="md"
+      value=""
+      options={[
+        { value: '', label: 'Any change' },
+        { value: '3', label: 'Token changes', description: 'Design approval; a rename or removal also tech' },
+        { value: '2', label: 'Component changes', description: 'Design and tech approval' },
+        { value: '1', label: 'Docs fixes', description: 'One approval' },
+      ]}
+    />
+    <Button type="reset" variant="secondary" size="md" id="hs-clear">Clear filters</Button>
+  </form>
+  <Alert tone="warning" announce="off" title="Demo data: fixture changes, not this repository's history." className="st-hideable st-hs-banner" id="hs-banner" hidden>Nothing here can be proposed.</Alert>
+
+  <div id="hs-list-view">
+    <div class="cg-timeline" id="hs-timeline" aria-busy="true">
+      <div class="fg-card cg-card"><ul class="cg-list"><li class="cg-row cg-skel" aria-hidden="true"></li></ul></div>
+    </div>
+    <p class="hs-none" id="hs-none" hidden>No change matches these filters. <Button variant="ghost" size="sm" data-hs-clear>Clear filters</Button></p>
+  </div>
+  <div id="hs-detail" class="hs-detail" hidden></div>
+
+  {
+    demoHistory && (
+      <div class="hs-bar cg-hs-foot">
+        <Switch label="Show demo history" size="sm" id="hs-demo" data-vanilla="" />
+        <span class="cg-muted">Development only: fixture changes, to try the timeline.</span>
+      </div>
+    )
+  }
+</section>
+<script>
+  import { initHistory } from '../scripts/history/page';
+  initHistory();
+</script>

@@ -1,24 +1,23 @@
 ---
 // Studio Branches: all the work, not a second triage page (triage lives on Home and the review queue). The header
-// holds the title, a "History" link and "Start an exploration" (the same flow as Home). The list (components/ds/studio/
-// BranchesList, read by scripts/reviews.ts loadList) shows every open branch, running explorations included under
-// their own status, grouped by product, with state tabs (All, Waiting on me, each state, Archived), a kind and a people
-// filter (Everyone, You, each designer), a checkbox on token branches to preview them together (the floating bar)
-// and the merged ones behind one muted line. Views that stay
-// reachable by address, each with the same header: History (?view=history, merged token changes by release, with
-// undo), a branch in place (?pr=N), a suggestion in place (?suggestion=N: a change filed as a GitHub issue that a
-// developer applies once owners approve it, components/ds/studio/SuggestionReview in #sg-detail, declined with
-// RequestDecide), an exploration in place (?exploration=N) and its start form
-// (?view=explorations&for=N, from a request; an old &start=new opens the Start an exploration dialog), and component change requests (?view=requests,
-// only when request triage is on in Studio, lib/studio-flags). Old ?status= and ?tier= links keep working
-// (lib/branches-page finishedParam). Designer words only (lib/vocabulary, Figma branching); developer details stay on
-// GitHub, one "Open on GitHub" link away on each branch. Replaces Drafts, Branches, Reviews, Versions and Visual
-// impact (lib/redirects.ts).
+// holds the title and "Start an exploration" (the same flow as Home). The list (components/ds/studio/BranchesList,
+// read by scripts/reviews.ts loadList) shows every open branch, running explorations included under their own status,
+// grouped by product, with state tabs (All, Waiting on me, each state, Shipped, Archived), a kind and a people filter
+// (Everyone, You, each designer) and a checkbox on token branches to preview them together (the floating bar).
+// Shipped is the history of the work: what shipped, by month. The old History (?view=history) moved
+// (lib/history-moved): Shipped here, the next release on Being built, the token changes in the Library changelog.
+// Views that stay reachable by address, each with the same header: a branch in place (?pr=N), a suggestion in place
+// (?suggestion=N: a change filed as a GitHub issue that a developer applies once owners approve it,
+// components/ds/studio/SuggestionReview in #sg-detail, declined with RequestDecide), an exploration in place
+// (?exploration=N) and its start form (?view=explorations&for=N, from a request; an old &start=new opens the Start an
+// exploration dialog), and component change requests (?view=requests, only when request triage is on in Studio,
+// lib/studio-flags). Old ?status= and ?tier= links keep working (lib/branches-page changesFiltersParam). Designer words
+// only (lib/vocabulary, Figma branching); developer details stay on GitHub, one "Open on GitHub" link away on each
+// branch. Replaces Drafts, Branches, Reviews, Versions and Visual impact (lib/redirects.ts).
 import { jsonForScript } from '../../lib/html';
 import '../../styles/reviews.css';
 import '../../styles/branch-review.css';
 import '../../styles/motion-changes.css';
-import '../../styles/history.css';
 import '../../styles/changes.css';
 import '../../styles/requests.css';
 import '../../styles/explorations.css';
@@ -29,10 +28,8 @@ import '../../styles/branch-thumb.css';
 import '../../styles/suggestion-review.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
-import HistoryPlanner from '../../components/HistoryPlanner.astro';
 import ChangesRequests from '../../components/ChangesRequests.astro';
 import ChangesExplorations from '../../components/ChangesExplorations.astro';
-import ChangesHistory from '../../components/ChangesHistory.astro';
 import Illustration from '../../components/Illustration.astro';
 import { siteIcon } from '../../brand/site-icons';
 import ButtonLink from '../../components/ds/ButtonLink';
@@ -41,8 +38,6 @@ import StartExploration from '../../components/ds/studio/StartExploration';
 import { siteRepo } from '../../lib/config';
 import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, readText } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
-import { pendingChangesets, versionInfo } from '../../lib/changelog';
-import { waitingLine } from '../../lib/release-view';
 import { loadComponents } from '../../lib/components';
 import DoneExploring from '../../components/ds/studio/DoneExploring';
 import RequestDecide from '../../components/ds/studio/RequestDecide';
@@ -57,25 +52,19 @@ const r = siteRepo();
 const checks = jsonForScript(readText(CONTRAST_FILE), { parse: true });
 const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES, production: PRODUCTION_APPS };
 const cfgJson = jsonForScript(cfg);
-const version = versionInfo();
 // The preview of each component (its docs.json preview, rendered with the real components): a request row without
 // an image of its own shows it as its thumbnail.
 const comps = loadComponents();
 const previews = comps.flatMap((c) => (c.docs?.preview ? [{ name: c.name, preview: c.docs.preview }] : []));
 // Start an exploration: the same flow as Home, its Report it component picker over every component.
 const startComponents = comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name));
-// Changes that wait for the next release = changesets on main, the unit the release pull request counts too, so the
-// line and the "Next release" card (filled in the browser from that pull request) never disagree.
-const historyLine = waitingLine(version.current, pendingChangesets().length);
-// Fixture history is a development aid: production builds never show the switch.
-const demoHistory = import.meta.env.DEV;
 const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md', 'docs/EXPLORATIONS.md', '.changeset'];
 const signIn = Boolean(signInConfig());
 ---
 
 <Layout
   title="Changes"
-  description="All the work in progress, grouped by product: your changes, the ones waiting on you, explorations, and the history of token changes added to the library."
+  description="All the work in progress, grouped by product: your changes, the ones waiting on you, explorations, and everything that shipped, by month."
   sources={sources}
   updated={lastUpdated(sources)}
   wide
@@ -85,7 +74,6 @@ const signIn = Boolean(signInConfig());
     <div id="cg-main">
       <StudioHeader title="Changes">
         <Fragment slot="actions">
-          <Link href={studioHref('changes/?view=history')} id="cg-history-link" data-cg-view="history">History</Link>
           <Link href={studioHref('changes/')} id="cg-back-link" data-back hidden>All {VOCAB.branches}</Link>
           <span class="cg-create" data-greet><StartExploration client:load components={startComponents} /></span>
         </Fragment>
@@ -114,13 +102,11 @@ const signIn = Boolean(signInConfig());
 
       <ChangesRequests previews={previews} />
       <ChangesExplorations signIn={signIn} />
-      <ChangesHistory historyLine={historyLine} demoHistory={demoHistory} changelog="/changelog/" />
     </div>
     <div id="rv-detail" class="rv-detail" hidden></div>
     <div id="sg-detail" class="rv-detail" hidden></div>
   </div>
 
-  <HistoryPlanner />
   <OverrideDialog />
   <DoneExploring client:only="react" />
   <RequestDecide client:only="react" />

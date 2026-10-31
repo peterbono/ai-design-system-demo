@@ -1,9 +1,12 @@
 ---
 // Library > Use > Changelog: the shared view (components/ds/library/views/ChangelogView.tsx), rendered at build time
 // from the releases of this build's snapshot (lib/site-snapshot.ts: the CHANGELOG.md files and the pending
-// changesets, as a team's snapshot carries them), and hydrated for its folds, package lists and version picker.
+// changesets, as a team's snapshot carries them), and hydrated for its folds, package lists and version picker. Then
+// the token and guidance changes, by release (components/TokenChanges.astro, #token-changes): moved here from
+// Changes > History.
 import Layout from '../layouts/Layout.astro';
 import ChangelogView from '../components/ds/library/views/ChangelogView';
+import TokenChanges from '../components/TokenChanges.astro';
 import { bridgeTools, siteUseExtras } from '../lib/library-use';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
 import { siteSnapshot } from '../lib/site-snapshot';
@@ -18,4 +21,5 @@ const data = { team: null, extras: { releases: all, use: { bridge: bridgeTools()
 
 <Layout title="Changelog" description="What changed in the design system, what it means for you, and a message ready to post." sources={['CHANGELOG.md', '.changeset']} updated={updated}>
   <ChangelogView client:load data={data} />
+  <TokenChanges demoHistory={import.meta.env.DEV} />
 </Layout>

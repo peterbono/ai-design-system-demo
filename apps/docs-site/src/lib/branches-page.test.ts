@@ -11,11 +11,12 @@ import {
   visibleTabs,
   withChangesFilters,
   YOU,
-  finishedParam,
+  groupByMonth,
   groupByProduct,
-  FINISHED_WORDS,
-  mergedLine,
-  mergedThisMonth,
+  shippedCapLine,
+  shippedMonth,
+  shippedOn,
+  shippedRows,
   productOf,
   selectable,
   ownedBy,
@@ -47,7 +48,7 @@ describe('state tabs and the address', () => {
     expect(withChangesFilters('?who=mine&pr=3', { state: 'all', kind: 'all', by: YOU })).toBe('?pr=3&people=you');
     expect(withChangesFilters('?archived=1', { state: 'archived', kind: 'all', by: null })).toBe('?state=archived');
     expect(withChangesFilters('?state=code&kind=docs&people=dana', { state: 'all', kind: 'all', by: null })).toBe('');
-    expect(withChangesFilters('?status=merged', { state: 'all', kind: 'all', by: null })).toBe('?status=merged');
+    expect(withChangesFilters('?status=merged', { state: 'shipped', kind: 'all', by: null })).toBe('?state=shipped');
   });
 
   it('puts each row under the tab its tag names', () => {
@@ -68,6 +69,8 @@ describe('state tabs and the address', () => {
     expect(tabs({ all: 3, exploring: 2, 'not-started': 1 })).toEqual(['All 3', 'Waiting on me 0', 'Not started 1', 'Exploring 2']);
     expect(tabs({ all: 1, archived: 1, review: 1 })).toEqual(['All 1', 'Waiting on me 0', 'In review 1', 'Archived 1']);
     expect(tabs({ all: 0 }, 'code')).toEqual(['All 0', 'Waiting on me 0', 'Waiting for code 0']);
+    // Shipped sits before Archived, the last tab.
+    expect(tabs({ all: 1, archived: 2, shipped: 5 })).toEqual(['All 1', 'Waiting on me 0', 'Shipped 5', 'Archived 2']);
   });
 
   it('says what an empty tab is for, in designer words', () => {
@@ -158,28 +161,35 @@ describe('product groups', () => {
   });
 });
 
-describe('finished branches', () => {
-  it('old ?status= links still land on their list', () => {
-    expect(finishedParam('')).toEqual({ finished: false, only: null });
-    expect(finishedParam('?status=merged')).toEqual({ finished: true, only: null });
-    expect(finishedParam('?status=shipped')).toEqual({ finished: true, only: null });
-    expect(finishedParam('?status=closed')).toEqual({ finished: true, only: null });
-    expect(finishedParam('?status=draft')).toEqual({ finished: false, only: 'draft' });
-    expect(finishedParam('?status=open')).toEqual({ finished: false, only: null });
+describe('shipped: the history of the work', () => {
+  it('opens Shipped from the old merged line, its ?status= links and History', () => {
+    expect(changesFiltersParam('?state=shipped').state).toBe('shipped');
+    expect(changesFiltersParam('?status=merged').state).toBe('shipped');
+    expect(changesFiltersParam('?status=shipped').state).toBe('shipped');
+    expect(changesFiltersParam('?status=closed').state).toBe('shipped');
+    expect(changesFiltersParam('?view=history').state).toBe('shipped');
   });
 
-  it('counts what merged since the first of the month', () => {
-    const now = new Date(2026, 9, 20, 12);
-    const rows = [{ merged_at: new Date(2026, 9, 2).toISOString() }, { merged_at: new Date(2026, 8, 30).toISOString() }, { merged_at: null }, {}];
-    expect(mergedThisMonth(rows, now)).toBe(1);
+  it('keeps the merged rows only, newest first', () => {
+    const rows = [{ n: 1, merged_at: '2026-09-30T10:00:00Z' }, { n: 2, merged_at: null }, { n: 3, merged_at: '2026-10-30T10:00:00Z' }, { n: 4 }, { n: 5, merged_at: '2026-10-02T10:00:00Z' }];
+    expect(shippedRows(rows).map((r) => r.n)).toEqual([3, 5, 1]);
   });
 
-  it('says a floor when every recent branch read merged this month', () => {
-    expect(mergedLine(12, 30, 30)).toBe('12 added to the library this month.');
-    expect(mergedLine(30, 30, 30)).toBe('30+ added to the library this month.');
-    expect(mergedLine(0, 4, 30)).toBe('Nothing added to the library this month.');
-    // Designer words: never "merged" on the line or its link.
-    for (const t of [mergedLine(3, 4, 30), ...Object.values(FINISHED_WORDS)]) expect(t).not.toMatch(/merge|branch/i);
+  it('groups them by month, newest month first, and dates each row', () => {
+    const rows = [{ n: 1, merged_at: '2026-09-30T10:00:00Z' }, { n: 3, merged_at: '2026-10-30T10:00:00Z' }, { n: 5, merged_at: '2026-10-02T10:00:00Z' }];
+    expect(groupByMonth(rows, undefined, true).map((g) => [g.label, g.rows.map((r) => r.n)])).toEqual([
+      ['October 2026', [3, 5]],
+      ['September 2026', [1]],
+    ]);
+    expect(shippedMonth('2026-10-30T10:00:00Z', true)).toBe('October 2026');
+    expect(shippedOn('2026-10-30T10:00:00Z', true)).toBe('Shipped Oct 30');
+  });
+
+  it('says when only the most recent ones were read, in designer words', () => {
+    expect(shippedCapLine(12, 50)).toBeNull();
+    expect(shippedCapLine(50, 50)).toBe('Showing the most recent ones.');
+    expect(jargonIn(emptyTabLine('shipped', true))).toEqual([]);
+    expect(emptyTabLine('shipped', true)).not.toMatch(/merge|GitHub/i);
   });
 });
 

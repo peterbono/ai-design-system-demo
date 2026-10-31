@@ -7,7 +7,7 @@
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
 import { figmaPushFor, tokenValuesFor } from './figma-push-read';
-import { EXPLORATION_USE_CASES, explorationStateLabel, isArchivedExploration, isGuardedExploration, shortAgo, type ExplorationStatus, isHeldExploration, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_USE_CASES, explorationStateLabel, isArchivedExploration, isGuardedExploration, shortAgo, type ExplorationStatus, isHeldExploration, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, isExplorationPull, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -311,8 +311,8 @@ interface Row {
   product?: string;
 }
 
-/** How many recently closed branches are read for "N merged this month" (one request). */
-const CLOSED_LIMIT = 30;
+/** How many recently closed branches are read for the Shipped tab (one request). */
+const CLOSED_LIMIT = 50;
 
 /** The open rows last painted, the open explorations, and the recently closed ones once read. */
 let openRows: Row[] = [];
@@ -536,14 +536,23 @@ function readExplorationStates(rows: Row[]) {
   }
 }
 
-/** The most recently closed branches, read once: the "N merged this month" line and Show merged. */
+/**
+ * The most recently closed branches, read once: the merged ones fill the Shipped tab. A merged exploration (its dev
+ * work shipped) stays an exploration row: it opens its own page and shows its preview capture.
+ */
 let closedRead: Promise<void> | null = null;
 function loadClosed(): Promise<void> {
   closedRead ??= (async () => {
     try {
       const f = await ghGet<Pull[]>(`${R}/pulls?state=closed&sort=updated&direction=desc&per_page=${CLOSED_LIMIT}`);
-      // Release automation stays out (History holds releases).
-      closedRows = f.data.filter((p) => !isAutomationPull(p)).map((p) => toRow(p, pullState(p) === 'merged' ? 'merged' : 'closed'));
+      // Release automation stays out (the next release is on Being built, past ones in the Library changelog).
+      closedRows = f.data
+        .filter((p) => !isAutomationPull(p))
+        .map((p) => {
+          const row = toRow(p, pullState(p) === 'merged' ? 'merged' : 'closed');
+          const x = { state: p.merged_at ? 'merged' : p.state, labels: p.labels as never, headRef: p.head.ref, body: p.body, headSha: p.head.sha, draft: p.draft };
+          return p.merged_at && isExplorationPull(x) ? { ...row, exploration: true, explorationStatus: explorationStatus(x) } : row;
+        });
     } catch (err) {
       closedRows = [];
       showNotice('warn', err instanceof RateLimitError ? (limitLine(err, `${VOCAB.Branches} added to the library or closed`) ?? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to see ${VOCAB.branches} added to the library or closed.`) : `Could not read recent ${VOCAB.branches}: ${(err as Error).message}`);

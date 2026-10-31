@@ -1,14 +1,16 @@
-// Studio Branches page controller: the list (every branch, explorations included), the views the header and old
-// addresses reach (History ?view=history, the exploration start form from a request ?view=explorations&for=N (an old &start=new opens the Start an exploration dialog), Requests
+// Studio Branches page controller: the list (every branch, explorations included, what shipped under its own tab), the
+// views old addresses reach (the exploration start form from a request ?view=explorations&for=N (an old &start=new
+// opens the Start an exploration dialog), Requests
 // ?view=requests when request triage is on in Studio, lib/studio-flags), a branch opened in place (?pr=N), a component
 // change request opened in place (?request=N), a suggestion opened in place (?suggestion=N, scripts/suggestions.ts),
 // the local draft strip, and the routes old pages redirect to
-// (#other-branches, ?branch=). The header names the view: "Branches" with a History link, or the view's own name with
-// a link back to all branches.
+// (#other-branches, ?branch=). The header names the view, with a link back to all branches outside the list. The old
+// History address (?view=history) moved: Shipped, the next release on Being built, the Library changelog
+// (scripts/history-links historyRedirect).
 import { initWorkFilter } from './work-filter';
 import { closePr, initReviewAuth, loadList, openPr, setWaitingExtras } from './reviews';
 import { readWaitingExtras } from './waiting-extras';
-import { initHistory } from './history/page';
+import { historyRedirect } from './history-links';
 import { initRequests, loadRequests, openRequest } from './requests';
 import { closeSuggestion, onViewerChange, openSuggestion } from './suggestions';
 import { explorationParam } from '../lib/explorations-view';
@@ -25,12 +27,12 @@ import { studioHref } from '../lib/team-path';
 import { sendButton } from '../lib/gh-wording';
 import { changesModeOnPage } from './changes-mode';
 
-type View = 'review' | 'requests' | 'explorations' | 'history';
+type View = 'review' | 'requests' | 'explorations';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 let listLoaded: Promise<{ number: number; head: { ref: string } }[]> | null = null;
 let extrasLoaded: Promise<void> | null = null;
-const VIEW_QUERY: Record<View, string> = { review: '', requests: '?view=requests', explorations: '?view=explorations', history: '?view=history' };
+const VIEW_QUERY: Record<View, string> = { review: '', requests: '?view=requests', explorations: '?view=explorations' };
 
 /** The open pull requests In review already read (with their bodies), so Requests links them at no request. */
 const openPullsForRequests = (): Promise<PullLike[] | null> | undefined =>
@@ -42,15 +44,14 @@ const openPullsForExplorations = () => {
   return listLoaded.then((pulls) => (pulls.every((p) => 'body' in p) ? (pulls as unknown as ExplorationPullLike[]) : null));
 };
 
-const VIEW_TITLE: Record<View, string> = { review: 'Changes', requests: 'Requests', explorations: 'Explorations', history: 'History' };
+const VIEW_TITLE: Record<View, string> = { review: 'Changes', requests: 'Requests', explorations: 'Explorations' };
 
 function selectTab(view: View) {
   const title = document.querySelector<HTMLElement>('#cg-main .st-title');
   if (title) title.textContent = VIEW_TITLE[view];
-  $('cg-history-link').hidden = view !== 'review';
   $('cg-back-link').hidden = view === 'review';
-  // One primary per view: History and the start form have their own, so Start an exploration steps down to secondary
-  // there (components/ds/studio/StartExploration START_CHANGE_EVENT; on the list the selection bar decides).
+  // One primary per view: the start form has its own, so Start an exploration steps down to secondary there
+  // (components/ds/studio/StartExploration START_CHANGE_EVENT; on the list the selection bar decides).
   // The island reads data-start-variant when it mounts after this, and the event when it is already there.
   const variant = view !== 'review' || document.querySelector('.cg-bar') ? 'secondary' : 'primary';
   const slot = document.querySelector<HTMLElement>('[data-greet]');
@@ -59,7 +60,6 @@ function selectTab(view: View) {
   $('cg-review').hidden = view !== 'review';
   $('cg-requests').hidden = view !== 'requests';
   $('cg-explore').hidden = view !== 'explorations';
-  $('cg-history').hidden = view !== 'history';
 }
 
 function readDraft(): Draft {
@@ -122,8 +122,7 @@ function showView(view: View) {
   closeSuggestion(sgHost());
   $('cg-main').hidden = false;
   selectTab(view);
-  if (view === 'history') initHistory();
-  else if (view === 'requests') void loadRequests(openPullsForRequests());
+  if (view === 'requests') void loadRequests(openPullsForRequests());
   else if (view === 'explorations') void loadExplorations(openPullsForExplorations);
   else {
     listLoaded ??= loadList();
@@ -134,6 +133,16 @@ function showView(view: View) {
 }
 
 function route() {
+  // An old History address: Shipped here (the list opens on it), or another page.
+  const moved = historyRedirect();
+  if (moved) {
+    const to = new URL(moved, location.href);
+    if (to.pathname !== location.pathname) {
+      location.replace(to.href);
+      return;
+    }
+    history.replaceState(history.state, '', `${to.search}${to.hash}`);
+  }
   const params = new URLSearchParams(location.search);
   const sg = Number(params.get('suggestion'));
   if (sg) {
@@ -169,7 +178,7 @@ function route() {
   // (?view=explorations&start=new, the old "New component") opens the header's Start an exploration dialog instead
   // (components/ds/studio/StartExploration startFromAddress), over the list.
   const starting = Boolean(Number(params.get('for')));
-  const view: View = v === 'history' || (v === 'explorations' && starting) || (v === 'requests' && REQUEST_TRIAGE_IN_STUDIO) ? v : 'review';
+  const view: View = (v === 'explorations' && starting) || (v === 'requests' && REQUEST_TRIAGE_IN_STUDIO) ? v : 'review';
   showView(view);
   // Start an exploration from a request: the form, filled from it.
   const forRequest = Number(params.get('for'));

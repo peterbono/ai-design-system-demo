@@ -5,13 +5,15 @@
 // (components/ds/studio/BeingBuilt), reading through scripts/building-data.ts. Rules: lib/building-view.ts and
 // docs/BUILD-REQUESTS.md. Team shell: pages/team-shell/building.astro.
 // Claude's fixes (the fix sessions of the team's Claude through the Bridge connector, docs/FIGMA-FIXES.md "Work in
-// progress") are rows of the same list, not a section of their own.
+// progress") are rows of the same list, not a section of their own. On top, for whoever may publish it, the next
+// release with "Review and publish" (components/NextRelease.astro): built, then released.
 import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
 import '../../styles/building.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import BeingBuilt from '../../components/ds/studio/BeingBuilt';
+import NextRelease from '../../components/NextRelease.astro';
 import { lastUpdated } from '../../lib/repo';
 
 const sources = ['docs/BUILD-REQUESTS.md', 'docs/REQUESTS.md'];
@@ -19,11 +21,12 @@ const sources = ['docs/BUILD-REQUESTS.md', 'docs/REQUESTS.md'];
 
 <Layout
   title="Being built"
-  description="The changes sent from Figma or from Components that developers are building, and where each one stands, until it is in the library."
+  description="The changes sent from Figma or from Components that developers are building, where each one stands until it is in the library, and the next release to publish."
   sources={sources}
   updated={lastUpdated(sources)}
   wide
 >
   <StudioHeader title="Being built" />
+  <NextRelease />
   <BeingBuilt client:only="react" />
 </Layout>

@@ -1,6 +1,6 @@
 // Branches (/studio/changes/): all the work, not a second triage page (triage lives on Home and the review queue).
 //   - DS Tabs (underline) say where the work stands: All (the default), Waiting on me, then each state in the words
-//     of its tag (Not started, Exploring, Draft, In review, Waiting for code) and Archived last, each with its count
+//     of its tag (Not started, Exploring, Draft, In review, Waiting for code), Shipped, and Archived last, each with its count
 //     (lib/branches-page STATE_TABS, stateOf; ?state=). All and Waiting on me always show, the other tabs only while
 //     they hold something. On a phone the control scrolls sideways inside its row, never the page.
 //   - Two DS Selects narrow every tab: the kind of change (?kind=) and whose it is (?people=: Everyone, You, then each
@@ -10,8 +10,10 @@
 //     bridge.config.json products), each group a heading with its count. Rows are the home row (BranchRow), the
 //     person always by display name (lib/branches-page knownNames), the login only when no name is known.
 //   - Token branches carry a checkbox to preview them together; the floating bar (CombineChanges SelectionBar) acts.
-//   - Merged and closed branches stay behind one muted line at the end of All: "12 added to the library this month.
-//     Show them" (lib/branches-page.ts mergedLine, FINISHED_WORDS; ?status=merged).
+//   - Shipped (?state=shipped; the old ?status=merged and History addresses land there) is the history of the work:
+//     every change and exploration that shipped, newest first, grouped by month ("October 2026"), each row with its
+//     preview capture when there is one, the product, the person and "Shipped Oct 30" (lib/branches-page groupByMonth).
+//     The library's token changelog is in the Library (Changelog), the next release on Being built.
 //   - Waiting on me (what "Review all" opens on the demo) is the lead's review list: one summary sentence, every change
 //     that waits (branches, suggestions, usage guidance drafts) under three kinds (lib/review-categories: In a product,
 //     Library components and tokens, Documentation). The designer is who asked for the change (the requester line),
@@ -26,7 +28,7 @@ import { Badge, Button, Checkbox, Link, Select, Skeleton, Tab, Tabs, TabsList, T
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
-import { ARCHIVED_NOTE, boxDisabled, changesFiltersParam, emptyTabLine, finishedParam, FULL_TIP, groupByProduct, FINISHED_WORDS, isYours, knownNames, mergedLine, mergedThisMonth, peopleOptions, productOf, selectable, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type StateTab } from '../../../lib/branches-page';
+import { ARCHIVED_NOTE, boxDisabled, changesFiltersParam, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, isYours, knownNames, peopleOptions, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type StateTab } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
 import { CLAUDE, displayName, person, requesterPerson, SEP, type Person, type PillTone } from '../../../lib/home-model';
@@ -93,7 +95,7 @@ export interface ListRow {
 export interface BranchesListProps {
   /** Open branches and running explorations, most urgent first. */
   rows: ListRow[];
-  /** The most recently closed branches (merged or not), null until read. */
+  /** The most recently closed branches (merged or not), null until read: the merged ones fill the Shipped tab. */
   closed: ListRow[] | null;
   /** Archived explorations (open pull requests, previews alive): listed only under the Archived tab (?state=archived). */
   archived?: ListRow[];
@@ -111,7 +113,7 @@ export interface BranchesListProps {
   /** ?tier= keeps working: the one kind of change shown, in words, or null. */
   tierLabel: string | null;
   failure: (err: unknown) => string;
-  /** Asks scripts/reviews.ts for the closed list (when the line is pressed before it was read). */
+  /** Asks scripts/reviews.ts for the closed list (when Shipped opens before it was read). */
   readClosed: () => void;
   /**
    * The demo persona whose seat a visitor without an account takes ("Dana", lib/demo.ts): Waiting on me then lists
@@ -201,25 +203,20 @@ function tokenOnly(r: ListRow, e: Extra | undefined, tokensRoot: string): boolea
   return null;
 }
 
-const setParam = (name: string, value: string | null) => {
-  const url = new URL(location.href);
-  if (value === null) url.searchParams.delete(name);
-  else url.searchParams.set(name, value);
-  history.replaceState(history.state, '', url);
-};
-
 export function BranchesList(p: BranchesListProps) {
   const [picked, setPicked] = useState<ChangesFilters>(() => changesFiltersParam(location.search));
-  const [finished, setFinished] = useState(() => finishedParam(location.search).finished);
   const [selected, setSelected] = useState<number[]>([]);
   const viewer = p.viewer ?? (p.seat ? `~${p.seat.toLowerCase()}` : null);
   const tab = picked.state;
   const archivedTab = tab === 'archived';
-  // Open rows (and the finished ones once asked for); archived explorations only under their own tab.
-  const open = useMemo(() => [...p.rows, ...(finished ? (p.closed ?? []) : [])], [p.rows, p.closed, finished]);
+  const shippedTab = tab === 'shipped';
+  // Open rows; archived explorations and what shipped only under their own tab.
+  const open = p.rows;
   const archived = useMemo(() => p.archived ?? [], [p.archived]);
-  const { extras, people } = useExtras(archivedTab ? archived : open, p.connected ? 'all' : p.seat ? 'seat' : 'none');
-  const shots = useShots(archivedTab ? archived : open);
+  const shipped = useMemo(() => shippedRows(p.closed ?? []), [p.closed]);
+  const shown = archivedTab ? archived : shippedTab ? shipped : open;
+  const { extras, people } = useExtras(shown, p.connected ? 'all' : p.seat ? 'seat' : 'none');
+  const shots = useShots(shown);
   const names = useMemo(
     () => knownNames([...p.rows, ...archived, ...(p.closed ?? [])], p.viewer ? { login: p.viewer, name: p.viewerName ?? null } : null),
     [p.rows, archived, p.closed, p.viewer, p.viewerName],
@@ -239,7 +236,7 @@ export function BranchesList(p: BranchesListProps) {
 
   // Every row, classified once: its product, kind, person (the viewer as You) and state tab.
   const products = p.products ?? DEFAULT_PRODUCTS;
-  const classify = (r: ListRow, isArchived: boolean) => {
+  const classify = (r: ListRow, fixed: 'archived' | 'shipped' | null) => {
     // Extras are keyed by the design system's numbers: a product repository's #12 is another branch.
     const e = r.product ? undefined : extras.get(r.number);
     const x = { r, e, product: r.product ?? productOf(e?.files ?? null, p.products, r.labels), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
@@ -253,11 +250,12 @@ export function BranchesList(p: BranchesListProps) {
       category: c.category,
       productName: c.product?.name ?? null,
       designer: { key: yours ? YOU : designerKey(pp), name: pp.name },
-      state: (isArchived ? 'archived' : stateOf(r)) as StateTab | null,
+      state: (fixed ?? stateOf(r)) as StateTab | null,
     };
   };
-  const openItems = open.map((r) => classify(r, false));
-  const archivedItems = archived.map((r) => classify(r, true));
+  const openItems = open.map((r) => classify(r, null));
+  const archivedItems = archived.map((r) => classify(r, 'archived'));
+  const shippedItems = shipped.map((r) => classify(r, 'shipped'));
   const waitingExtras = viewer
     ? (p.waiting ?? []).map((w) => {
         const pp = w.need.person ?? CLAUDE;
@@ -275,7 +273,9 @@ export function BranchesList(p: BranchesListProps) {
           : []
         : t === 'archived'
           ? archivedItems
-          : openItems.filter((q) => q.state === t);
+          : t === 'shipped'
+            ? shippedItems
+            : openItems.filter((q) => q.state === t);
   const queue = inTab(tab);
   // The person picked stays only while someone listed matches it (an address naming nobody listed keeps everyone).
   const by = picked.by && (picked.by === YOU ? Boolean(viewer) : queue.some((q) => q.designer.key === picked.by)) ? picked.by : null;
@@ -283,7 +283,7 @@ export function BranchesList(p: BranchesListProps) {
   const filtered = active.kind !== 'all' || Boolean(active.by);
   const kept = queue.filter((q) => passes(q, active));
   const counts = Object.fromEntries(
-    (['all', 'waiting', 'not-started', 'exploring', 'draft', 'review', 'code', 'archived'] as StateTab[]).map((t) => [t, inTab(t).filter((q) => passes(q, active)).length]),
+    (['all', 'waiting', 'not-started', 'exploring', 'draft', 'review', 'code', 'shipped', 'archived'] as StateTab[]).map((t) => [t, inTab(t).filter((q) => passes(q, active)).length]),
   ) as Record<StateTab, number>;
   const tabs = visibleTabs(counts, tab);
   const waitingView = tab === 'waiting' && Boolean(viewer);
@@ -318,7 +318,6 @@ export function BranchesList(p: BranchesListProps) {
   const clear = useCallback(() => setSelected([]), []);
   const drop = useCallback((ns: number[]) => setSelected((s) => s.filter((n) => !ns.includes(n))), []);
 
-  const merged = p.closed ? mergedThisMonth(p.closed, new Date()) : null;
   // The tab, kind and person are kept together in the address (lib/branches-page withChangesFilters).
   const pick = (f: ChangesFilters) => {
     setPicked(f);
@@ -328,15 +327,11 @@ export function BranchesList(p: BranchesListProps) {
   };
   const pickTab = (v: string) => pick({ ...picked, state: v as StateTab });
   const pickFilters = (f: { kind: KindFilter; by: string | null }) => pick({ ...picked, kind: f.kind, by: f.by });
-  const showFinished = () => {
-    setFinished(true);
-    setParam('status', 'merged');
-    p.readClosed();
-  };
-  const hideFinished = () => {
-    setFinished(false);
-    setParam('status', null);
-  };
+  // Shipped reads the closed list when it was not read yet (the page reads it after the open one).
+  const readClosed = p.readClosed;
+  useEffect(() => {
+    if (shippedTab && p.closed === null) readClosed();
+  }, [shippedTab, p.closed, readClosed]);
 
   // The checkbox (preview token branches together) leads a row; every row of a group that has one keeps its slot, so
   // thumbnails and avatars stay in one column.
@@ -502,7 +497,7 @@ export function BranchesList(p: BranchesListProps) {
         </p>
       )}
       {archivedTab && archivedItems.length > 0 && <p className="t-ui t-muted bl-note">{ARCHIVED_NOTE}</p>}
-      {p.loading && !p.rows.length ? (
+      {(p.loading && !p.rows.length) || (shippedTab && p.closed === null) ? (
         <ul className="sh-rows" aria-hidden="true">
           <li className="sh-row-item">
             <Skeleton variant="rect" className="sh-skel" />
@@ -517,6 +512,24 @@ export function BranchesList(p: BranchesListProps) {
         <p className="t-body t-muted bl-none">Nothing here matches these filters. {clearLink}</p>
       ) : groups.length === 0 ? (
         <p className="t-body t-muted bl-none">{emptyTabLine(tab, Boolean(viewer))}</p>
+      ) : shippedTab ? (
+        <>
+          {groupByMonth(rows, (x) => x.r.merged_at).map((g) => (
+            <section className="bl-group" key={g.key} aria-labelledby={`bl-${g.key}`}>
+              <h2 className="bl-h2" id={`bl-${g.key}`}>
+                {g.label} <span className="bl-count">{g.rows.length}</span>
+              </h2>
+              <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
+                {g.rows.map((x) => {
+                  const product = products.find((pp) => pp.key === x.product)?.name;
+                  const line = [product, nameOf(x.r), shippedOn(x.r.merged_at!)].filter(Boolean).join(SEP);
+                  return branchRow({ ...x, r: { ...x.r, pill: null }, child: false }, line);
+                })}
+              </ul>
+            </section>
+          ))}
+          {shippedCapLine(p.closed?.length ?? 0, p.closedLimit) && <p className="t-ui t-muted bl-merged">{shippedCapLine(p.closed?.length ?? 0, p.closedLimit)}</p>}
+        </>
       ) : (
         groups.map((g) => (
           <section className="bl-group" key={g.key} aria-labelledby={`bl-${g.key}`}>
@@ -528,27 +541,6 @@ export function BranchesList(p: BranchesListProps) {
             </ul>
           </section>
         ))
-      )}
-      {tab === 'all' && (merged !== null || finished) && (
-        <p className="t-ui t-muted bl-merged">
-          {finished ? (
-            <>
-              {FINISHED_WORDS.showing}{' '}
-              <Button variant="link" onClick={hideFinished}>
-                {FINISHED_WORDS.hide}
-              </Button>
-            </>
-          ) : (
-            <>
-              {mergedLine(merged ?? 0, p.closed?.length ?? 0, p.closedLimit)}{' '}
-              {(p.closed?.length ?? 0) > 0 && (
-                <Button variant="link" onClick={showFinished}>
-                  {FINISHED_WORDS.show}
-                </Button>
-              )}
-            </>
-          )}
-        </p>
       )}
       <SelectionBar selected={selected} listed={listed} admin={p.admin} failure={p.failure} onClear={clear} onDrop={drop} />
     </div>

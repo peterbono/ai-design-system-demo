@@ -298,3 +298,53 @@
 .sh-health + .bb-home {
   margin-block-start: calc(var(--space-6) * -1);
 }
+
+/* The next release (components/NextRelease.astro): the end of the pipeline, for whoever may publish it. While it shows
+   it is the page's one Harbor zone: the list's sentence steps down to plain text. */
+.bb-release {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  margin-bottom: var(--space-6);
+  padding: var(--space-6) var(--space-7);
+}
+
+.bb-release[hidden],
+.bb-release-lines[hidden] {
+  display: none;
+}
+
+.bb-release-text {
+  display: grid;
+  flex: 1 1 calc(var(--size-64) + var(--size-20));
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.bb-release-title {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.bb-release-lines {
+  margin: 0;
+  padding: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  list-style: none;
+}
+
+:root[data-next-release] .bb-open {
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+@media (max-width: 640px) {
+  .bb-release {
+    padding: var(--space-5);
+  }
+}

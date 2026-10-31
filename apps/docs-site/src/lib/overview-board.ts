@@ -101,7 +101,7 @@ const HREF: Record<ColumnId, string> = {
   exploring: studioHref('changes/?view=explorations'),
   review: studioHref('changes/'),
   ready: studioHref('changes/'),
-  release: studioHref('changes/?view=history'),
+  release: studioHref('building/#next-release'),
 };
 const EMPTY: Record<ColumnId, string> = {
   exploring: 'No exploration running.',
@@ -185,7 +185,7 @@ function allCards(input: BoardInput): [ColumnId, Natured[]][] {
       who: other(r.author, viewer),
       note: 'Merged, goes out in the next release.',
       status: null,
-      href: studioHref('changes/?view=history'),
+      href: studioHref('building/#next-release'),
       nature: 'design',
     }));
   return [

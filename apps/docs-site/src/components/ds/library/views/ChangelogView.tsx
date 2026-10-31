@@ -14,7 +14,7 @@ import { withAnnouncements } from '../../../../lib/library/use-pages';
 import ReleaseEntries, { KINDS, type EntryRow } from '../../ReleaseEntries';
 import VersionMenu from '../../VersionMenu';
 import { LibraryHeader } from '../FoundationParts';
-import { studioLink, type LibraryData } from '../library-data';
+import type { LibraryData } from '../library-data';
 
 export const CHANGELOG_PAGE = { title: 'Changelog', art: 'guide' } as const;
 
@@ -40,8 +40,8 @@ export default function ChangelogView({ data }: { data: ChangelogData }) {
   return (
     <div>
       <LibraryHeader title={CHANGELOG_PAGE.title} art={CHANGELOG_PAGE.art} actions={menu ? <VersionMenu {...menu} /> : undefined}>
-        What changed in each release of the design system and what it means for you, with an announcement ready to paste into Slack or an email. For the token-by-token history, open{' '}
-        <Link href={studioLink(data, 'changes/?view=history')}>History in the Studio</Link>.
+        What changed in each release of the design system and what it means for you, with an announcement ready to paste into Slack or an email. Every token and usage guidance change is listed{' '}
+        <Link href="#token-changes">by release, below</Link>.
       </LibraryHeader>
 
       <ul className="kind-legend" aria-label="Labels used in this changelog">

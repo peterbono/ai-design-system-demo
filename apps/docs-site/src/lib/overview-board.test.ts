@@ -42,7 +42,7 @@ describe('overview board', () => {
     // The viewer's account, no Studio marker: never "You are trying it" from the login alone.
     expect(cols[0]!.cards[0]).toMatchObject({ who: null, note: 'Started with your GitHub account. Request a review once it holds up.', href: '/studio/changes/?exploration=98' });
     expect(cols[3]!.cards[0]).toMatchObject({ title: 'Textarea gets a new appearance option for editing existing text in place', note: 'Merged, goes out in the next release.', who: null });
-    expect(cols.map((c) => c.href)).toEqual(['/studio/changes/?view=explorations', '/studio/changes/', '/studio/changes/', '/studio/changes/?view=history']);
+    expect(cols.map((c) => c.href)).toEqual(['/studio/changes/?view=explorations', '/studio/changes/', '/studio/changes/', '/studio/building/#next-release']);
   });
 
   it('keeps Bridge app updates out of the next release column and says who acts for others', () => {
