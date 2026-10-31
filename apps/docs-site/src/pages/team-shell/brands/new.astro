@@ -14,7 +14,8 @@ import { signInConfig } from '../../../lib/signin-config';
   route="brands/new/"
   title="New brand"
   what="brands"
-  subtitle="Draft it in this browser and check it in light and dark before it goes for review."
+  scene="tokens"
+  summary="Draft it in this browser and check it in light and dark before it goes for review."
   description="Draft a brand for this team's design system and check it with real components."
 >
   <TeamNewBrand client:load signIn={Boolean(signInConfig(true))} />

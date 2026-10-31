@@ -1,30 +1,52 @@
 ---
-// Page header for every Studio page: the title (h2 role, Fraunces 30), an optional count, an optional one-line muted
-// subtitle, and actions on the end side. Which version of the library a page shows (the latest, or an open change) is
-// picked in the top bar on the pages that can show a change (components/ViewAsChange.astro), not here.
+// Page header for every Studio page, one pattern (its React twin: components/ds/studio/StudioHead.tsx, same markup):
+//   the title (Fraunces, h2 role) with the page's primary action on the same line,
+//   ONE summary sentence about the state of the page (live: the page's island writes it, lib/page-summary),
+//   an optional quiet "How it works" fold for the generic explanation (progressive disclosure),
+//   and the section's Field Guide scene on the end side (ds/studio/QuietScene, the same breathing drawings as the
+//   quiet Home), gently animated, still under reduced motion, hidden on phones.
+// No team name under the title: the side nav already says which team this is. Not a Harbor zone: the page's main card
+// keeps the one Harbor zone of the screen (docs/DESIGN-LANGUAGE.md). Which version of the library a page shows is
+// picked in the top bar (components/ViewAsChange.astro), not here.
 //   title     the page name (the h1)
-//   subtitle  one short line, only when the title alone does not say what the page holds
-//   countId   id of a live count next to the title, filled by the page script (open pull requests, branches)
-// Slots: "actions" (buttons on the end side), default (extra inline meta after the subtitle).
+//   summary   the summary sentence as built (a page whose island fills it later leaves it out; the line is kept)
+//   scene     the section's drawing
+//   countId   id of a live count next to the title, filled by the page script
+// Slots: "actions" (the title line's end), "summary" (rich summary content), "how" (the fold), default (extra lines).
+import { QuietScene, type SectionSceneName } from './ds/studio/QuietScene';
+
 interface Props {
   title: string;
-  subtitle?: string;
+  summary?: string;
+  scene?: SectionSceneName;
   countId?: string;
   countLabel?: string;
 }
-const { title, subtitle, countId, countLabel } = Astro.props;
+const { title, summary, scene, countId, countLabel } = Astro.props;
+const how = Astro.slots.has('how');
 ---
 
-<header class="st-head">
+<header class="st-head" data-scene={scene}>
   <div class="st-head-main">
     <div class="st-title-row">
       <h1 class="st-title">
         {title}
         {countId && <span class="st-count num" id={countId} aria-label={countLabel}></span>}
       </h1>
+      <div class="st-head-actions" data-st-actions><slot name="actions" /></div>
     </div>
-    {subtitle && <p class="st-sub">{subtitle}</p>}
+    <p class="st-sub" data-st-summary aria-live="polite"><slot name="summary">{summary}</slot></p>
+    {
+      how && (
+        <details class="st-how">
+          <summary>How it works</summary>
+          <div class="st-how-body">
+            <slot name="how" />
+          </div>
+        </details>
+      )
+    }
     <slot />
   </div>
-  {Astro.slots.has('actions') && <div class="st-head-actions"><slot name="actions" /></div>}
+  {scene && <QuietScene scene={scene} width={160} />}
 </header>

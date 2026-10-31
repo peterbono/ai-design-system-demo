@@ -172,6 +172,173 @@
   }
 }
 
+/* --- The Studio section scenes (page headers): the same breath, one gesture each. ------------------------------- */
+
+/* Changes: the branches keep drawing themselves off the main path, hold, then fade to start again. */
+.qs .qs-branch {
+  animation: qs-branch calc(var(--_breath) * 8) var(--motion-easing-standard) calc(var(--_breath) * 0.4) infinite both;
+}
+
+.qs .qs-branch-2 {
+  animation-delay: calc(var(--_breath) * 1.9);
+}
+
+.qs .qs-branch-3 {
+  animation-delay: calc(var(--_breath) * 3.4);
+}
+
+@keyframes qs-branch {
+  0% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+
+  35%,
+  85% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Being built: the trolley glides along the jib, the hook swings under it. */
+.qs-trolley {
+  animation: qs-trolley calc(var(--_breath) * 6) var(--motion-easing-standard) infinite alternate;
+}
+
+@keyframes qs-trolley {
+  from {
+    transform: translateX(calc(var(--space-3) * -1));
+  }
+
+  to {
+    transform: translateX(var(--space-2));
+  }
+}
+
+.qs-hook {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: qs-hook calc(var(--_breath) * 2) var(--motion-easing-standard) infinite alternate;
+}
+
+@keyframes qs-hook {
+  from {
+    transform: rotate(-3deg);
+  }
+
+  to {
+    transform: rotate(3deg);
+  }
+}
+
+/* Components: the top blocks float above the stack and settle back, out of step. */
+.qs-float {
+  animation: qs-float calc(var(--_breath) * 2.4) var(--motion-easing-standard) infinite alternate;
+}
+
+.qs-float-2 {
+  animation-delay: calc(var(--_breath) * -1.2);
+}
+
+@keyframes qs-float {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(calc(var(--space-1-5) * -1));
+  }
+}
+
+/* Tokens: the fan opens a little more and closes around its rivet; the light and dark disc turns. */
+.qs-fan {
+  --_open: 0;
+
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: qs-fan calc(var(--_breath) * 3) var(--motion-easing-standard) infinite alternate;
+}
+
+.qs-fan-0 {
+  --_open: -1;
+}
+
+.qs-fan-1 {
+  --_open: -0.5;
+}
+
+.qs-fan-3 {
+  --_open: 0.5;
+}
+
+.qs-fan-4 {
+  --_open: 1;
+}
+
+@keyframes qs-fan {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(calc(var(--_open) * 7deg));
+  }
+}
+
+.qs-turn {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: qs-turn calc(var(--_breath) * 5) var(--motion-easing-standard) infinite alternate;
+}
+
+@keyframes qs-turn {
+  from {
+    transform: rotate(-20deg);
+  }
+
+  to {
+    transform: rotate(20deg);
+  }
+}
+
+/* Settings: the wheel turns a little each way; the compass needle settles. */
+.qs-wheel {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: qs-wheel calc(var(--_breath) * 4) var(--motion-easing-standard) infinite alternate;
+}
+
+@keyframes qs-wheel {
+  from {
+    transform: rotate(-16deg);
+  }
+
+  to {
+    transform: rotate(16deg);
+  }
+}
+
+.qs-needle {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: qs-needle calc(var(--_breath) * 3) var(--motion-easing-standard) calc(var(--_breath) * -1) infinite alternate;
+}
+
+@keyframes qs-needle {
+  from {
+    transform: rotate(-9deg);
+  }
+
+  to {
+    transform: rotate(6deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .qs path,
   .qs [data-fill],
@@ -180,9 +347,18 @@
   .qs-drift,
   .qs-glide,
   .qs-flap,
-  .qs-flag {
+  .qs-flag,
+  .qs .qs-branch,
+  .qs-trolley,
+  .qs-hook,
+  .qs-float,
+  .qs-fan,
+  .qs-turn,
+  .qs-wheel,
+  .qs-needle {
     animation: none;
   }
+
 }
 
 /* --- The lighthouse (Studio Quality): the beam swings across the lamp; the weather follows the verdict. -------- */

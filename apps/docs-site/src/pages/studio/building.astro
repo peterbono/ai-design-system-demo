@@ -26,7 +26,12 @@ const sources = ['docs/BUILD-REQUESTS.md', 'docs/REQUESTS.md'];
   updated={lastUpdated(sources)}
   wide
 >
-  <StudioHeader title="Being built" />
+  <StudioHeader title="Being built" scene="building">
+    <Fragment slot="how">
+      <p>Explorations handed to developers, and changes from Figma or from Components that need code, land here. Developers pick them up in GitHub or Jira; each one reads Shipped once it is in the library.</p>
+      <p>Claude's fixes from Figma show here too: someone on your team reviews each one.</p>
+    </Fragment>
+  </StudioHeader>
   <NextRelease />
   <BeingBuilt client:only="react" />
 </Layout>

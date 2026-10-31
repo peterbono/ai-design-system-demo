@@ -16,21 +16,27 @@
   padding: var(--space-8) var(--space-10) var(--space-16);
 }
 
-/* Page header (components/StudioHeader.astro): Fraunces title in the h2 role, the branch chip beside it. */
+/* Page header (components/StudioHeader.astro, ds/studio/StudioHead.tsx), one pattern on every Studio page: the
+   Fraunces title (h2 role) with the primary action on its line, one summary sentence, an optional quiet "How it
+   works" fold, and the section's Field Guide scene on the end side (ds/studio/QuietScene, styles/quiet-scene.css). The same height on
+   every page, so moving between sections never makes the content jump. Not a Harbor zone. */
 .st-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-4);
-  margin-bottom: var(--space-8);
+  align-items: flex-start;
+  gap: var(--space-4) var(--space-8);
+  min-height: var(--space-24);
+  margin-bottom: var(--space-6);
+}
+
+.st-head[hidden] {
+  display: none;
 }
 
 .st-head-main {
   display: flex;
   flex: 1 1 var(--size-80);
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -64,13 +70,20 @@
   display: none;
 }
 
+/* The summary sentence; the header's fixed height absorbs it when the page's island writes it late. */
 .st-sub {
   max-width: 65ch;
   min-width: 0;
+  min-height: var(--typography-body-line-height);
   margin: 0;
-  color: var(--color-text-muted);
+  color: var(--color-text-default);
   font-size: var(--typography-body-size);
   line-height: var(--typography-body-line-height);
+}
+
+.st-sub:empty {
+  /* A page whose main card already says it (Quality's verdict): no empty line under the title. */
+  display: none;
 }
 
 .st-head-actions {
@@ -78,6 +91,99 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.st-head-actions:empty {
+  display: none;
+}
+
+/* "How it works": the generic explanation, one quiet click away. */
+.st-how {
+  max-width: 65ch;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.st-how > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--size-6);
+  border-radius: var(--radius-inset);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  list-style: none;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-default);
+  text-underline-offset: var(--space-1);
+  transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.st-how > summary::-webkit-details-marker {
+  display: none;
+}
+
+.st-how > summary::after {
+  content: "";
+  width: var(--space-1-5);
+  height: var(--space-1-5);
+  border-right: var(--border-width-default) solid currentcolor;
+  border-bottom: var(--border-width-default) solid currentcolor;
+  transform: translateY(calc(var(--space-0-5) * -1)) rotate(45deg);
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.st-how[open] > summary::after {
+  transform: translateY(var(--space-0-5)) rotate(-135deg);
+}
+
+@media (hover: hover) {
+  .st-how > summary:hover {
+    color: var(--color-text-default);
+  }
+}
+
+.st-how > summary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.st-how-body {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.st-how-body p {
+  margin: 0;
+}
+
+.st-head > .qs {
+  flex: none;
+  align-self: center;
+}
+
+/* Phones: the words first (title, then the summary), the actions under them, the drawing rests. */
+@media (max-width: 640px) {
+  .st-head {
+    min-height: 0;
+  }
+
+  .st-title-row {
+    display: contents;
+  }
+
+  .st-head-actions {
+    order: 1;
+    margin-inline-start: 0;
+    padding-top: var(--space-2);
+  }
+
+  .st-head > .qs {
+    display: none;
+  }
 }
 
 /* Section titles inside Studio pages: the h3 role. */

@@ -71,6 +71,7 @@ import {
 } from "../../../lib/building-view";
 import { FIX_ROW_TITLE, type FixRow } from "../../../lib/claude-connector";
 import { studioHref } from "../../../lib/team-path";
+import { setPageSummary } from "../../../lib/page-summary";
 import {
   loadBuildData,
   readFixes,
@@ -494,6 +495,20 @@ export default function BeingBuilt() {
     };
   }, []);
 
+  // The page header's summary sentence (lib/page-summary): what waits for a developer and what is being built.
+  const summary = data
+    ? pageSentence(
+        listedRows(
+          mergeRows<FixRow | ExplorationBuildRow>(data.views, [
+            ...(data.fixes ?? []),
+            ...(data.explorations ?? []),
+          ]),
+          now
+        )
+      )
+    : "";
+  useEffect(() => setPageSummary(summary), [summary]);
+
   const go = useCallback((v: BuildRequestView | null) => {
     const url = v ? detailQuery(v) : location.pathname;
     history.pushState(null, "", url);
@@ -535,26 +550,20 @@ export default function BeingBuilt() {
   const shown = rows.filter((v) => matchesBuildFilter(v, filter, now));
   return (
     <div className="bb">
-      <section className="zone bb-open" aria-live="polite">
-        <p className="t-body bb-sentence">{pageSentence(rows)}</p>
-        <p className="t-ui t-muted bb-rule">
-          Explorations handed to developers and changes from Figma or Components that need code.
-          Developers pick them up in GitHub or Jira; each one reads Shipped once it is in the library.
-          {data.fixes?.length
-            ? " Claude's fixes from Figma are here too: someone on your team reviews each one."
-            : ""}
-        </p>
-        {data.sample && (
-          <p className="t-ui t-muted">
-            Sample build requests of the sample team. Nothing here is sent.
-          </p>
-        )}
-        {data.stale && (
-          <p className="t-ui t-muted">
-            Shown as last read: GitHub is busy, it refreshes on its own.
-          </p>
-        )}
-      </section>
+      {(data.sample || data.stale) && (
+        <div className="bb-notes">
+          {data.sample && (
+            <p className="t-ui t-muted">
+              Sample build requests of the sample team. Nothing here is sent.
+            </p>
+          )}
+          {data.stale && (
+            <p className="t-ui t-muted">
+              Shown as last read: GitHub is busy, it refreshes on its own.
+            </p>
+          )}
+        </div>
+      )}
       <div className="bb-bar">
         <Tabs value={filter} onValueChange={(f) => f !== null && setFilter(f as BuildFilter)}>
           <TabsList aria-label="Show">

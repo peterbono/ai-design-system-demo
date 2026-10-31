@@ -2,6 +2,7 @@
 // Being built: the list with one tag per row and no row buttons, the detail in place, the empty state that teaches,
 // and Claude's fixes as rows of the same list (no section of their own).
 import '../../../../../../packages/react/src/test/setup';
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
@@ -173,8 +174,13 @@ describe('Being built', () => {
       { products: DEFAULT_PRODUCTS, now: NOW, nameOf },
     );
     data = { ...sample(), sample: false, nameOf, explorations };
+    // The page header's summary slot (StudioHeader.astro): the island writes its sentence there, explorations counted.
+    const summary = document.body.appendChild(Object.assign(document.createElement('p'), { className: 'st-sub' }));
+    summary.setAttribute('data-st-summary', '');
     const { container } = render(createElement(BeingBuilt));
     const title = await screen.findByText('Explore new design pr being built');
+    expect(summary.textContent).toMatch(/^\d+ being built, \d+ waiting for a developer/);
+    summary.remove();
     expect(container.querySelectorAll('.sh-row-item')).toHaveLength(9);
     expect(screen.queryByText('Still running')).toBeNull();
     const row = title.closest('li')!;
@@ -182,7 +188,9 @@ describe('Being built', () => {
     expect(row.textContent).toContain('Waiting for code');
     expect(row.textContent).toContain('Admin demo · Done exploring by Florian on');
     expect(row.querySelector('a')!.getAttribute('href')).toBe('/studio/changes/?exploration=611');
-    expect(container.textContent).toContain('Explorations handed to developers and changes from Figma or Components that need code.');
+    // What lands here and who picks it up: the header's "How it works" fold, on the self-hosted and the team page.
+    for (const page of ['../../../pages/studio/building.astro', '../../../pages/team-shell/building.astro'])
+      expect(readFileSync(new URL(page, import.meta.url), 'utf8')).toContain('Explorations handed to developers, and changes from Figma or from Components that need code, land here.');
     expect(container.textContent).not.toMatch(/—/);
     expect(screen.getByRole('tab', { name: /Waiting to be picked up/ }).textContent).toContain('3');
     expect(screen.getByRole('tab', { name: /In progress/ }).textContent).toContain('4');

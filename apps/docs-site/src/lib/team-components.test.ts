@@ -66,8 +66,8 @@ describe('team components', () => {
 
   it('lead sentence', () => {
     const rows = teamComponentRows(model);
-    expect(teamComponentsLead(rows)).toBe('3 components in 3 families. 1 needs guidance, 1 draft to review.');
-    expect(teamComponentsLead([{ family: 'A', guidance: 'ok' }])).toBe('1 component in 1 family. Every one has usage guidance.');
+    expect(teamComponentsLead(rows)).toBe('3 components in 3 families, 1 needs guidance, 1 draft to review.');
+    expect(teamComponentsLead([{ family: 'A', guidance: 'ok' }])).toBe('1 component in 1 family, each with usage guidance.');
   });
 
   it('filters by search and family', () => {

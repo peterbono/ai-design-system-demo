@@ -25,6 +25,7 @@ import { postedStoryHeight } from '../../../lib/story-frame';
 import { fileUrl } from '../../../lib/team-load';
 import { safeUrl } from '../../../lib/html';
 import { studioHref } from '../../../lib/team-path';
+import { setPageSummary } from '../../../lib/page-summary';
 import { libraryHref } from '../../../lib/library-shells';
 import { readWorkspace, onWorkspaceChange } from '../../../scripts/workspace';
 import { loadTeamProductUsage, type TeamData } from '../../../scripts/team-data';
@@ -227,6 +228,9 @@ function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: bo
   const storybook = pickStorybook(data.storybook, browserStorybook);
   const rows = useMemo(() => teamComponentRows(data.model), [data.model]);
   const families = useMemo(() => teamFamilies(rows), [rows]);
+  // The page header's summary sentence (lib/page-summary): how many components, in how many families, what waits.
+  const summary = rows.length ? teamComponentsLead(rows) : '';
+  useEffect(() => setPageSummary(summary), [summary]);
   const specimens = useMemo(() => tokenSpecimens(data.model), [data.model]);
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState('');
@@ -298,7 +302,6 @@ function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: bo
         </>
       ) : (
         <>
-          <p className="tcm-lead">{teamComponentsLead(rows)}</p>
           {deep.pick && (
             <p className="tcm-pick" role="status">
               {PICK_COMPONENT_LINE}

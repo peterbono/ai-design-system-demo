@@ -21,6 +21,6 @@ const suggest = siteRepo().changes === 'suggest';
 ---
 
 <Layout title="New brand" description="Draft a brand in this browser, check it with real components in light and dark, then create a branch for review." sources={sources} updated={updated} wide>
-  <StudioHeader title="New brand" subtitle={`Draft it in this browser, check it with real components, then ${suggest ? 'send it as a suggestion' : 'send it for review'}.`} />
+  <StudioHeader title="New brand" scene="tokens" summary={`Draft it in this browser, check it with real components, then ${suggest ? 'send it as a suggestion' : 'send it for review'}.`} />
   <NewBrandFlow client:load files={tokenFiles()} configText={readText('bridge.config.json')} contrastText={readText(CONTRAST_FILE)} signIn={Boolean(signInConfig())} />
 </Layout>

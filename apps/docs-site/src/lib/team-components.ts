@@ -61,15 +61,19 @@ export function teamFamilies(rows: Pick<TeamComponentRow, 'family'>[]): { name: 
 
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** "53 components in 9 families. 4 need guidance." */
+/** The Components summary sentence: "53 components in 9 families, 4 need guidance." */
 export function teamComponentsLead(rows: Pick<TeamComponentRow, 'family' | 'guidance'>[]): string {
-  const families = teamFamilies(rows).length;
-  const head = `${count(rows.length, 'component')} in ${count(families, 'family', 'families')}.`;
+  const head = componentsHead(rows.length, teamFamilies(rows).length);
   const missing = rows.filter((r) => r.guidance === 'missing').length;
   const review = rows.filter((r) => r.guidance === 'review').length;
-  if (!missing && !review) return `${head} Every one has usage guidance.`;
+  if (!missing && !review) return `${head}, each with usage guidance.`;
   const parts = [missing ? `${missing} ${missing === 1 ? 'needs' : 'need'} guidance` : '', review ? `${count(review, 'draft')} to review` : ''].filter(Boolean);
-  return `${head} ${parts.join(', ')}.`;
+  return `${head}, ${parts.join(', ')}.`;
+}
+
+/** The start of the Components summary sentence: "53 components in 8 families". */
+export function componentsHead(components: number, families: number): string {
+  return `${count(components, 'component')} in ${count(families, 'family', 'families')}`;
 }
 
 /** Rows matching a search (name, family, summary) and a family ('' is every family). */

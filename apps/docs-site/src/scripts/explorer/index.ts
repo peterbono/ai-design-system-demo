@@ -40,6 +40,7 @@ import { buildTokenSet, contrastScope, evaluatePairs, formatValue, layoutOptions
 import { bannerBody, changedTokens, isTogether } from '../../lib/view-scope';
 import { currentPull, pageScope, readFailure, scopeLibrary, setBannerBody, setBannerError } from '../view-change';
 import { studioHref } from '../../lib/team-path';
+import { tokensSummary } from '../../lib/page-summary';
 
 const NARROW = '(max-width: 1099px)';
 let historyPanelReady = false;
@@ -334,7 +335,10 @@ export function initTokenExplorer() {
           : `${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]} tokens`;
     const brandMatters = view.plan.selectors.includes('brand') || view.plan.combos;
     const brandNote = s.view.allCombos ? ', every brand and theme.' : comp ? `, ${modeName(s.view.brand)} brand.` : ` of the ${modeName(s.view.brand)} brand.`;
-    title.textContent = `${which}${brandMatters ? brandNote : '.'}`;
+    // The page header's summary sentence: how many tokens and in which themes, until a filter narrows the table;
+    // then which tokens it shows.
+    const plain = !comp && sel.lens === 'collections' && !sel.group && isDefaultTiers(s.filters.tiers) && !s.filters.usage;
+    title.textContent = plain ? tokensSummary(scope.length, modes.themes.map(modeName)) : `${which}${brandMatters ? brandNote : '.'}`;
     q.placeholder = `Filter ${scope.length} tokens`;
     count.textContent = `${view.visible.length} of ${scope.length} tokens shown`;
     const n = ((comp ? isAllTiers(s.filters.tiers) : isDefaultTiers(s.filters.tiers)) || sel.lens !== 'collections' || sel.group ? 0 : 1) + (s.filters.usage ? 1 : 0) + (s.filters.exact ? 1 : 0);

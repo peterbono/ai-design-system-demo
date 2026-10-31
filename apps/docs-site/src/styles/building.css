@@ -6,19 +6,14 @@
   gap: var(--space-4);
 }
 
-.bb-open {
+.bb-notes {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-6) var(--space-7);
+  gap: var(--space-1);
 }
 
-.bb-open p,
+.bb-notes p,
 .bb-detail p {
   margin: 0;
-}
-
-.bb-sentence {
-  font-weight: var(--font-weight-semibold);
 }
 
 .bb-bar {
@@ -248,12 +243,6 @@
   margin: 0;
 }
 
-@media (max-width: 640px) {
-  .bb-open {
-    padding: var(--space-5);
-  }
-}
-
 /* The detail: what was sent and the developer fold, then where it stands beside them on wide screens. */
 .bb-body {
   display: grid;
@@ -337,11 +326,6 @@
   list-style: none;
 }
 
-:root[data-next-release] .bb-open {
-  padding: 0;
-  border-radius: 0;
-  background-color: transparent;
-}
 
 @media (max-width: 640px) {
   .bb-release {
