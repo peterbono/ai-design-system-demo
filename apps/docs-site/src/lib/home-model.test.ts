@@ -314,7 +314,7 @@ describe('contributors: what waits on someone without a review right', () => {
     expect(contributorTour('branches').title).toBe('Your explorations');
     expect(contributorTour('branches').text).toMatch(/until a reviewer approves it/);
     expect(contributorTour('start').title).toBe('Start an exploration');
-    // Nothing yet: nothing to point at but where to start, the three ways to start a change.
+    // Nothing yet: nothing to point at but where to start, the ways to start.
     expect(contributorTourSteps(true)).toEqual(['start']);
     expect(contributorTourSteps(false)).toEqual(['branches', 'start']);
     expect(contributorTour('start', true).title).toBe('Where to start');

@@ -1,17 +1,10 @@
-// "Create branch" in Studio (components/ds/studio/StartChange): product first, since most work is a feature in a
-// product. Step 1 asks what the work is (a feature in a product, or a change to the library); step 2 asks what the
-// feature is and in which product, or which library change. A feature starts the way the CLI and MCP server start one
-// for a product: an exploration with the product's label (productMarks from @bridge-ds/core), handed to Claude with
-// one line that sets it up and hands control back. Pure: the dialog and its tests share it.
+// "Start an exploration" in Studio (components/ds/studio/StartExploration): one flow for all work. What it is (one
+// sentence) and where: a product, or the library itself (a token, a variant, a new component is an exploration whose
+// target is the library). It starts the way the CLI and MCP server start one: an exploration with the product's label
+// (productMarks from @bridge-ds/core, none for the library), handed to Claude with one line that sets it up and hands
+// control back. Pure: the dialog and its tests share it.
 import { defaultProduct, findProduct, parseJiraKey, productRepoOf, type ProductConfig } from '@bridge-ds/core';
 import { studioHref } from './team-path';
-
-export type WorkKind = 'feature' | 'library';
-
-export const KIND_CHOICES: { value: WorkKind; title: string; line: string }[] = [
-  { value: 'feature', title: 'A feature in a product', line: 'A new screen or flow. You explore it with Claude AI and the library.' },
-  { value: 'library', title: 'A change to the library', line: 'A token, a variant or a new component.' },
-];
 
 /** The products a feature can be built in: every product but the default one (the library itself). */
 export function featureProducts(products: readonly ProductConfig[]): ProductConfig[] {
@@ -20,21 +13,45 @@ export function featureProducts(products: readonly ProductConfig[]): ProductConf
   return products.filter((p) => p.key !== lib.key);
 }
 
+/** The library as a target, after the products: its name in the menu and the one line under it. */
+export const LIBRARY_TARGET = { label: 'The library', hint: 'Tokens, variants, new components' } as const;
+
+export interface StartTarget {
+  value: string;
+  label: string;
+  description?: string;
+  product: ProductConfig;
+  /** The library itself (the default product): the exploration starts in the design system, with no product label. */
+  library: boolean;
+}
+
+/** Where an exploration can start: every product, then the library. Empty while the products are unknown. */
+export function startTargets(products: readonly ProductConfig[]): StartTarget[] {
+  if (!products.length) return [];
+  const lib = defaultProduct(products);
+  return [
+    ...featureProducts(products).map((p) => ({ value: p.key, label: p.name, product: p, library: false })),
+    { value: lib.key, label: LIBRARY_TARGET.label, description: LIBRARY_TARGET.hint, product: lib, library: true },
+  ];
+}
+
 /**
- * The product picked when step 2 opens: the one the page came from (?product=, key or name) when a feature can be
- * built in it, else the only one there is, else none (the person picks).
+ * The target picked when the dialog opens: the one the page came from (?product=, key or name; "library" for the
+ * library), else the only product there is, else the library when there is no product, else none (the person picks).
  */
-export function initialProduct(choices: readonly ProductConfig[], fromPage: string | null | undefined): string | null {
-  const hit = findProduct(choices, fromPage);
+export function initialTarget(targets: readonly StartTarget[], fromPage: string | null | undefined): string | null {
+  const page = (fromPage ?? '').trim().toLowerCase();
+  const lib = targets.find((t) => t.library);
+  if (lib && page === 'library') return lib.value;
+  const hit = findProduct(targets.map((t) => t.product), fromPage);
   if (hit) return hit.key;
-  return choices.length === 1 ? choices[0]!.key : null;
+  const products = targets.filter((t) => !t.library);
+  if (products.length === 1) return products[0]!.value;
+  return products.length ? null : (lib?.value ?? null);
 }
 
 /** The ?product= of a page address, or null. */
 export const productParam = (search: string): string | null => new URLSearchParams(search).get('product')?.trim() || null;
-
-/** Where step 1 starts: the kind question, or the library choices directly when no product but the library exists. */
-export const firstStep = (choices: readonly ProductConfig[]): 'kind' | 'library' => (choices.length ? 'kind' : 'library');
 
 const MAX_NAME = 60;
 
@@ -63,11 +80,11 @@ export interface FeatureForm {
 }
 
 /** What stops the feature from starting, each saying how to fix it, keyed by field. Empty: ready. */
-export function featureProblems(f: FeatureForm, choices: readonly ProductConfig[]): Partial<Record<'product' | 'sentence' | 'jira', string>> {
+export function featureProblems(f: FeatureForm, targets: readonly StartTarget[]): Partial<Record<'product' | 'sentence' | 'jira', string>> {
   const out: Partial<Record<'product' | 'sentence' | 'jira', string>> = {};
-  if (!f.product || !findProduct(choices, f.product)) out.product = 'Pick the product it is for.';
+  if (!f.product || !targets.some((t) => t.value === f.product)) out.product = 'Pick a product or the library.';
   const name = featureName(f.sentence);
-  if (!name) out.sentence = 'Say what you are building, for example "Billing screen with overdue invoices".';
+  if (!name) out.sentence = 'Say what you want to explore, for example "Billing screen with overdue invoices".';
   else if (!/[a-z0-9]/i.test(name)) out.sentence = 'Use letters or digits: the sentence names the work.';
   if (f.jira.trim()) {
     try {
@@ -84,12 +101,13 @@ export function featureProblems(f: FeatureForm, choices: readonly ProductConfig[
  * then hands control back. No task and no gap report up front: the designer drives the exploration in the terminal,
  * and bridge_missing_pieces lists what the library lacks when they finish.
  */
-export function claudePrompt(x: { sentence: string; product: ProductConfig; number: number }): string {
+export function claudePrompt(x: { sentence: string; product: ProductConfig; number: number; library?: boolean }): string {
+  if (x.library) return `Open Bridge exploration #${x.number} "${featureName(x.sentence)}" in the Bridge library. I'll tell you what to explore.`;
   const where = x.product.path ? ` (${x.product.path})` : x.product.repo ? ` (${x.product.repo})` : '';
   return `Open Bridge exploration #${x.number} "${featureName(x.sentence)}" in ${x.product.name}${where} and use the Bridge library. I'll tell you what to explore.`;
 }
 
-/** Where the person lands once the feature started: the branch in place on the Branches page. */
+/** Where the person lands once the exploration started: its page in Changes. */
 export const featureHref = (n: number) => studioHref(`changes/?exploration=${n}`);
 
 /**

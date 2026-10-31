@@ -1,6 +1,6 @@
 ---
 // Studio Branches: all the work, not a second triage page (triage lives on Home and the review queue). The header
-// holds the title, a "History" link and "Create branch" (the same menu as Home). The list (components/ds/studio/
+// holds the title, a "History" link and "Start an exploration" (the same flow as Home). The list (components/ds/studio/
 // BranchesList, read by scripts/reviews.ts loadList) shows every open branch, running explorations included under
 // their own status, grouped by product, with state tabs (All, Waiting on me, each state, Archived), a kind and a people
 // filter (Everyone, You, each designer), a checkbox on token branches to preview them together (the floating bar)
@@ -9,7 +9,7 @@
 // undo), a branch in place (?pr=N), a suggestion in place (?suggestion=N: a change filed as a GitHub issue that a
 // developer applies once owners approve it, components/ds/studio/SuggestionReview in #sg-detail, declined with
 // RequestDecide), an exploration in place (?exploration=N) and its start form
-// (?view=explorations&start=new, from Create branch > New component), and component change requests (?view=requests,
+// (?view=explorations&for=N, from a request; an old &start=new opens the Start an exploration dialog), and component change requests (?view=requests,
 // only when request triage is on in Studio, lib/studio-flags). Old ?status= and ?tier= links keep working
 // (lib/branches-page finishedParam). Designer words only (lib/vocabulary, Figma branching); developer details stay on
 // GitHub, one "Open on GitHub" link away on each branch. Replaces Drafts, Branches, Reviews, Versions and Visual
@@ -37,7 +37,7 @@ import Illustration from '../../components/Illustration.astro';
 import { siteIcon } from '../../brand/site-icons';
 import ButtonLink from '../../components/ds/ButtonLink';
 import { Icon, Link } from '@bridge-ds/react';
-import StartChange from '../../components/ds/studio/StartChange';
+import StartExploration from '../../components/ds/studio/StartExploration';
 import { siteRepo } from '../../lib/config';
 import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, readText } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
@@ -62,7 +62,7 @@ const version = versionInfo();
 // an image of its own shows it as its thumbnail.
 const comps = loadComponents();
 const previews = comps.flatMap((c) => (c.docs?.preview ? [{ name: c.name, preview: c.docs.preview }] : []));
-// Create branch: the same menu as Home, its component picker over every component.
+// Start an exploration: the same flow as Home, its Report it component picker over every component.
 const startComponents = comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name));
 // Changes that wait for the next release = changesets on main, the unit the release pull request counts too, so the
 // line and the "Next release" card (filled in the browser from that pull request) never disagree.
@@ -87,7 +87,7 @@ const signIn = Boolean(signInConfig());
         <Fragment slot="actions">
           <Link href={studioHref('changes/?view=history')} id="cg-history-link" data-cg-view="history">History</Link>
           <Link href={studioHref('changes/')} id="cg-back-link" data-back hidden>All {VOCAB.branches}</Link>
-          <span class="cg-create" data-greet><StartChange client:load components={startComponents} /></span>
+          <span class="cg-create" data-greet><StartExploration client:load components={startComponents} /></span>
         </Fragment>
       </StudioHeader>
 

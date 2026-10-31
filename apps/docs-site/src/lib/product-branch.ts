@@ -24,7 +24,7 @@ import {
 } from '@bridge-ds/core';
 import { studioHref } from './team-path';
 
-/** A branch started for a product (Create branch, A feature in a product): its label names a product other than the library. */
+/** A branch started for a product (Start an exploration in a product): its label names a product other than the library. */
 export function isProductBranch(labels: readonly (string | { name?: string })[] | null | undefined, products: readonly ProductConfig[]): ProductConfig | null {
   const names = (labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter((n) => n.toLowerCase().startsWith('product: '));
   if (!names.length) return null;

@@ -4,7 +4,7 @@ import { branchCount, branchWithJiraKey, isJiraKey, jargonIn, jiraKeyOf, parseJi
 
 describe('vocabulary', () => {
   it('speaks changes and the library, never git', () => {
-    expect(VOCAB.createBranch).toBe('Start a change');
+    expect(VOCAB.startExploration).toBe('Start an exploration');
     expect(VOCAB.requestReview).toBe('Send for review');
     expect(VOCAB.updateFromMain).toBe('Update from the library');
     expect(VOCAB.reviewAndMerge).toBe('Review and add to the library');

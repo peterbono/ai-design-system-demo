@@ -252,7 +252,7 @@ export function initComponentsStudio() {
     row.hidden = false;
     row.scrollIntoView({ block: 'center' });
     open(row);
-    // From the Overview "Start a change" (?intent=variant|wrong): the change steps open on that choice.
+    // From the Home ways to start or Report it (?intent=variant|wrong): the change steps open on that choice.
     const intent = params.get('intent');
     if (isChangeIntent(intent)) {
       drawer.querySelector<HTMLButtonElement>('[data-cm-panel]:not([hidden]) [data-cm-change-open]')?.click();

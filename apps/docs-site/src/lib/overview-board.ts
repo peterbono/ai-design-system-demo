@@ -272,17 +272,13 @@ export function releaseTitle(summary: string): string {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Start a change: where each choice of the Overview menu leads.
+// The ways to start that are not an exploration: where each one leads (the home's ways to start, Report it).
 
-export type StartChoice = 'look' | 'variant' | 'wrong' | 'new';
+export type StartChoice = 'look' | 'variant' | 'wrong';
 
-/**
- * Adjust the look opens Tokens; a variant or a mismatch opens the picked component's drawer on that intent; a new
- * component opens the exploration start form.
- */
+/** Edit tokens opens Tokens; a variant or a mismatch opens the picked component's drawer on that intent. */
 export function startChangeHref(choice: StartChoice, slug?: string): string {
   if (choice === 'look') return studioHref('tokens/');
-  if (choice === 'new') return studioHref('changes/?view=explorations&start=new');
   const p = new URLSearchParams({ ...(slug ? { c: slug } : {}), intent: choice });
   return studioHref(`components/?${p.toString()}`);
 }

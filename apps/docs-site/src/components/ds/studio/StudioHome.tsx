@@ -18,7 +18,7 @@ import { Who } from './faces';
 import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, Skeleton, ToastProvider } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
 import { Drawing } from './Drawing';
-import StartChange from './StartChange';
+import StartExploration from './StartExploration';
 import { BuildLine } from './BuildLine';
 import ButtonLink from '../ButtonLink';
 import {
@@ -245,7 +245,7 @@ function Explorations({
           {/* On the demo too: its button carries data-demo-write, so a visitor gets the demo's sign-in dialog
               (scripts/demo-gate.ts). */}
           <li className="sh-card-item sh-create">
-            <StartChange components={components} appearance="card" exploration />
+            <StartExploration components={components} appearance="card" />
           </li>
           {shown.map((c) => (
             <ExplorationCardItem key={c.key ?? c.number} c={c} />
@@ -255,7 +255,7 @@ function Explorations({
         <div className="sh-explore-empty">
           <Drawing name="paint" width={88} />
           <p className="t-body sh-explore-empty-text">{EXPLORE_LINE}</p>
-          <StartChange components={components} appearance="button" exploration />
+          <StartExploration components={components} appearance="button" />
         </div>
       )}
       {!narrow && tour?.('branches')}
@@ -300,7 +300,7 @@ const CHOICES = [
   { drawing: 'guide', title: 'Write usage guidance', line: 'When to use a component, and when not to.', key: 'guidance' },
 ] as const;
 
-/** The first way to start, before the library ones: an exploration, through the start flow (StartChange). */
+/** The first way to start, before the library ones: an exploration, through the start flow (StartExploration). */
 const EXPLORE_CHOICE = 'Try a product screen with Claude AI. Bridge shows what the library does not have yet.';
 
 function Start({ hrefs, components }: { hrefs: Record<(typeof CHOICES)[number]['key'], string>; components: HomeComponent[] }) {
@@ -310,7 +310,7 @@ function Start({ hrefs, components }: { hrefs: Record<(typeof CHOICES)[number]['
         <Card interactive className="sh-choice">
           <CardBody className="sh-choice-body">
             <Drawing name="paint" width={104} />
-            <StartChange components={components} appearance="choice" exploration />
+            <StartExploration components={components} appearance="choice" />
             <span className="t-ui t-muted">{EXPLORE_CHOICE}</span>
           </CardBody>
         </Card>

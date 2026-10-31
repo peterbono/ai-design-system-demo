@@ -196,7 +196,7 @@ export function resetChangeFlow(drawer: HTMLElement, focusOpener = false) {
 }
 
 /**
- * Picks an intent from outside the drawer (the Overview "Start a change" deep link): the radio shows it as picked and
+ * Picks an intent from outside the drawer (the Home ways to start and Report it deep links): the radio shows it as picked and
  * the step that follows opens. "Adjust the look" stays unpicked on a component with no token.
  */
 export function pickChangeIntent(drawer: HTMLElement, intent: ChangeIntent) {

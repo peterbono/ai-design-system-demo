@@ -1,4 +1,4 @@
-// The words Studio speaks, in one place. Designers work in changes to the library: they start a change, send it for
+// The words Studio speaks, in one place. Designers work in changes to the library: they start an exploration, send it for
 // review, and a reviewer adds it to the library, which is published as a package release. Saving is invisible: there
 // is no push, pull or commit on a Studio screen, and no branch, merge or main either (decision 2026-10-24: designers
 // read "change" and "library"; git words stay in the "For developers" folds, the CLI, the MCP server and GitHub).
@@ -18,8 +18,8 @@ export const VOCAB = {
   main: 'the library',
   /** The same, at the start of a sentence. */
   Main: 'The library',
-  /** Start a change (a branch on GitHub). */
-  createBranch: 'Start a change',
+  /** The one way to start work: an exploration in a product or in the library (a branch on GitHub). */
+  startExploration: 'Start an exploration',
   /** Ask reviewers to look: the one send verb of the site (lib/gh-wording.ts sendButton), in direct mode. */
   requestReview: 'Send for review',
   /** The reviewer's step that ends with the change in the library (a merge on GitHub). */

@@ -170,7 +170,7 @@ export async function initTeamBranches(): Promise<void> {
       showMain('explorations');
       const m = await loadExplorationsModule();
       void m.loadExplorations(() => openPulls<ExplorationPullLike>());
-      // Started for a request: the form, filled from it; from Create branch > New component: the form, open.
+      // Started for a request: the form, filled from it; from an old &start=new address: the form, open (the team shell has no header dialog).
       if (r.forRequest) void m.startForRequest(r.forRequest);
       else {
         const opener = $('ex-start-open');
