@@ -47,6 +47,8 @@ import { Drawing } from './Drawing';
 import { Who } from './faces';
 import { explorationTag, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
 import { studioHref } from '../../../lib/team-path';
+import { plateDrawing } from '../../../lib/branch-thumb';
+import { capturedLine } from '../../../lib/preview-shots';
 
 export type ExplorationStage = 'loading' | 'not-started' | 'exploring' | 'handed-off';
 
@@ -88,8 +90,13 @@ export interface ExplorationPageProps {
   previewNote: string | null;
   /** X2: the preview is building: the button reads "Preview is building" with a spinner, at full contrast. */
   previewBuilding?: boolean;
-  /** X2: a captured image of the change (the visual impact's after shot), else a neutral frame. */
+  /**
+   * X2: a captured image of the change: the preview capture (lib/preview-shots), else the visual impact's after shot;
+   * none: the plate. An image that does not load gives the plate back in the same frame.
+   */
   thumb: string | null;
+  /** When the preview capture was taken (ISO): "Captured 2 h ago" on the frame. Null for a visual impact shot. */
+  thumbCapturedAt?: string | null;
   /** X2: the last 3 events; null while read. */
   activity: ActivityRow[] | null;
   done: DoneAction;
@@ -105,8 +112,11 @@ export interface ExplorationPageProps {
   said?: string;
   /** After Done exploring (stage 'handed-off'). */
   handoff?: HandoffView | null;
-  /** The product's name and the screen the exploration changed, for the preview plate while no capture exists. */
-  plate?: { product: string; screen: string | null } | null;
+  /**
+   * The product's name and the screen the exploration changed, for the preview plate while no capture exists. `seed`
+   * (the exploration's key) picks the same drawing as its card on the Studio home.
+   */
+  plate?: { product: string; screen: string | null; seed?: string | null } | null;
 }
 
 const COPIED = 'Copied. Paste it in Claude.';
@@ -207,16 +217,29 @@ function ActivityList({ rows }: { rows: ActivityRow[] | null }) {
 
 /**
  * The preview while Bridge has no capture of the screen: an honest plate, not a fake wireframe. The changed screen's
- * name in the display face, the product, and the Field Guide drawing of a screen being painted.
+ * name in the display face, the product, and a Field Guide drawing (the one of its card, lib/branch-thumb plateDrawing).
+ * The frame has the ratio of a capture, so a capture arriving later, or failing to load, moves nothing.
  */
-export function ScreenPlate({ product, screen }: { product: string; screen: string | null }) {
+export function ScreenPlate({ product, screen, seed }: { product: string; screen: string | null; seed?: string | null }) {
   return (
     <div className="xp-frame xp-plate" aria-hidden="true">
-      <Drawing name="paint" width={88} className="xp-plate-art" />
+      <Drawing name={plateDrawing({ seed, screen, product })} width={88} className="xp-plate-art" />
       <span className="xp-plate-text">
         <span className="xp-plate-screen">{screen ?? product}</span>
         <span className="xp-muted">{screen ? `${product} · no screenshot yet` : 'No screenshot yet'}</span>
       </span>
+    </div>
+  );
+}
+
+/** The captured screen, "Captured 2 h ago" in its corner; the plate (or the neutral frame) if the image fails. */
+function ShotFrame({ p }: { p: ExplorationPageProps }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  if (!p.thumb || failed === p.thumb) return p.plate ? <ScreenPlate product={p.plate.product} screen={p.plate.screen} seed={p.plate.seed ?? null} /> : <EmptyFrame label={null} />;
+  return (
+    <div className="xp-frame is-shot">
+      <img src={p.thumb} alt="The latest captured screen of this exploration" loading="lazy" onError={() => setFailed(p.thumb)} />
+      {p.thumbCapturedAt && <span className="xp-captured">{capturedLine(p.thumbCapturedAt, Date.now())}</span>}
     </div>
   );
 }
@@ -460,17 +483,12 @@ function ExplorationBody(p: ExplorationPageProps) {
         </section>
       )}
       {(p.stage === 'exploring' || handoff) && (
-        <div className="xp-grid">
+        // The preview and the Harbor zone end on one line: the preview's frame takes the height the zone beside it needs
+        // (within a screen-like ratio). While exploring, the activity sits under the Harbor card; after Done exploring,
+        // under the preview, so the hand-off and the preview stay side by side (styles/exploration-page.css).
+        <div className={handoff ? 'xp-grid is-handoff' : 'xp-grid'}>
           <section className="xp-preview" aria-label="Preview">
-            {p.thumb ? (
-              <div className="xp-frame is-shot">
-                <img src={p.thumb} alt="The latest captured screen of this exploration" loading="lazy" />
-              </div>
-            ) : p.plate ? (
-              <ScreenPlate product={p.plate.product} screen={p.plate.screen} />
-            ) : (
-              <EmptyFrame label={null} />
-            )}
+            <ShotFrame p={p} />
             <div className={handoff ? 'xp-acts' : 'xp-acts xp-preview-acts'}>
               {p.previewUrl ? (
                 // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
@@ -497,8 +515,9 @@ function ExplorationBody(p: ExplorationPageProps) {
           </section>
           <div className="xp-side">
             {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} /> : <DoneCard p={p} />}
-            <ActivityList rows={p.activity} />
+            {!handoff && <ActivityList rows={p.activity} />}
           </div>
+          {handoff && <ActivityList rows={p.activity} />}
         </div>
       )}
       <p className="xp-said" role="status" aria-live="polite">

@@ -22,6 +22,8 @@ import type { ChangedFile } from '../lib/blob-batch';
 import { manifestPublished } from './reviews/visual-impact';
 import { touchesVisuals, visualBase, visualState, type VisualManifest } from '../lib/visual-impact';
 import { branchThumb, type ThumbInput, type ThumbSpec } from '../lib/branch-thumb';
+import { shotThumb } from '../lib/preview-shots';
+import { previewShotOf } from './preview-shots';
 import {
   CLAUDE,
   changeNeed,
@@ -313,7 +315,10 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   const closedRead = ghGet<HomePull[]>(`/repos/${owner}/${repo}/pulls?state=closed&sort=updated&direction=desc&per_page=30`)
     .then((r) => (closed = r.data.filter((p) => p.merged_at)))
     .catch(() => (closed = []));
-  const shots = new Map<number, ThumbSpec>();
+  // The explored screens: the preview capture (scripts/preview-shots.ts), else the visual impact's top change. By
+  // "product#number", a product's own exploration included.
+  const shots = new Map<string, ThumbSpec>();
+  const shotKeyOf = (p: Pick<HomePull, 'number' | 'product'>) => `${p.product ?? ''}#${p.number}`;
   // The changed files of each running exploration: its card says "Not started" or "Exploring", as its page.
   const xpFiles = new Map<string, string[] | null>();
   const xpAsked = new Set<string>();
@@ -413,8 +418,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
         const r = requesterOf(p.body);
         return (r && requesterPerson(r, (l) => pick(l)!)) ?? pick(p.user.login)!;
       },
-      // Screens are captured in the design system repository only: a product's own exploration keeps its sketch.
-      preview: (p) => (p.product ? undefined : shots.get(p.number)),
+      preview: (p) => shots.get(shotKeyOf(p)),
     });
     const branches: BranchCard[] = queue
       .filter((p) => same(p.user.login, viewer) && !isHomeExploration(p, products))
@@ -500,11 +504,13 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       resolved.set(x.pull.number, await thumbOf(x.pull, x.guidance));
       later();
     }),
-    // The explored screen of each exploration card.
-    ...mine.map(async (p) => {
-      const shot = await previewOf(p).catch(() => null);
+    // The explored screen of each exploration card: its preview capture (one read for all, no API call), else the
+    // visual impact's top change of a library exploration.
+    ...[...mine, ...productOpen.filter((p) => isHomeExploration(p, products))].map(async (p) => {
+      const real = await previewShotOf(p).catch(() => null);
+      const shot = real ? shotThumb(real) : p.product ? null : await previewOf(p).catch(() => null);
       if (!shot) return;
-      shots.set(p.number, shot);
+      shots.set(shotKeyOf(p), shot);
       later();
     }),
   ]);

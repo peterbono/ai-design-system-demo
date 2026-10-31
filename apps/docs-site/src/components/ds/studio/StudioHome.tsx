@@ -173,21 +173,22 @@ function ExplorationCardItem({ c }: { c: ExplorationCard }) {
               <span className="sh-strong">{c.title}</span>
             </Link>
           </span>
-          {/* Where it stands as the DS tag of its page, then the product; who explores it on the last line. Each part
-              wraps on its own and the dot rides with what comes before it: a wrap never starts a line on it. */}
-          <span className="t-ui t-muted sh-card-status">
-            {c.state && (
-              <span>
+          {/* A fixed footer, pinned to the bottom: the DS tag of its page, the product, who explores it, one line each
+              (a long one ends in an ellipsis). Every card of a row has the same footer, so the tags, the product lines
+              and the names line up whatever the titles' length; a card without a product keeps the line empty. */}
+          <span className="sh-card-foot">
+            <span className="sh-card-tagline">
+              {c.state && (
                 <Badge tone={c.tone ?? 'neutral'} dot={c.dot ?? false} size="md" className={c.state === 'Exploring' ? 'sh-card-tag xp-exploring' : 'sh-card-tag'}>
                   {c.state}
                 </Badge>
-              </span>
-            )}
-            {c.product && <span>in {c.product}</span>}
-          </span>
-          <span className="t-ui sh-card-who">
-            <Who p={c.author} size="xs" />
-            <span>{c.author.name}</span>
+              )}
+            </span>
+            <span className="t-ui t-muted sh-card-product">{c.product ? `in ${c.product}` : '\u00a0'}</span>
+            <span className="t-ui sh-card-who">
+              <Who p={c.author} size="xs" />
+              <span className="sh-card-name">{c.author.name}</span>
+            </span>
           </span>
         </div>
       </Card>

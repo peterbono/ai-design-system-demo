@@ -98,7 +98,7 @@ describe("the DS lead's queue on the demo", () => {
       [45, 'Billing: invoice status as badges', 'Account', 'In review', 'ann'],
     ]);
     // The sample team's explored screens ship with the site: never a generic icon on its cards.
-    expect(cards.map((c) => c.preview)).toEqual([
+    expect(cards.map((c) => c.preview)).toMatchObject([
       { kind: 'screen', src: '/sample/explorations/profile-page.png' },
       { kind: 'screen', src: '/sample/explorations/billing-invoice-status.png' },
     ]);
@@ -122,7 +122,7 @@ describe("the DS lead's queue on the demo", () => {
       ['Notification channels', 'In review'],
       ['Plan comparison', 'Kept in the library'],
     ]);
-    expect(cards.map((c) => c.preview)).toEqual(
+    expect(cards.map((c) => c.preview)).toMatchObject(
       ['team-seats-and-roles', 'notification-channels', 'plan-comparison'].map((f) => ({ kind: 'screen', src: `/sample/explorations/${f}.png` })),
     );
   });
@@ -130,11 +130,11 @@ describe("the DS lead's queue on the demo", () => {
   it('reads the explored screen of another demo when the visual impact run has one, a plate until then', () => {
     const explore = pull(7, { labels: [{ name: 'exploration' }], head: { ref: 'explore/pill-buttons' } });
     const plate = { kind: 'screen', src: null, product: 'Library', screen: null };
-    expect(teamExplorations([explore])[0]!.preview).toEqual(plate);
+    expect(teamExplorations([explore])[0]!.preview).toEqual({ ...plate, seed: '7' });
     const previews = new Map([[7, { kind: 'screen', src: 'https://raw.githubusercontent.com/o/r/bridge-visual/pr-7/sha/after.png' } as const]]);
-    expect(teamExplorations([explore], { previews })[0]!.preview).toEqual(previews.get(7));
+    expect(teamExplorations([explore], { previews })[0]!.preview).toMatchObject(previews.get(7)!);
     // Off the sample team, the seeded captures are not used.
-    expect(teamExplorations([pull(8, { head: { ref: 'explore/profile-page' } })])[0]!.preview).toEqual(plate);
+    expect(teamExplorations([pull(8, { head: { ref: 'explore/profile-page' } })])[0]!.preview).toEqual({ ...plate, seed: '8' });
   });
 });
 
