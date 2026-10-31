@@ -7,7 +7,7 @@ import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
-import { EXPLORE_LINE, StudioHome, type StudioHomeProps } from './StudioHome';
+import { EXPLORE_LINE, QUIET_LINE, StudioHome, type StudioHomeProps } from './StudioHome';
 import { changeNeed, joinNeed, person, SEP, type BranchCard } from '../../../lib/home-model';
 import type { ExplorationCard } from '../../../lib/home-explorations';
 import { NARROW_TOUR, tourPlacement } from './HomeTour';
@@ -53,7 +53,7 @@ beforeEach(() => localStorage.clear());
 describe('StudioHome, contributor', () => {
   it('says nothing waits when no reviewer sent anything back, and tours their branches, not the lead queue', async () => {
     const { container } = render(createElement(StudioHome, props()));
-    expect(screen.getByText('Nothing needs you.')).toBeTruthy();
+    expect(screen.getByText(QUIET_LINE)).toBeTruthy();
     expect(screen.queryByText(/need your review/)).toBeNull();
     expect(screen.queryByRole('link', { name: 'Review all' })).toBeNull();
     expect(screen.queryByText(/Changes wait for the lead/)).toBeNull();
@@ -317,5 +317,30 @@ describe('StudioHome, status lines', () => {
     expect(SEP).toBe(' · ');
     // No breakable space before a dot anywhere on the home.
     expect(container.textContent).not.toMatch(/ ·/);
+  });
+});
+
+describe('StudioHome, quiet', () => {
+  it('turns the Harbor zone into a calm harbor when nothing waits, without a second start action', async () => {
+    localStorage.setItem('bridge.home.contributor-tour', 'done');
+    const { container } = render(createElement(StudioHome, props()));
+    expect(screen.getByText('Nothing needs you. The harbor is calm.')).toBeTruthy();
+    const zone = container.querySelector('.sh-zone')!;
+    const scene = zone.querySelector('svg.qs[data-scene="harbor"]');
+    expect(scene).not.toBeNull();
+    expect(scene!.getAttribute('aria-hidden')).toBe('true');
+    // Every ink line draws in on the same clock.
+    expect([...scene!.querySelectorAll('path')].every((path) => path.getAttribute('pathLength') === '1')).toBe(true);
+    // Starting stays in Your explorations: the zone adds no action of its own.
+    expect(zone.querySelector('button, a')).toBeNull();
+    await expectNoAxeViolations(container);
+  });
+
+  it('shows no scene while loading or when something waits', () => {
+    localStorage.setItem('bridge.home.contributor-tour', 'done');
+    const { container, rerender } = render(createElement(StudioHome, props({ state: 'loading' })));
+    expect(container.querySelector('svg.qs')).toBeNull();
+    rerender(createElement(StudioHome, props({ needs: [sentBack] })));
+    expect(container.querySelector('svg.qs')).toBeNull();
   });
 });
