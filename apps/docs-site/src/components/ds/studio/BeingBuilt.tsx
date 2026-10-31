@@ -51,7 +51,6 @@ import {
   BUILD_FILTERS,
   EMPTY_FILTER,
   EMPTY_WORDS,
-  EXPLORATION_KIND,
   buildDetail,
   detailFromQuery,
   detailQuery,
@@ -152,7 +151,8 @@ function Rows({
               className={v.stale ? "bb-stale" : undefined}
             />
           );
-        // An exploration handed to developers: the row opens the exploration, its kind tagged.
+        // An exploration handed to developers: the row opens the exploration. No kind tag: every change starts as an
+        // exploration, its line ("Done exploring on Oct 31") already says where it comes from.
         if (isExploration(v))
           return (
             <BranchRow
@@ -160,14 +160,9 @@ function Rows({
               thumb={{ kind: "screen", src: null, product: v.exploration.product, seed: v.id }}
               who={<Builders v={v} data={data} />}
               title={v.title}
-              hint={`${EXPLORATION_KIND}: ${v.title}`}
+              hint={v.title}
               href={studioHref(v.exploration.href)}
               line={v.exploration.line}
-              tags={
-                <Badge tone="neutral" size="sm">
-                  {EXPLORATION_KIND}
-                </Badge>
-              }
               pill={statusTag(v)}
               className={v.stale ? "bb-stale" : undefined}
             />

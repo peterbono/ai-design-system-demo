@@ -368,8 +368,6 @@ export interface ExplorationBuildRow extends BuildRequestView {
   };
 }
 
-/** The small kind tag of an exploration row. */
-export const EXPLORATION_KIND = 'Exploration';
 
 const DAY = 86_400_000;
 const EXPLORATION_BUILD_STATUS = { ready: 'requested', building: 'in-progress', shipped: 'shipped' } as const;

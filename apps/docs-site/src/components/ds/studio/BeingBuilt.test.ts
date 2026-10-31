@@ -178,7 +178,8 @@ describe('Being built', () => {
     expect(container.querySelectorAll('.sh-row-item')).toHaveLength(9);
     expect(screen.queryByText('Still running')).toBeNull();
     const row = title.closest('li')!;
-    expect(row.textContent).toContain('Exploration');
+    // No kind tag: every change starts as an exploration.
+    expect([...row.querySelectorAll('*')].some((e) => e.children.length === 0 && e.textContent === 'Exploration')).toBe(false);
     expect(row.textContent).toContain('Waiting for code');
     expect(row.textContent).toContain('Admin demo · Done exploring by Florian on');
     expect(row.querySelector('a')!.getAttribute('href')).toBe('/studio/changes/?exploration=611');
