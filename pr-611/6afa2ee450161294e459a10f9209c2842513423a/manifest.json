@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-31T13:26:38.047Z",
-  "durationMs": 96590,
+  "createdAt": "2026-10-31T13:37:18.123Z",
+  "durationMs": 105972,
   "base": {
     "ref": "fedd0c0f64b193c3744908d6e67d76bfbcb6c9ff",
     "sha": "fedd0c0f64b193c3744908d6e67d76bfbcb6c9ff"
   },
   "head": {
-    "ref": "55c12b9e9c976e8a7172984c01df7c92307cb343",
-    "sha": "55c12b9e9c976e8a7172984c01df7c92307cb343"
+    "ref": "6afa2ee450161294e459a10f9209c2842513423a",
+    "sha": "6afa2ee450161294e459a10f9209c2842513423a"
   },
   "options": {
     "only": [
@@ -32,7 +32,6 @@
     "tokens": [],
     "vars": [],
     "files": [
-      ".bridge/explorations/explore-new-design-pr-being-built.md",
       "apps/admin/src/i18n/en.ts",
       "apps/admin/src/i18n/fr.ts",
       "apps/admin/src/resources/dashboard/Dashboard.module.css",
