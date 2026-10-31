@@ -18,11 +18,16 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 /** Paths each app is built from, relative to the repository root. Shared inputs first. */
-const SHARED = ['packages/', 'package.json', 'package-lock.json', 'tsconfig.base.json', 'bridge.config.json', 'scripts/vercel-ignore.mjs'];
+const ROOT = ['package.json', 'package-lock.json', 'tsconfig.base.json', 'scripts/vercel-ignore.mjs'];
+/**
+ * Each app lists only the packages it builds from: Storybook renders the tokens and components; the admin app also
+ * imports core and the toolbar. A change to Bridge's own tools (mcp, cli, stylelint plugin, visual, figma plugin)
+ * rebuilds the docs site only, never the two previews (the daily deployment budget stays for real changes).
+ */
 export const APP_PATHS = {
-  docs: [...SHARED, 'apps/docs-site/', 'docs/', '.changeset/', 'AGENTS.md', 'README.md', '.github/CODEOWNERS'],
-  storybook: [...SHARED, '.storybook/', 'deploy/storybook/'],
-  admin: [...SHARED, 'apps/admin/'],
+  docs: [...ROOT, 'packages/', 'bridge.config.json', 'apps/docs-site/', 'docs/', '.changeset/', 'AGENTS.md', 'README.md', '.github/CODEOWNERS'],
+  storybook: [...ROOT, 'packages/tokens/', 'packages/react/', '.storybook/', 'deploy/storybook/'],
+  admin: [...ROOT, 'packages/tokens/', 'packages/react/', 'packages/core/', 'packages/toolbar/', 'bridge.config.json', 'apps/admin/'],
 };
 
 export const MAIN = 'main';
