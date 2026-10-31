@@ -322,6 +322,15 @@
   display: flex;
   flex: 1;
   flex-direction: column;
+  overflow: hidden;
+}
+
+/* The preview runs edge to edge under the card's own border and corners: one line at the edges, never two (its own
+   frame would double the card's on the top and sides), and a single rule where the text starts. */
+.sh-card > .bt--card {
+  border: 0;
+  border-block-end: var(--border-width-default) solid var(--color-border-default);
+  border-radius: 0;
 }
 
 /* Title (two lines at most), then the state tag with the product and who explores it, pinned to the bottom: in a row
