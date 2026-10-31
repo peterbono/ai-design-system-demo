@@ -157,10 +157,11 @@ describe('StudioHome, explorations only', () => {
     expect(items[1]!.querySelector('img.bt-screen')?.getAttribute('src')).toBe('/sample/explorations/36.png');
     expect(items[1]!.querySelector('.bt--icon')).toBeNull();
     expect(screen.getByRole('link', { name: 'Billing screen' }).getAttribute('href')).toBe('/studio/changes/?exploration=37');
-    const parts = [...items[2]!.querySelector('.sh-card-status')!.children].map((c) => c.textContent?.trim());
-    // Where it stands as the DS tag of its page, the product beside it, who explores it on its own line.
-    expect(parts).toEqual(['2 new pieces found', 'in Account']);
-    expect(items[2]!.querySelector('.sh-card-status [class*="badge"]')?.textContent).toBe('2 new pieces found');
+    // A fixed footer: the DS tag of its page, the product, who explores it, one line each.
+    const foot = [...items[2]!.querySelector('.sh-card-foot')!.children];
+    expect(foot.map((c) => c.className.split(' ').find((n) => n.startsWith('sh-card-')))).toEqual(['sh-card-tagline', 'sh-card-product', 'sh-card-who']);
+    expect(items[2]!.querySelector('.sh-card-tagline [class*="badge"]')?.textContent).toBe('2 new pieces found');
+    expect(items[2]!.querySelector('.sh-card-product')!.textContent).toBe('in Account');
     expect(items[2]!.querySelector('.sh-card-who')!.textContent).toMatch(/Dana$/);
     await expectNoAxeViolations(container);
   });
@@ -309,7 +310,7 @@ describe('StudioHome, status lines', () => {
   it('never starts a wrapped line with the separator: the card parts wrap on their own, with no dot', () => {
     localStorage.setItem('bridge.home.contributor-tour', 'done');
     const { container } = render(createElement(StudioHome, props({ explorations: [exploration(36, { state: '2 new pieces found' })] })));
-    const status = container.querySelector('.sh-card-status')!;
+    const status = container.querySelector('.sh-card-foot')!;
     const parts = [...status.children].map((c) => c.textContent ?? '');
     for (const p of parts) expect(p.trimStart().startsWith('·')).toBe(false);
     expect(SEP).toBe(' · ');

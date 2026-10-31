@@ -100,7 +100,11 @@ describe('the explorations of the Studio home', () => {
   it('keeps the explored screen when known, else a plate with the product and the changed screen: never a generic icon', () => {
     const shot = { kind: 'screen', src: '/sample/explorations/profile-page.png' } as const;
     const cards = homeExplorations([profile, billing], { products, author: who, preview: (p) => (p.number === 36 ? shot : null) });
-    expect(cards.map((c) => c.preview)).toEqual([shot, { ...SCREEN_SKETCH, product: 'Account', screen: null }]);
+    // The capture keeps what the plate would say (it comes back if the image fails); the card's key picks the drawing.
+    expect(cards.map((c) => c.preview)).toEqual([
+      { ...shot, product: 'Account', screen: null, seed: '36' },
+      { ...SCREEN_SKETCH, product: 'Account', screen: null, seed: '45' },
+    ]);
     expect(cards.every((c) => c.preview.kind === 'screen')).toBe(true);
     // Its files read: the plate names the screen it changed.
     const named = homeExplorations([profile], { products, author: who, files: () => ['apps/account/src/pages/ProfilePage.tsx'] });

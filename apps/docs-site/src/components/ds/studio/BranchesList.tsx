@@ -166,6 +166,32 @@ function useExtras(rows: ListRow[], read: 'all' | 'seat' | 'none'): { extras: Ma
   return { extras, people };
 }
 
+/**
+ * The preview captures of the exploration rows (lib/preview-shots), by "product#number": one raw file for all, no
+ * GitHub API call, so even a visitor without a token gets them. A row without one keeps its thumbnail.
+ */
+function useShots(rows: ListRow[]): Map<string, ThumbSpec> {
+  const [shots, setShots] = useState<Map<string, ThumbSpec>>(new Map());
+  const xp = rows.filter((r) => r.opens === 'exploration');
+  const key = xp.map((r) => `${r.product ?? ''}#${r.number}`).join(',');
+  useEffect(() => {
+    if (!xp.length) return;
+    let live = true;
+    void Promise.all([import('../../../scripts/preview-shots'), import('../../../lib/preview-shots')]).then(([{ previewShotOf }, { shotThumb }]) => {
+      for (const r of xp) {
+        void previewShotOf({ number: r.number, product: r.product ?? null }).then((shot) => {
+          if (live && shot) setShots((m) => new Map(m).set(`${r.product ?? ''}#${r.number}`, shotThumb(shot, { seed: r.product ? `${r.product}#${r.number}` : String(r.number) })));
+        });
+      }
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return shots;
+}
+
 /** Whether a branch only edits tokens: its files when read, else what the status read said. */
 function tokenOnly(r: ListRow, e: Extra | undefined, tokensRoot: string): boolean | null {
   if (r.opens !== 'pr' || r.lifecycle === 'shipped' || r.lifecycle === 'closed') return false;
@@ -193,6 +219,7 @@ export function BranchesList(p: BranchesListProps) {
   const open = useMemo(() => [...p.rows, ...(finished ? (p.closed ?? []) : [])], [p.rows, p.closed, finished]);
   const archived = useMemo(() => p.archived ?? [], [p.archived]);
   const { extras, people } = useExtras(archivedTab ? archived : open, p.connected ? 'all' : p.seat ? 'seat' : 'none');
+  const shots = useShots(archivedTab ? archived : open);
   const names = useMemo(
     () => knownNames([...p.rows, ...archived, ...(p.closed ?? [])], p.viewer ? { login: p.viewer, name: p.viewerName ?? null } : null),
     [p.rows, archived, p.closed, p.viewer, p.viewerName],
@@ -336,7 +363,7 @@ export function BranchesList(p: BranchesListProps) {
                     className={`bl-row${tok ? ' is-pickable' : ''}${child ? ' is-linked' : ''}`}
                     selected={checked}
                     lead={tok ? (full ? <Tooltip content={FULL_TIP}>{box}</Tooltip> : box) : reserve ? slot : undefined}
-                    thumb={e?.thumb ?? { kind: 'icon', icon: r.guidance ? 'guidance' : 'branch' }}
+                    thumb={shots.get(`${r.product ?? ''}#${r.number}`) ?? e?.thumb ?? { kind: 'icon', icon: r.guidance ? 'guidance' : 'branch' }}
                     who={whoNode(r)}
                     title={r.title}
                     jira={r.jira}

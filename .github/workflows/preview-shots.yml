@@ -1,0 +1,116 @@
+name: Preview shots
+
+# A real thumbnail of every open exploration's preview, for Bridge Studio: the exploration page, the Studio home cards
+# and the Changes rows show it instead of the plate. Explorations of this repository and of every product repository
+# in bridge.config.json products[] that has a `repo` and a `preview` (scripts/preview-shots.mjs, docs/EXPLORATIONS.md).
+#
+# Storage: the orphan branch `bridge-shots`, <owner>/<repo>/<pr>.webp (800 px wide, from a 1440 by 900 window: the
+# first screen carrying a data-bridge-change marker, else the preview root) and <pr>.json (repo, pr, sha, url, route,
+# capturedAt), plus index.json, the one file Studio reads from raw.githubusercontent.com (no GitHub API quota). A new
+# head commit overwrites the capture; a pull request closed without merging loses it after 30 days, a merged one keeps
+# it. Pushes from this workflow's token start no other workflow.
+# Privacy: a product repository's preview is captured only when that repository is public; a private one keeps the
+# plate in Studio and any capture it had is removed.
+# Cost: GITHUB_TOKEN only (never a person's quota), a few API calls per run, and a browser only when a head commit
+# has no capture yet.
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Capture every open exploration again, even at a head already captured
+        type: boolean
+        default: false
+
+concurrency:
+  group: preview-shots
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push to the bridge-shots branch
+
+env:
+  SHOTS_BRANCH: bridge-shots
+
+jobs:
+  shots:
+    name: Capture exploration previews
+    # A deployment that succeeded (a new preview), the schedule, or a manual run.
+    if: github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: |
+            scripts/preview-shots.mjs
+            bridge.config.json
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install the capture dependencies
+        # The published @bridge-ds/core (preview URL resolution) and playwright-core, which drives the runner's Chrome:
+        # no browser download, no install of this repository.
+        run: |
+          mkdir -p "$RUNNER_TEMP/deps"
+          cd "$RUNNER_TEMP/deps"
+          echo '{"private":true}' > package.json
+          npm install --no-audit --no-fund --silent @bridge-ds/core@latest playwright-core@1.63.0
+
+      - name: Check out the shots branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/shots"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          if git ls-remote --exit-code --heads "$remote" "$SHOTS_BRANCH" > /dev/null; then
+            git clone -q --depth 1 --single-branch --branch "$SHOTS_BRANCH" "$remote" "$dir"
+          else
+            git init -q -b "$SHOTS_BRANCH" "$dir"
+            git -C "$dir" remote add origin "$remote"
+            printf '# bridge-shots\n\nCaptures of exploration previews for Bridge Studio, written by .github/workflows/preview-shots.yml.\n<owner>/<repo>/<pr>.webp and .json, plus index.json. Never merged anywhere.\n' > "$dir/README.md"
+            # No Vercel deployment for this branch: each project reads git.deploymentEnabled from its own folder.
+            for f in apps/docs-site apps/admin deploy/storybook; do
+              mkdir -p "$dir/$f"
+              echo '{ "git": { "deploymentEnabled": false } }' > "$dir/$f/vercel.json"
+            done
+          fi
+          git -C "$dir" config user.name "github-actions[bot]"
+          git -C "$dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          echo "SHOTS_DIR=$dir" >> "$GITHUB_ENV"
+
+      - name: Capture
+        id: capture
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRIDGE_DEPS: ${{ runner.temp }}/deps
+          # ubuntu-latest ships Google Chrome; playwright-core drives it.
+          BRIDGE_CHROME_CHANNEL: chrome
+          FORCE: ${{ inputs.force == true }}
+        run: |
+          args=(run --shots "$SHOTS_DIR" --config bridge.config.json)
+          [ "$FORCE" = "true" ] && args+=(--force)
+          node scripts/preview-shots.mjs "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish
+        if: steps.capture.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          cd "$SHOTS_DIR"
+          git add -A
+          git commit -qm "preview shots: ${{ steps.capture.outputs.captured }} captured" || { echo "Nothing new to publish"; exit 0; }
+          for i in 1 2 3 4; do
+            if git push -q origin "HEAD:refs/heads/$SHOTS_BRANCH"; then exit 0; fi
+            sleep $((i * 3))
+            git fetch -q --depth 20 origin "$SHOTS_BRANCH" && git rebase -q FETCH_HEAD || true
+          done
+          exit 1

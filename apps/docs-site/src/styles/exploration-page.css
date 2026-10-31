@@ -253,6 +253,25 @@
   width: 70%;
 }
 
+.xp-frame.is-shot {
+  position: relative;
+}
+
+/* "Captured 2 h ago": small, on the surface, in the frame's corner. */
+.xp-captured {
+  position: absolute;
+  inset-block-end: var(--space-3);
+  inset-inline-end: var(--space-3);
+  padding: var(--space-0-5) var(--space-2);
+  border: var(--border-width-1) solid var(--color-border-default);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+  white-space: nowrap;
+}
+
 .xp-frame.is-shot img {
   display: block;
   width: 100%;
@@ -261,20 +280,62 @@
   object-position: top left;
 }
 
-/* X2: the preview (3) beside the Harbor card and the activity (2). */
+/* X2: the preview (3) beside the Harbor zone (2), both ending on one line: the row stretches to the taller of the
+   two, the preview's frame grows into it (within a screen-like ratio, 30 to 75 percent of its width) and the Harbor
+   zone after Done exploring grows to the preview. While exploring, the activity sits under the Harbor card; after
+   Done exploring, under the preview, the width of the preview. */
 .xp-grid {
   display: grid;
+  grid-template-areas:
+    'preview side'
+    'activity .';
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: var(--space-6);
-  align-items: start;
+  align-items: stretch;
+}
+
+/* While exploring the activity is in the side column: one row. */
+.xp-grid:not(.is-handoff) {
+  grid-template-areas: 'preview side';
+}
+
+.xp-grid > .xp-preview {
+  grid-area: preview;
+}
+
+.xp-grid > .xp-side {
+  grid-area: side;
+}
+
+.xp-grid > .xp-activity {
+  grid-area: activity;
 }
 
 .xp-preview {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-5);
   border-radius: var(--radius-container);
   background-color: var(--color-bg-subtle);
+  container-type: inline-size;
+}
+
+.xp-preview > .xp-frame {
+  flex: 1 1 auto;
+  aspect-ratio: auto;
+  min-height: 30cqi;
+  max-height: 75cqi;
+}
+
+.xp-preview > .xp-acts {
+  flex: none;
+}
+
+/* The capture fills the frame whatever height the row gives it, its top-left corner where the page starts. */
+.xp-preview > .xp-frame.is-shot img {
+  position: absolute;
+  inset: 0;
 }
 
 .xp-note {
@@ -282,8 +343,15 @@
 }
 
 .xp-side {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-6);
+}
+
+/* After Done exploring the hand-off zone is the side column: it ends with the preview. */
+.xp-side > .xp-next {
+  flex: 1 1 auto;
+  align-content: start;
 }
 
 .xp-done {
@@ -352,8 +420,8 @@
 /* No capture of the screen yet: an honest plate (the screen's name, the product, a Field Guide drawing), never a
    fake wireframe. The subtle surface of the card around it, one step lighter. */
 .xp-plate {
-  /* A plate, not a screen: no screen ratio to keep, so it never towers over the actions on a wide window. */
-  aspect-ratio: 21 / 9;
+  /* Inside the preview it takes the frame's height (above); the ratio of a capture elsewhere. */
+  aspect-ratio: 16 / 10;
   flex-direction: row;
   gap: var(--space-6);
   padding: var(--space-8);
@@ -459,6 +527,20 @@
   .xp-start,
   .xp-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xp-grid {
+    grid-template-areas:
+      'preview'
+      'side'
+      'activity';
+  }
+
+  /* One column: the frame keeps the ratio of a capture. */
+  .xp-preview > .xp-frame {
+    aspect-ratio: 16 / 10;
+    min-height: 0;
+    max-height: none;
   }
 
   .xp-start {

@@ -341,8 +341,30 @@
   -webkit-line-clamp: 2;
 }
 
-.sh-card-body > .sh-card-status {
+/* The footer: tag, product, person, one line each, pinned to the bottom so every card of a row lines them up. */
+.sh-card-foot {
+  display: grid;
+  gap: var(--space-1-5);
+  min-width: 0;
   margin-block-start: auto;
+  padding-block-start: var(--space-1);
+}
+
+.sh-card-tagline {
+  display: flex;
+  min-width: 0;
+}
+
+.sh-card-tagline > .sh-card-tag {
+  max-width: 100%;
+}
+
+.sh-card-product,
+.sh-card-name {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sh-card-who {
@@ -365,13 +387,6 @@
   gap: var(--space-2);
 }
 
-.sh-card-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-}
-
 .sh-card-stage {
   color: var(--color-text-default);
   font-weight: var(--font-weight-medium);
@@ -385,11 +400,12 @@
   border-radius: var(--radius-container);
 }
 
-/* Who explores it: the face next to the name, kept together on a wrap. */
+/* Who explores it: the face next to the name, on one line. */
 .sh-card-who {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 /* No exploration yet: the drawing, one sentence and the one button, on one line on a wide screen. */

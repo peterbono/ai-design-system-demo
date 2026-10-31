@@ -248,6 +248,24 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
     expect(document.querySelector('.xp-said')!.textContent).toBe('');
   });
 
+  it('shows the preview capture with when it was taken, and the plate again when the image does not load', () => {
+    const capturedAt = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+    handed({}, { thumb: 'https://raw.githubusercontent.com/o/r/bridge-shots/o/p/2.webp?v=abc1234', thumbCapturedAt: capturedAt });
+    const img = screen.getByRole('img', { name: 'The latest captured screen of this exploration' });
+    expect(img.getAttribute('src')).toContain('/bridge-shots/');
+    expect(document.querySelector('.xp-captured')!.textContent).toBe('Captured 3 h ago');
+    fireEvent.error(img);
+    expect(document.querySelector('.xp-frame.is-shot')).toBeNull();
+    expect(document.querySelector('.xp-plate')!.textContent).toContain('Orders table');
+  });
+
+  it('puts the activity under the preview, beside the taller hand-off zone', () => {
+    handed();
+    const grid = document.querySelector('.xp-grid')!;
+    expect(grid.classList.contains('is-handoff')).toBe(true);
+    expect([...grid.children].map((c) => c.className.split(' ')[0])).toEqual(['xp-preview', 'xp-side', 'xp-activity']);
+  });
+
   it('shipped: the tag, the product itself, and how it went', () => {
     handed({ status: 'shipped', steps: steps.map((s) => ({ ...s, status: 'done' as const })) });
     expect(screen.getByText('Shipped', { selector: '[class*="badge"]' })).toBeTruthy();

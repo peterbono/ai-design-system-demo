@@ -179,6 +179,17 @@ export interface HomeExplorationsOptions<P extends ExplorationPull = Exploration
   files?: (p: P) => readonly string[] | null | undefined;
 }
 
+/**
+ * A card's screen: its capture when there is one, with what the plate would say kept beside it (the plate comes back
+ * if the image does not load); no capture: the plate, with the changed screen's name (from its files, once read), the
+ * product and the card's key, which picks its drawing (lib/branch-thumb plateDrawing).
+ */
+export function previewOf(shot: ThumbSpec | null | undefined, plate: { product: string; screen: string | null; seed: string }): ThumbSpec {
+  if (!shot) return { kind: 'screen', src: null, ...plate };
+  if (shot.kind !== 'screen') return shot;
+  return { ...shot, product: shot.product ?? plate.product, screen: shot.screen ?? plate.screen, seed: shot.seed ?? plate.seed };
+}
+
 /** Closed without being kept: an exploration given up, not one the home shows. */
 const givenUp = (p: Pick<ExplorationPull, 'state' | 'merged_at'>) => p.state === 'closed' && !p.merged_at;
 
@@ -213,8 +224,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
         tone: tag.tone,
         dot: tag.dot,
         updated: p.updated_at,
-        // No capture: a plate with the changed screen's name (from its files, once read) and the product.
-        preview: opts.preview?.(p) ?? { kind: 'screen', src: null, product: product ?? 'Library', screen: changedScreenOf(files?.(p)) },
+        preview: previewOf(opts.preview?.(p), { product: product ?? 'Library', screen: changedScreenOf(files?.(p)), seed: keyOf(p) }),
         own: isOwnExploration(p, opts.viewer),
       };
     })

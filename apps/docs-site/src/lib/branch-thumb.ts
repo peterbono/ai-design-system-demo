@@ -17,9 +17,12 @@ export type ThumbSpec =
   | { kind: 'image'; before: string; after: string; label: string }
   /**
    * An explored screen (home-explorations): its capture, or, while there is none (src null), a plate naming the
-   * changed screen and the product with a Field Guide drawing: honest, never a fake wireframe.
+   * changed screen and the product with a Field Guide drawing: honest, never a fake wireframe. `capturedAt`: when the
+   * preview was captured (lib/preview-shots), said in small text on a card. `seed`: what picks the plate's drawing
+   * (the exploration's key, "12" or "admin-app#2"), so a row of cards does not repeat one drawing and the
+   * exploration page shows the drawing of its card.
    */
-  | { kind: 'screen'; src: string | null; product?: string | null; screen?: string | null }
+  | { kind: 'screen'; src: string | null; product?: string | null; screen?: string | null; capturedAt?: string | null; seed?: string | null }
   /** Usage guidance: lines of text. */
   | { kind: 'text' }
   /** Nothing to draw before/after: an icon, with what it stands for when known (a build request's component). */
@@ -46,6 +49,22 @@ export interface ThumbInput {
   guidance?: boolean;
   /** The theme the viewer sees: a token changed in several modes shows the matching one first. */
   theme?: 'light' | 'dark';
+}
+
+/** The Field Guide drawings a screen plate picks from: things being made, never a broken or empty screen. */
+export const PLATE_DRAWINGS = ['paint', 'components', 'foundations', 'tokens', 'guide'] as const;
+export type PlateDrawing = (typeof PLATE_DRAWINGS)[number];
+
+/**
+ * The drawing of a screen plate: one exploration always gets the same one (its card and its page), two explorations
+ * most likely differ (a small string hash over the seed, else the screen's name, else the product).
+ */
+export function plateDrawing(spec: { screen?: string | null; seed?: string | null; product?: string | null }): PlateDrawing {
+  const s = (spec.seed || spec.screen || spec.product || '').trim().toLowerCase();
+  if (!s) return 'paint';
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return PLATE_DRAWINGS[Math.abs(h) % PLATE_DRAWINGS.length]!;
 }
 
 const KIND_RANK: Record<ThumbToken['kind'], number> = { changed: 0, added: 1, removed: 2 };

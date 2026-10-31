@@ -256,6 +256,24 @@ Bridge block) whose `exploration` label is missing still reads **Running**, and 
 someone who can write opens it. Every link to an exploration, even one that names it as a change (`?pr=N`), opens its
 exploration page.
 
+### Preview thumbnails
+
+Studio shows a real screenshot of each open exploration's preview on its page, on the Studio home cards and in the
+Changes rows, with "Captured 2 h ago" where it fits. The workflow `.github/workflows/preview-shots.yml`
+(`scripts/preview-shots.mjs`) runs every 30 minutes, after each successful deployment of this repository and on
+demand (Run workflow, "force" captures everything again). For each open exploration here and in each product
+repository of `bridge.config.json` `products[]` that has a `repo` and a `preview`, it opens the preview Vercel reported
+for the head commit in a 1440 by 900 window (the first screen carrying a `data-bridge-change` marker, else the preview
+root; no `?bridge`, so the toolbar stays closed) and stores an 800 px WebP plus its metadata (repo, pull request,
+commit, URL, route, capture time) on the orphan branch `bridge-shots`, as `<owner>/<repo>/<pr>.webp` and `.json`, with
+one `index.json` Studio reads from raw.githubusercontent.com (no GitHub API quota). A head commit already captured is
+skipped. A pull request closed without merging loses its capture after 30 days; a merged one keeps it, as it looked.
+The workflow uses its own `GITHUB_TOKEN` only.
+
+**Privacy.** A product repository's preview is captured only when that repository is public. For a private one
+nothing is stored (and any older capture is removed): Studio keeps the plate, the drawing with the changed screen's
+name. The plate also shows while no capture exists yet, or when an image does not load.
+
 ## Guardrails
 
 - **Not mergeable as is.** The CI job **Exploration not merged as is** fails while the `exploration` label is on,

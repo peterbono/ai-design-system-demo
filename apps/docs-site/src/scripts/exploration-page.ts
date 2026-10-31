@@ -50,6 +50,7 @@ import { viewerRole } from './needs-you';
 import { sampleVisitor } from './demo-gate';
 import { copyText } from './explorer/util';
 import { loadVisualImpact } from './reviews/visual-impact';
+import { previewShotOf } from './preview-shots';
 import { knownNames } from './people';
 import { loginKey } from '../lib/people';
 
@@ -229,7 +230,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   };
   mod.paintExplorationPage(d, current.props);
 
-  const [files, commits, sources] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r)]);
+  // The preview capture (one raw file for every exploration, no API call) arrives with the reads it waits beside, so
+  // the frame paints once: the capture, or the plate.
+  const [files, commits, sources, shot] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r), previewShotOf(r).catch(() => null)]);
   reported = sources;
   if (current?.key !== key) return;
   const stage = explorationStage({ status: r.status, archived: r.archived, files });
@@ -263,12 +266,13 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     previewNote,
     previewBuilding,
   });
-  const plate = { product: isLibrary ? 'Library' : product.name, screen: changedScreenOf(files) };
+  const plate = { product: isLibrary ? 'Library' : product.name, screen: changedScreenOf(files) ?? shot?.screen ?? null, seed: key };
+  const shotProps = shot ? { thumb: shot.src, thumbCapturedAt: shot.capturedAt } : {};
   if (!handedOff) {
-    repaint(d, key, { plate });
-    if (stage === 'exploring') {
+    repaint(d, key, { plate, ...shotProps });
+    if (stage === 'exploring' && !shot) {
       const thumb = await capturedImage(r, files);
-      if (thumb) repaint(d, key, { thumb });
+      if (thumb) repaint(d, key, { thumb, thumbCapturedAt: null });
     }
     return;
   }
@@ -311,6 +315,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   repaint(d, key, {
     stage: 'handed-off',
     plate,
+    ...shotProps,
     activity: handoffActivity({ commits, author: r.author, startedAt: pull.created_at ?? null, doneBy: doneLogin, doneAt, names: allNames }),
     // Shipped: the product itself, where it lives now.
     ...(status === 'shipped' ? { previewUrl: todayUrl, tryUrl: null, previewNote: null, previewBuilding: false } : {}),
@@ -323,8 +328,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       onPiece: writable ? (piece) => act({ id: piece.id, title: piece.title }, piece.action?.kind ?? 'open') : null,
     },
   });
-  const thumb = await capturedImage(r, files);
-  if (thumb) repaint(d, key, { thumb });
+  if (!shot) {
+    const thumb = await capturedImage(r, files);
+    if (thumb) repaint(d, key, { thumb, thumbCapturedAt: null });
+  }
   const first = await piecesNow();
   if (current?.key !== key || !current.props.handoff) return;
   const head = `${key}@${r.headSha}`;

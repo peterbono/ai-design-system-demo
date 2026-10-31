@@ -141,6 +141,25 @@
   object-position: top center;
 }
 
+/* "Captured 2 h ago" on a card's capture: small, on the surface, in the corner where a page rarely says much. */
+.bt--screen.is-shot {
+  position: relative;
+}
+
+.bt-captured {
+  position: absolute;
+  inset-block-end: var(--space-2);
+  inset-inline-end: var(--space-2);
+  padding: var(--space-0-5) var(--space-2);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-inset);
+  background: var(--color-surface-default);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+  white-space: nowrap;
+}
+
 /* Screen not captured yet: a plate on the subtle surface, the Field Guide drawing beside the changed screen's name
    and the product. Honest about having no screenshot, never a fake wireframe. */
 .bt--screen:not(:has(img)) {
