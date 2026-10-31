@@ -6,7 +6,7 @@
 // else the Storybook added in this browser), only in the open drawer. Without a Storybook, a band of token
 // specimens (tokens only) and one line on how to add it. Mounted client:load; the server renders the skeleton.
 // Repo content is React text only; links built from repo data go through lib/html.ts safeUrl.
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { Ellipsis, ExternalLink, Layers } from 'lucide-react';
 import { Badge, Button, ButtonGroup, CodeBlock, Drawer, DrawerContent, EmptyState, IconButton, Input, Link, Menu, MenuContent, MenuItem, MenuTrigger, Select, Tooltip } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
@@ -21,6 +21,7 @@ import type { ProductAudit } from '../../../lib/components-studio';
 import { fitFrames } from '../../../scripts/explorer/preview-frames';
 import { exampleCode, storyInIndex } from '../../../lib/library/component-page';
 import { tokenSpecimens } from '../../../lib/token-specimens';
+import { postedStoryHeight } from '../../../lib/story-frame';
 import { fileUrl } from '../../../lib/team-load';
 import { safeUrl } from '../../../lib/html';
 import { studioHref } from '../../../lib/team-path';
@@ -78,11 +79,32 @@ function useStoryListed(base: string | undefined, id: string | undefined): 'list
   return state?.key === key ? state.value : undefined;
 }
 
+/**
+ * The height a story embedded in `frame` posts (lib/story-frame.ts), or null until it does: a Storybook that never
+ * posts keeps the frame's resting height. Only messages from that frame's own window count.
+ */
+function useStoryHeight(frame: RefObject<HTMLIFrameElement | null>, src: string | undefined): number | null {
+  const [state, setState] = useState<{ src: string; height: number } | null>(null);
+  useEffect(() => {
+    if (!src) return;
+    const onMessage = (e: MessageEvent) => {
+      if (!frame.current || e.source !== frame.current.contentWindow) return;
+      const height = postedStoryHeight(e.data);
+      if (height !== null) setState({ src, height });
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [frame, src]);
+  return state && state.src === src ? state.height : null;
+}
+
 function ComponentDrawer({ row, data, storybook, startIntent = null, onClose }: { row: TeamComponentRow | null; data: TeamData; storybook: string | undefined; startIntent?: ChangeIntent | null; onClose: () => void }) {
   const found = row ? storyPreview(storybook, row) : null;
   const listed = useStoryListed(found?.base, found?.id);
   // A story the published Storybook does not have yet would show Storybook's own error: the code instead.
   const preview = listed === 'missing' ? null : found;
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const storyHeight = useStoryHeight(frameRef, preview?.src);
   const github = row ? safeUrl(fileUrl(data.owner, data.repo, data.sha, row.file)) : '';
   // Change this component: the step's state, shared by the body (the question and the form) and the footer (its one
   // primary action). A new component starts closed.
@@ -153,7 +175,10 @@ function ComponentDrawer({ row, data, storybook, startIntent = null, onClose }: 
               <figure className="tcm-d-frame">
                 <iframe
                   key={preview.src}
+                  ref={frameRef}
                   src={preview.src}
+                  // The story's posted height; the CSS keeps it between the resting min and the max.
+                  style={storyHeight ? ({ '--tcm-story-h': `${storyHeight}px` } as CSSProperties) : undefined}
                   title={`${row.name}, story ${preview.story}`}
                   sandbox="allow-scripts allow-same-origin allow-popups"
                   referrerPolicy="no-referrer"

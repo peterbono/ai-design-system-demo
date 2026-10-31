@@ -91,7 +91,7 @@ describe('team components', () => {
     expect(storyPreview('https://sb.example.com', rows[1]!)).toEqual({
       base: 'https://sb.example.com',
       id: 'actions-button--primary',
-      src: 'https://sb.example.com/iframe.html?id=actions-button--primary&viewMode=story',
+      src: 'https://sb.example.com/iframe.html?id=actions-button--primary&viewMode=story&embed=bridge',
       manager: 'https://sb.example.com/?path=/story/actions-button--primary',
       story: 'Primary',
     });
