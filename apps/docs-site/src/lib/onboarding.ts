@@ -53,7 +53,7 @@ export const STEP_TITLE: Record<StepId, string> = {
   changes: 'How changes reach your code',
   team: 'Invite your team',
   figma: 'Figma plugin',
-  claude: 'Claude AI (MCP)',
+  claude: 'Your AI tools',
   create: 'Your team',
 };
 
@@ -66,7 +66,7 @@ export const STEP_LINE: Record<StepId, string> = {
   changes: 'Suggestions or pull requests',
   team: 'Share one link. GitHub decides who gets in.',
   figma: 'Keeps the Figma kit in step with code',
-  claude: 'Lets Claude AI build with your library',
+  claude: 'The AI you build with: Claude, Copilot',
   create: 'A name, and who can find it',
 };
 
@@ -255,7 +255,7 @@ export function doneSummary(steps: Step[]): string | null {
     changes: 'how changes reach your code',
     team: 'team invited',
     figma: 'Figma plugin',
-    claude: 'Claude AI',
+    claude: 'your AI tools',
     create: 'team created',
   };
   const words = steps.filter((s) => s.state === 'done').map((s) => WORD[s.id]);

@@ -15,7 +15,7 @@ describe('accounts, rules and words', () => {
         teams: [{ repo: 'acme/ds', name: 'Acme', role: 'admin', via: 'github' }, { repo: 'nope' }, null],
         secret: 'x',
       }),
-    ).toEqual({ email: 'leo@acme.design', name: null, nameSet: false, github: { login: 'leo', id: 7 }, teams: [{ repo: 'acme/ds', name: 'Acme', role: 'admin', via: 'github' }] });
+    ).toEqual({ email: 'leo@acme.design', name: null, nameSet: false, github: { login: 'leo', id: 7 }, aiTools: null, teams: [{ repo: 'acme/ds', name: 'Acme', role: 'admin', via: 'github' }] });
   });
 
   it('only goes on to a same-site page, never back to the sign-in screen or the GitHub callback', () => {

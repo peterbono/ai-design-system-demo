@@ -5,7 +5,8 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { bridgeSection, mergeMcpJson, mergeSection, runConnect, SECTION_END, SECTION_START, toolbarSetup } from '../src/connect.js';
+import { mkdirSync } from 'node:fs';
+import { bridgeSection, mergeMcpJson, mergeSection, mergeVscodeMcpJson, runConnect, SECTION_END, SECTION_START, stripJsonComments, toolbarSetup, toolsOf } from '../src/connect.js';
 import { runExplore } from '../src/explore.js';
 import type { RequestIO } from '../src/request.js';
 import { fakeGitHub, readTree, REAL_PATHS, REPO } from '../../mcp/test/helpers.js';
@@ -130,6 +131,91 @@ describe('bridge connect', () => {
     const l = io(fetch);
     expect(await runExplore(args('explore', 'list'), dir, l.io)).toBe(0);
     expect(l.out()).toContain('shop#1 Wishlist button  Running  explore/wishlist-button in acme/shop');
+  });
+});
+
+describe('bridge connect --tool copilot (GitHub Copilot in VS Code, agent mode)', () => {
+  const server = { type: 'stdio', command: 'npx', args: ['-y', '@bridge-ds/mcp', '--repo', 'acme/ds'] };
+
+  it('writes .vscode/mcp.json ("servers") and .github/copilot-instructions.md, not the Claude files; a second run changes nothing', async () => {
+    const { fetch } = ds();
+    const dir = productRepo();
+    const first = io(fetch);
+    expect(await runConnect(args('connect', '--ds', 'acme/ds', '--tool', 'copilot'), dir, first.io)).toBe(0);
+    expect(first.out()).toContain('Created .vscode/mcp.json: the Bridge MCP server for Copilot in VS Code');
+    expect(first.out()).toContain('Created .github/copilot-instructions.md: a short Bridge section for Copilot');
+    expect(first.out()).toContain('MCP servers in Copilot');
+    expect(JSON.parse(read(dir, '.vscode/mcp.json'))).toEqual({ servers: { bridge: server } });
+    expect(existsSync(join(dir, '.mcp.json'))).toBe(false);
+    expect(existsSync(join(dir, 'CLAUDE.md'))).toBe(false);
+    const instructions = read(dir, '.github/copilot-instructions.md');
+    expect(instructions).toContain('through the Bridge MCP server in `.vscode/mcp.json`');
+    expect(instructions).toContain('bridge_continue_exploration');
+    expect(instructions).not.toContain(String.fromCharCode(0x2014));
+    expect(JSON.parse(read(dir, '.bridge/product.json')).product).toBe('shop');
+
+    const second = io(fetch);
+    expect(await runConnect(args('connect', '--ds', 'acme/ds', '--tool', 'copilot'), dir, second.io)).toBe(0);
+    expect(second.out()).toContain('Unchanged .vscode/mcp.json');
+    expect(second.out()).toContain('Already connected, nothing changed.');
+    expect(read(dir, '.github/copilot-instructions.md')).toBe(instructions);
+  });
+
+  it('merges into the team files: other servers, inputs, comments and their own instructions are kept', async () => {
+    const { fetch } = ds();
+    const dir = productRepo();
+    mkdirSync(join(dir, '.vscode'));
+    mkdirSync(join(dir, '.github'));
+    writeFileSync(join(dir, '.vscode/mcp.json'), '{\n  // our servers\n  "inputs": [{ "type": "promptString", "id": "key" }],\n  "servers": { "fetch": { "command": "uvx", "args": ["mcp-server-fetch"] }, },\n}\n');
+    writeFileSync(join(dir, '.github/copilot-instructions.md'), '# Shop\n\nUse pnpm.\n');
+    expect(await runConnect(args('connect', '--ds', 'acme/ds', '--tool', 'copilot'), dir, io(fetch).io)).toBe(0);
+    const vs = JSON.parse(read(dir, '.vscode/mcp.json'));
+    expect(vs).toEqual({ inputs: [{ type: 'promptString', id: 'key' }], servers: { fetch: { command: 'uvx', args: ['mcp-server-fetch'] }, bridge: server } });
+    expect(read(dir, '.github/copilot-instructions.md')).toMatch(/^# Shop\n\nUse pnpm\.\n\n<!-- bridge:start -->/);
+  });
+
+  it('no second copy: with AGENTS.md as the instructions file, --tool both puts the section there only', async () => {
+    const { fetch } = ds();
+    const dir = productRepo();
+    writeFileSync(join(dir, 'AGENTS.md'), 'Agents.\n');
+    const r = io(fetch);
+    expect(await runConnect(args('connect', '--ds', 'acme/ds', '--tool', 'both'), dir, r.io)).toBe(0);
+    expect(r.out()).toContain('Created .mcp.json');
+    expect(r.out()).toContain('Created .vscode/mcp.json');
+    expect(r.out()).toContain('Updated AGENTS.md: a short Bridge section for Claude and Copilot');
+    expect(existsSync(join(dir, '.github/copilot-instructions.md'))).toBe(false);
+    expect(read(dir, 'AGENTS.md')).toContain('`.mcp.json` (Claude) and `.vscode/mcp.json`');
+  });
+
+  it('Copilot alone after a Claude run with CLAUDE.md: Copilot gets its own instructions file', async () => {
+    const { fetch } = ds();
+    const dir = productRepo();
+    await runConnect(args('connect', '--ds', 'acme/ds'), dir, io(fetch).io);
+    expect(await runConnect(args('connect', '--ds', 'acme/ds', '--tool', 'copilot'), dir, io(fetch).io)).toBe(0);
+    expect(read(dir, '.github/copilot-instructions.md')).toContain(SECTION_START);
+    expect(JSON.parse(read(dir, '.mcp.json')).mcpServers.bridge.args).toContain('acme/ds');
+  });
+
+  it('picks the tools: claude by default, copilot too when the repository has a Copilot file; rejects an unknown one', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bridge-test-'));
+    expect(toolsOf(undefined, dir)).toEqual(['claude']);
+    expect(toolsOf(['copilot'], dir)).toEqual(['copilot']);
+    expect(toolsOf(['claude,copilot'], dir)).toEqual(['claude', 'copilot']);
+    expect(toolsOf(['all'], dir)).toEqual(['claude', 'copilot']);
+    expect(() => toolsOf(['cursor'], dir)).toThrow(/--tool cursor/);
+    mkdirSync(join(dir, '.github'));
+    writeFileSync(join(dir, '.github/copilot-instructions.md'), 'x\n');
+    expect(toolsOf(undefined, dir)).toEqual(['claude', 'copilot']);
+  });
+
+  it('keeps a different bridge server in .vscode/mcp.json unless --force; JSONC parses, strings stay intact', () => {
+    const mine = JSON.stringify({ servers: { bridge: { command: 'node', args: ['mine.js'] } } });
+    const kept = mergeVscodeMcpJson(mine, 'acme/ds');
+    expect(kept.change).toBe('kept');
+    expect(kept.note).toMatch(/\.vscode\/mcp\.json already has a "bridge" server/);
+    expect(JSON.parse(mergeVscodeMcpJson(mine, 'acme/ds', true).text).servers.bridge).toEqual(server);
+    expect(JSON.parse(stripJsonComments('{ "url": "https://x.dev/a//b", /* c */ "s": "a\\"//", }'))).toEqual({ url: 'https://x.dev/a//b', s: 'a"//' });
+    expect(() => mergeVscodeMcpJson('[]', 'acme/ds')).toThrow(/not a JSON object/);
   });
 });
 

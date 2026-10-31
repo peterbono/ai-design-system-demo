@@ -71,6 +71,17 @@ export const CONNECT_FIRST = {
 export const terminalSetup = (designSystem: string) => `npx @bridge-ds/cli connect --ds ${designSystem}`;
 export const TERMINAL_SETUP_LINE = "Once, in the product's folder:";
 
+/**
+ * Under the VS Code (Copilot) line: what Copilot agent mode needs once. In a product: `bridge connect --tool copilot`
+ * writes .vscode/mcp.json and .github/copilot-instructions.md there. For the library itself: `code --add-mcp` adds the
+ * same Bridge MCP server to VS Code (the user profile), the documented VS Code command line.
+ */
+export function copilotSetup(designSystem: string, inProduct: boolean): { label: string; command: string } {
+  if (inProduct) return { label: "Needs this once, in the product's folder:", command: `npx @bridge-ds/cli connect --ds ${designSystem} --tool copilot` };
+  const server = { name: 'bridge', type: 'stdio', command: 'npx', args: ['-y', '@bridge-ds/mcp', '--repo', designSystem] };
+  return { label: 'Needs the Bridge MCP server in VS Code once:', command: `code --add-mcp '${JSON.stringify(server)}'` };
+}
+
 /** The connector address of this site: <origin>/mcp. */
 export const connectorUrl = (origin: string) => `${origin.replace(/\/+$/, '')}/mcp`;
 

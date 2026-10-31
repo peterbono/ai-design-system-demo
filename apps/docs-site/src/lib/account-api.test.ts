@@ -153,14 +153,14 @@ describe('email codes', () => {
 
     const r = await handleAccount(act({ action: 'verify', email: 'MIA@acme.design', code: '123 456', name: 'Mia **Chen**' }), ENV, s.deps);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ account: { email: 'mia@acme.design', name: 'Mia Chen', nameSet: true, github: null, teams: [] }, created: true, next: '/start/' });
+    expect(await r.json()).toEqual({ account: { email: 'mia@acme.design', name: 'Mia Chen', nameSet: true, github: null, aiTools: null, teams: [] }, created: true, next: '/start/' });
     const set = r.headers.get('set-cookie')!;
     expect(set.startsWith(`${ACCOUNT_COOKIE}=v1.`)).toBe(true);
     for (const part of ['Path=/;', 'HttpOnly', 'Secure', 'SameSite=Lax', `Max-Age=${ACCOUNT_SESSION_TTL_MS / 1000}`]) expect(set).toContain(part);
     const a = await getAccount(s.redis, 'mia@acme.design');
     expect(a).toMatchObject({ email: 'mia@acme.design', name: 'Mia Chen', github: null, version: 1 });
     expect(a!.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(await (await handleAccount(me(cookieOf(r)), ENV, s.deps)).json()).toEqual({ available: true, account: { email: 'mia@acme.design', name: 'Mia Chen', nameSet: true, github: null, teams: [] } });
+    expect(await (await handleAccount(me(cookieOf(r)), ENV, s.deps)).json()).toEqual({ available: true, account: { email: 'mia@acme.design', name: 'Mia Chen', nameSet: true, github: null, aiTools: null, teams: [] } });
   });
 
   it('a new account without a typed name gets a stand-in from the email, and says nameSet false until renamed', async () => {
@@ -317,7 +317,7 @@ describe('GitHub', () => {
     const s = setup({ emails: [{ email: 'old@acme.design', verified: false, primary: false }, { email: 'Mia@Acme.design', verified: true, primary: true }] });
     const r = await handleAccount(act({ action: 'github', token: GH_TOKEN }), ENV, s.deps);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ account: { email: 'mia@acme.design', name: 'Mia Chen', nameSet: true, github: { login: 'mia-gh', id: 77 }, teams: [] }, created: true, next: '/start/' });
+    expect(await r.json()).toEqual({ account: { email: 'mia@acme.design', name: 'Mia Chen', nameSet: true, github: { login: 'mia-gh', id: 77 }, aiTools: null, teams: [] }, created: true, next: '/start/' });
     expect(r.headers.get('set-cookie')).toContain(`${ACCOUNT_COOKIE}=v1.`);
     expect(await s.redis.cmd('GET', 'bridge:account:gh:77')).toBe('mia@acme.design');
   });

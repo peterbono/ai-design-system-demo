@@ -112,7 +112,7 @@ export async function saveDocs(
     if (a.dryRun) return { status: 'dry-run' as const, pr: n, path, content: text };
     if (!ctx.canWriteRemote && open) return { status: 'preview' as const, pr: n, path, content: text, said: `Nothing sent: the ${name} docs have an open proposal (#${n}) and adding to it needs a GitHub token with ${RIGHTS.docs}: ${addToken(ctx)}.` };
     if (!ctx.canWriteRemote) throw new Error(`Saving docs on #${n} needs a GitHub token with ${RIGHTS.docs}: ${addToken(ctx)}, or save it in the Library edit mode.`);
-    const sha = await commitFileOnGitHub(gh.withBranchPrefix(undefined), { path, branch: pr.headRef, message: `docs(${name.toLowerCase()}): edit usage guidance ${sourceOf(ctx, a.source) === 'cli' ? 'with the bridge CLI' : 'with Claude (Bridge MCP)'}`, next });
+    const sha = await commitFileOnGitHub(gh.withBranchPrefix(undefined), { path, branch: pr.headRef, message: `docs(${name.toLowerCase()}): edit usage guidance ${sourceOf(ctx, a.source) === 'cli' ? 'with the bridge CLI' : 'with an AI tool (Bridge MCP)'}`, next });
     const joined = open ? ` It continues the open ${name} docs proposal by @${open.author} (one open proposal per component).` : '';
     return {
       status: sha ? ('committed' as const) : ('unchanged' as const),
@@ -175,7 +175,7 @@ export async function saveDocs(
     jira,
     origin: sourceOf(ctx, a.source) === 'cli' ? DOCS_CLI_ORIGIN : DOCS_MCP_ORIGIN,
     extraLabels: marks.labels,
-    commitNote: sourceOf(ctx, a.source) === 'cli' ? 'Proposed with the bridge CLI.' : 'Proposed with Claude through the Bridge MCP server.',
+    commitNote: sourceOf(ctx, a.source) === 'cli' ? 'Proposed with the bridge CLI.' : 'Proposed with an AI tool through the Bridge MCP server.',
   });
   return { status: 'sent-for-review' as const, pr: r.number, url: r.url, title: r.title, path, product: product.name, said: `Sent the ${name} docs for review as #${r.number}. Docs only: one owner approval ships them.` };
 }

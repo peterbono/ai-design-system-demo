@@ -10,6 +10,7 @@ import { ROLE_WORDS, type MemberRole } from './invites';
 import { START_PAGE } from './start';
 import { CALLBACK_PATH } from './github-signin';
 import { teamHref } from './team-path';
+import { parseAiTools, type AiTool } from './ai-tools';
 
 export const ACCOUNT_API = '/api/account';
 /** Every action carries it, the server refuses one without it (CSRF), like /api/contribute. */
@@ -42,6 +43,8 @@ export interface Account {
   /** False while the name is a stand-in made from the email: Bridge asks the person their name once. */
   nameSet?: boolean;
   github: { login: string; id: number } | null;
+  /** The AI tools the person picked (lib/ai-tools.ts), null while they never answered. */
+  aiTools?: AiTool[] | null;
   teams: AccountTeam[];
 }
 
@@ -77,7 +80,7 @@ export function parseAccount(v: unknown): Account | null {
         return [{ repo, name: str(x.name), role: str(x.role) ?? 'view', via: str(x.via) ?? 'email' }];
       })
     : [];
-  return { email, name: str(o.name), nameSet: o.nameSet !== false && Boolean(str(o.name)), github: login ? { login, id: typeof gh?.id === 'number' ? gh.id : 0 } : null, teams };
+  return { email, name: str(o.name), nameSet: o.nameSet !== false && Boolean(str(o.name)), github: login ? { login, id: typeof gh?.id === 'number' ? gh.id : 0 } : null, aiTools: parseAiTools(o.aiTools), teams };
 }
 
 /** Only a same-site path is a place to go after signing in; never the sign-in screen itself or the GitHub callback. */
@@ -141,6 +144,8 @@ const PERSONAL_PREFIXES = [
   'bridge.people.names.',
   'bridge.suggestions.needs.',
   'bridge.review.looked.',
+  // The team default of the AI tools, kept per team (scripts/ai-tools.ts); the person's own choice stays, like the theme.
+  'bridge.ai-tools.team.',
 ];
 
 /** A browser storage key that holds something personal (see above). */

@@ -653,6 +653,11 @@ every call, matched by GitHub id.
 Every `POST` carries `X-Bridge-Contribute: 1` and an `Origin` of this site. Keys: `bridge:team:discovery:<repo>`,
 `bridge:team:domain:<domain>`, `bridge:joinreq:<repo>:<email>`, `bridge:joinreqs:<repo>`,
 `bridge:joinreq:mine:<email>`, and `bridge:invites:email:<email>` (invites by email, kept by the invite store).
+- **AI tools**: the tools a person uses with Bridge (`claude-app`, `claude-code`, `copilot`) are `aiTools` on their
+  account (`POST /api/account { action: 'ai-tools', tools }`). A team admin sets the default new members start from
+  (`POST /api/entry { action: 'ai-tools', team, tools }`, `null` clears it), any member reads it
+  (`GET /api/entry?ai-tools=<team>`). Key: `bridge:team:ai-tools:<repo>` (a JSON list), moved with a team made in
+  Bridge when it links its repository.
 
 ### Teams made in Bridge, before any repository
 
@@ -687,7 +692,7 @@ and need no migration.
 - **Email contributors**: `/api/contribute` accepts the account session too. An account whose email is a member of
   the team counts as that member; the per-team cookie keeps working.
 - **Keys** (the same Upstash Redis as invites): `bridge:account:<email>` `{ id, email, name, github, createdAt,
-  version }`, `bridge:account:gh:<githubId>` (the email), `bridge:account:teams:<email>` (set of `owner/repo`, kept by
+  version, aiTools? }`, `bridge:account:gh:<githubId>` (the email), `bridge:account:teams:<email>` (set of `owner/repo`, kept by
   the member store), the codes above. Memberships stay `bridge:member:<repo>:<email>`.
 
 ### Backup and privacy

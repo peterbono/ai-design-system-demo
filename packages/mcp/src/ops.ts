@@ -598,7 +598,7 @@ async function addToBranch(ctx: BridgeContext, a: { edits: TokenEdit[]; title: s
     ...(config.changesets ? [{ path: `${config.changesets.dir ?? '.changeset'}/bridge-${core.slugify(a.title)}-${n}-${Date.now().toString(36)}.md`, content: core.changeset(config.changesets.package, tier.bump, summary) }] : []),
   ];
   if (a.dryRun) return { status: 'dry-run', ...report, files: files.map((f) => f.path) };
-  const message = `tokens: ${a.title}\n\n${paths.map((p) => `- ${p}`).join('\n')}\n\nAdded ${ctx.surface === 'cli' ? 'with the bridge CLI' : 'with Claude through the Bridge MCP server'}.`;
+  const message = `tokens: ${a.title}\n\n${paths.map((p) => `- ${p}`).join('\n')}\n\nAdded ${ctx.surface === 'cli' ? 'with the bridge CLI' : 'with an AI tool through the Bridge MCP server'}.`;
   const res = await target.gh.commitToBranch({ branch: target.pr.headRef, message, files });
   await target.gh.createIssueComment(n, target.comment(paths)).catch(() => undefined);
   return { status: 'added', ...report, commit: res.sha, url: target.pr.url, said: `Added ${paths.length} edit${paths.length === 1 ? '' : 's'} to #${n}. Reviewers see ${paths.length === 1 ? 'it' : 'them'} now; GitHub may ask for approvals again.` };

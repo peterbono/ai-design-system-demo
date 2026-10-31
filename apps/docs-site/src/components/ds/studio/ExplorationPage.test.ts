@@ -35,7 +35,56 @@ const base: ExplorationPageProps = {
 
 const paint = (over: Partial<ExplorationPageProps> = {}) => render(createElement(ExplorationPage, { ...base, ...over }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  // The last tab and the AI tools are this browser's: each test starts without them.
+  localStorage.clear();
+});
+
+describe('the Continue panel shows only the viewer\'s own AI tools', () => {
+  it('never answered: Claude app and Terminal, and a quiet Use another AI tool? that opens the choice', async () => {
+    paint();
+    expect(screen.getByRole('radio', { name: 'Claude app' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Terminal' })).toBeTruthy();
+    expect(screen.queryByRole('radio', { name: /^VS Code/ })).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use another AI tool?' }));
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Your AI tools' });
+    expect(within(dialog).getByRole('checkbox', { name: /GitHub Copilot in VS Code/ })).toBeTruthy();
+    await expectNoAxeViolations(dialog);
+  });
+
+  it('one tool (Copilot): no tabs, the line for Copilot Chat, the once-only command, and Copy for Copilot copies', async () => {
+    localStorage.setItem('bridge.ai-tools', '["copilot"]');
+    const onCopy = vi.fn(async () => {});
+    paint({ onCopy, copilotSetup: { label: "Needs this once, in the product's folder:", command: 'npx @bridge-ds/cli connect --ds acme/design --tool copilot' } });
+    await screen.findByText('Paste this in Copilot Chat');
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Use another AI tool?' })).toBeNull();
+    expect(screen.getByText('npx @bridge-ds/cli connect --ds acme/design --tool copilot')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Continue in Claude/ })).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy for Copilot' }));
+    });
+    expect(onCopy).toHaveBeenLastCalledWith(base.lines.app);
+    expect(screen.getByText('Copied. Paste it in Copilot Chat in VS Code, in Agent mode.')).toBeTruthy();
+  });
+
+  it('several tools: tabs limited to them, and the last tab used opens next time', async () => {
+    localStorage.setItem('bridge.ai-tools', '["claude-app","copilot"]');
+    paint();
+    await screen.findByRole('radio', { name: /^VS Code/ });
+    expect(screen.queryByRole('radio', { name: 'Terminal' })).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('radio', { name: /^VS Code/ }));
+    });
+    expect(localStorage.getItem('bridge.ai-tab')).toBe('copilot');
+    cleanup();
+    paint();
+    await waitFor(() => expect(screen.getByText('Paste this in Copilot Chat')).toBeTruthy());
+  });
+});
 
 describe('ExplorationPage, not started (X1)', () => {
   it('says nothing is built yet, who started it, and offers the line to paste in Claude', () => {

@@ -765,5 +765,5 @@ export async function addableBranch(ctx: BridgeContext, n: number) {
   if (pr.state !== 'open') throw new Error(`#${n} is ${pr.state}: only an open branch takes more edits. Start a new one instead.`);
   if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: pass branch "${pr.headRef}" instead of pr.`);
   if (!canAddTo({ user: { login: pr.author } }, viewer.login, hasWriteAccess(repo?.permissions))) throw new Error(`Only its author (@${pr.author}) or someone with write access adds edits to #${n}.`);
-  return { gh, pr, viewer: viewer.login, comment: (paths: string[]) => addedComment(paths, viewer.login, 'Claude through the Bridge MCP server') };
+  return { gh, pr, viewer: viewer.login, comment: (paths: string[]) => addedComment(paths, viewer.login, 'an AI tool through the Bridge MCP server') };
 }

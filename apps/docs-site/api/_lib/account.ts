@@ -12,6 +12,7 @@
 // version bump (sign out everywhere) or a deleted account ends every session at once.
 
 import type { Redis } from './redis.js';
+import type { AiTool } from '../../src/lib/ai-tools.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from './session.js';
 
 export interface Account {
@@ -24,6 +25,8 @@ export interface Account {
   createdAt: string;
   /** Bumped by "sign out everywhere": a session signed for another version is refused. */
   version: number;
+  /** The AI tools the person uses with Bridge (src/lib/ai-tools.ts); absent while they never answered. */
+  aiTools?: AiTool[];
 }
 
 export interface AccountClaims {

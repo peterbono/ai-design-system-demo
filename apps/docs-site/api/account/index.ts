@@ -18,6 +18,9 @@
 //                                              (a wrong code answers 400 wrong-code with triesLeft)
 //   POST { action: 'github', token }           links or creates from a GitHub user token, sets the cookie; same answer
 //   POST { action: 'rename', name }            { account }
+//   POST { action: 'ai-tools', tools }         the AI tools the person uses (src/lib/ai-tools.ts: claude-app,
+//                                              claude-code, copilot), at least one; { account }, 400 bad_tools
+//                                              `account.aiTools` is that list, or null while they never answered
 //   POST { action: 'sign-out' }                clears the cookie on this browser
 //   POST { action: 'sign-out-everywhere' }     bumps the account version: every session ends
 //   POST { action: 'delete-check' }            before the confirm field: { blocked: [{ repo, name, people }] }, the teams the
@@ -57,6 +60,7 @@ import {
   sessionAccount,
 } from '../_lib/account.js';
 import { forgetChanges } from '../_lib/former-member.js';
+import { parseAiTools, type AiTool } from '../../src/lib/ai-tools.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, sameOrigin, secondsToTomorrow, sha256, type FetchLike } from '../_lib/http.js';
@@ -127,6 +131,8 @@ export interface PublicAccount {
   name: string;
   nameSet: boolean;
   github: { login: string; id: number } | null;
+  /** The AI tools the person picked, null while they never answered. */
+  aiTools: AiTool[] | null;
   teams: PublicTeam[];
 }
 
@@ -316,7 +322,7 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
 
 async function publicAccount(ctx: Ctx, a: Account): Promise<PublicAccount> {
   const teams = (await teamsOf(ctx, a.email)).map(({ at: _at, ...t }) => t);
-  return { email: a.email, name: a.name, nameSet: a.nameSet !== false, github: a.github ? { login: a.github.login, id: a.github.id } : null, teams };
+  return { email: a.email, name: a.name, nameSet: a.nameSet !== false, github: a.github ? { login: a.github.login, id: a.github.id } : null, aiTools: parseAiTools(a.aiTools), teams };
 }
 
 /**
@@ -657,6 +663,7 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
     case 'sign-out':
       return json(200, { ok: true }, { 'Set-Cookie': clearAccountCookie() });
     case 'rename':
+    case 'ai-tools':
     case 'sign-out-everywhere':
     case 'delete-check':
     case 'delete': {
@@ -665,6 +672,13 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
       if (body.action === 'rename') {
         if (typeof body.name !== 'string' || !body.name.trim()) return fail(400, 'bad_name', 'Enter your name.');
         const next = { ...a, name: cleanName(body.name, a.email), nameSet: true };
+        await putAccount(svc.redis, next);
+        return json(200, { account: await publicAccount(ctx, next) });
+      }
+      if (body.action === 'ai-tools') {
+        const tools = parseAiTools(body.tools);
+        if (!tools) return fail(400, 'bad_tools', 'Pick at least one AI tool.');
+        const next = { ...a, aiTools: tools };
         await putAccount(svc.redis, next);
         return json(200, { account: await publicAccount(ctx, next) });
       }

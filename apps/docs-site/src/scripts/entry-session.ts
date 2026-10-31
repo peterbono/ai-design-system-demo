@@ -4,6 +4,7 @@
 // With GitHub linked and signed in on this browser, the GitHub sign-in goes along (Bearer) so the server can find the
 // teams GitHub gives the person and accept reviewer or admin invites; the server never keeps it.
 import { CONTRIBUTE_HEADER } from '../lib/contribute';
+import { parseAiTools, type AiTool } from '../lib/ai-tools';
 import { noteAccountTeamNames, noteTeamName } from '../lib/recent-teams';
 import { ENTRY_API, parseDiscovery, parseEntry, parseInviteLink, parseRequests, parseTeamInfo, type Discovery, type Entry, type EntryRole, type InviteLink, type JoinRequest, type TeamInfo } from '../lib/entry';
 
@@ -141,6 +142,18 @@ export async function undoDecision(repo: string, id: string): Promise<void> {
 export async function setDiscovery(repo: string, enabled: boolean): Promise<{ domain: string | null; enabled: boolean }> {
   const r = await call<{ domain?: string | null; enabled?: boolean }>('POST', '', { action: 'discovery', repo, enabled });
   return { domain: r.domain ?? null, enabled: r.enabled === true };
+}
+
+/** The team default of the AI tools new members start from (lib/ai-tools.ts); null when the team has none. */
+export async function getTeamAiTools(team: string): Promise<AiTool[] | null> {
+  const r = await call<{ tools?: unknown }>('GET', `?ai-tools=${encodeURIComponent(team)}`);
+  return parseAiTools(r.tools);
+}
+
+/** Admin: sets the team default (null or [] clears it). Answers what the team keeps now. */
+export async function setTeamAiTools(team: string, tools: AiTool[] | null): Promise<AiTool[] | null> {
+  const r = await call<{ tools?: unknown }>('POST', '', { action: 'ai-tools', team, tools });
+  return parseAiTools(r.tools);
 }
 
 /** The refusal of an admin action because no GitHub admin account is linked: shown as a calm link, not an error. */

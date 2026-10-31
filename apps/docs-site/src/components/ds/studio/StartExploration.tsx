@@ -3,9 +3,13 @@
 //   - Where: a product, or the library itself (Tokens, variants, new components). A change to the library is an
 //     exploration whose target is the library. Preselected from ?product= (key, name, or "library"), else the only
 //     product, else the library when the team lists no product.
-//   - What it is, in one sentence, and a Jira ticket on demand. "Start with Claude AI" starts it the way the CLI and
-//     MCP server do (the core exploration start with the product label from productMarks, none for the library),
-//     then says what to tell Claude and opens the exploration. A product with its own repository (bridge.config.json
+//   - What it is, in one sentence, and a Jira ticket on demand. The primary follows the person's AI tool
+//     (AiToolPanel.tsx, lib/ai-tools.ts): "Start with Claude AI" for Claude, "Start in Copilot" for GitHub Copilot
+//     in VS Code. It starts the exploration the way the CLI and MCP server do (the core exploration start with the
+//     product label from productMarks, none for the library), then the next step in that tool: the Claude app opens
+//     a new Claude conversation with the line (the connect steps first while the viewer's Claude has no Bridge), the
+//     terminal and Copilot copy it and say where to paste it. Several tools: tabs limited to them, the last one used
+//     open; one tool: no tabs. "Open the exploration" stays beside it. A product with its own repository (bridge.config.json
 //     products[].repo) gets the branch there, so developers keep their environment and the library comes from npm.
 //     When Bridge cannot reach that repository, nothing starts: one warning in designer words, "Ask an admin to
 //     connect <product>" (copies a message) and, only if the person picks it, "Start in the library instead".
@@ -18,7 +22,7 @@ import { VOCAB } from '../../../lib/vocabulary';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, Plus } from 'lucide-react';
 import { parseJiraKey, productMarks, productsOf, type ProductConfig } from '@bridge-ds/core';
-import { Alert, Button, CodeBlock, Combobox, Dialog, DialogContent, DialogTrigger, Input, Select } from '@bridge-ds/react';
+import { Alert, Button, Combobox, Dialog, DialogContent, DialogTrigger, Input, Select } from '@bridge-ds/react';
 import { startChangeHref } from '../../../lib/overview-board';
 import {
   askAdmin,
@@ -36,6 +40,20 @@ import {
 import { installUrl } from '../../../lib/access-view';
 import { siteConfig } from '../../../scripts/repo-context';
 import { useCopy } from './TeamLink';
+import { copilotSetup, connectorUrl, TERMINAL_SETUP_LINE, terminalSetup } from '../../../lib/claude-connector';
+import type { AiTool } from '../../../lib/ai-tools';
+import { TOOL_SAID, ToolAction, ToolPanel, useAiTools, type ClaudeLink, type ToolLines, type ToolSetup } from './AiToolPanel';
+
+/** The line for each tool once it started: the Claude app and Copilot Chat take the sentence, the terminal runs Claude Code with it. */
+export function startLines(prompt: string): ToolLines {
+  return { 'claude-app': prompt, 'claude-code': `claude '${prompt.replace(/'/g, "'\\''")}'`, copilot: prompt };
+}
+
+/** The primary of the start step, for the open tool. */
+export const startLabel = (tool: AiTool) => (tool === 'copilot' ? 'Start in Copilot' : 'Start with Claude AI');
+
+/** Writes the line to the clipboard, or refuses (the panel then says to select it). */
+const clip = (text: string) => navigator.clipboard.writeText(text);
 
 export interface StartExplorationProps {
   components: { name: string; slug: string; family?: string }[];
@@ -101,7 +119,10 @@ export default function StartExploration({ components, appearance = 'menu' }: St
   // The product's own repository is out of Bridge's reach: the admin action, and the library fallback on request.
   const [blocked, setBlocked] = useState<{ product: string; repo: string; reason: 'not-connected' | 'read-only' } | null>(null);
   const { copied, said, copy } = useCopy(3000);
-  const [done, setDone] = useState<{ prompt: string; href: string; name: string; where: string } | null>(null);
+  const [done, setDone] = useState<{ prompt: string; href: string; name: string; where: string; setup: ToolSetup } | null>(null);
+  const [claudeLink, setClaudeLink] = useState<ClaudeLink>('unknown');
+  const [toolSaid, setToolSaid] = useState('');
+  const tools = useAiTools(claudeLink);
   const sentenceRef = useRef<HTMLInputElement>(null);
   const jiraRef = useRef<HTMLInputElement>(null);
 
@@ -147,7 +168,15 @@ export default function StartExploration({ components, appearance = 'menu' }: St
 
   const onOpenChange = (next: boolean) => {
     if (busy) return;
-    if (next) reset(products, productParam(location.search));
+    if (next) {
+      reset(products, productParam(location.search));
+      setToolSaid('');
+      // The connect steps come first on the Claude app path while the viewer's own Claude has no Bridge.
+      void import('../../../scripts/claude-link').then((m) => {
+        setClaudeLink(m.knownClaudeLink());
+        void m.viewerClaudeLink().then(setClaudeLink);
+      });
+    }
     setOpen(next);
   };
 
@@ -193,13 +222,29 @@ export default function StartExploration({ components, appearance = 'menu' }: St
       }
       setBlocked(null);
       const { started } = r;
+      const ds = `${cfg.owner}/${cfg.repo}`;
+      const prompt = claudePrompt({ sentence, product: t.product, number: started.pr, library: t.library });
       setDone({
-        prompt: claudePrompt({ sentence, product: t.product, number: started.pr, library: t.library }),
+        prompt,
         href: featureHref(started.pr),
         name,
         where: t.library ? VOCAB.main : t.product.name,
+        // A product with its own repository needs bridge connect once there; the library and a product folder in the
+        // design system repository need the server in the tool once.
+        setup: {
+          'claude-code': repo ? { label: TERMINAL_SETUP_LINE, command: terminalSetup(ds) } : null,
+          copilot: copilotSetup(ds, Boolean(repo)),
+        },
       });
       setStep('done');
+      // Copilot and the terminal: the line goes on the clipboard right away (the click that started it allows it).
+      if (tools.tab !== 'claude-app') {
+        const tab = tools.tab;
+        void clip(startLines(prompt)[tab]).then(
+          () => setToolSaid(TOOL_SAID[tab].copied),
+          () => setToolSaid(''),
+        );
+      }
     } catch (err) {
       const msg = (err as Error).message || 'GitHub did not answer.';
       // Suggest mode, or waiting for Bridge Direct's OK: the sentence already says what to do.
@@ -304,7 +349,7 @@ export default function StartExploration({ components, appearance = 'menu' }: St
         Something looks wrong? Report it
       </Button>,
       <Button size="lg" type="submit" form="sc-start" loading={busy}>
-        Start with Claude AI
+        {startLabel(tools.tab)}
       </Button>,
     );
   } else if (step === 'report') {
@@ -337,20 +382,33 @@ export default function StartExploration({ components, appearance = 'menu' }: St
       </Button>,
     );
   } else {
-    title = 'Ready for Claude AI';
+    const lines = startLines(done?.prompt ?? '');
+    title = tools.tab === 'copilot' ? 'Ready for Copilot' : 'Ready for Claude AI';
     body = (
       <div className="sc-form">
         <p className="t-body sc-line">
-          <b>{done?.name}</b> is a new exploration in {done?.where}. Say this to Claude AI in Claude Code or Claude Desktop, with the Bridge MCP server:
+          <b>{done?.name}</b> is a new exploration in {done?.where}. {toolSaid || (tools.tab === 'copilot' ? 'Paste this in Copilot Chat in VS Code, in Agent mode.' : tools.tab === 'claude-code' ? 'Run this in your terminal.' : 'Continue it in Claude.')}
         </p>
-        <CodeBlock code={done?.prompt ?? ''} label="Say to Claude AI" />
+        <ToolPanel tools={tools.view.tools} tab={tools.tab} setTab={tools.setTab} chosen={tools.view.chosen} lines={lines} setup={done?.setup ?? {}} onCopy={clip} say={setToolSaid} />
+        <span className="sr-only" role="status" aria-live="polite">
+          {toolSaid}
+        </span>
       </div>
     );
     foot = footer(
-      null,
-      <Button size="lg" onClick={() => done && go(done.href)}>
+      <Button variant="link" onClick={() => done && go(done.href)}>
         Open the exploration
       </Button>,
+      <ToolAction
+        tool={tools.tab}
+        line={lines[tools.tab]}
+        onCopy={clip}
+        say={setToolSaid}
+        variant="primary"
+        claudeLink={claudeLink}
+        connectorAddress={connectorUrl(location.origin)}
+        onClaudeConnected={() => void import('../../../scripts/claude-link').then((m) => m.forgetClaudeLink())}
+      />,
     );
   }
 

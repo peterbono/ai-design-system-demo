@@ -120,6 +120,15 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toContain('data-bridge-change="<short plain label>"');
   });
 
+  it('speaks to any MCP client (Claude, GitHub Copilot in VS Code, others): the client-agnostic text does not assume Claude', async () => {
+    const instructions = client.getInstructions()!;
+    expect(instructions).toContain('in their AI tool (Claude, GitHub Copilot or any MCP client)');
+    expect(instructions).not.toMatch(/you are the team's Claude|do in Claude what|waiting for Claude AI/);
+    const { tools } = await client.listTools();
+    const continueTool = tools.find((t) => t.name === 'bridge_continue_exploration')!;
+    expect(continueTool.description).not.toContain('Continue in Claude');
+  });
+
   it('says what it may write in the same words in its instructions and bridge_get_config (no token: read-only on GitHub)', async () => {
     const config = JSON.parse(text(await client.callTool({ name: 'bridge_get_config', arguments: {} })));
     expect(config.write).toMatch(/^Read-only on GitHub: suggestions, requests, reviews, merges and pull requests need GITHUB_TOKEN \(or a gh sign-in when the server starts\)\. Direct changes become local bridge\/\* branches, never pushed\.$/);
