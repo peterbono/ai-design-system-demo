@@ -18,6 +18,7 @@ import { Who } from './faces';
 import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, Skeleton, ToastProvider } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
 import { Drawing } from './Drawing';
+import { QuietScene } from './QuietScene';
 import StartExploration from './StartExploration';
 import { BuildLine } from './BuildLine';
 import ButtonLink from '../ButtonLink';
@@ -389,6 +390,9 @@ const LEAD_TOUR_KEY = 'bridge.home.lead-tour';
 /** The review drawing without its empty sky: the scene only, so it never makes the greeting taller than its text. */
 const REVIEW_CROP = '0 98 232 86';
 
+/** The Harbor zone's line when nothing waits on the viewer: honest first, then the calm. */
+export const QUIET_LINE = 'Nothing needs you. The harbor is calm.';
+
 /** "You joined Acme Design.": said once, dismissible. */
 function JoinedNote({ text }: { text: string }) {
   const [open, setOpen] = useState(true);
@@ -486,6 +490,7 @@ function HomeBody(p: StudioHomeProps) {
     );
   }
   const loading = p.state === 'loading';
+  const quiet = !loading && p.needs.length === 0;
   return (
     <div className="sh">
       {note}
@@ -498,8 +503,10 @@ function HomeBody(p: StudioHomeProps) {
               </h1>
               {p.setup && <div className="sh-setup">{p.setup}</div>}
             </div>
-            {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} lead={p.demo ? p.demo.lead : undefined} /> : <p className="t-body">{p.needs.length ? 'Your changes need you.' : 'Nothing needs you.'}</p>}
+            {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} lead={p.demo ? p.demo.lead : undefined} /> : <p className="t-body">{p.needs.length ? 'Your changes need you.' : QUIET_LINE}</p>}
           </div>
+          {/* Nothing waits: the zone is a calm harbor, not an empty box (the drawing hides on a phone). */}
+          {quiet && <QuietScene scene="harbor" width={240} className="sh-art" />}
         </div>
         {loading ? (
           <>

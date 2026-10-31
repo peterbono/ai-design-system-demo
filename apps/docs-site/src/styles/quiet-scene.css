@@ -1,0 +1,186 @@
+/* Quiet scenes (components/ds/studio/QuietScene.tsx): a Field Guide drawing that draws itself in once, then breathes.
+   Relaxing on purpose: every loop is built on the slowest motion token (shimmer) and runs several seconds each way,
+   eased, alternate, with staggered lengths so nothing moves in step. Moving parts are low contrast; the only strong
+   color is the Deep Harbor flag. Reduced motion: the still drawing, fully drawn. */
+
+.qs {
+  --_breath: var(--motion-duration-shimmer);
+  height: auto;
+  overflow: visible;
+}
+
+/* --- Draw-in, once: the ground, then the boat, then the sky. ----------------------------------------------- */
+
+.qs path {
+  stroke-dasharray: 1;
+  animation: qs-draw calc(var(--_breath) * 1.4) var(--motion-easing-standard) both;
+}
+
+.qs [data-fill] {
+  animation:
+    qs-draw calc(var(--_breath) * 1.4) var(--motion-easing-standard) both,
+    qs-fill var(--_breath) var(--motion-easing-standard) calc(var(--_breath) * 0.8) both;
+}
+
+.qs .qs-boat path {
+  animation-delay: calc(var(--_breath) * 0.4);
+}
+
+.qs .qs-boat [data-fill] {
+  animation-delay: calc(var(--_breath) * 0.4), calc(var(--_breath) * 1.2);
+}
+
+.qs .qs-sky path {
+  animation-delay: calc(var(--_breath) * 0.8);
+}
+
+.qs .qs-sky [data-fill] {
+  animation-delay: calc(var(--_breath) * 0.8), calc(var(--_breath) * 1.6);
+}
+
+@keyframes qs-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes qs-fill {
+  from {
+    fill-opacity: 0;
+  }
+
+  to {
+    fill-opacity: 1;
+  }
+}
+
+/* --- The idle loop: slow swell, a boat rocking at its mooring, a cloud and two gulls passing. ------------------- */
+
+.qs-swell,
+.qs-glide,
+.qs-drift {
+  color: var(--color-text-muted);
+}
+
+.qs-swell {
+  animation: qs-swell calc(var(--_breath) * var(--_swell, 4)) var(--motion-easing-standard) infinite alternate;
+}
+
+.qs-swell-2 {
+  --_swell: 5;
+  animation-delay: calc(var(--_breath) * -2.3);
+}
+
+.qs-swell-3 {
+  --_swell: 6;
+  animation-delay: calc(var(--_breath) * -4.1);
+}
+
+@keyframes qs-swell {
+  from {
+    transform: translate(calc(var(--space-1-5) * -1), 0);
+  }
+
+  to {
+    transform: translate(var(--space-1-5), calc(var(--space-0-5) * -1));
+  }
+}
+
+/* Rocks from the waterline, about four breaths a minute. */
+.qs-rock {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: qs-rock calc(var(--_breath) * 3.5) var(--motion-easing-standard) infinite alternate;
+}
+
+@keyframes qs-rock {
+  from {
+    transform: rotate(-1.5deg) translateY(0);
+  }
+
+  to {
+    transform: rotate(1.5deg) translateY(var(--space-0-5));
+  }
+}
+
+.qs-drift {
+  animation: qs-drift calc(var(--_breath) * 14) var(--motion-easing-standard) infinite alternate;
+}
+
+@keyframes qs-drift {
+  from {
+    transform: translateX(calc(var(--space-3) * -1));
+  }
+
+  to {
+    transform: translateX(var(--space-4));
+  }
+}
+
+.qs-glide {
+  animation: qs-glide calc(var(--_breath) * 20) var(--motion-easing-standard) infinite alternate;
+}
+
+@keyframes qs-glide {
+  from {
+    transform: translate(0, 0);
+  }
+
+  to {
+    transform: translate(var(--space-6), calc(var(--space-1-5) * -1));
+  }
+}
+
+.qs-flap {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: qs-flap calc(var(--_breath) * 1.5) var(--motion-easing-standard) infinite alternate;
+}
+
+.qs-flap-late {
+  animation-delay: calc(var(--_breath) * -0.9);
+}
+
+@keyframes qs-flap {
+  from {
+    transform: scaleY(1);
+  }
+
+  to {
+    transform: scaleY(0.6);
+  }
+}
+
+/* The flag lifts and settles in the breeze, from its pole. */
+.qs-flag {
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  animation: qs-flag calc(var(--_breath) * 2.5) var(--motion-easing-standard) calc(var(--_breath) * -1.2) infinite alternate;
+}
+
+@keyframes qs-flag {
+  from {
+    transform: scaleX(1) skewY(0deg);
+  }
+
+  to {
+    transform: scaleX(0.86) skewY(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qs path,
+  .qs [data-fill],
+  .qs-swell,
+  .qs-rock,
+  .qs-drift,
+  .qs-glide,
+  .qs-flap,
+  .qs-flag {
+    animation: none;
+  }
+}
