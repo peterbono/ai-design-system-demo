@@ -6,10 +6,13 @@
 // Being built also lists Claude's fixes (the fix sessions of the team's Claude, api/mcp ?view=sessions) as rows of the
 // same list, reconciled with the pull requests read here (lib/claude-connector fixRows). They stay out of `views`, so
 // the home line and "Figma is ahead" count build requests only.
-import { assembleBuildRequests, BUILD_REQUEST_LABEL, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient } from '@bridge-ds/core';
+// Explorations handed to developers (Done exploring) are rows of the same list too, read from the pull requests read
+// here (no read per row) and, for products with their own repository, from the one read of their open pull requests
+// that Changes and the home make too (scripts/product-repos.ts). They stay out of `views` as well.
+import { assembleBuildRequests, BUILD_REQUEST_LABEL, DEFAULT_PRODUCTS, parseExplorationBody, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient } from '@bridge-ds/core';
 import { fixRows, isLoginLike, parseSession, type FixRow, type Session } from '../lib/claude-connector';
 import { isSampleTeam } from '../lib/demo';
-import { BUILD_CACHE_MS, buildCacheKey, slimIssue, slimPull, toBuildIssue, toBuildPull, type RestIssue, type RestPull } from '../lib/building-view';
+import { BUILD_CACHE_MS, buildCacheKey, explorationBuildRows, slimIssue, slimPull, toBuildIssue, toBuildPull, type ExplorationBuildRow, type RestIssue, type RestPull } from '../lib/building-view';
 import { sampleBuildData, SAMPLE_BUILDERS } from '../lib/building-sample';
 import { personName } from '../lib/people';
 import { ghGet, readRepo } from './github-session';
@@ -31,6 +34,8 @@ export interface BuildData {
   fixes?: FixRow[];
   /** The pull requests read, so the fixes can be read again while Claude works without reading GitHub again. */
   pulls?: RestPull[];
+  /** Explorations handed to developers, as rows of the list (none on the sample team). */
+  explorations?: ExplorationBuildRow[];
 }
 
 const noRepoPage = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-no-repo');
@@ -124,11 +129,15 @@ async function read(): Promise<BuildData> {
   }
   const R = `/repos/${repo}`;
   const issuePath = (label: string) => `${R}/issues?labels=${encodeURIComponent(label)}&state=all&per_page=100&sort=created&direction=desc`;
-  const [requests, builds, pulls, sessions] = await Promise.all([
+  // Loaded on demand, as the home does: the product repositories' reads and the site's products.
+  const productRepos = import('./product-repos').catch(() => null);
+  const [requests, builds, pulls, sessions, productPulls] = await Promise.all([
     list<RestIssue>(repo, 'requests', issuePath(REQUEST_LABEL), slimIssue),
     list<RestIssue>(repo, 'builds', issuePath(BUILD_REQUEST_LABEL), slimIssue),
     list<RestPull>(repo, 'pulls', `${R}/pulls?state=all&per_page=100&sort=updated&direction=desc`, slimPull),
     readSessions(repo),
+    // The open explorations of products with their own repository: the same read as Changes and the home.
+    productRepos.then((m) => m?.productPulls() ?? []).catch(() => []),
   ]);
   const seen = new Set<number>();
   // The issues list also answers pull requests carrying the label (a library branch from Figma): they come from the
@@ -137,7 +146,9 @@ async function read(): Promise<BuildData> {
   // Builders and senders by their profile names, as Branches shows them (people.ts), not by their GitHub login.
   // Who asked Claude for a fix too (the connector grant's GitHub login): a name the server wrote stays as written.
   const askers = sessions.flatMap((s) => s.steps.map((x) => x.by)).filter(isLoginLike);
-  const logins = [...issues.flatMap((i) => [i.user?.login, ...(i.assignees ?? []).map((a) => a.login)]), ...pulls.data.map((p) => p.user?.login), ...askers].filter((l): l is string => Boolean(l));
+  const explored = [...pulls.data, ...(productPulls as unknown as RestPull[])];
+  const doneBy = explored.map((p) => parseExplorationBody(p.body)?.doneBy);
+  const logins = [...issues.flatMap((i) => [i.user?.login, ...(i.assignees ?? []).map((a) => a.login)]), ...pulls.data.map((p) => p.user?.login), ...askers, ...doneBy].filter((l): l is string => Boolean(l));
   const names = await lookUpNames([...new Set(logins)]).catch(() => knownNames());
   const nameOf = (l: string) => personName(l, names);
   return {
@@ -149,6 +160,7 @@ async function read(): Promise<BuildData> {
     jiraBase: jiraBase(),
     fixes: fixRows(sessions, pulls.data, now, nameOf),
     pulls: pulls.data,
+    explorations: explorationBuildRows(explored, { products: (await productRepos)?.configuredProducts() ?? DEFAULT_PRODUCTS, now, nameOf }),
   };
 }
 

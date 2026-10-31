@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { assembleBuildRequests, composeBuildRequestIssue, figmaAheadLine, buildSummaryLine } from '@bridge-ds/core';
+import { assembleBuildRequests, composeBuildRequestIssue, figmaAheadLine, buildSummaryLine, DEFAULT_PRODUCTS, type ProductConfig } from '@bridge-ds/core';
 import { sampleBuildData, SAMPLE_BUILDERS } from './building-sample';
-import { ageLabel, buildDetail, detailFromQuery, detailQuery, filterCounts, jiraLink, listedRows, pageSentence, rowThumb, propLine, rowLine, slimIssue, slimPull, statusTag, timelineSteps, toBuildIssue, toBuildPull } from './building-view';
+import { ageLabel, buildDetail, explorationBuildRows, mergeRows, type RestPull, detailFromQuery, detailQuery, filterCounts, jiraLink, listedRows, pageSentence, rowThumb, propLine, rowLine, slimIssue, slimPull, statusTag, timelineSteps, toBuildIssue, toBuildPull } from './building-view';
 
 const NOW = Date.parse('2026-10-24T12:00:00Z');
 const sample = () => {
@@ -144,5 +144,90 @@ describe('Being built', () => {
       expect(rowThumb(v, null)).toEqual({ kind: 'icon', icon: 'component', label: 'Tag' });
       expect(rowThumb({ ...v, kind: 'pull' }, tag(2).body)).toEqual({ kind: 'icon', icon: 'component', label: 'Tag' });
     });
+  });
+});
+
+describe('Being built: explorations handed to developers', () => {
+  const DAY = 86_400_000;
+  const iso = (daysAgo: number) => new Date(NOW - daysAgo * DAY).toISOString();
+  const block = (x: Record<string, unknown>) => `## Exploration\n\n<!-- bridge-exploration ${JSON.stringify({ purpose: '', ...x })} -->`;
+  const products: ProductConfig[] = [...DEFAULT_PRODUCTS, { key: 'shop', name: 'Shop' } as ProductConfig];
+  const pull = (n: number, x: Partial<RestPull> & { done?: Record<string, unknown> | null; name?: string }): RestPull => ({
+    number: n,
+    title: `Exploration: ${x.name ?? `thing ${n}`}`,
+    html_url: `https://github.com/acme/ds/pull/${n}`,
+    state: 'open',
+    draft: true,
+    merged_at: null,
+    created_at: iso(20),
+    updated_at: iso(1),
+    labels: ['ready-for-devs'],
+    user: { login: 'ann' },
+    assignees: [],
+    head: { ref: `explore/thing-${n}`, sha: 'h1' },
+    body: block({ name: x.name ?? `thing ${n}`, author: 'ann', ...(x.done === null ? {} : { doneAt: iso(2), doneSha: 'h1', doneBy: 'ann', ...x.done }) }),
+    ...x,
+  });
+  const nameOf = (l: string) => (l === 'ann' ? 'Ann' : l);
+  const rows = (pulls: RestPull[]) => explorationBuildRows(pulls, { products, now: NOW, nameOf });
+
+  it('lists each handed-off status in its tab, and leaves running, archived, closed and older shipped ones out', () => {
+    const list = rows([
+      // Waiting for code, for the admin product: the label could not be removed, Done exploring in the body stands (#611).
+      pull(611, { name: 'explore new design pr being built', labels: ['exploration', 'product: admin', 'visual-change'] }),
+      // Developers pushed past the head Done exploring left.
+      pull(2, { name: 'Billing screen', head: { ref: 'explore/billing', sha: 'h2' }, assignees: [{ login: 'theo' }] }),
+      // Marked ready for review.
+      pull(3, { name: 'Profile page', draft: false }),
+      // Merged this week, and three weeks ago.
+      pull(4, { name: 'Wishlist', state: 'closed', merged_at: iso(1) }),
+      pull(5, { name: 'Old one', state: 'closed', merged_at: iso(21) }),
+      // Running, archived, closed without merging, a plain pull request.
+      pull(6, { labels: ['exploration'], done: null }),
+      pull(7, { labels: ['ready-for-devs', 'archived'] }),
+      pull(8, { state: 'closed' }),
+      { ...pull(9, {}), body: 'Fixes the button', head: { ref: 'fix/button', sha: 'x' }, labels: [] },
+    ]);
+    expect(list.map((r) => `${r.number}:${r.status}:${r.label}`)).toEqual(['611:requested:Waiting for code', '2:in-progress:Being built', '3:in-progress:Being built', '4:shipped:Shipped']);
+    const [ready, building, , shipped] = list;
+    expect(ready).toMatchObject({ title: 'Explore new design pr being built', requestedBy: 'ann', builders: [], stale: false, exploration: { href: 'changes/?exploration=611', product: 'Admin demo' } });
+    expect(ready!.exploration.line).toMatch(/^Admin demo · Done exploring by Ann on /);
+    expect(building!.builders).toEqual(['theo']);
+    expect(building!.exploration.line).toMatch(/Developers are building it$/);
+    expect(shipped!.exploration.line).toBe('Shipped 1 day ago');
+    expect(filterCounts(list, NOW)).toEqual({ all: 4, waiting: 1, 'in-progress': 2, 'shipped-this-week': 1 });
+    expect(list.map((r) => r.exploration.line).join(' ')).not.toMatch(/—/);
+  });
+
+  it('opens an exploration of a product repository with its product, never confused with the same number in the library', () => {
+    const own = { ...pull(12, { name: 'Checkout flow' }), product: 'shop', html_url: 'https://github.com/acme/shop/pull/12' };
+    const list = rows([pull(12, { name: 'Pill buttons' }), own]);
+    expect(list.map((r) => [r.id, r.exploration.href, r.exploration.product])).toEqual([
+      ['exploration-12', 'changes/?exploration=12', null],
+      ['exploration-shop#12', 'changes/?exploration=12&product=shop', 'Shop'],
+    ]);
+    expect(list[1]!.pull).toBeNull();
+    // Without who said it (said before Bridge recorded it): the date alone.
+    const older = rows([pull(13, { done: { doneBy: undefined } })])[0]!;
+    expect(older.exploration.line).toMatch(/^Done exploring on \w+ \d+$/);
+    expect(older.requestedBy).toBe('ann');
+  });
+
+  it('waits more than a week: highlighted, and counted in the sentence and the merged list', () => {
+    const late = rows([pull(14, { done: { doneAt: iso(9) } })]);
+    expect(late[0]).toMatchObject({ status: 'requested', stale: true });
+    const views = sample();
+    const all = listedRows(mergeRows(views, late), NOW);
+    expect(all).toHaveLength(7);
+    expect(pageSentence(all)).toBe('3 being built, 3 waiting for a developer, 2 for more than a week.');
+  });
+
+  it('keeps the exploration block of a long body in the session cache, and the head commit', () => {
+    const long = pull(15, {});
+    long.body = `${'x'.repeat(5000)}\n\n${long.body}`;
+    const slim = slimPull(long);
+    expect(slim.body!.length).toBeLessThan(4400);
+    expect(slim.head).toEqual({ ref: 'explore/thing-15', sha: 'h1' });
+    expect(rows([slim])[0]).toMatchObject({ status: 'requested', title: 'Thing 15' });
   });
 });

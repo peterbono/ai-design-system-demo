@@ -9,7 +9,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { assembleBuildRequests, composeBuildRequestIssue } from '@bridge-ds/core';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { sampleBuildData, SAMPLE_BUILDERS } from '../../../lib/building-sample';
-import { toBuildIssue, toBuildPull } from '../../../lib/building-view';
+import { explorationBuildRows, toBuildIssue, toBuildPull, type RestPull } from '../../../lib/building-view';
+import { DEFAULT_PRODUCTS } from '@bridge-ds/core';
 import { fixRows, parseSession } from '../../../lib/claude-connector';
 
 const NOW = Date.now();
@@ -143,5 +144,71 @@ describe('Being built', () => {
     }
     const tagRow = rows.find((li) => li.textContent?.includes('Tag: test'))!;
     expect(tagRow.querySelector('.bt')!.getAttribute('data-label')).toBe('Tag');
+  });
+
+  it('lists explorations handed to developers in the same list, tagged, counted by the filters, opening the exploration', async () => {
+    const at = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
+    const explored = (n: number, name: string, x: Partial<RestPull>): RestPull => ({
+      number: n,
+      title: `Exploration: ${name}`,
+      html_url: `https://github.com/acme/ds/pull/${n}`,
+      state: 'open',
+      draft: true,
+      created_at: at(5),
+      updated_at: at(1),
+      labels: ['ready-for-devs', 'product: admin'],
+      user: { login: 'peterbono' },
+      head: { ref: `explore/${n}`, sha: 'h1' },
+      body: `<!-- bridge-exploration ${JSON.stringify({ name, purpose: '', doneAt: at(1), doneSha: 'h1', doneBy: 'peterbono' })} -->`,
+      ...x,
+    });
+    const nameOf = (l: string) => (l === 'peterbono' ? 'Florian' : (SAMPLE_BUILDERS[l] ?? l));
+    const explorations = explorationBuildRows(
+      [
+        explored(611, 'explore new design pr being built', { labels: ['exploration', 'product: admin'] }),
+        explored(612, 'Billing screen', { draft: false }),
+        explored(613, 'Wishlist', { state: 'closed', merged_at: at(2) }),
+        explored(614, 'Still running', { labels: ['exploration'], body: '' }),
+      ],
+      { products: DEFAULT_PRODUCTS, now: NOW, nameOf },
+    );
+    data = { ...sample(), sample: false, nameOf, explorations };
+    const { container } = render(createElement(BeingBuilt));
+    const title = await screen.findByText('Explore new design pr being built');
+    expect(container.querySelectorAll('.sh-row-item')).toHaveLength(9);
+    expect(screen.queryByText('Still running')).toBeNull();
+    const row = title.closest('li')!;
+    expect(row.textContent).toContain('Exploration');
+    expect(row.textContent).toContain('Waiting for code');
+    expect(row.textContent).toContain('Admin demo · Done exploring by Florian on');
+    expect(row.querySelector('a')!.getAttribute('href')).toBe('/studio/changes/?exploration=611');
+    expect(container.textContent).toContain('Explorations handed to developers and changes from Figma or Components that need code.');
+    expect(container.textContent).not.toMatch(/—/);
+    expect(screen.getByRole('tab', { name: /Waiting to be picked up/ }).textContent).toContain('3');
+    expect(screen.getByRole('tab', { name: /In progress/ }).textContent).toContain('4');
+    expect(screen.getByRole('tab', { name: /Shipped this week/ }).textContent).toContain('2');
+    await userEvent.click(screen.getByRole('tab', { name: /Waiting to be picked up/ }));
+    expect(screen.getByText('Explore new design pr being built')).toBeTruthy();
+    expect(screen.queryByText('Billing screen')).toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: /In progress/ }));
+    expect(screen.getByText('Billing screen')).toBeTruthy();
+    await userEvent.click(screen.getByRole('tab', { name: /Shipped this week/ }));
+    expect(screen.getByText('Wishlist')).toBeTruthy();
+    expect(container.querySelectorAll('.sh-row-item button')).toHaveLength(0);
+    await expectNoAxeViolations(container);
+  });
+
+  it('keeps "Every build request has been picked up." only while no exploration waits either', async () => {
+    const at = new Date(NOW - 86_400_000).toISOString();
+    const nameOf = (l: string) => l;
+    const ready: RestPull = { number: 611, title: 'Exploration: x', html_url: 'https://github.com/acme/ds/pull/611', state: 'open', draft: true, created_at: at, updated_at: at, labels: ['ready-for-devs'], head: { ref: 'explore/x', sha: 'h1' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'Admin filters', purpose: '', doneAt: at, doneSha: 'h1' })} -->` };
+    data = { views: [], bodies: new Map(), sample: false, stale: false, nameOf, jiraBase: null, explorations: explorationBuildRows([ready], { products: DEFAULT_PRODUCTS, now: NOW, nameOf }) };
+    render(createElement(BeingBuilt));
+    await screen.findByText('Admin filters');
+    await userEvent.click(screen.getByRole('tab', { name: /Waiting to be picked up/ }));
+    expect(screen.getByText('Admin filters')).toBeTruthy();
+    expect(screen.queryByText('Every build request has been picked up.')).toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: /In progress/ }));
+    expect(screen.getByText('Nothing is in progress right now.')).toBeTruthy();
   });
 });

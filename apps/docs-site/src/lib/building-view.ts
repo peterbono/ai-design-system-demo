@@ -6,6 +6,13 @@
 // Read only: developers split and track the work in GitHub or Jira, Bridge never writes to a build request.
 import {
   BUILD_FILTER_LABEL,
+  BUILD_STALE_DAYS,
+  EXPLORATION_STATUS_LABEL,
+  explorationStatus,
+  isArchivedExploration,
+  isExplorationPull,
+  parseExplorationBody,
+  type ProductConfig,
   BUILD_STEPS,
   BUILD_STATUS_LABEL,
   buildRequestBrief,
@@ -23,6 +30,8 @@ import {
 import type { ThumbSpec } from './branch-thumb';
 import { daysSince, type PillTone } from './home-model';
 import { safeUrl } from './html';
+import { isProductBranch } from './product-branch';
+import { explorationHref } from './explorations-view';
 
 /** The fields of a GitHub issue the page reads (GET /repos/{o}/{r}/issues). */
 export interface RestIssue {
@@ -57,6 +66,8 @@ export interface RestPull {
   assignees?: { login: string }[] | null;
   head?: { ref: string; sha?: string } | null;
   base?: { ref: string; sha?: string } | null;
+  /** Read in a product's own repository (scripts/product-repos.ts): that product's key. */
+  product?: string;
 }
 
 const labelNames = (labels: readonly ({ name?: string } | string)[] | null | undefined) => (labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean);
@@ -112,11 +123,24 @@ export const slimIssue = (i: RestIssue): RestIssue => ({
   ...(i.pull_request ? { pull_request: true } : {}),
 });
 
-/** A pull request body only matters for its closing references and its "From Figma" block: kept whole when short. */
+const EXPLORATION_BLOCK = /<!-- bridge-exploration \{[\s\S]*?\} -->/;
+
+/**
+ * A pull request body only matters for its closing references, its "From Figma" block and an exploration's block
+ * (its name and when it was done exploring): kept whole when short, else its start and the exploration block.
+ */
+function slimBody(body: string | null | undefined): string {
+  const b = body ?? '';
+  if (b.length <= 4000) return b;
+  const m = EXPLORATION_BLOCK.exec(b);
+  if (!m || m.index + m[0].length <= 4000) return b.slice(0, 4000);
+  return `${b.slice(0, Math.min(4000, m.index)).trim()}\n\n${m[0]}`;
+}
+
 export const slimPull = (p: RestPull): RestPull => ({
   number: Number(p.number),
   title: p.title,
-  body: (p.body ?? '').length > 4000 ? (p.body ?? '').slice(0, 4000) : (p.body ?? ''),
+  body: slimBody(p.body),
   html_url: p.html_url,
   state: p.state,
   draft: Boolean(p.draft),
@@ -127,7 +151,8 @@ export const slimPull = (p: RestPull): RestPull => ({
   labels: labelNames(p.labels),
   user: p.user ? { login: p.user.login } : null,
   assignees: (p.assignees ?? []).map((a) => ({ login: a.login })),
-  head: p.head ? { ref: p.head.ref } : null,
+  // The head commit: an exploration done exploring reads "Being built" once developers pushed past it.
+  head: p.head ? { ref: p.head.ref, ...(p.head.sha ? { sha: p.head.sha } : {}) } : null,
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -194,7 +219,7 @@ export function pageSentence(views: readonly BuildRequestView[]): string {
   if (!open.length) {
     // Shipped is in the library; a declined request is not, so it never reads as "everything is in the library".
     const declined = views.filter((v) => v.status === 'not-planned').length;
-    if (!declined) return 'Everything sent from Figma or from Components is in the library.';
+    if (!declined) return 'Everything handed to developers is in the library.';
     return `Nothing is being built right now. ${declined === 1 ? 'One change was' : `${declined} changes were`} closed without being built this week.`;
   }
   const waiting = open.filter((v) => v.status === 'requested').length;
@@ -214,7 +239,7 @@ export const EMPTY_FILTER: Record<BuildFilter, string> = {
 /** The empty state: what a build request is, where it comes from, who picks it up. */
 export const EMPTY_WORDS = {
   title: 'Nothing is being built yet.',
-  text: 'When you push a change from the Bridge Figma plugin that needs code, like a new variant, a new option or a new layout, or ask for one from Components, it becomes a build request. Developers pick it up where they work, in GitHub or Jira, and you follow it here until it is in the library.',
+  text: 'When you push a change from the Bridge Figma plugin that needs code, like a new variant, a new option or a new layout, or ask for one from Components, it becomes a build request. An exploration comes here too once you say Done exploring. Developers pick them up where they work, in GitHub or Jira, and you follow each one here until it is in the library.',
   more: 'Token values ship by themselves after the automatic checks, so they never wait here.',
 };
 
@@ -324,3 +349,95 @@ export function rowThumb(v: Pick<BuildRequestView, 'kind' | 'number' | 'url' | '
   return before && after ? { kind: 'image', before, after, label } : { kind: 'icon', icon: 'component', label };
 }
 
+
+// ---------------------------------------------------------------------------------------------------------------
+// Explorations handed to developers
+
+/**
+ * An exploration someone said "Done exploring" on: developers build it, so it is a row of the same list (decision
+ * 2026-10-31: Being built is everything developers have to build, whatever its origin). The row opens the exploration.
+ */
+export interface ExplorationBuildRow extends BuildRequestView {
+  exploration: {
+    /** The Studio path the row opens: `changes/?exploration=12`, with `&product=shop` in a product's own repository. */
+    href: string;
+    /** Line 2: the product, who said Done exploring and when, then where it stands. */
+    line: string;
+    /** The product's name, when it was explored for one. */
+    product: string | null;
+  };
+}
+
+/** The small kind tag of an exploration row. */
+export const EXPLORATION_KIND = 'Exploration';
+
+const DAY = 86_400_000;
+const EXPLORATION_BUILD_STATUS = { ready: 'requested', building: 'in-progress', shipped: 'shipped' } as const;
+
+/**
+ * The explorations handed to developers among pull requests already read (the design system's list of Being built,
+ * the open ones of each product repository): waiting for code reads Waiting to be picked up, developers pushing reads
+ * In progress, merged this week reads Shipped this week. Running, archived, closed and older shipped ones stay out.
+ */
+export function explorationBuildRows(
+  pulls: readonly RestPull[],
+  ctx: { products: readonly ProductConfig[]; now: number; nameOf?: (login: string) => string },
+): ExplorationBuildRow[] {
+  const nameOf = ctx.nameOf ?? ((l: string) => l);
+  const seen = new Set<string>();
+  return pulls.flatMap((p): ExplorationBuildRow[] => {
+    const key = p.product ? `${p.product}#${p.number}` : String(p.number);
+    if (seen.has(key)) return [];
+    seen.add(key);
+    const core = { state: p.state, merged_at: p.merged_at ?? null, labels: p.labels ?? [], headRef: p.head?.ref, body: p.body ?? '', headSha: p.head?.sha, draft: p.draft };
+    if (!isExplorationPull(core) || isArchivedExploration(core.labels)) return [];
+    const was = explorationStatus(core);
+    if (was !== 'ready' && was !== 'building' && was !== 'shipped') return [];
+    const shippedAt = was === 'shipped' ? (p.merged_at ?? null) : null;
+    if (was === 'shipped' && !(shippedAt && ctx.now - Date.parse(shippedAt) <= 7 * DAY)) return [];
+    const status = EXPLORATION_BUILD_STATUS[was];
+    const block = parseExplorationBody(p.body);
+    const raw = block?.name?.trim() || (p.title ?? '').replace(/^Exploration:\s*/i, '').trim() || `Exploration #${p.number}`;
+    const name = raw.charAt(0).toUpperCase() + raw.slice(1);
+    const product = (p.product ? ctx.products.find((x) => x.key === p.product) : isProductBranch(p.labels, ctx.products))?.name ?? null;
+    const doneAt = block?.doneAt ?? null;
+    const doneBy = block?.doneBy ?? null;
+    const createdAt = doneAt ?? p.created_at ?? p.updated_at ?? new Date(ctx.now).toISOString();
+    const ageDays = daysSince(createdAt, ctx.now);
+    const stale = status === 'requested' && ageDays > BUILD_STALE_DAYS;
+    const done = `Done exploring${doneBy ? ` by ${nameOf(doneBy)}` : ''}${doneAt ? ` on ${shortDate(doneAt)}` : ''}`;
+    const s = shippedAt ? daysSince(shippedAt, ctx.now) : 0;
+    const where = { requested: null, 'in-progress': 'Developers are building it', shipped: s === 0 ? 'Shipped today' : `Shipped ${s} ${s === 1 ? 'day' : 'days'} ago` } as const;
+    const line = [product, status === 'shipped' ? null : done, where[status]].filter(Boolean).join(' · ');
+    const sentence = { requested: 'Waiting for a developer.', 'in-progress': 'Developers are building it.', shipped: 'Shipped.' } as const;
+    const timeline: BuildRequestView['timeline'] = [{ status: 'requested', at: createdAt, ...(doneBy ? { who: doneBy } : {}) }];
+    if (status !== 'requested') timeline.push({ status: 'in-progress' });
+    if (shippedAt) timeline.push({ status: 'shipped', at: shippedAt });
+    return [
+      {
+        id: `exploration-${key}`,
+        kind: 'pull',
+        number: Number(p.number),
+        url: p.html_url,
+        component: '',
+        title: name,
+        requestKind: null,
+        status,
+        label: EXPLORATION_STATUS_LABEL[was],
+        sentence: sentence[status],
+        builders: status === 'in-progress' ? (p.assignees ?? []).map((a) => a.login) : [],
+        requestedBy: doneBy ?? block?.author ?? p.user?.login ?? null,
+        createdAt,
+        ageDays,
+        stale,
+        shippedAt,
+        // A product repository's numbers are its own: only a design system pull request can match a build request's.
+        pull: p.product ? null : { number: Number(p.number), url: p.html_url, state: shippedAt ? 'merged' : p.state },
+        jira: null,
+        figmaUrl: null,
+        timeline,
+        exploration: { href: `changes/${explorationHref({ number: Number(p.number), product: p.product })}`, line, product },
+      },
+    ];
+  });
+}

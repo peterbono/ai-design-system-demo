@@ -89,6 +89,8 @@ export interface Exploration {
   jira?: string | undefined;
   /** ISO date someone said "Done exploring". */
   doneAt?: string | undefined;
+  /** GitHub login of who said it, when known (Being built names them). */
+  doneBy?: string | undefined;
   /** The branch head at that moment: a newer head means developers are building on it. */
   doneSha?: string | undefined;
 }
@@ -309,6 +311,7 @@ function explorationBlock(e: Exploration): string {
     ...(e.source ? { source: e.source } : {}),
     ...(e.agent ? { agent: e.agent } : {}),
     ...(e.doneAt ? { doneAt: e.doneAt } : {}),
+    ...(e.doneBy ? { doneBy: e.doneBy } : {}),
     ...(e.doneSha ? { doneSha: e.doneSha } : {}),
   };
   return `<!-- ${MARK} ${JSON.stringify(data).replace(/-->/g, '--\\u003e')} -->`;
@@ -496,13 +499,13 @@ export interface DoneExploringPlan {
  * the body says how developers take it. The draft stays a draft and the pull request stays open, so its preview lives
  * on. The caller records the head once the note is gone (withDoneExploring with `doneSha`).
  */
-export function doneExploringPlan(input: { body: string | null | undefined; branch: string; files: { path: string; status?: string | undefined }[]; date?: Date | undefined }): DoneExploringPlan {
+export function doneExploringPlan(input: { body: string | null | undefined; branch: string; files: { path: string; status?: string | undefined }[]; date?: Date | undefined; doneBy?: string | undefined }): DoneExploringPlan {
   const removeFiles = input.files.filter((f) => f.path.startsWith(`${EXPLORATION_NOTES_DIR}/`) && f.status !== 'removed').map((f) => f.path);
   return {
     removeLabels: [EXPLORATION_LABEL],
     addLabels: [EXPLORATION_READY_LABEL],
     removeFiles,
-    body: withDoneExploring(input.body, { branch: input.branch, doneAt: (input.date ?? new Date()).toISOString() }),
+    body: withDoneExploring(input.body, { branch: input.branch, doneAt: (input.date ?? new Date()).toISOString(), doneBy: input.doneBy }),
     take: explorationTakeCommands(input.branch),
     markReady: false,
   };
@@ -515,7 +518,7 @@ const DEV_SECTION = '### For developers';
  * section (the two commands and the starting point note), and the hidden block records when, and on which head once
  * known. Calling it again replaces the section and the block.
  */
-export function withDoneExploring(body: string | null | undefined, done: { branch: string; doneAt: string; doneSha?: string | undefined; checks?: ExplorationChecks | null | undefined }): string {
+export function withDoneExploring(body: string | null | undefined, done: { branch: string; doneAt: string; doneBy?: string | undefined; doneSha?: string | undefined; checks?: ExplorationChecks | null | undefined }): string {
   const e = parseExplorationBody(body);
   const [fetch, checkout] = explorationTakeCommands(done.branch);
   const section = [
@@ -537,7 +540,7 @@ export function withDoneExploring(body: string | null | undefined, done: { branc
     .replace(/### For developers[\s\S]*?(?=### |<!-- |$)/, '');
   if (!e || !block.test(kept)) return `${kept.trim()}${kept.trim() ? '\n\n' : ''}${section}`;
   const at = kept.search(block);
-  const nextBlock = explorationBlock({ ...e, doneAt: done.doneAt, ...(done.doneSha ? { doneSha: done.doneSha } : {}) });
+  const nextBlock = explorationBlock({ ...e, doneAt: done.doneAt, ...(done.doneBy ? { doneBy: done.doneBy } : {}), ...(done.doneSha ? { doneSha: done.doneSha } : {}) });
   const after = kept.slice(at).replace(block, () => nextBlock).trim();
   return `${kept.slice(0, at).trim()}\n\n${section}\n\n${after}`.trim();
 }

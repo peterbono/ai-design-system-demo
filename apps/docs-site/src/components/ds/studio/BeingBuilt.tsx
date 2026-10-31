@@ -9,6 +9,8 @@
 //     "Button" then "Claude's fix from Figma, asked by Dana" and where it stands, from its pull request when the list
 //     read it (lib/claude-connector fixRows). Such a row opens Claude's fix in Studio; while Claude works, the page reads
 //     the sessions again every 10 seconds (paused while the tab is hidden).
+//   - Explorations handed to developers (Done exploring) are rows of the same list too, with an "Exploration" tag: the
+//     product, who said Done exploring and when. Such a row opens the exploration in Studio.
 //   - Nothing sent yet: what a build request is, where it comes from, who picks it up.
 // Read only: developers split and track the work in GitHub or Jira. Repo content goes in as React text only, links
 // through safeUrl.
@@ -49,6 +51,7 @@ import {
   BUILD_FILTERS,
   EMPTY_FILTER,
   EMPTY_WORDS,
+  EXPLORATION_KIND,
   buildDetail,
   detailFromQuery,
   detailQuery,
@@ -64,6 +67,7 @@ import {
   statusTag,
   timelineSteps,
   viewTitle,
+  type ExplorationBuildRow,
 } from "../../../lib/building-view";
 import { FIX_ROW_TITLE, type FixRow } from "../../../lib/claude-connector";
 import { studioHref } from "../../../lib/team-path";
@@ -84,8 +88,9 @@ const avatar = (login: string) =>
   `https://github.com/${encodeURIComponent(login)}.png?size=64`;
 const external = { target: "_blank", rel: "noopener noreferrer" } as const;
 const POLL_MS = 10_000;
-type Row = BuildRequestView | FixRow;
+type Row = BuildRequestView | FixRow | ExplorationBuildRow;
 const isFix = (v: Row): v is FixRow => "fix" in v;
+const isExploration = (v: Row): v is ExplorationBuildRow => "exploration" in v;
 
 function Builders({
   v,
@@ -143,6 +148,26 @@ function Rows({
               hint={`${v.component}: ${FIX_ROW_TITLE}`}
               href={studioHref(v.fix.href)}
               line={v.fix.line}
+              pill={statusTag(v)}
+              className={v.stale ? "bb-stale" : undefined}
+            />
+          );
+        // An exploration handed to developers: the row opens the exploration, its kind tagged.
+        if (isExploration(v))
+          return (
+            <BranchRow
+              key={v.id}
+              thumb={{ kind: "screen", src: null, product: v.exploration.product, seed: v.id }}
+              who={<Builders v={v} data={data} />}
+              title={v.title}
+              hint={`${EXPLORATION_KIND}: ${v.title}`}
+              href={studioHref(v.exploration.href)}
+              line={v.exploration.line}
+              tags={
+                <Badge tone="neutral" size="sm">
+                  {EXPLORATION_KIND}
+                </Badge>
+              }
               pill={statusTag(v)}
               className={v.stale ? "bb-stale" : undefined}
             />
@@ -497,7 +522,13 @@ export default function BeingBuilt() {
   if (current)
     return <Detail v={current} data={data} onBack={() => go(null)} />;
   // Only what "All" lists counts: a request declined more than a week ago has left the page (sentence, counts, empty).
-  const rows = listedRows(mergeRows(data.views, data.fixes ?? []), now);
+  const rows = listedRows(
+    mergeRows<FixRow | ExplorationBuildRow>(data.views, [
+      ...(data.fixes ?? []),
+      ...(data.explorations ?? []),
+    ]),
+    now
+  );
   if (!rows.length) return <Empty />;
 
   const counts = filterCounts(rows, now);
@@ -507,8 +538,8 @@ export default function BeingBuilt() {
       <section className="zone bb-open" aria-live="polite">
         <p className="t-body bb-sentence">{pageSentence(rows)}</p>
         <p className="t-ui t-muted bb-rule">
-          Changes from Figma or from Components that need code. Developers pick them up in GitHub
-          or Jira; each one reads Shipped once it is in the library.
+          Explorations handed to developers and changes from Figma or Components that need code.
+          Developers pick them up in GitHub or Jira; each one reads Shipped once it is in the library.
           {data.fixes?.length
             ? " Claude's fixes from Figma are here too: someone on your team reviews each one."
             : ""}
