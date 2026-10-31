@@ -1546,10 +1546,6 @@
   flex: none;
 }
 
-.xp[data-surface="app"] .xp-new {
-  margin-left: var(--space-1);
-}
-
 .xp-menu {
   position: relative;
   flex: none;
@@ -1758,7 +1754,6 @@
 @media (min-width: 861px) {
   @container (max-width: 720px) {
     .xp-tools .xp-menu > summary > span:not(.icon),
-    .xp-tools .xp-new > span:not(.icon),
     .xp-tools .xp-slash {
       display: none;
     }
@@ -1794,9 +1789,6 @@
     margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) 0;
   }
 
-  .xp-tools .xp-new > span:not(.icon) {
-    display: none;
-  }
 
   .xp[data-surface="app"] .xp-td.is-name {
     padding-top: var(--space-2);

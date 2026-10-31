@@ -20,25 +20,14 @@
   margin: var(--space-2) 0 0;
 }
 
-.pp-fact {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-inline-end: var(--space-2);
-}
-
-.pp-conn::before {
+.pp-conn.is-off::before {
   content: '';
   display: inline-block;
   width: var(--space-2);
   height: var(--space-2);
   margin-inline-end: var(--space-1-5);
   border-radius: var(--radius-pill);
-  background: var(--color-feedback-success-icon);
-}
-
-.pp-conn.is-off::before {
-  background: var(--color-border-emphasis);
+  background: var(--color-feedback-warning-icon);
 }
 
 /* The group heading of Changes (styles/changes.css .bl-h2): label, then a muted count. */
@@ -95,16 +84,6 @@
 
 @media (max-width: 640px) {
   /* One fact per line on a phone: no separator left leading a wrapped line. */
-  .pp-facts {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-1);
-  }
-
-  .pp-sep {
-    display: none;
-  }
-
   .pp-empty {
     justify-content: center;
     text-align: center;

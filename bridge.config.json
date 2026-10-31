@@ -81,7 +81,7 @@
     }
   },
   "products": [
-    { "key": "admin-app", "name": "Product admin", "repo": "peterbono/bridge-product-admin", "preview": "https://bridge-product-admin-git-{branch}-peterbonos-projects.vercel.app", "production": "https://bridge-product-admin.vercel.app", "framework": "react" },
+    { "key": "admin-app", "name": "Art print shop", "repo": "peterbono/bridge-product-admin", "preview": "https://bridge-product-admin-git-{branch}-peterbonos-projects.vercel.app", "production": "https://bridge-product-admin.vercel.app", "framework": "react" },
     { "key": "library", "name": "Library", "path": "packages", "framework": "react", "default": true }
   ],
   "tooling": {

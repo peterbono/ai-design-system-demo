@@ -818,13 +818,11 @@ details[open] > summary .cg-sec-chev {
   gap: var(--space-4);
 }
 
-/* The toolbar: DS Tabs (underline) say where the work stands, one per state with its count, on a rule that spans the
-   width; the kind and people selects sit at the end of the same line. When the states outgrow the line the tab list
-   scrolls inside its row (never the page); on narrow screens the selects move above the tabs, the tabs keep the rule. */
+/* The tabs alone on their row, the page's primary navigation, on a rule that spans the width. When the tabs outgrow
+   the line the tab list scrolls inside its row, never the page. */
 .bl-filters {
   display: flex;
-  align-items: flex-end;
-  gap: var(--space-4);
+  min-inline-size: 0;
   border-block-end: var(--border-width-default) solid var(--color-border-default);
 }
 
@@ -834,23 +832,26 @@ details[open] > summary .cg-sec-chev {
   margin-block-end: calc(-1 * var(--border-width-default));
 }
 
-.bl-filters > .bl-narrow {
-  flex: none;
-  flex-wrap: nowrap;
-  padding-block-end: var(--space-2);
+/* The quieter row under the tabs, left-aligned above the list: the small product and people selects, then the
+   count. It pulls closer to the tabs than the list gap, so it reads as theirs. On a phone the selects share the
+   width and the count wraps under them. */
+.bl-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-block-start: calc(-1 * var(--space-2));
+  min-inline-size: 0;
 }
 
 .bl-narrow > * {
   inline-size: var(--size-40);
+  max-inline-size: 100%;
 }
 
-@media (max-width: 900px) {
-  .bl-filters {
-    flex-wrap: wrap;
-  }
-
-  .bl-filters > .bl-narrow {
-    order: -1;
+@media (max-width: 760px) {
+  .bl-bar > .bl-narrow {
+    flex-wrap: nowrap;
     inline-size: 100%;
   }
 
@@ -868,7 +869,7 @@ details[open] > summary .cg-sec-chev {
   margin: 0;
 }
 
-/* The kind and people filters, side by side. */
+/* The product and people filters, side by side. */
 .bl-narrow {
   display: flex;
   flex-wrap: wrap;

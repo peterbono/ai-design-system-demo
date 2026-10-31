@@ -79,14 +79,32 @@ export interface Pillar {
   tone: 'fail' | null;
   /** Where to look next: its section further down. */
   next: { label: string; href: string };
+  /**
+   * The pillar's own picture, so the card shows what the number is made of instead of a meter that is full on every
+   * card: the brand and theme tiles, each product's share, one dot per component. Null keeps the meter and sentence.
+   */
+  viz: PillarViz | null;
+  /** The adoption gain since before Bridge, in points ("+90.2 pts"), next to the number. */
+  delta: string | null;
 }
+
+export type PillarViz =
+  | { kind: 'combos'; items: { label: string; pass: number; total: number }[] }
+  | { kind: 'products'; items: { name: string; pct: number }[] }
+  | { kind: 'docs'; reviewed: number; drafted: number; total: number };
 
 export interface PillarInput {
   figures: HealthFigure[];
   contrast: { total: number; fail: number; hasChecks?: boolean };
   /** Combined component adoption now (0 to 100), null without an audit. */
   adoption: number | null;
-  guidance: { total: number; reviewed: number };
+  /** Combined adoption before Bridge, for the gain next to the number. */
+  adoptionBefore?: number | null | undefined;
+  /** Each product's latest component adoption, for the adoption card's rows. */
+  products?: { name: string; pct: number | null }[] | undefined;
+  /** The contrast checks per brand and theme, for the accessibility card's tiles. */
+  combos?: { label: string; pass: number; total: number }[] | undefined;
+  guidance: { total: number; reviewed: number; drafted?: number | undefined };
 }
 
 /** The pillars, in the page's order: accessibility, adoption, documentation. Each reuses its health figure's sentence. */
@@ -99,6 +117,9 @@ export function qualityPillars(input: PillarInput): Pillar[] {
   const checks = c.hasChecks !== false && c.total > 0;
   const pass = c.total - c.fail;
   const g = input.guidance;
+  const combos = checks && input.combos?.length ? input.combos : null;
+  const products = (input.products ?? []).filter((p): p is { name: string; pct: number } => p.pct !== null);
+  const before = input.adoption !== null && input.adoptionBefore != null ? input.adoption - input.adoptionBefore : null;
   return [
     {
       id: 'contrast',
@@ -109,6 +130,8 @@ export function qualityPillars(input: PillarInput): Pillar[] {
       sentence: checks ? (contrastFig?.detail ?? '') : (contrastFig?.detail ?? 'No contrast checks are set up yet.'),
       tone: c.fail ? 'fail' : null,
       next: { label: c.fail ? 'See the failing pairs' : 'See each brand and theme', href: `#${HEALTH_SECTION.contrast}` },
+      viz: combos ? { kind: 'combos', items: combos } : null,
+      delta: null,
     },
     {
       id: 'adoption',
@@ -119,6 +142,8 @@ export function qualityPillars(input: PillarInput): Pillar[] {
       sentence: adoptionFig?.detail ?? 'No adoption audit has been published yet.',
       tone: null,
       next: { label: input.adoption === null ? 'How adoption is measured' : 'See each product', href: `#${HEALTH_SECTION.adoption}` },
+      viz: input.adoption !== null && products.length ? { kind: 'products', items: products } : null,
+      delta: before !== null && Math.abs(before) >= 0.1 ? `${before > 0 ? '+' : '−'}${Math.round(Math.abs(before) * 10) / 10} pts since Bridge` : null,
     },
     {
       id: 'guidance',
@@ -129,6 +154,8 @@ export function qualityPillars(input: PillarInput): Pillar[] {
       sentence: guidanceFig?.detail ?? '',
       tone: null,
       next: { label: g.reviewed < g.total ? 'See what is left' : 'See the guidance', href: `#${HEALTH_SECTION.guidance}` },
+      viz: g.total ? { kind: 'docs', reviewed: g.reviewed, drafted: g.drafted ?? 0, total: g.total } : null,
+      delta: null,
     },
   ];
 }
