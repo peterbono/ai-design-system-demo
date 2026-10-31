@@ -89,17 +89,7 @@ function OrdersTable() {
   const lateBefore = useMemo(() => lateCutoff(), []);
 
   const columns: Column<Order>[] = [
-    {
-      source: 'date',
-      label: translate('orders.fields.date'),
-      sortable: true,
-      render: (o) => (
-        <span className={styles.dateCell}>
-          <span className={styles.nowrap}>{fmt.dateTime(o.date)}</span>
-          {isLateOrder(o, lateBefore) && <LateBadge />}
-        </span>
-      ),
-    },
+    { source: 'date', label: translate('orders.fields.date'), sortable: true, render: (o) => <span className={styles.nowrap}>{fmt.dateTime(o.date)}</span> },
     { source: 'reference', label: translate('orders.fields.reference'), sortable: true, link: true, render: (o) => <Mono>{o.reference}</Mono> },
     {
       source: 'customer_id',
@@ -119,6 +109,14 @@ function OrdersTable() {
     { source: 'total_ex_taxes', label: translate('orders.fields.subtotal'), numeric: true, sortable: true, hideBelow: 'lg', render: (o) => <Muted>{fmt.money(o.total_ex_taxes)}</Muted> },
     { source: 'total', label: translate('orders.fields.total'), numeric: true, sortable: true, render: (o) => <strong className={styles.amount}>{fmt.money(o.total)}</strong> },
   ];
+  if (status === 'ordered') {
+    // Lateness only applies to orders still waiting to ship, so the column lives on that tab only.
+    columns.splice(1, 0, {
+      source: 'late',
+      label: translate('orders.fields.status'),
+      render: (o) => (isLateOrder(o, lateBefore) ? <LateBadge /> : null),
+    });
+  }
   if (status === 'delivered') {
     columns.push({
       source: 'returned',
