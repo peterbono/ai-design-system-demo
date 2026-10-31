@@ -13,6 +13,9 @@
 //   GET  ?view=sessions&repo=owner/name                 the team's sessions of the last 7 days
 //   GET  ?view=connections&repo=owner/name              who connected Bridge in Claude for this team, last used
 //   POST ?view=disconnect { repo, id }                  ends one connection (its owner, or a team admin)
+//   POST ?view=pieces { repo, pr }                      Studio's library check of an exploration: the adoption audit
+//                                                       on its diff (bridge_missing_pieces), recorded on it. GitHub
+//                                                       sign-in with push only: the audit reads and writes as them
 // The views take the Bridge sign-in (a GitHub token, as the plugin and Studio send it, or the Studio member session);
 // CORS is open for token calls (the Figma plugin).
 //
@@ -26,7 +29,7 @@
 // (email members in Studio), PUBLIC_SITE_URL (the issuer; else the request's origin). Nothing here logs.
 
 import { randomBytes } from 'node:crypto';
-import { BridgeContext, handleHttp } from '@bridge-ds/mcp';
+import { BridgeContext, handleHttp, pieces } from '@bridge-ds/mcp';
 import type { ContribEnv } from '../contribute/index.js';
 import { displayName, sessionAccount } from '../_lib/account.js';
 import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/fix-sessions.js';
@@ -73,7 +76,7 @@ import {
 import { redisRest, type Redis } from '../_lib/redis.js';
 import { seal, sealingKey } from '../_lib/sealed.js';
 import { readCookie } from '../_lib/session.js';
-import { githubGet, teamCaller } from '../_lib/team-caller.js';
+import { bearerOf, CALLER_WORDS, githubGet, teamCaller } from '../_lib/team-caller.js';
 
 export type { FetchLike };
 
@@ -95,7 +98,15 @@ export interface ConnectorDeps {
   mcp?: McpHandler;
   /** How the context is made (tests: a context without GitHub calls). */
   context?: (opts: { repo: string; token: string }) => Promise<BridgeContext>;
+  /** The library check of an exploration (tests replace it; default: the MCP server's bridge_missing_pieces, recorded). */
+  checkPieces?: (ctx: BridgeContext, pr: number | string) => Promise<{ pieces: unknown[]; recorded: boolean }>;
 }
+
+/** What Studio reads when the library check cannot run: the page then offers the line to paste in Claude. */
+export const PIECES_WORDS = {
+  github: 'Bridge checks the library with your GitHub sign-in.',
+  failed: 'Bridge could not check it against the library this time.',
+} as const;
 
 /**
  * Agents never merge through the hosted connector: these tools are neither listed (handleHttp exclude) nor run (a call
@@ -391,6 +402,26 @@ async function onView(view: string, req: Request, env: ConnectorEnv, deps: Conne
     if (!who.admin && (!who.login || who.login.toLowerCase() !== g.login.toLowerCase())) return fail(403, 'forbidden', 'Only the person who connected it, or an admin of this team, can remove it.');
     await revokeGrant(svc.redis, g);
     return json(200, { removed: true });
+  }
+  if (view === 'pieces') {
+    // The library check, run here because the adoption audit needs the TypeScript compiler (not in the browser). The
+    // person's own GitHub token reads the branch and records the pieces on it, as `bridge pieces <n> --record` would.
+    if (req.method !== 'POST') return fail(405, 'method', 'Use POST.');
+    const body = await readBody(req, 2048);
+    const t = parseRepo(body.repo);
+    const pr = typeof body.pr === 'string' || typeof body.pr === 'number' ? String(body.pr).trim() : '';
+    if (!/^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,99}#)?\d{1,7}$/.test(pr)) return fail(400, 'bad_request', 'Say which exploration, by its number.');
+    const token = bearerOf(req);
+    if (!token) return fail(401, 'signin', PIECES_WORDS.github);
+    const who = await teamCaller(req, { ...t, need: 'edit' }, env, callerDeps);
+    if (!who.canEdit) return fail(403, 'forbidden', CALLER_WORDS.notOnTeam);
+    const ctx = deps.context ? await deps.context({ repo: t.full, token }) : await BridgeContext.create({ repo: t.full, token, surface: 'mcp', fetch: deps.fetch as unknown as typeof fetch });
+    try {
+      const r = await (deps.checkPieces ?? ((c, n) => pieces.missingPiecesOp(c, { pr: n, record: true })))(ctx, /^\d+$/.test(pr) ? Number(pr) : pr);
+      return json(200, { checked: r.recorded, pieces: r.pieces.length }, NO_STORE);
+    } catch {
+      return fail(422, 'check_failed', PIECES_WORDS.failed);
+    }
   }
   const t = parseRepo(q.get('repo'));
   const who = await teamCaller(req, { ...t, need: 'read' }, env, callerDeps);

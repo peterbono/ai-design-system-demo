@@ -4,8 +4,34 @@
 // own"), its commits (one call, for the activity in words), what Vercel reported (the preview), and, only when the
 // files touch tokens or components, the visual impact manifest for a captured image. Writes: Done exploring (the
 // shared dialog) and Archive, with the viewer's token, as on the other exploration pages.
-import { archiveExplorationOnGitHub, explorationStage, type BranchCommitLike, type ProductConfig } from '@bridge-ds/core';
-import { activityRows, doneActionFor, faceOf, gitNamesOf, headlineOf, libraryPreviewApp, pageLines, startedTail, type DoneAction } from '../lib/exploration-page';
+// After Done exploring (Waiting for code, Being built, Shipped) the same page: who said done (Bridge's commit at that
+// moment, else the label event), the developers on it, the three steps, and the library part. A product exploration
+// never checked against the library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption
+// audit with the viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
+import { archiveExplorationOnGitHub, explorationStage, parseExplorationBody, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import {
+  activityRows,
+  buildersOf,
+  changedScreenOf,
+  checkInClaudeLine,
+  doneActionFor,
+  doneByOf,
+  faceOf,
+  gitNamesOf,
+  handoffActivity,
+  handoffSteps,
+  headlineOf,
+  isHandoffStatus,
+  libraryPreviewApp,
+  pageLines,
+  requestPieces,
+  startedTail,
+  type DoneAction,
+  type LibraryPieces,
+  type SentPiece,
+} from '../lib/exploration-page';
+import { pieceRows, type PieceRowView } from '../lib/product-branch';
+import { checkPieces } from './connector-api';
 import { ARCHIVED_LINE, explorationKey, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { developerLines, productCrumbs, productProduction, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -15,10 +41,11 @@ import { canKeepExploration, keepExplorationLine, productKeeperLine } from '../l
 import type { ExplorationPageProps } from '../components/ds/studio/ExplorationPage';
 import { askDoneExploring } from './exploration-done';
 import { explorationsConfig } from './exploration-start';
-import { changedFiles, namesOf, previewSources, productPreviewOf, withToolbar } from './product-branch';
+import { changedFiles, namesOf, pieceActions, pieceActor, previewSources, productPreviewOf, readView, withToolbar } from './product-branch';
 import { productClient, productRepoByKey } from './product-repos';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, studioClient } from './github-session';
 import { changesModeOnPage } from './changes-mode';
+import { sendModeFor } from '../lib/write-route';
 import { viewerRole } from './needs-you';
 import { sampleVisitor } from './demo-gate';
 import { copyText } from './explorer/util';
@@ -58,6 +85,36 @@ async function publicName(login: string): Promise<Record<string, string>> {
 
 /** True when the page shows this exploration while it runs (X1 or X2); later states keep their own pages. */
 export const runsHere = (r: Pick<ExplorationRow, 'status' | 'archived'>) => r.status === 'active' && !r.archived;
+
+/** True after Done exploring (Waiting for code, Being built, Shipped): the same page, in its hand-off state. */
+export const handedOffHere = (r: Pick<ExplorationRow, 'status' | 'archived'>) => isHandoffStatus(r.status) && !r.archived;
+
+/** Who added the ready-for-devs label, and when: Done exploring said without Bridge's note commit. */
+async function readyLabelEvent(r: ExplorationRow): Promise<{ login: string; at: string } | null> {
+  const own = productRepoByKey(r.product);
+  try {
+    const events = (await ghGet<{ event: string; label?: { name?: string }; actor?: { login?: string } | null; created_at: string }[]>(`${own ? `/repos/${own.repo}` : R}/issues/${r.number}/events?per_page=100`)).data;
+    const e = [...events].reverse().find((x) => x.event === 'labeled' && x.label?.name === 'ready-for-devs' && x.actor?.login);
+    return e ? { login: e.actor!.login!, at: e.created_at } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The library check runs once per head in this tab: a refusal or a failure is not retried on every paint. */
+const checkedHeads = new Set<string>();
+
+/** A piece row of the product branch page, as the hand-off card lists it. */
+const sentOf = (row: PieceRowView): SentPiece => ({
+  id: row.id,
+  title: row.title,
+  href: row.library?.href ?? null,
+  line: row.library?.line ?? null,
+  tone: row.library?.tone ?? 'neutral',
+  value: row.value,
+  ...(row.library ? { opens: row.library.opens, number: row.library.number } : {}),
+  action: row.action,
+});
 
 function repaint(d: HTMLElement, key: string, patch: Partial<ExplorationPageProps>) {
   if (!current || current.key !== key || !mod) return;
@@ -103,6 +160,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     productNote: emailOnProduct ? productKeeperLine(product.name) : null,
   });
   const isLibrary = !own && product.default === true;
+  const handedOff = handedOffHere(r);
   const lines = pageLines({ number: r.number, name: r.name, productName: product.name, product: own?.product.key, repo: own?.repo });
   let reported: Awaited<ReturnType<typeof previewSources>> = null;
   current = {
@@ -130,6 +188,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
           previewUrl: current?.props.previewUrl ?? null,
           products,
           focus,
+          // A product exploration never checked: Bridge checks it while the dialog is open, then offers the pieces.
+          check: !isLibrary && connected() && direct && !emailOnProduct ? { repo: `${CFG.owner}/${CFG.repo}`, ref: r.product ? `${r.product}#${r.number}` : String(r.number), body: () => ghGet<ExplorationPullLike>(`${own ? `/repos/${own.repo}` : R}/pulls/${r.number}`).then((f) => f.data.body) } : null,
           after: (line) => {
             repaint(d, key, { said: line });
             reopen(line);
@@ -182,10 +242,82 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     previewNote,
     previewBuilding,
   });
-  if (stage === 'exploring') {
-    const thumb = await capturedImage(r, files);
-    if (thumb) repaint(d, key, { thumb });
+  const plate = { product: isLibrary ? 'Library' : product.name, screen: changedScreenOf(files) };
+  if (!handedOff) {
+    repaint(d, key, { plate });
+    if (stage === 'exploring') {
+      const thumb = await capturedImage(r, files);
+      if (thumb) repaint(d, key, { thumb });
+    }
+    return;
   }
+
+  // After Done exploring: who said it and when, the developers on it, the three steps, the library part.
+  const status = r.status as 'ready' | 'building' | 'shipped';
+  const block = parseExplorationBody(pull.body);
+  const label = doneByOf(commits) ? null : await readyLabelEvent(r);
+  const doneLogin = doneByOf(commits) ?? label?.login ?? r.author;
+  const doneAt = block?.doneAt ?? label?.at ?? null;
+  const builders = buildersOf({ assignees: (pull as { assignees?: { login: string }[] }).assignees ?? [], commits, doneAt, author: r.author });
+  const more = connected() ? await namesOf([doneLogin, ...builders]).catch(() => ({}) as Record<string, string>) : {};
+  if (current?.key !== key) return;
+  const allNames = { ...names, ...more };
+  const doneBy = faceOf(doneLogin, false, allNames);
+  const shippedAt = (pull as { merged_at?: string | null }).merged_at ?? null;
+  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name });
+  const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
+  // Who may run the check: someone who can write it, signed in with GitHub, in a team that writes branches.
+  const canCheck = connected() && direct && !emailOnProduct && (keeper || currentAccess()?.write === true);
+  const claudeLine = connected() ? checkInClaudeLine(r.name, `#${ref}`) : null;
+  const mode: ChangesMode = sendModeFor(currentAccess(), changesModeOnPage());
+  const lib = dsClient();
+  let lastView: Awaited<ReturnType<typeof readView>> = null;
+  const piecesNow = async (): Promise<LibraryPieces> => {
+    if (isLibrary) return r.requests.length ? { state: 'rows', rows: requestPieces(r.requests) } : { state: 'hidden' };
+    const read = await readView(r, gh, products);
+    lastView = read;
+    if (!read) return { state: 'unchecked', claude: claudeLine };
+    if (!read.view.record) return { state: 'unchecked', claude: claudeLine };
+    const rows = pieceActions(pieceRows({ record: read.view.record, linked: read.view.linked, names: read.names }), mode);
+    return rows.length ? { state: 'rows', rows: rows.map(sentOf) } : { state: 'none' };
+  };
+  const refreshPieces = async () => {
+    const pieces = await piecesNow();
+    if (current?.key !== key || !current.props.handoff) return;
+    repaint(d, key, { handoff: { ...current.props.handoff, pieces } });
+  };
+  const act = pieceActor({ r, gh, lib, own: Boolean(own), mode, products, lastView: () => lastView?.view ?? null, refresh: () => void refreshPieces() });
+  repaint(d, key, {
+    stage: 'handed-off',
+    plate,
+    activity: handoffActivity({ commits, author: r.author, startedAt: pull.created_at ?? null, doneBy: doneLogin, doneAt, names: allNames }),
+    // Shipped: the product itself, where it lives now.
+    ...(status === 'shipped' ? { previewUrl: todayUrl, tryUrl: null, previewNote: null, previewBuilding: false } : {}),
+    handoff: {
+      status,
+      doneBy,
+      doneWhen: doneAt ? startedWhen(doneAt) : '',
+      steps,
+      pieces: { state: 'loading' },
+      onPiece: writable ? (piece) => act({ id: piece.id, title: piece.title }, piece.action?.kind ?? 'open') : null,
+    },
+  });
+  const thumb = await capturedImage(r, files);
+  if (thumb) repaint(d, key, { thumb });
+  const first = await piecesNow();
+  if (current?.key !== key || !current.props.handoff) return;
+  const head = `${key}@${r.headSha}`;
+  if (first.state === 'unchecked' && canCheck && !checkedHeads.has(head)) {
+    checkedHeads.add(head);
+    repaint(d, key, { handoff: { ...current.props.handoff, pieces: { state: 'checking' } } });
+    const ok = await checkPieces(`${CFG.owner}/${CFG.repo}`, ref).then(
+      () => true,
+      () => false,
+    );
+    if (current?.key !== key || !current.props.handoff) return;
+    if (ok) return void refreshPieces();
+  }
+  repaint(d, key, { handoff: { ...current.props.handoff, pieces: first } });
 }
 
 /** Leaves the page (another view opens in the same place). */

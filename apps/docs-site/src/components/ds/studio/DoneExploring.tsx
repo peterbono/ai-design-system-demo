@@ -4,7 +4,7 @@
 // a request with a link to the preview, unticked ones are not proposed), then runs it. Errors stay in the dialog.
 // Replaces "Promote to review": the exploration stays open, its preview link alive, and goes to the developers.
 import { useEffect, useState } from 'react';
-import { Alert, Button, ButtonGroup, Checkbox, CheckboxGroup, Dialog, DialogClose, DialogContent } from '@bridge-ds/react';
+import { Alert, Button, ButtonGroup, Checkbox, CheckboxGroup, Dialog, DialogClose, DialogContent, Spinner } from '@bridge-ds/react';
 import { doneExploringCopy, type DonePiece } from '../../../lib/explorations-view';
 
 export interface DoneExploringDetail {
@@ -19,6 +19,11 @@ export interface DoneExploringDetail {
   confirm: (pieces: string[]) => Promise<void>;
   /** Called when the dialog closes, done or not: focus goes back to the page. */
   closed: (done: boolean) => void;
+  /**
+   * Never checked: Bridge checks it against the library while the dialog is open (the server runs the audit), then
+   * the pieces it found are offered. Null when it cannot run for this viewer; the dialog then goes on without pieces.
+   */
+  check?: (() => Promise<Pick<DoneExploringDetail, 'pieces' | 'checked' | 'sent'> | null>) | null;
 }
 
 export const DONE_EVENT = 'bridge:done-exploring-ask';
@@ -28,6 +33,7 @@ export default function DoneExploring() {
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     const on = (e: Event) => {
@@ -37,6 +43,18 @@ export default function DoneExploring() {
       setPicked(d.pieces.map((p) => p.id));
       setError(null);
       setBusy(false);
+      setChecking(false);
+      if (!d.checked && d.check) {
+        setChecking(true);
+        d.check()
+          .then((found) => {
+            if (!found) return;
+            setDetail((cur) => (cur === d ? { ...d, ...found } : cur));
+            setPicked(found.pieces.map((p) => p.id));
+          })
+          .catch(() => {})
+          .finally(() => setChecking(false));
+      }
     };
     document.addEventListener(DONE_EVENT, on);
     return () => document.removeEventListener(DONE_EVENT, on);
@@ -62,7 +80,7 @@ export default function DoneExploring() {
     }
   };
 
-  const copy = detail ? doneExploringCopy({ checked: detail.checked, pieces: detail.pieces.length, sent: detail.sent }) : null;
+  const copy = detail ? doneExploringCopy({ checked: detail.checked, pieces: detail.pieces.length, sent: detail.sent, canCheck: Boolean(detail.check) }) : null;
   return (
     <Dialog open={detail !== null} onOpenChange={(o) => !o && !busy && close(false)}>
       <DialogContent
@@ -72,13 +90,18 @@ export default function DoneExploring() {
         footer={
           <ButtonGroup align="end">
             <DialogClose render={<Button variant="secondary" disabled={busy} />}>Cancel</DialogClose>
-            <Button variant="primary" loading={busy} disabled={busy} onClick={() => void confirm()}>
+            <Button variant="primary" loading={busy} disabled={busy || checking} onClick={() => void confirm()}>
               {busy ? 'Saving' : 'Done exploring'}
             </Button>
           </ButtonGroup>
         }
       >
-        {detail && detail.pieces.length > 0 ? (
+        {checking ? (
+          <p className="ex-ask-who ex-done-checking" role="status">
+            <Spinner size="sm" />
+            Bridge is checking what the library is missing.
+          </p>
+        ) : detail && detail.pieces.length > 0 ? (
           <CheckboxGroup label="Propose to your DS lead" description={copy?.piecesLine} value={picked} onValueChange={setPicked} className="ex-done-pieces">
             {detail.pieces.map((p) => (
               <Checkbox key={p.id} value={p.id} label={p.title} description={p.summary} />

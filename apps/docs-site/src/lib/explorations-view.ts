@@ -435,9 +435,9 @@ export function donePieces(body: string | null | undefined): { checked: boolean;
 }
 
 /** What the Done exploring dialog says, before any write. */
-export function doneExploringCopy(x: { checked: boolean; pieces: number; sent: number }): { description: string; piecesLine: string | null } {
+export function doneExploringCopy(x: { checked: boolean; pieces: number; sent: number; canCheck?: boolean }): { description: string; piecesLine: string | null } {
   const description = 'Nothing closes: the preview stays for you, your DS lead and stakeholders. Your developers take it from here.';
-  if (!x.checked) return { description, piecesLine: 'Not checked against the library yet. Ask Claude what is missing first, or go on without proposing pieces.' };
+  if (!x.checked) return { description, piecesLine: x.canCheck ? 'Bridge could not check it against the library this time. You can go on without proposing pieces.' : 'Not checked against the library yet. Ask Claude what is missing first, or go on without proposing pieces.' };
   if (!x.pieces) return { description, piecesLine: x.sent ? 'Every piece it needs is already with your DS lead.' : null };
   return { description, piecesLine: 'New pieces for the library. Each one you tick goes to your DS lead as a request, with a link to this preview.' };
 }

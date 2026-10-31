@@ -189,7 +189,8 @@ export function ProductBranch(p: ProductBranchProps) {
           )}
         </div>
       </header>
-      {showPieces && (
+      {/* Never checked: the card says it once, the sentence above it would only repeat it. */}
+      {showPieces && p.checked && (
         <p className="pb-lead">
           {p.sentence.lead}
           {p.sentence.strong && <strong>{p.sentence.strong}</strong>}

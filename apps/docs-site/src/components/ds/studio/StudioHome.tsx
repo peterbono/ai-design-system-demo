@@ -173,25 +173,21 @@ function ExplorationCardItem({ c }: { c: ExplorationCard }) {
               <span className="sh-strong">{c.title}</span>
             </Link>
           </span>
+          {/* Where it stands as the DS tag of its page, then the product; who explores it on the last line. Each part
+              wraps on its own and the dot rides with what comes before it: a wrap never starts a line on it. */}
           <span className="t-ui t-muted sh-card-status">
-            {/* Each part is its own wrapping item and the dot rides with what comes before it: a wrap never starts a
-                line on it. "Exploring · in Account · Ann". */}
             {c.state && (
               <span>
-                <span className="sh-card-stage">{c.state}</span>
-                {SEP.trimEnd()}
+                <Badge tone={c.tone ?? 'neutral'} dot={c.dot ?? false} size="md" className={c.state === 'Exploring' ? 'sh-card-tag xp-exploring' : 'sh-card-tag'}>
+                  {c.state}
+                </Badge>
               </span>
             )}
-            {c.product && (
-              <span>
-                in {c.product}
-                {SEP.trimEnd()}
-              </span>
-            )}
-            <span className="sh-card-who">
-              <Who p={c.author} size="xs" />
-              <span>{c.author.name}</span>
-            </span>
+            {c.product && <span>in {c.product}</span>}
+          </span>
+          <span className="t-ui sh-card-who">
+            <Who p={c.author} size="xs" />
+            <span>{c.author.name}</span>
           </span>
         </div>
       </Card>

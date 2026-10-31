@@ -5,7 +5,7 @@
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
 // are pure in lib/home-model.ts and lib/branch-thumb.ts. Admins of a real team on the hosted site also get the people
 // asking to join it (board E7b, GET /api/entry?requests=), first in the list.
-import { isGuardedExploration, productsOf, requesterOf, type ProductConfig } from '@bridge-ds/core';
+import { isGuardedExploration, isHandedOff, productsOf, requesterOf, type ProductConfig } from '@bridge-ds/core';
 import { siteConfig } from './repo-context';
 import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError, resolveAccess } from './github-session';
@@ -321,7 +321,8 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   const readXpFiles = (list: HomePull[]) => {
     for (const p of list) {
       const k = xpKey(p);
-      if (xpFiles.has(k) || xpAsked.has(k) || !isGuardedExploration(p)) continue;
+      // Running ones (Not started or Exploring), and the ones handed to developers: their card names the changed screen.
+      if (xpFiles.has(k) || xpAsked.has(k) || !(isGuardedExploration(p) || isHandedOff({ labels: p.labels ?? [], body: p.body }))) continue;
       xpAsked.add(k);
       void import('./product-repos')
         .then((m) => m.explorationFiles({ number: p.number, headSha: p.head.sha, product: p.product }))
@@ -403,7 +404,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     for (let i = needs.length - 1; i >= 0; i--) if (needs[i]!.kind === 'guidance' && needs[i]!.number && asked.has(needs[i]!.number!)) needs.splice(i, 1);
     // Explorations are the home's cards; the viewer's library changes are counted under them (Changes lists them).
     // The team's: a contributor's home keeps only their own (home by role, lib/home-explorations explorationsFor).
-    readXpFiles([...pulls, ...productOpen]);
+    readXpFiles([...pulls, ...productOpen, ...closed]);
     const explorations = homeExplorations([...pulls, ...productOpen, ...closed], {
       products,
       viewer,
@@ -466,6 +467,12 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     if (r) logins.add(r);
     const tl = timelines.get(x.pull.number);
     if (tl) logins.add(waitingSince(tl, x.pull, viewer).asker);
+  }
+  // The people behind the exploration cards too: a card says "Florian", never the login.
+  await closedRead;
+  for (const p of [...pulls, ...productOpen, ...closed]) {
+    const who = requesterOf(p.body)?.login ?? p.user.login;
+    if (who !== 'unknown' && isHomeExploration(p, products)) logins.add(who);
   }
   await Promise.all([...logins].map(async (l) => persons.set(l.toLowerCase(), await personOf(l, `https://github.com/${l}.png?size=64`))));
   settled = true;

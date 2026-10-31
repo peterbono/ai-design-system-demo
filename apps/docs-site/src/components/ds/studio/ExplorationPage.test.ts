@@ -160,3 +160,103 @@ describe('ExplorationPage, exploring (X2)', () => {
     await expectNoAxeViolations(container);
   });
 });
+
+describe('ExplorationPage, after Done exploring (Waiting for code, Being built, Shipped)', () => {
+  const steps = [
+    { status: 'done' as const, title: 'Done exploring', detail: 'Florian, today' },
+    { status: 'waiting' as const, title: 'Developers build it', detail: 'Waiting for a developer', current: true },
+    { status: 'waiting' as const, title: 'Shipped', detail: 'Then live in Admin demo' },
+  ];
+  const handed = (over: Partial<NonNullable<ExplorationPageProps['handoff']>> = {}, page: Partial<ExplorationPageProps> = {}) =>
+    paint({
+      stage: 'handed-off',
+      previewUrl: 'https://orders-git-explore.vercel.app',
+      tryUrl: 'https://orders-git-explore.vercel.app/?bridge=611',
+      activity: [{ who: florian, text: 'said done exploring', when: '40 min ago' }],
+      done: null,
+      plate: { product: 'Admin demo', screen: 'Orders table' },
+      handoff: { status: 'ready', doneBy: florian, doneWhen: 'today', steps, pieces: { state: 'none' }, ...over },
+      ...page,
+    });
+
+  it('keeps the page family: status tag, who said done and when, the preview with one action, then what happens next', () => {
+    handed();
+    expect(screen.getByText('Waiting for code')).toBeTruthy();
+    expect(screen.getByText(/said done exploring/, { selector: '.xp-meta span' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://orders-git-explore.vercel.app/?bridge=611');
+    expect(screen.queryByRole('button', { name: /Continue in Claude/ })).toBeNull();
+    const next = screen.getByRole('region', { name: 'What happens next' });
+    expect(within(next).getByRole('list', { name: 'From exploration to product' }).querySelectorAll('li')).toHaveLength(3);
+    expect(within(next).getByText('Waiting for a developer')).toBeTruthy();
+    expect(within(next).getByText('Nothing missing: everything comes from the library.')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Activity' })).toBeTruthy();
+    // No capture: the plate names the screen and the product, never a fake wireframe.
+    expect(document.querySelector('.xp-plate')!.textContent).toContain('Orders table');
+    expect(document.querySelector('.xp-plate')!.textContent).toContain('Admin demo · no screenshot yet');
+    // One Harbor zone on the page, no grey footnote that repeats the state.
+    expect(document.querySelectorAll('.zone')).toHaveLength(1);
+    expect(document.body.textContent).not.toMatch(/Ask Claude/);
+  });
+
+  it('says Bridge checks the library while it runs, and lists the pieces with their request status after', () => {
+    const { rerender } = handed({ pieces: { state: 'checking' } });
+    expect(screen.getByText('Bridge is checking what the library is missing.')).toBeTruthy();
+    const onPiece = vi.fn(async () => 'Opened a token change for New color #C2410C.');
+    rerender(
+      createElement(ExplorationPage, {
+        ...base,
+        stage: 'handed-off',
+        previewUrl: 'https://orders-git-explore.vercel.app',
+        activity: [],
+        done: null,
+        handoff: {
+          status: 'ready',
+          doneBy: florian,
+          doneWhen: 'today',
+          steps,
+          onPiece,
+          pieces: {
+            state: 'rows',
+            rows: [
+              { id: 'alert', title: 'Alert: count of orders waiting', href: '?request=81', line: 'Requested', tone: 'neutral', opens: 'request', number: 81 },
+              { id: 'color', title: 'New color #C2410C', href: null, line: null, tone: 'neutral', value: '#C2410C', action: { kind: 'open', label: 'Send for review' } },
+            ],
+          },
+        },
+      }),
+    );
+    expect(screen.getByRole('link', { name: 'Alert: count of orders waiting' }).getAttribute('data-open-request')).toBe('81');
+    expect(screen.getByText('Requested')).toBeTruthy();
+    // The value is already in the name: no second swatch label.
+    expect(screen.getAllByText(/#C2410C/)).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }));
+    expect(onPiece).toHaveBeenCalledWith(expect.objectContaining({ id: 'color' }));
+  });
+
+  it('never checked and Bridge cannot run it: one quiet line with the way to check in Claude', async () => {
+    const onCopy = vi.fn(async () => {});
+    handed({ pieces: { state: 'unchecked', claude: 'Check what the exploration "Orders" (#611) adds that the library does not have, and record it in Bridge.' } }, { onCopy });
+    expect(screen.getByText('Not checked against the library.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Check in Claude/ }));
+    expect(onCopy).toHaveBeenCalledWith(expect.stringContaining('adds that the library does not have'));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Copied. Paste it in Claude.'));
+  });
+
+  it('says the line of the write that brought it here as a toast, once', async () => {
+    handed({}, { said: 'Done exploring. Your developers take it from here.' });
+    expect(await screen.findByText('Done exploring. Your developers take it from here.')).toBeTruthy();
+    expect(document.querySelector('.xp-said')!.textContent).toBe('');
+  });
+
+  it('shipped: the tag, the product itself, and how it went', () => {
+    handed({ status: 'shipped', steps: steps.map((s) => ({ ...s, status: 'done' as const })) });
+    expect(screen.getByText('Shipped', { selector: '[class*="badge"]' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /See it in the product/ })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'How it went' })).toBeTruthy();
+  });
+
+  it('has no axe violations', async () => {
+    const { container } = handed({ pieces: { state: 'rows', rows: [{ id: 'a', title: 'Alert: count', href: '?request=81', line: 'Requested', tone: 'neutral', opens: 'request', number: 81 }] } });
+    await expectNoAxeViolations(container);
+  });
+});

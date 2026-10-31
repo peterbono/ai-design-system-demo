@@ -22,7 +22,7 @@ const b64url = (b: Buffer) => b.toString('base64').replace(/=+$/, '').replace(/\
 const VERIFIER = 'v'.repeat(64);
 const CHALLENGE = b64url(createHash('sha256').update(VERIFIER).digest());
 
-function world(o: { push?: boolean; refreshFails?: boolean; realMcp?: boolean } = {}) {
+function world(o: { push?: boolean; refreshFails?: boolean; realMcp?: boolean; checkFails?: boolean } = {}) {
   let t = Date.parse('2026-10-25T10:00:00Z');
   const calls: { url: string; method: string; body?: string }[] = [];
   let issued = 0;
@@ -57,11 +57,17 @@ function world(o: { push?: boolean; refreshFails?: boolean; realMcp?: boolean } 
   };
   // realMcp: the real Bridge MCP server (packages/mcp handleHttp) on a real context, GitHub faked by `f`.
   const fakes = o.realMcp ? {} : { mcp, context: async (x: { repo: string; token: string }) => ({ repo: x.repo, token: x.token }) as unknown as BridgeContext };
-  const deps = { fetch: f, now: () => t, redis, ...fakes };
+  const checked: { repo: string; pr: number | string }[] = [];
+  const checkPieces = async (ctx: BridgeContext, pr: number | string) => {
+    if (o.checkFails) throw new Error('GitHub answered 500');
+    checked.push({ repo: (ctx as unknown as { repo: string }).repo, pr });
+    return { pieces: [{ id: 'badge-overdue' }, { id: 'color-c2410c' }], recorded: true };
+  };
+  const deps = { fetch: f, now: () => t, redis, ...fakes, checkPieces };
   const call = (path: string, init: { method?: string; headers?: Record<string, string>; body?: string } = {}) =>
     handleConnector(new Request(`${SITE}${path}`, { method: init.method ?? 'GET', headers: { host: HOST, ...(init.headers ?? {}) }, ...(init.body !== undefined ? { body: init.body } : {}) }), env, deps);
   const sessionsCall = (path: string, headers: Record<string, string>) => handleFixSessions(new Request(`${SITE}${path}`, { headers: { host: HOST, ...headers } }), env, deps);
-  return { calls, redis, env, call, sessionsCall, mcpSeen, toolAnswers, tick: (ms: number) => (t += ms), now: () => t };
+  return { calls, redis, env, call, sessionsCall, mcpSeen, toolAnswers, checked, tick: (ms: number) => (t += ms), now: () => t };
 }
 
 const form = (o: Record<string, string>) => ({ method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(o).toString() });
@@ -285,6 +291,40 @@ describe('fix sessions: real steps from tool calls, never a percentage', () => {
     expect(other.status).toBe(403);
     expect(other.headers.get('access-control-allow-origin')).toBe('*');
     expect((await w.call('/api/mcp?view=session&repo=acme/design&component=Tabs')).status).toBe(401);
+  });
+});
+
+describe('Studio: the library check of an exploration (?view=pieces)', () => {
+  const post = (w: ReturnType<typeof world>, body: unknown, headers: Record<string, string> = { authorization: 'Bearer ghu_user_token_9_0000000000' }) =>
+    w.call('/api/mcp?view=pieces', { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+
+  it('runs the check with the person token and records it: a number, or a product repository reference', async () => {
+    const w = world();
+    const r = await post(w, { repo: 'acme/design', pr: 12 });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ checked: true, pieces: 2 });
+    expect((await post(w, { repo: 'acme/design', pr: 'shop#7' })).status).toBe(200);
+    expect(w.checked).toEqual([
+      { repo: 'acme/design', pr: 12 },
+      { repo: 'acme/design', pr: 'shop#7' },
+    ]);
+  });
+
+  it('needs a GitHub sign-in with push, a POST and an exploration number', async () => {
+    const w = world({ push: false });
+    expect((await post(w, { repo: 'acme/design', pr: 12 }, {})).status).toBe(401);
+    expect((await post(w, { repo: 'acme/design', pr: 12 })).status).toBe(403);
+    expect((await post(world(), { repo: 'acme/design', pr: '12; rm' })).status).toBe(400);
+    expect((await world().call('/api/mcp?view=pieces&repo=acme/design')).status).toBe(405);
+    expect(w.checked).toEqual([]);
+  });
+
+  it('answers a designer sentence when the check fails, never the error', async () => {
+    const r = await post(world({ checkFails: true }), { repo: 'acme/design', pr: 12 });
+    expect(r.status).toBe(422);
+    const body = await r.json();
+    expect(body.message).toBe('Bridge could not check it against the library this time.');
+    expect(JSON.stringify(body)).not.toMatch(/GitHub answered/);
   });
 });
 

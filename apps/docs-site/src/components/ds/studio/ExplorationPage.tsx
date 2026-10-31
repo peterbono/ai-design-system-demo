@@ -6,19 +6,61 @@
 //   neutral frame) with one group of actions: "Open the preview" (with the Bridge toolbar, Before and After, when the
 //   product supports it) and "Continue in Claude", the Harbor card "Happy with it?" (Done exploring), and the last 3
 //   events.
+// - After Done exploring (Waiting for code, Being built, Shipped), the same family: the status tag, who said done and
+//   when, the preview with one action, and the one Harbor zone on what happens next: the hand-off in three steps (the
+//   DS Checklist), then what the library gets from it (the pieces Bridge found, each with its request status; Bridge
+//   runs that check itself, the page shows it while it runs). The activity under it. A write's line is a DS toast.
 // The "..." menu holds Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
 // over lib/exploration-page.ts. Styles: styles/exploration-page.css.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { ChevronLeft, Copy as CopyIcon, Ellipsis, ExternalLink } from 'lucide-react';
-import { Accordion, AccordionItem, Avatar, Badge, Breadcrumb, Button, Icon, IconButton, Link, Menu, MenuContent, MenuItem, MenuTrigger, SegmentedControl, Skeleton, Tooltip } from '@bridge-ds/react';
+import {
+  Accordion,
+  AccordionItem,
+  Avatar,
+  Badge,
+  Breadcrumb,
+  Button,
+  Card,
+  CardBody,
+  Checklist,
+  ChecklistRow,
+  Icon,
+  IconButton,
+  Link,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+  SegmentedControl,
+  Skeleton,
+  Spinner,
+  ToastProvider,
+  TokenValue,
+  Tooltip,
+  useToast,
+} from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
+import { Drawing } from './Drawing';
 import { Who } from './faces';
-import type { ActivityRow, DoneAction, PageFace } from '../../../lib/exploration-page';
+import { explorationTag, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
 import { studioHref } from '../../../lib/team-path';
 
-export type ExplorationStage = 'loading' | 'not-started' | 'exploring';
+export type ExplorationStage = 'loading' | 'not-started' | 'exploring' | 'handed-off';
+
+/** After Done exploring: where it stands, the three steps, and what the library gets from it. */
+export interface HandoffView {
+  status: HandoffStatus;
+  /** Who said Done exploring, and when in words ("Oct 30"). */
+  doneBy: PageFace | null;
+  doneWhen: string;
+  steps: HandoffStep[];
+  pieces: LibraryPieces;
+  /** The one action of a piece still without a library side (send it), when this viewer can. */
+  onPiece?: ((piece: SentPiece) => Promise<string | void>) | null;
+}
 export type ClaudeWhere = 'app' | 'terminal';
 
 export interface ExplorationPageProps {
@@ -59,7 +101,12 @@ export interface ExplorationPageProps {
   developer: { label: string; value: string }[];
   take: { commands: [string, string]; note: string } | null;
   githubUrl: string;
+  /** The line a write produced (Done exploring, Archive): shown once as a DS toast. */
   said?: string;
+  /** After Done exploring (stage 'handed-off'). */
+  handoff?: HandoffView | null;
+  /** The product's name and the screen the exploration changed, for the preview plate while no capture exists. */
+  plate?: { product: string; screen: string | null } | null;
 }
 
 const COPIED = 'Copied. Paste it in Claude.';
@@ -158,6 +205,22 @@ function ActivityList({ rows }: { rows: ActivityRow[] | null }) {
   );
 }
 
+/**
+ * The preview while Bridge has no capture of the screen: an honest plate, not a fake wireframe. The changed screen's
+ * name in the display face, the product, and the Field Guide drawing of a screen being painted.
+ */
+export function ScreenPlate({ product, screen }: { product: string; screen: string | null }) {
+  return (
+    <div className="xp-frame xp-plate" aria-hidden="true">
+      <Drawing name="paint" width={88} className="xp-plate-art" />
+      <span className="xp-plate-text">
+        <span className="xp-plate-screen">{screen ?? product}</span>
+        <span className="xp-muted">{screen ? `${product} · no screenshot yet` : 'No screenshot yet'}</span>
+      </span>
+    </div>
+  );
+}
+
 function EmptyFrame({ label }: { label: string | null }) {
   return (
     <div className={label ? 'xp-frame is-empty' : 'xp-frame is-neutral'} aria-hidden="true">
@@ -172,9 +235,142 @@ function EmptyFrame({ label }: { label: string | null }) {
   );
 }
 
+/** The line a write produced, once, as a DS toast (success, or danger when it says something did not happen). */
+function SaidToast({ said }: { said: string | undefined }) {
+  const toast = useToast();
+  const shown = useRef<string | null>(null);
+  useEffect(() => {
+    if (!said || shown.current === said) return;
+    shown.current = said;
+    toast.add({ title: said, tone: 'success', timeout: 8000 });
+  }, [said, toast]);
+  return null;
+}
+
+/** "Waiting for code", "Being built", "Shipped": the tag of the title row, with the same words as the lists. */
+function StatusTag({ status, notStarted }: { status: string; notStarted?: boolean }) {
+  const t = explorationTag(status, notStarted ? { notStarted } : {});
+  return (
+    <Badge tone={t.tone} size="md" dot={t.dot} className={status === 'active' && !notStarted ? 'xp-exploring' : undefined}>
+      {t.label}
+    </Badge>
+  );
+}
+
+function PieceItem({ piece, onPiece, say }: { piece: SentPiece; onPiece: HandoffView['onPiece']; say: (s: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const act = piece.action && onPiece;
+  return (
+    <li className="xp-piece-item">
+      <Card interactive={Boolean(piece.href)} padding="compact" className="xp-piece">
+        <CardBody className="xp-piece-body">
+          {/* The value beside the name, unless the name already says it ("New color #C2410C"). */}
+          {piece.value && !piece.title.toLowerCase().includes(piece.value.toLowerCase()) && <TokenValue value={piece.value} className="xp-piece-value" aria-hidden="true" />}
+          <span className="xp-piece-text">
+            {piece.href ? (
+              <Link href={piece.href} variant="subtle" data-card-primary {...(piece.opens ? { [`data-open-${piece.opens}`]: piece.number ?? '' } : {})}>
+                <strong>{piece.title}</strong>
+              </Link>
+            ) : (
+              <strong>{piece.title}</strong>
+            )}
+            {piece.line ? (
+              <Badge tone={piece.tone} size="md" className="xp-piece-tag">
+                {piece.line}
+              </Badge>
+            ) : (
+              !act && <span className="xp-muted">Not sent to the library yet</span>
+            )}
+          </span>
+          {act && (
+            <Button
+              variant="secondary"
+              size="md"
+              className="xp-piece-act"
+              loading={busy}
+              onClick={() => {
+                setBusy(true);
+                onPiece!(piece)
+                  .then((r) => r && say(r))
+                  .catch((err: Error) => say(err.message))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              {piece.action!.label}
+            </Button>
+          )}
+        </CardBody>
+      </Card>
+    </li>
+  );
+}
+
+/** What the library gets from it: the pieces with their request status, the check while it runs, or not checked. */
+function LibraryPart({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void }) {
+  const x = h.pieces;
+  if (x.state === 'hidden') return null;
+  return (
+    <div className="xp-lib">
+      <h3 className="xp-h3">For the library</h3>
+      {x.state === 'loading' ? (
+        <Skeleton variant="rect" className="xp-skel-piece" />
+      ) : x.state === 'checking' ? (
+        <p className="xp-checking" role="status">
+          <Spinner size="sm" />
+          Bridge is checking what the library is missing.
+        </p>
+      ) : x.state === 'none' ? (
+        <p>Nothing missing: everything comes from the library.</p>
+      ) : x.state === 'unchecked' ? (
+        <div className="xp-unchecked">
+          <p className="xp-muted">Not checked against the library.</p>
+          {x.claude && (
+            <Button variant="secondary" size="md" className="xp-continue" onClick={() => void p.onCopy(x.claude!).then(() => say(COPIED), () => say('Select the line and copy it.'))}>
+              <ClaudeGlyph />
+              Check in Claude
+            </Button>
+          )}
+        </div>
+      ) : (
+        <ul className="xp-pieces">
+          {x.rows.map((r) => (
+            <PieceItem key={r.id} piece={r} onPiece={h.onPiece} say={say} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** The one Harbor zone after Done exploring: the hand-off in three steps, then the library part. */
+function HandoffCard({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void }) {
+  return (
+    <section className="xp-next zone" aria-labelledby="xp-next-h">
+      <h2 className="xp-h2" id="xp-next-h">
+        {h.status === 'shipped' ? 'How it went' : 'What happens next'}
+      </h2>
+      <Checklist label="From exploration to product" className="xp-steps">
+        {h.steps.map((s) => (
+          <ChecklistRow key={s.title} status={s.status} title={s.title} detail={s.detail} statusLabel={s.status === 'done' ? 'Done' : s.current ? 'Now' : 'Next'} aria-current={s.current ? 'step' : undefined} />
+        ))}
+      </Checklist>
+      <LibraryPart h={h} p={p} say={say} />
+    </section>
+  );
+}
+
 export function ExplorationPage(p: ExplorationPageProps) {
+  return (
+    <ToastProvider limit={2}>
+      <ExplorationBody {...p} />
+      <SaidToast said={p.said} />
+    </ToastProvider>
+  );
+}
+
+function ExplorationBody(p: ExplorationPageProps) {
   const [where, setWhere] = useState<ClaudeWhere>('app');
-  const [said, setSaid] = useState(p.said ?? '');
+  const [said, setSaid] = useState('');
   const line = where === 'app' ? p.lines.app : p.lines.terminal;
   const archive = () => {
     setSaid('');
@@ -183,6 +379,7 @@ export function ExplorationPage(p: ExplorationPageProps) {
       .catch((err: Error) => setSaid(err.message));
   };
   const notStarted = p.stage === 'not-started';
+  const handoff = p.stage === 'handed-off' ? (p.handoff ?? null) : null;
   return (
     <div className="xp">
       <div className="xp-top">
@@ -194,16 +391,7 @@ export function ExplorationPage(p: ExplorationPageProps) {
           <h1 className="xp-title" tabIndex={-1}>
             {p.title}
           </h1>
-          {p.stage !== 'loading' &&
-            (notStarted ? (
-              <Badge tone="neutral" size="md">
-                Not started
-              </Badge>
-            ) : (
-              <Badge tone="info" size="md" dot className="xp-exploring">
-                Exploring
-              </Badge>
-            ))}
+          {p.stage !== 'loading' && <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} />}
           <span className="xp-spacer" />
           {p.onArchive && (
             <Menu>
@@ -216,7 +404,22 @@ export function ExplorationPage(p: ExplorationPageProps) {
             </Menu>
           )}
         </header>
-        {p.stage === 'exploring' && p.headline ? (
+        {handoff ? (
+          <p className="xp-meta">
+            {handoff.doneBy && <Who p={{ login: handoff.doneBy.login, name: handoff.doneBy.name, agent: handoff.doneBy.agent, avatar: handoff.doneBy.avatar }} size="xs" />}
+            <span>
+              {handoff.doneBy ? (
+                <>
+                  <strong>{handoff.doneBy.name}</strong> said done exploring
+                </>
+              ) : (
+                'Done exploring'
+              )}
+              {handoff.doneWhen && <span className="xp-muted">, {handoff.doneWhen}</span>}
+              {handoff.doneBy?.login !== p.author.login && <span className="xp-muted"> · started by {p.author.name}</span>}
+            </span>
+          </p>
+        ) : p.stage === 'exploring' && p.headline ? (
           <p className="xp-meta">
             <Who p={{ login: p.headline.who.login, name: p.headline.who.name, agent: p.headline.who.agent, avatar: p.headline.who.avatar }} size="xs" />
             <span>
@@ -256,21 +459,23 @@ export function ExplorationPage(p: ExplorationPageProps) {
           <EmptyFrame label="Your preview" />
         </section>
       )}
-      {p.stage === 'exploring' && (
+      {(p.stage === 'exploring' || handoff) && (
         <div className="xp-grid">
           <section className="xp-preview" aria-label="Preview">
             {p.thumb ? (
               <div className="xp-frame is-shot">
                 <img src={p.thumb} alt="The latest captured screen of this exploration" loading="lazy" />
               </div>
+            ) : p.plate ? (
+              <ScreenPlate product={p.plate.product} screen={p.plate.screen} />
             ) : (
               <EmptyFrame label={null} />
             )}
-            <div className="xp-acts xp-preview-acts">
+            <div className={handoff ? 'xp-acts' : 'xp-acts xp-preview-acts'}>
               {p.previewUrl ? (
                 // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
                 <ButtonLink variant="primary" size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
-                  Open the preview
+                  {handoff?.status === 'shipped' ? 'See it in the product' : 'Open the preview'}
                 </ButtonLink>
               ) : p.previewBuilding ? (
                 // A status, not a dead control: Button's loading state keeps the primary colors (no disabled grey).
@@ -282,7 +487,7 @@ export function ExplorationPage(p: ExplorationPageProps) {
                   Open the preview
                 </Button>
               )}
-              <ContinueButton p={p} line={p.lines.app} say={setSaid} variant="secondary" />
+              {!handoff && <ContinueButton p={p} line={p.lines.app} say={setSaid} variant="secondary" />}
             </div>
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
               <p className="xp-muted xp-note" id="xp-preview-note">
@@ -291,7 +496,7 @@ export function ExplorationPage(p: ExplorationPageProps) {
             )}
           </section>
           <div className="xp-side">
-            <DoneCard p={p} />
+            {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} /> : <DoneCard p={p} />}
             <ActivityList rows={p.activity} />
           </div>
         </div>

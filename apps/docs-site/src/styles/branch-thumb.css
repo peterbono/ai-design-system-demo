@@ -141,44 +141,55 @@
   object-position: top center;
 }
 
-/* Screen not captured yet: a sketch of a page (a heading, two blocks) on the subtle surface. */
+/* Screen not captured yet: a plate on the subtle surface, the Field Guide drawing beside the changed screen's name
+   and the product. Honest about having no screenshot, never a fake wireframe. */
 .bt--screen:not(:has(img)) {
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
   background: var(--color-bg-subtle);
 }
 
-.bt-sketch {
+.bt-plate {
   display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4) var(--space-6);
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
 }
 
-.bt--row .bt-sketch {
+.bt--row .bt-plate {
+  padding: var(--space-1);
+}
+
+.bt-plate-art {
+  flex: none;
+  color: var(--color-text-default);
+}
+
+.bt-plate-text {
+  display: grid;
   gap: var(--space-0-5);
-  padding: var(--space-1-5);
+  min-width: 0;
 }
 
-.bt-sketch-head {
-  display: block;
-  width: 48%;
-  height: var(--space-3);
-  border-radius: var(--radius-inset);
-  background: var(--color-border-emphasis);
+.bt-plate-screen {
+  overflow: hidden;
+  color: var(--color-text-default);
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-body-size);
+  font-weight: var(--typography-h1-weight);
+  line-height: var(--typography-body-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.bt-sketch-block {
-  display: block;
-  flex: 1;
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-inset);
-  background: var(--color-surface-default);
-}
-
-.bt--row .bt-sketch-head {
-  height: var(--space-1);
+.bt-plate-product {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Text: lines of a paragraph; the after lines in Deep Harbor, the one strong colour. */
