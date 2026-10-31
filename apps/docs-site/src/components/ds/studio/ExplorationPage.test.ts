@@ -295,6 +295,7 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
   const steps = [
     { status: 'done' as const, title: 'Done exploring', detail: 'Florian, today' },
     { status: 'waiting' as const, title: 'Developers build it', detail: 'Waiting for a developer', current: true },
+    { status: 'waiting' as const, title: 'Review', detail: 'After the developers' },
     { status: 'waiting' as const, title: 'Shipped', detail: 'Then live in Admin demo' },
   ];
   const handed = (over: Partial<NonNullable<ExplorationPageProps['handoff']>> = {}, page: Partial<ExplorationPageProps> = {}) =>
@@ -316,7 +317,7 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
     expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://orders-git-explore.vercel.app/?bridge=611');
     expect(screen.queryByRole('link', { name: /Continue in Claude/ })).toBeNull();
     const next = screen.getByRole('region', { name: 'What happens next' });
-    expect(within(next).getByRole('list', { name: 'From exploration to product' }).querySelectorAll('li')).toHaveLength(3);
+    expect(within(next).getByRole('list', { name: 'From exploration to product' }).querySelectorAll('li')).toHaveLength(4);
     expect(within(next).getByText('Waiting for a developer')).toBeTruthy();
     expect(within(next).getByText('Nothing missing: everything comes from the library.')).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Activity' })).toBeTruthy();
@@ -396,6 +397,23 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
     const grid = document.querySelector('.xp-board')!;
     expect(grid.classList.contains('is-handoff')).toBe(true);
     expect([...grid.children].map((c) => c.className.split(' ')[0])).toEqual(['xp-preview', 'xp-side', 'xp-activity']);
+  });
+
+  it('the viewer asked to review: the review row says so, with the link to compare with the exploration', () => {
+    handed({
+      status: 'building',
+      steps: [
+        steps[0]!,
+        { status: 'done' as const, title: 'Built', detail: 'By Sam' },
+        { status: 'waiting' as const, title: 'Review', detail: 'Your review', current: true, link: { label: 'Compare with the exploration', href: 'https://orders-git-explore.vercel.app' } },
+        steps[3]!,
+      ],
+    });
+    const next = screen.getByRole('region', { name: 'What happens next' });
+    const row = within(next).getByText('Your review').closest('li')!;
+    expect(row.getAttribute('aria-current')).toBe('step');
+    expect(within(row).getByRole('link', { name: 'Compare with the exploration' }).getAttribute('href')).toBe('https://orders-git-explore.vercel.app');
+    expect(within(next).getAllByRole('link', { name: 'Compare with the exploration' })).toHaveLength(1);
   });
 
   it('shipped: the tag, the product itself, and how it went', () => {

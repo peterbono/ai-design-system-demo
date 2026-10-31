@@ -5,9 +5,10 @@
 // files touch tokens or components, the visual impact manifest for a captured image. Writes: Done exploring (the
 // shared dialog), and in the "..." menu Rename, Back to exploring and Archive, with the viewer's token, as on the other exploration pages.
 // After Done exploring (Waiting for code, Being built, Shipped) the same page: who said done (Bridge's commit at that
-// moment, else the label event), the developers on it, the three steps, and the library part. A product exploration
-// never checked against the library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption
-// audit with the viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
+// moment, else the label event), the developers on it, the four steps (the review: one read of the pull request's
+// reviews once the developers started), and the library part. A product exploration never checked against the
+// library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
+// viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
 import { archiveExplorationOnGitHub, explorationStage, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
@@ -26,9 +27,12 @@ import {
   libraryPreviewApp,
   pageLines,
   requestPieces,
+  reviewersAsked,
+  reviewVerdictOf,
   startedTail,
   type DoneAction,
   type LibraryPieces,
+  type PullReviewLike,
   type SentPiece,
 } from '../lib/exploration-page';
 import { pieceRows, type PieceRowView } from '../lib/product-branch';
@@ -56,6 +60,7 @@ import { loadVisualImpact } from './reviews/visual-impact';
 import { previewShotOf } from './preview-shots';
 import { knownNames } from './people';
 import { loginKey } from '../lib/people';
+import { siteApprovers } from './teams';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -120,6 +125,16 @@ async function readyLabelEvent(r: ExplorationRow): Promise<{ login: string; at: 
     return e ? { login: e.actor!.login!, at: e.created_at } : null;
   } catch {
     return null;
+  }
+}
+
+/** The pull request's reviews (one read, once the developers have started); an empty list when GitHub cannot be read. */
+async function pullReviews(r: ExplorationRow): Promise<PullReviewLike[]> {
+  const own = productRepoByKey(r.product);
+  try {
+    return (await ghGet<PullReviewLike[]>(`${own ? `/repos/${own.repo}` : R}/pulls/${r.number}/reviews?per_page=100`)).data;
+  } catch {
+    return [];
   }
 }
 
@@ -309,19 +324,31 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     return;
   }
 
-  // After Done exploring: who said it and when, the developers on it, the three steps, the library part.
+  // After Done exploring: who said it and when, the developers on it, the four steps, the library part.
   const status = r.status as 'ready' | 'building' | 'shipped';
   const block = parseExplorationBody(pull.body);
   const label = doneByOf(commits) ? null : await readyLabelEvent(r);
   const doneLogin = doneByOf(commits) ?? label?.login ?? r.author;
   const doneAt = block?.doneAt ?? label?.at ?? null;
   const builders = buildersOf({ assignees: (pull as { assignees?: { login: string }[] }).assignees ?? [], commits, doneAt, author: r.author });
-  const more = connected() ? await namesOf([doneLogin, ...builders]).catch(() => ({}) as Record<string, string>) : {};
+  // The review step: the pull request's reviews (one read, once the developers have started), its draft state, and who
+  // is asked: the requested reviewers, else the design approvers of the team.
+  const reviews = status === 'ready' ? [] : await pullReviews(r);
+  const verdict = reviewVerdictOf(reviews);
+  const asked = reviewersAsked({ requested: (pull as { requested_reviewers?: { login?: string }[] }).requested_reviewers ?? [], approvers: siteApprovers().design, builders });
+  const more = connected() ? await namesOf([...new Set([doneLogin, ...builders, ...asked, ...(verdict ? [verdict.login] : [])])]).catch(() => ({}) as Record<string, string>) : {};
   if (current?.key !== key) return;
-  const allNames = { ...names, ...more };
+  const allNames = { ...names, ...knownNamesOf([...asked, ...(verdict ? [verdict.login] : [])]), ...more };
   const doneBy = faceOf(doneLogin, false, allNames);
   const shippedAt = (pull as { merged_at?: string | null }).merged_at ?? null;
-  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name });
+  const review = {
+    draft: pull.draft !== false,
+    asked: asked.map((l) => faceOf(l, false, allNames)),
+    verdict: verdict ? { kind: verdict.kind, by: faceOf(verdict.login, false, allNames) } : null,
+    viewer,
+    compareUrl: v.state === 'branch' ? v.url : null,
+  };
+  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, review });
   const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
   // Who may run the check: someone who can write it, signed in with GitHub, in a team that writes branches.
   const canCheck = connected() && direct && !emailOnProduct && (keeper || currentAccess()?.write === true);

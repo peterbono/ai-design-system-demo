@@ -10,7 +10,7 @@
 //   product supports it) and the tool's button, the Harbor card "Happy with it?" (Done exploring), and the last 3
 //   events.
 // - After Done exploring (Waiting for code, Being built, Shipped), the same family: the status tag, who said done and
-//   when, the preview with one action, and the one Harbor zone on what happens next: the hand-off in three steps (the
+//   when, the preview with one action, and the one Harbor zone on what happens next: the hand-off in four steps (the
 //   DS Checklist), then what the library gets from it (the pieces Bridge found, each with its request status; Bridge
 //   runs that check itself, the page shows it while it runs). The activity under it. A write's line is a DS toast.
 // The "..." menu holds Rename (a DS Dialog), Back to exploring (a confirmation, waiting for code only) and Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
@@ -66,7 +66,7 @@ export { claudeNewUrl };
 
 export type ExplorationStage = 'loading' | 'not-started' | 'exploring' | 'handed-off';
 
-/** After Done exploring: where it stands, the three steps, and what the library gets from it. */
+/** After Done exploring: where it stands, the four steps, and what the library gets from it. */
 export interface HandoffView {
   status: HandoffStatus;
   /** Who said Done exploring, and when in words ("Oct 30"). */
@@ -381,7 +381,7 @@ function LibraryPart({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
   );
 }
 
-/** The one Harbor zone after Done exploring: the hand-off in three steps, then the library part. */
+/** The one Harbor zone after Done exploring: the hand-off in four steps, then the library part. */
 function HandoffCard({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void }) {
   return (
     <section className="xp-next zone" aria-labelledby="xp-next-h">
@@ -390,7 +390,21 @@ function HandoffCard({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
       </h2>
       <Checklist label="From exploration to product" className="xp-steps">
         {h.steps.map((s) => (
-          <ChecklistRow key={s.title} status={s.status} title={s.title} detail={s.detail} statusLabel={s.status === 'done' ? 'Done' : s.current ? 'Now' : 'Next'} aria-current={s.current ? 'step' : undefined} />
+          <ChecklistRow
+            key={s.title}
+            status={s.status}
+            title={s.title}
+            detail={s.detail}
+            statusLabel={s.status === 'done' ? 'Done' : s.current ? 'Now' : 'Next'}
+            aria-current={s.current ? 'step' : undefined}
+            action={
+              s.link ? (
+                <Link href={s.link.href} target="_blank" rel="noopener">
+                  {s.link.label}
+                </Link>
+              ) : undefined
+            }
+          />
         ))}
       </Checklist>
       <LibraryPart h={h} p={p} say={say} />
