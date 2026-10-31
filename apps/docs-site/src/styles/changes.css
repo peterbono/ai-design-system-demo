@@ -804,6 +804,8 @@ details[open] > summary .cg-sec-chev {
 #cg-review:not([hidden]),
 .bl {
   display: grid;
+  /* One column that never grows past the page: the state tabs scroll inside it on a phone. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
 }
 
@@ -816,11 +818,48 @@ details[open] > summary .cg-sec-chev {
   gap: var(--space-4);
 }
 
+/* The toolbar: the state tabs lead (where the work stands), the kind and people selects follow at the end of the
+   same line, or on their own line once the tabs need the width. The tabs never widen the page: on a phone the
+   control scrolls sideways inside its row (SegmentedControl overflow). */
 .bl-filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+}
+
+.bl-tabs {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.bl-filters > .bl-narrow {
+  margin-inline-start: auto;
+}
+
+/* A tab: its state, then its count, quieter. */
+.bl-tab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.bl-tab-n {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .bl-filters > .bl-narrow {
+    margin-inline-start: 0;
+    inline-size: 100%;
+  }
+
+  .bl-narrow > * {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
 }
 
 .bl-note,
@@ -831,8 +870,8 @@ details[open] > summary .cg-sec-chev {
   margin: 0;
 }
 
-/* Waiting on me: the kind and designer filters sit on the same line as the whose-work control, at its height, wide
-   enough for the longest kind and its count. */
+/* The kind and people filters sit on the same line as the state tabs when they fit, wide enough for the longest
+   kind; the people select is narrower (a first name, or You). */
 .bl-narrow {
   display: flex;
   flex-wrap: wrap;
@@ -841,12 +880,12 @@ details[open] > summary .cg-sec-chev {
 }
 
 .bl-narrow > :first-child {
-  inline-size: var(--size-72);
+  inline-size: var(--size-60);
   max-inline-size: 100%;
 }
 
 .bl-narrow > :last-child {
-  inline-size: var(--size-60);
+  inline-size: var(--size-40);
   max-inline-size: 100%;
 }
 

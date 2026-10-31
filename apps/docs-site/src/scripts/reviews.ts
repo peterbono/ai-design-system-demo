@@ -435,6 +435,7 @@ function paintRows(rows: Row[], loading: boolean) {
     closedLimit: CLOSED_LIMIT,
     loading,
     viewer: listViewer(),
+    viewerName: currentViewer()?.name ?? null,
     connected: hasWorkingToken(),
     admin: el.dataset.admin || null,
     tokensRoot: el.dataset.tokensRoot || 'packages/tokens/src',

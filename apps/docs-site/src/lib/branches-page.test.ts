@@ -2,48 +2,113 @@ import { describe, expect, it } from 'vitest';
 import {
   barCopy,
   boxDisabled,
-  emptyWhoLine,
+  changesFiltersParam,
+  emptyTabLine,
+  isYours,
+  knownNames,
+  peopleOptions,
+  stateOf,
+  visibleTabs,
+  withChangesFilters,
+  YOU,
   finishedParam,
   groupByProduct,
   FINISHED_WORDS,
   mergedLine,
   mergedThisMonth,
-  onlyLine,
   productOf,
   selectable,
-  showsForWho,
   ownedBy,
-  showsDesignerFilter,
-  tabFilters,
   contributorTurn,
-  whoFilterParam,
 } from './branches-page';
 import { jargonIn } from './vocabulary';
 import type { ProductConfig } from '@bridge-ds/core';
 
-describe('whose work', () => {
-  it('opens on All unless the address says otherwise', () => {
-    expect(whoFilterParam('')).toBe('all');
-    expect(whoFilterParam('?who=mine')).toBe('mine');
-    expect(whoFilterParam('?who=waiting')).toBe('waiting');
-    expect(whoFilterParam('?who=nobody')).toBe('all');
+describe('state tabs and the address', () => {
+  it('opens on All, every filter read from the address', () => {
+    expect(changesFiltersParam('')).toEqual({ state: 'all', kind: 'all', by: null });
+    expect(changesFiltersParam('?state=exploring&kind=library&people=Ann-Leroy')).toEqual({ state: 'exploring', kind: 'library', by: 'ann-leroy' });
+    expect(changesFiltersParam('?state=nothing')).toEqual({ state: 'all', kind: 'all', by: null });
+    expect(changesFiltersParam('?people=you').by).toBe(YOU);
   });
 
-  it('Mine keeps the viewer branches, whatever the case or @', () => {
-    expect(showsForWho('mine', { author: 'Ann', yourTurn: false }, '@ann')).toBe(true);
-    expect(showsForWho('mine', { author: 'dana', yourTurn: true }, 'ann')).toBe(false);
+  it('keeps old links working', () => {
+    expect(changesFiltersParam('?who=mine')).toEqual({ state: 'all', kind: 'all', by: YOU });
+    expect(changesFiltersParam('?view=mine')).toEqual({ state: 'all', kind: 'all', by: YOU });
+    expect(changesFiltersParam('?who=waiting')).toEqual({ state: 'waiting', kind: 'all', by: null });
+    expect(changesFiltersParam('?archived=1').state).toBe('archived');
+    expect(changesFiltersParam('?status=waiting').state).toBe('code');
+    expect(changesFiltersParam('?status=draft').state).toBe('draft');
+    expect(changesFiltersParam('?by=dana&kind=docs')).toEqual({ state: 'all', kind: 'docs', by: 'dana' });
+    expect(changesFiltersParam('?by=~everyone').by).toBeNull();
   });
 
-  it('Waiting on me keeps the rows whose next step is the viewer', () => {
-    expect(showsForWho('waiting', { author: 'dana', yourTurn: true }, 'ann')).toBe(true);
-    expect(showsForWho('waiting', { author: 'dana', yourTurn: false }, 'ann')).toBe(false);
+  it('writes the filters back, defaults out of the address, old parameters dropped', () => {
+    expect(withChangesFilters('?who=mine&pr=3', { state: 'all', kind: 'all', by: YOU })).toBe('?pr=3&people=you');
+    expect(withChangesFilters('?archived=1', { state: 'archived', kind: 'all', by: null })).toBe('?state=archived');
+    expect(withChangesFilters('?state=code&kind=docs&people=dana', { state: 'all', kind: 'all', by: null })).toBe('');
+    expect(withChangesFilters('?status=merged', { state: 'all', kind: 'all', by: null })).toBe('?status=merged');
   });
 
-  it('signed out, only All shows rows', () => {
-    expect(showsForWho('all', { author: 'dana', yourTurn: false }, null)).toBe(true);
-    expect(showsForWho('mine', { author: 'dana', yourTurn: false }, null)).toBe(false);
-    expect(emptyWhoLine('mine', false)).toBe('Sign in to see your changes.');
-    expect(emptyWhoLine('waiting', true)).toBe('No change waits on you.');
+  it('puts each row under the tab its tag names', () => {
+    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Not started' } })).toBe('not-started');
+    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Exploring' } })).toBe('exploring');
+    expect(stateOf({ lifecycle: 'exploration', pill: null })).toBe('exploring');
+    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Waiting for code' } })).toBe('code');
+    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Being built' } })).toBeNull();
+    expect(stateOf({ lifecycle: 'draft', pill: { label: 'Draft' } })).toBe('draft');
+    expect(stateOf({ lifecycle: 'draft', pill: { label: 'Waiting for a developer' } })).toBe('code');
+    expect(stateOf({ lifecycle: 'ready', pill: { label: 'Waiting for Ann' } })).toBe('review');
+    expect(stateOf({ lifecycle: 'waiting', pill: null })).toBe('code');
+    expect(stateOf({ lifecycle: 'shipped', pill: null })).toBeNull();
+  });
+
+  it('shows All and Waiting on me always, the other tabs while they hold something or are picked', () => {
+    const tabs = (c: Record<string, number>, cur = 'all') => visibleTabs(c, cur as never).map((t) => `${t.label} ${t.count}`);
+    expect(tabs({ all: 3, exploring: 2, 'not-started': 1 })).toEqual(['All 3', 'Waiting on me 0', 'Not started 1', 'Exploring 2']);
+    expect(tabs({ all: 1, archived: 1, review: 1 })).toEqual(['All 1', 'Waiting on me 0', 'In review 1', 'Archived 1']);
+    expect(tabs({ all: 0 }, 'code')).toEqual(['All 0', 'Waiting on me 0', 'Waiting for code 0']);
+  });
+
+  it('says what an empty tab is for, in designer words', () => {
+    expect(emptyTabLine('waiting', false)).toBe('Sign in to see what waits on you.');
+    expect(emptyTabLine('waiting', true)).toMatch(/^Nothing waits on you\./);
+    expect(emptyTabLine('all', true)).toBe('No open change.');
+    for (const t of ['all', 'waiting', 'not-started', 'exploring', 'draft', 'review', 'code', 'archived'] as const) {
+      expect(jargonIn(emptyTabLine(t, true))).toEqual([]);
+      expect(emptyTabLine(t, true)).not.toContain('\u2014');
+    }
+  });
+});
+
+describe('the people filter', () => {
+  it('You is the person the row shows: who asked for it, else the author, never Claude', () => {
+    expect(isYours({ author: 'Ann' }, '@ann')).toBe(true);
+    expect(isYours({ author: 'dana' }, 'ann')).toBe(false);
+    expect(isYours({ author: 'bridge-app[bot]', requester: { name: null, login: 'peterbono' } }, 'PeterBono')).toBe(true);
+    expect(isYours({ author: 'peterbono', requester: { name: 'Ann Leroy', login: null } }, 'peterbono', 'Florian Gouloubi')).toBe(false);
+    expect(isYours({ author: 'bridge-app[bot]', requester: { name: 'Florian Gouloubi', login: null } }, 'peterbono', 'Florian Gouloubi')).toBe(true);
+    expect(isYours({ author: 'peterbono', agent: true }, 'peterbono')).toBe(false);
+    expect(isYours({ author: 'bridge-app[bot]', mine: true }, 'leo@acme.design')).toBe(true);
+    expect(isYours({ author: 'dana' }, null)).toBe(false);
+  });
+
+  it('lists Everyone, then You, then the others by name', () => {
+    const o = [
+      { value: '~everyone', label: 'Everyone', count: 3 },
+      { value: 'ann', label: 'Ann', count: 1 },
+      { value: YOU, label: 'Florian', count: 2 },
+    ];
+    expect(peopleOptions(o, true).map((x) => `${x.label} ${x.count}`)).toEqual(['Everyone 3', 'You 2', 'Ann 1']);
+    expect(peopleOptions(o.slice(0, 2), true).map((x) => `${x.label} ${x.count}`)).toEqual(['Everyone 3', 'You 0', 'Ann 1']);
+    expect(peopleOptions(o.slice(0, 2), false).map((x) => x.label)).toEqual(['Everyone', 'Ann']);
+  });
+
+  it('knows a name for a login written bare on another row', () => {
+    const names = knownNames([{ requester: { name: 'Florian Gouloubi', login: 'peterbono' } }, { requester: { name: null, login: 'peterbono' } }, { requester: null }], { login: 'dana', name: 'Dana Kim' });
+    expect(names.get('peterbono')).toBe('Florian Gouloubi');
+    expect(names.get('dana')).toBe('Dana Kim');
+    expect(names.get('ann')).toBeUndefined();
   });
 });
 
@@ -101,8 +166,6 @@ describe('finished branches', () => {
     expect(finishedParam('?status=closed')).toEqual({ finished: true, only: null });
     expect(finishedParam('?status=draft')).toEqual({ finished: false, only: 'draft' });
     expect(finishedParam('?status=open')).toEqual({ finished: false, only: null });
-    expect(onlyLine('waiting')).toBe('Showing changes waiting for code only.');
-    expect(onlyLine(null)).toBeNull();
   });
 
   it('counts what merged since the first of the month', () => {
@@ -157,9 +220,9 @@ describe('email contributors on Branches', () => {
     expect(ownedBy({ author: 'bridge-app[bot]', number: 42, headRef: 'x' }, 'leo@acme.design', null)).toBe(false);
   });
 
-  it('shows Mine from that list', () => {
-    expect(showsForWho('mine', { author: 'bridge-app[bot]', yourTurn: false, mine: true }, 'leo@acme.design')).toBe(true);
-    expect(showsForWho('mine', { author: 'leo@acme.design', yourTurn: false, mine: false }, 'leo@acme.design')).toBe(false);
+  it('shows You from that list', () => {
+    expect(isYours({ author: 'bridge-app[bot]', mine: true }, 'leo@acme.design')).toBe(true);
+    expect(isYours({ author: 'leo@acme.design', mine: false }, 'leo@acme.design')).toBe(false);
   });
 
   it('waits on them only for their branches sent back with changes', () => {
@@ -167,20 +230,5 @@ describe('email contributors on Branches', () => {
     expect(contributorTurn({ own: true, changesRequested: [], open: true })).toBe(false);
     expect(contributorTurn({ own: false, changesRequested: ['dana'], open: true })).toBe(false);
     expect(contributorTurn({ own: true, changesRequested: ['dana'], open: false })).toBe(false);
-  });
-});
-
-describe('the filter bar on every tab', () => {
-  it('shows the designer filter on Waiting on me and All, not on Mine', () => {
-    expect(showsDesignerFilter('waiting')).toBe(true);
-    expect(showsDesignerFilter('all')).toBe(true);
-    expect(showsDesignerFilter('mine')).toBe(false);
-  });
-
-  it('keeps the picks across tabs and applies what each tab can', () => {
-    const picked = { kind: 'library', by: 'ann' };
-    expect(tabFilters('all', picked, ['ann', 'dana'])).toEqual({ kind: 'library', by: 'ann' });
-    expect(tabFilters('mine', picked, ['ann'])).toEqual({ kind: 'library', by: null });
-    expect(tabFilters('waiting', picked, ['dana'])).toEqual({ kind: 'library', by: null });
   });
 });

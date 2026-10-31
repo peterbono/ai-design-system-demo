@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// Branches: one filter bar on every tab. "All kinds" on every tab, "Everyone" on Waiting on me and All (not on Mine),
-// the picks kept across tabs.
+// Changes: the state tabs (All, Waiting on me, each state with something in it, Archived), and one filter bar on every
+// tab, the kind and the people (Everyone, You, then each designer), the picks kept across tabs.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { render, screen } from '@testing-library/react';
@@ -17,7 +17,7 @@ const row = (n: number, author: string, over: Partial<ListRow> = {}): ListRow =>
   agent: false,
   opens: 'pr',
   pill: null,
-  lifecycle: 'review' as ListRow['lifecycle'],
+  lifecycle: 'ready',
   yourTurn: false,
   behindBy: null,
   signals: null,
@@ -49,34 +49,68 @@ beforeEach(() => history.replaceState(null, '', '/studio/changes/'));
 
 const triggers = () => screen.getAllByRole('combobox').map((c) => c.textContent ?? '');
 
-describe('BranchesList filters', () => {
-  it('shows the kind and designer filters on All', async () => {
+describe('BranchesList tabs and filters', () => {
+  it('shows the state tabs with their counts, and the kind and people filters', async () => {
     const { container } = render(createElement(BranchesList, props()));
+    expect(screen.getByRole('radio', { name: /^All\s*3$/ })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: /^Waiting on me\s*1$/ })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: /^In review\s*3$/ })).toBeTruthy();
+    expect(screen.queryByRole('radio', { name: /Mine/ })).toBeNull();
+    expect(screen.queryByRole('radio', { name: /Exploring/ })).toBeNull();
     expect(triggers().some((t) => t.includes('All kinds'))).toBe(true);
     expect(triggers().some((t) => t.includes('Everyone'))).toBe(true);
     await expectNoAxeViolations(container);
   });
 
-  it('keeps the kind filter in place on Mine, without the designer one', async () => {
+  it('lists each state under its tab, Archived last, without the old archived line', async () => {
     const user = userEvent.setup();
+    const ex = (n: number, label: string) => row(n, 'ann', { opens: 'exploration', lifecycle: 'exploration', pill: { label, tone: 'neutral' } });
+    render(createElement(BranchesList, props({ rows: [ex(1, 'Not started'), ex(2, 'Exploring'), ex(3, 'Exploring')], archived: [ex(4, 'Archived')] })));
+    const names = screen.getAllByRole('radio').map((r) => r.textContent);
+    expect(names).toEqual(['All3', 'Waiting on me0', 'Not started1', 'Exploring2', 'Archived1']);
+    expect(screen.queryByText(/archived exploration\./)).toBeNull();
+    await user.click(screen.getByRole('radio', { name: /^Exploring/ }));
+    expect(screen.queryByText('Change 1')).toBeNull();
+    expect(screen.getByText('Change 2')).toBeTruthy();
+    expect(new URLSearchParams(location.search).get('state')).toBe('exploring');
+    await user.click(screen.getByRole('radio', { name: /^Archived/ }));
+    expect(screen.getByText('Change 4')).toBeTruthy();
+    expect(screen.queryByText('Change 2')).toBeNull();
+  });
+
+  it('opens old ?who=mine links on You, first in the people filter', () => {
+    history.replaceState(null, '', '/studio/changes/?who=mine');
     render(createElement(BranchesList, props()));
-    await user.click(screen.getByRole('radio', { name: 'Mine' }));
-    expect(triggers()).toHaveLength(1);
-    expect(triggers()[0]).toContain('All kinds');
+    expect(triggers().some((t) => t.includes('You'))).toBe(true);
     expect(screen.getByText('Change 3')).toBeTruthy();
     expect(screen.queryByText('Change 1')).toBeNull();
-    await user.click(screen.getByRole('radio', { name: 'Waiting on me' }));
-    expect(triggers()).toHaveLength(2);
   });
 
   it('keeps a kind picked in the address when the tab changes', async () => {
     history.replaceState(null, '', '/studio/changes/?kind=docs');
     const user = userEvent.setup();
     render(createElement(BranchesList, props()));
-    expect(screen.getByText(/No change of this kind/)).toBeTruthy();
-    await user.click(screen.getByRole('radio', { name: 'Mine' }));
+    expect(screen.getByText(/Nothing here matches these filters/)).toBeTruthy();
+    await user.click(screen.getByRole('radio', { name: /^Waiting on me/ }));
     expect(new URLSearchParams(location.search).get('kind')).toBe('docs');
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
-    expect(screen.getByText('Change 3')).toBeTruthy();
+    expect(screen.getByText('Change 2')).toBeTruthy();
+  });
+
+  it('shows one display name for one person, even where only the login is recorded', () => {
+    render(
+      createElement(
+        BranchesList,
+        props({
+          viewer: 'peterbono',
+          rows: [
+            row(1, 'bridge-app[bot]', { requester: { name: 'Florian Gouloubi', login: 'peterbono' }, ago: '16 h ago' }),
+            row(2, 'peterbono', { requester: { name: null, login: 'peterbono' }, ago: '29 min ago' }),
+          ],
+        }),
+      ),
+    );
+    expect(screen.queryByText(/peterbono/)).toBeNull();
+    expect(screen.getAllByText(/^Florian/).length).toBeGreaterThanOrEqual(2);
   });
 });
