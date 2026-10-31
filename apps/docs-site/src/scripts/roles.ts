@@ -7,7 +7,7 @@
 // (withRoles keeps the rest byte for byte). The tier comes from the shared classifier: bridge.config.json is a
 // guardrail file.
 // It also writes `changes` (how changes reach the code: suggestions or pull requests) the same way, for the Settings
-// band and the onboarding step (proposeChangesMode), the team's display name `name` (proposeTeamName), and reads what the GitHub App may do on the repository.
+// band and the onboarding step (proposeChangesMode), the team's display name `name` (proposeTeamName), a product's name (proposeProductName), and reads what the GitHub App may do on the repository.
 import { classifyRisk, DEFAULT_RIGHTS, type Owners, type Rights, type VisualImpactMode } from '@bridge-ds/core';
 import { choiceOf, groupsOf, roleRows, rolesProposal, sameOwners, withRoles, type RightChoice } from '../lib/roles-view';
 import { selectSegment } from './shell';
@@ -15,6 +15,7 @@ import { getToken, ghGet, prefersSignIn, readRepo, readSignInConfig, sessionMode
 import { ghAction } from '../lib/gh-wording';
 import { canEditReviewRules, canProposeSettings, changesProposal, GITHUB_WRITE_ONLY, RULES_ADMIN_ONLY, RULES_NEED_REVIEW, withChanges, type AppPermissions } from '../lib/settings-view';
 import { teamNameProposal, withTeamName } from '../lib/team-name';
+import { productNameProposal, withProductName } from '../lib/product-name';
 import { installationFor, type InstallationLike } from '../lib/github-signin';
 import type { ChangesMode } from '@bridge-ds/core';
 
@@ -275,6 +276,15 @@ export function proposeTeamName(name: string, opts: { prefix?: string; protected
   return proposeConfig(
     (current) => withTeamName(current, name),
     (tierLabel) => teamNameProposal(name, { date: new Date(), prefix: opts.prefix, tierLabel }),
+    opts,
+  );
+}
+
+/** Opens the pull request that renames a product, `products[i].name` in bridge.config.json (the product page). */
+export function proposeProductName(x: { key: string; from: string; to: string }, opts: { prefix?: string; protectedBranches?: string[] } = {}): Promise<{ number: number; url: string }> {
+  return proposeConfig(
+    (current) => withProductName(current, x.key, x.to),
+    (tierLabel) => productNameProposal(x, { date: new Date(), prefix: opts.prefix, tierLabel }),
     opts,
   );
 }

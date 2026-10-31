@@ -293,8 +293,8 @@ describe('ExplorationPage, exploring (X2)', () => {
 
 describe('ExplorationPage, after Done exploring (Waiting for code, Being built, Shipped)', () => {
   const steps = [
-    { status: 'done' as const, title: 'Done exploring', detail: 'Florian, today' },
-    { status: 'waiting' as const, title: 'Developers build it', detail: 'Waiting for a developer', current: true },
+    { status: 'done' as const, title: 'Done exploring', detail: 'Florian, today. Sent to the Admin demo developers.' },
+    { status: 'waiting' as const, title: 'Developers build it', detail: 'In their task list. You see here when one picks it up.', current: true },
     { status: 'waiting' as const, title: 'Review', detail: 'After the developers' },
     { status: 'waiting' as const, title: 'Shipped', detail: 'Then live in Admin demo' },
   ];
@@ -318,7 +318,7 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
     expect(screen.queryByRole('link', { name: /Continue in Claude/ })).toBeNull();
     const next = screen.getByRole('region', { name: 'What happens next' });
     expect(within(next).getByRole('list', { name: 'From exploration to product' }).querySelectorAll('li')).toHaveLength(4);
-    expect(within(next).getByText('Waiting for a developer')).toBeTruthy();
+    expect(within(next).getByText('In their task list. You see here when one picks it up.')).toBeTruthy();
     expect(within(next).getByText('Nothing missing: everything comes from the library.')).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Activity' })).toBeTruthy();
     // No capture: the plate names the screen and the product, never a fake wireframe.
