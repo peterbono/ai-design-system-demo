@@ -177,7 +177,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
           var ga = document.documentElement.getAttribute('data-gh-app');
           var tk = localStorage.getItem('bridge.github.token' + (ga ? '.' + ga : ''));
           var m = JSON.parse(localStorage.getItem('bridge.gh.maintainer') || 'null');
-          if (tk && m && m.key === tk.slice(-6)) {
+          // Any last check paints at once, even for a renewed token: scripts/maintainer.ts checks it again.
+          if (tk && m) {
             document.documentElement.setAttribute('data-signed-in', '');
             if (m.write) document.documentElement.setAttribute('data-maintainer', '');
           }
