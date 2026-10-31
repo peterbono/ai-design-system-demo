@@ -37,7 +37,7 @@ describe('product page address', () => {
 });
 
 describe('grouping by where explorations stand', () => {
-  it('groups Running, In review, Waiting for code, Being built and Shipped, in that order, empty groups left out', () => {
+  it('groups Exploring, Waiting for code, Being built, In review and Shipped (the lifecycle order), empty groups left out', () => {
     const cards = [
       card(1, { stage: 'kept', state: 'Shipped' }),
       card(2),
@@ -47,7 +47,7 @@ describe('grouping by where explorations stand', () => {
     ];
     const groups = productGroups(cards);
     expect(groups.map((g) => [g.label, g.cards.map((c) => c.number)])).toEqual([
-      ['Running', [2, 4]],
+      ['Exploring', [2, 4]],
       ['Waiting for code', [5]],
       ['Being built', [3]],
       ['Shipped', [1]],

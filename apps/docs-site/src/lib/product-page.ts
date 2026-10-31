@@ -9,6 +9,7 @@
 // Pure: no DOM, no fetch. Unit tested in product-page.test.ts.
 import { defaultProduct, type ProductConfig } from '@bridge-ds/core';
 import { STUDIO_ROOT, studioHref } from './team-path';
+import { LIFECYCLE_LABEL } from './review-state';
 import type { ExplorationCard } from './home-explorations';
 import type { ThumbSpec } from './branch-thumb';
 
@@ -38,13 +39,16 @@ export const cardProductKey = (c: Pick<ExplorationCard, 'productKey'>, products:
 /** Where an exploration stands on a product page, in the order the page lists them. */
 export type ProductStateKey = 'running' | 'review' | 'waiting' | 'building' | 'shipped';
 
-/** The groups of a product page, in order, in the words of the exploration tags. */
+/**
+ * The groups of a product page, in the lifecycle's order and words (lib/review-state LIFECYCLE_LABEL): Exploring,
+ * Waiting for code, Being built, In review, Shipped. Archived ones are folded apart.
+ */
 export const PRODUCT_STATES: { key: ProductStateKey; label: string; count: (n: number) => string }[] = [
-  { key: 'running', label: 'Running', count: (n) => `${n} exploring` },
-  { key: 'review', label: 'In review', count: (n) => `${n} in review` },
-  { key: 'waiting', label: 'Waiting for code', count: (n) => `${n} waiting for code` },
-  { key: 'building', label: 'Being built', count: (n) => `${n} being built` },
-  { key: 'shipped', label: 'Shipped', count: (n) => `${n} shipped` },
+  { key: 'running', label: LIFECYCLE_LABEL.exploring, count: (n) => `${n} exploring` },
+  { key: 'waiting', label: LIFECYCLE_LABEL['waiting-for-code'], count: (n) => `${n} waiting for code` },
+  { key: 'building', label: LIFECYCLE_LABEL['being-built'], count: (n) => `${n} being built` },
+  { key: 'review', label: LIFECYCLE_LABEL['in-review'], count: (n) => `${n} in review` },
+  { key: 'shipped', label: LIFECYCLE_LABEL.shipped, count: (n) => `${n} shipped` },
 ];
 
 /** The group of a card, from its stage and its tag's words (lib/home-explorations explorationStage). */

@@ -4,7 +4,7 @@
 //     flow, StartExploration). No drawing in the header: the action owns the end of the line.
 //   - The product's facts on one quiet line: where it is live, its repository (or "In the library repository"), and
 //     whether Bridge reaches it, when Studio already knows.
-//   - Its explorations, grouped by where they stand (Running, In review, Waiting for code, Being built, Shipped), each
+//   - Its explorations, grouped by where they stand (Exploring, Waiting for code, Being built, In review, Shipped: the lifecycle's words), each
 //     the exploration card of the home (ExplorationCards.tsx); archived ones folded at the end.
 //   - Nothing explored yet: a calm Field Guide drawing, shown at once, the reason in one sentence and the one action.
 // Self-hosted (pages/studio/products/[key].astro) the key comes from the build; on a team shell
