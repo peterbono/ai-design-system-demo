@@ -22,7 +22,6 @@ import TokenSearch from '../ds/TokenSearch';
 import UsageRadios from '../ds/UsageRadios';
 import { Plus, Search, SlidersHorizontal } from 'lucide-react';
 import TokenEditorKit from './TokenEditorKit.astro';
-import { QuietScene } from '../ds/studio/QuietScene';
 import ExplorerData from './ExplorerData.astro';
 import XpKeys from './XpKeys.astro';
 import { CATEGORY_LABEL, CATEGORY_ORDER, STUDIO_TIER_NAMES, SYNTAX_LABEL, modeName } from '../../lib/explorer/format';
@@ -60,7 +59,6 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
           <div class="st-title-row"><h1 class="st-title">Tokens</h1></div>
           <p class="st-sub"></p>
         </div>
-        <QuietScene scene="tokens" width={160} />
       </header>
       {/* Filled by scripts/explorer/team-bootstrap.ts: how far the read has gone (LoadProgress), then an error or nothing. */}
       <div class="lp-wait" data-xp-team-state aria-busy="true" aria-label="Reading the team's tokens"></div>
@@ -85,7 +83,6 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
           <div class="xp-scope" data-ed-scope hidden />
           <div class="xp-scope" data-view-banner hidden />
         </div>
-        <QuietScene scene="tokens" width={160} />
       </header>
     )
   }

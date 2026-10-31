@@ -1,8 +1,8 @@
 // The Studio page header for React islands, the twin of components/StudioHeader.astro (same markup and classes, the
 // st-head styles in styles/studio-app.css): the title with the primary action on its line, one summary sentence,
-// an optional "How it works" fold, extra lines, and the section's Field Guide scene.
+// an optional "How it works" fold and extra lines. No drawing: the primary action owns the end of the title line.
 import type { ReactNode } from 'react';
-import { QuietScene, type SectionSceneName } from './QuietScene';
+import type { SectionSceneName } from './QuietScene';
 
 export function StudioHead({ title, summary, scene, actions, how, children }: { title: ReactNode; summary?: ReactNode; scene?: SectionSceneName; actions?: ReactNode; how?: ReactNode; children?: ReactNode }) {
   return (
@@ -25,7 +25,6 @@ export function StudioHead({ title, summary, scene, actions, how, children }: { 
         )}
         {children}
       </div>
-      {scene && <QuietScene scene={scene} width={160} />}
     </header>
   );
 }
