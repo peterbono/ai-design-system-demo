@@ -20,7 +20,8 @@ describe('vercel.json', () => {
     const shells = [...vercelRewrites(), ...libraryRewrites()];
     expect(vercel.rewrites?.slice(0, shells.length)).toEqual(shells);
     expect(vercel.rewrites?.slice(shells.length).every((r) => r.destination.startsWith('/api/mcp'))).toBe(true);
-    expect(vercel.rewrites?.[0]?.source.endsWith('/:path*/')).toBe(true);
+    expect(vercel.rewrites?.[0]?.source.endsWith('/products/:key([A-Za-z0-9][A-Za-z0-9-]*)/')).toBe(true);
+    expect(vercel.rewrites?.[4]?.source.endsWith('/:path*/')).toBe(true);
   });
 
   it('leaves trailingSlash unset (Vercel serves both spellings without a redirect)', () => {
@@ -35,12 +36,28 @@ describe('vercel.json', () => {
   });
 
   it('matches GitHub names only, and never the escape segment as an owner', () => {
-    const plain = vercelRewrites()[3]!.source;
+    const plain = vercelRewrites()[7]!.source;
     const owner = new RegExp(`^${/:owner\(([^)]+)\)/.exec(plain)![1]}$`);
     expect(owner.test('acme')).toBe(true);
     expect(owner.test('~')).toBe(false);
     expect(owner.test('-acme')).toBe(false);
     expect(owner.test('a'.repeat(40))).toBe(false);
+  });
+});
+
+describe('product pages', () => {
+  it('rewrites every product address of a team to the one product shell, before the general rules', () => {
+    const rules = vercelRewrites();
+    const product = rules.filter((r) => r.destination === '/team-shell/products/item/');
+    expect(product.length).toBe(4);
+    expect(rules.indexOf(product[3]!)).toBeLessThan(rules.findIndex((r) => r.source.endsWith('/:path*/')));
+  });
+
+  it('accepts the product shell and the self-hosted product pages in a built site', () => {
+    const files = [...TEAM_SHELL_ROUTES.flatMap((r) => [`studio/${r}index.html`, `team-shell/${r}index.html`]), 'team-shell/products/item/index.html', 'studio/products/library/index.html'];
+    const shellHtml = (f: string) => `<html data-hosted data-shell="${shellMarker(f.replace(/^team-shell\//, '').replace(/index\.html$/, ''))}"><meta name="robots" content="noindex"><a href="/studio/products/library/">Library</a></html>`;
+    const problems = checkTeamShells(files, (f) => (f.startsWith('team-shell/') ? shellHtml(f) : '<html><a href="/studio/products/library/">x</a></html>'));
+    expect(problems).toEqual([]);
   });
 });
 

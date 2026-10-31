@@ -1,0 +1,116 @@
+/* A Studio product page (components/ds/studio/ProductPage.tsx): the shared header with the product's facts on one
+   quiet line, then its explorations grouped by where they stand, on the home's card grid. Nothing yet: one calm Field
+   Guide moment in the Harbor zone, the reason and the one action. */
+
+.pp {
+  display: grid;
+  gap: var(--space-8);
+  max-width: var(--studio-page-max);
+}
+
+.pp > .st-head {
+  /* The grid gap already spaces it, as on the other Studio pages. */
+  margin-bottom: calc(var(--space-6) - var(--space-8));
+}
+
+.pp-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: var(--space-2) 0 0;
+}
+
+.pp-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-end: var(--space-2);
+}
+
+.pp-conn::before {
+  content: '';
+  display: inline-block;
+  width: var(--space-2);
+  height: var(--space-2);
+  margin-inline-end: var(--space-1-5);
+  border-radius: var(--radius-pill);
+  background: var(--color-feedback-success-icon);
+}
+
+.pp-conn.is-off::before {
+  background: var(--color-border-emphasis);
+}
+
+/* The group heading of Changes (styles/changes.css .bl-h2): label, then a muted count. */
+.pp-h2 {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.pp-count {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.pp-group {
+  gap: var(--space-3);
+}
+
+.pp-skel {
+  width: 100%;
+  min-height: var(--size-60);
+}
+
+/* Nothing explored yet: the drawing beside the reason and the one action, in the page's Harbor zone. */
+.pp-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6) var(--space-10);
+}
+
+.pp-empty-text {
+  display: grid;
+  flex: 1 1 var(--size-60);
+  justify-items: start;
+  gap: var(--space-4);
+  max-width: var(--size-120);
+}
+
+.pp-empty-text > p {
+  margin: 0;
+}
+
+.pp-archived-note {
+  margin: 0 0 var(--space-4);
+}
+
+/* The site's list rhythm (li + li) does not apply to the card grids. */
+.pp .sh-cards > li {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  /* One fact per line on a phone: no separator left leading a wrapped line. */
+  .pp-facts {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+
+  .pp-sep {
+    display: none;
+  }
+
+  .pp-empty {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .pp-empty-text {
+    justify-items: center;
+  }
+}

@@ -922,18 +922,20 @@ export interface FinishConnectingProps {
   hideable?: boolean;
   /** The line under the title; the browser workspace says what to connect first. */
   description?: string;
+  /** `quiet`: a small ghost trigger, for a status line (the Studio home's, next to the library's health). */
+  quiet?: boolean;
 }
 
 /** The link word of a step left in the checklist. */
 const actionWord = (s: Step) => (s.state === 'waiting' ? 'See' : s.id === 'changes' ? 'Choose' : s.id === 'team' ? 'Invite' : s.id === 'name' ? 'Name' : 'Set up');
 
 /** "4 of 8 connected": the steps left, behind one button on the home. */
-export function FinishConnecting({ steps, onOpen, onHide, hideable = true, description = 'Your workspace already works. These add more, whenever you like.' }: FinishConnectingProps) {
+export function FinishConnecting({ steps, onOpen, onHide, hideable = true, description = 'Your workspace already works. These add more, whenever you like.', quiet = false }: FinishConnectingProps) {
   const left = steps.filter((s) => s.state !== 'done');
   const summary = doneSummary(steps);
   return (
     <Popover>
-      <PopoverTrigger render={<Button variant="secondary" iconEnd={ChevronDown} className="onb-trigger" />}>
+      <PopoverTrigger render={<Button variant={quiet ? 'ghost' : 'secondary'} size={quiet ? 'sm' : undefined} iconEnd={ChevronDown} className="onb-trigger" />}>
         <Progress variant="circular" size="sm" value={doneCount(steps)} max={steps.length} aria-hidden="true" />
         {progressLabel(steps)}
       </PopoverTrigger>

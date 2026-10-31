@@ -16,6 +16,16 @@ export const TEAM_SHELL_ROUTES = ['', 'changes/', 'building/', 'review/', 'token
 
 export type TeamShellRoute = (typeof TEAM_SHELL_ROUTES)[number];
 
+/**
+ * The shell of every product page (lib/product-page.ts): /studio/<owner>/<repo>/products/<key>/ is rewritten to it
+ * (vercelRewrites, before the general rules) and the page reads the key from the address. Not a Studio route of its
+ * own: the self-hosted product pages are built per product (/studio/products/<key>/).
+ */
+export const PRODUCT_SHELL_ROUTE = 'products/item/';
+
+/** A product key in an address, as Vercel path-to-regexp groups match it (lib/product-page PRODUCT_KEY_PATTERN). */
+export const PRODUCT_KEY_GROUP = '[A-Za-z0-9][A-Za-z0-9-]*';
+
 /** The marker a shell carries on <html data-shell="...">: its route without slashes ('home' for ''). */
 export const shellMarker = (route: string): string => route.replace(/\/$/, '').replace(/\//g, '-') || 'home';
 
@@ -26,20 +36,31 @@ const shell = TEAM_SHELL_ROOT.replace(/\/$/, '');
 const team = `:owner(${OWNER_PATTERN})/:repo(${REPO_PATTERN})`;
 const studio = STUDIO_ROOT.replace(/\/$/, '');
 
-/**
- * The rewrites vercel.json must carry: two rules per address form, the trailing slash one first (`:path*` does not
- * match a trailing slash, spike 1.3), the escape form before the plain one.
- */
-export function vercelRewrites(): { source: string; destination: string }[] {
+/** The product page rules: they come first, since a rewrite never chains into the general one. */
+export function productRewrites(): { source: string; destination: string }[] {
+  return [`${studio}/~/${team}`, `${studio}/${team}`].flatMap((base) => [
+    { source: `${base}/products/:key(${PRODUCT_KEY_GROUP})/`, destination: `${shell}/${PRODUCT_SHELL_ROUTE}` },
+    { source: `${base}/products/:key(${PRODUCT_KEY_GROUP})`, destination: `${shell}/${PRODUCT_SHELL_ROUTE}` },
+  ]);
+}
+
+/** The general rules: two per address form, the trailing slash one first (`:path*` does not match a trailing slash,
+ * spike 1.3), the escape form before the plain one. */
+export function generalRewrites(): { source: string; destination: string }[] {
   return [`${studio}/~/${team}`, `${studio}/${team}`].flatMap((base) => [
     { source: `${base}/:path*/`, destination: `${shell}/:path*/` },
     { source: `${base}/:path*`, destination: `${shell}/:path*` },
   ]);
 }
 
+/** The rewrites vercel.json must carry, in order: the product pages, then every other team address. */
+export function vercelRewrites(): { source: string; destination: string }[] {
+  return [...productRewrites(), ...generalRewrites()];
+}
+
 /** Header rule sources that must answer X-Robots-Tag: noindex: every team address, and the shells themselves. */
 export function noindexSources(): string[] {
-  return [...vercelRewrites().map((r) => r.source), `${shell}/(.*)`];
+  return [...generalRewrites().map((r) => r.source), `${shell}/(.*)`];
 }
 
 /** A built page's <html> start tag. */
@@ -77,7 +98,7 @@ export function checkTeamShells(files: readonly string[], read: (file: string) =
     if (file.startsWith(shellDir)) {
       // 2. Shells: known route, hosted, not indexed, with their marker.
       const route = file.slice(shellDir.length).replace(/index\.html$/, '');
-      if (!routes.has(route)) problems.push(`${file} is a team shell for no route in TEAM_SHELL_ROUTES.`);
+      if (!routes.has(route) && route !== PRODUCT_SHELL_ROUTE) problems.push(`${file} is a team shell for no route in TEAM_SHELL_ROUTES.`);
       if (!hasAttr(tag, 'data-hosted')) problems.push(`${file} lacks <html data-hosted>: build it with <Layout hosted>.`);
       if (!new RegExp(`data-shell="${shellMarker(route)}"`).test(tag)) problems.push(`${file} lacks <html data-shell="${shellMarker(route)}">.`);
       if (!/<meta name="robots" content="noindex"/i.test(html)) problems.push(`${file} lacks <meta name="robots" content="noindex">.`);
@@ -94,7 +115,7 @@ export function checkTeamShells(files: readonly string[], read: (file: string) =
       // The demo teams are linked on purpose (the landing's "explore the demo"): fine on any team shell route.
       if (DEMO_REPOS.includes(`${a}/${b}`.toLowerCase())) {
         const route = rest.slice(a.length + b.length + 2).replace(/[?#].*$/, '').replace(/index\.html$/, '');
-        if (routes.has(route)) continue;
+        if (routes.has(route) || /^products\/[^/]+\/$/.test(route)) continue;
       }
       const target = `${studioDir}${rest}`;
       if (all.has(target) || all.has(`${target.replace(/\/?$/, '/')}index.html`)) continue;

@@ -177,7 +177,7 @@ describe('the explorations of the Studio home', () => {
     const cards = homeExplorations([profile, billing], { products, author: who, viewer: 'peterbono' }).map((c, i) => ({ ...c, own: i === 0 }));
     expect(explorationsFor(cards, true)).toMatchObject({ title: 'Your explorations', seeAll: '/studio/changes/?who=mine' });
     expect(explorationsFor(cards, true).cards.map((c) => c.number)).toEqual([36]);
-    expect(explorationsFor(cards, false)).toMatchObject({ title: 'Explorations', seeAll: '/studio/changes/' });
+    expect(explorationsFor(cards, false)).toMatchObject({ title: 'Recent explorations', seeAll: '/studio/changes/' });
     expect(explorationsFor(cards, false).cards).toHaveLength(2);
   });
 

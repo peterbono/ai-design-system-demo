@@ -1,0 +1,28 @@
+---
+// Studio product page (lib/product-page.ts): one page per product bridge.config.json lists, like a project folder in
+// Figma. Built for each configured product; the island (components/ds/studio/ProductPage) renders the shared header,
+// the product's facts and its explorations grouped by where they stand, read in the browser
+// (scripts/product-page.ts). Team shell: pages/team-shell/products/item.astro, the key read from the address.
+import '../../../styles/studio-home.css';
+import '../../../styles/branch-thumb.css';
+import '../../../styles/product-page.css';
+import Layout from '../../../layouts/Layout.astro';
+import ProductPage from '../../../components/ds/studio/ProductPage';
+import { productsOf } from '@bridge-ds/core';
+import { siteRepo } from '../../../lib/config';
+import { loadComponents } from '../../../lib/components';
+
+export function getStaticPaths() {
+  return productsOf(siteRepo()).map((p) => ({ params: { key: p.key.toLowerCase() }, props: { name: p.name } }));
+}
+
+const { key } = Astro.params;
+const { name } = Astro.props;
+const components = loadComponents()
+  .map((c) => ({ name: c.name, slug: c.slug, family: c.category }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+---
+
+<Layout title={name} description={`The explorations made in ${name}, grouped by where they stand, and a way to start one.`} wide>
+  <ProductPage client:only="react" productKey={key} components={components} />
+</Layout>

@@ -26,6 +26,9 @@ import type { IconName } from '../brand/icons';
 import { PRIVACY_PAGE } from '../lib/account';
 import { siteRepo, siteRepoJson } from '../lib/config';
 import TeamChip from '../components/ds/studio/TeamChip';
+import ProductsNav, { navProducts } from '../components/ds/studio/ProductsNav';
+import { productKeyFromPath } from '../lib/product-page';
+import { productsOf } from '@bridge-ds/core';
 import AccountMenu from '../components/ds/account/AccountMenu';
 import { TeamAccessGate } from '../components/ds/studio/NoAccess';
 import { signInConfig } from '../lib/signin-config';
@@ -292,6 +295,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
             })
           }
         </ul>
+        {/* Products, like the project list in Figma's sidebar: each product's page (lib/product-page.ts). */}
+        {isStudio && !noRepo && <ProductsNav client:load products={hosted ? undefined : navProducts(productsOf(siteRepo()))} current={hosted ? null : productKeyFromPath(path)} />}
         <div class="rail-foot">
           {/* Light, dark or System lives in Studio Settings (Appearance); the Library follows the same choice. No
               GitHub link here: readers do not need it; developers find the repository from Use, Install. */}

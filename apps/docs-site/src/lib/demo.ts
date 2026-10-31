@@ -102,7 +102,7 @@ export const DEMO_WORDS = {
   /** The same banner for someone who has no workspace yet. */
   connectOwn: 'Connect your design system',
   /** The home's explorations, the team's from the lead's seat (board D1; library changes live on Changes). */
-  explorations: 'Explorations',
+  explorations: 'Recent explorations',
   /** A write action on the sample team (board D2). */
   dialogTitle: 'This is a sample team.',
   dialogLead: 'Nothing is sent from Acme Design. Get started to do this with your own team.',

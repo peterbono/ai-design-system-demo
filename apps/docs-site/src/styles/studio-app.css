@@ -389,3 +389,14 @@
 .gh-acct[data-contributor] [data-gh-github-only] {
   display: none;
 }
+
+/* The side nav's Products group (components/ds/studio/ProductsNav.tsx, DS SidebarNav parts): set apart from the main
+   nav like Figma's project list, its rows at the main nav's height and icon column. */
+.rail-products {
+  margin-block-start: var(--space-6);
+}
+
+.rail-products a {
+  gap: var(--space-3);
+  min-height: var(--size-9);
+}
