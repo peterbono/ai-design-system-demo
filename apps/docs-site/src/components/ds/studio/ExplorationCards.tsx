@@ -1,7 +1,7 @@
 // The card family of explorations, shared by the Studio home and the product pages (Gestalt similarity: the same kind
 // of thing is the same card everywhere):
-//   - ExplorationCardItem: one exploration, its explored screen on top, the title, then a fixed footer (its tag, the
-//     product, who explores it).
+//   - ExplorationCardItem: one exploration, its explored screen on top, the title, then a fixed footer (its tag, then who
+//     explores it and the product on one line).
 //   - ProductFolderCard: one product, like a project folder in Figma: a mosaic of its latest explorations' screens
 //     (their captures, else their plates), the product name and what is in progress ("2 exploring · 1 waiting for
 //     code"). The whole card opens the product page (lib/product-page.ts).
@@ -9,6 +9,7 @@ import { Badge, Card, Link } from '@bridge-ds/react';
 import { Who } from './faces';
 import { BranchThumb } from './BranchThumb';
 import type { ExplorationCard } from '../../../lib/home-explorations';
+import { SEP } from '../../../lib/home-model';
 import type { ProductFolder } from '../../../lib/product-page';
 
 export function ExplorationCardItem({ c, showProduct = true }: { c: ExplorationCard; showProduct?: boolean }) {
@@ -22,22 +23,23 @@ export function ExplorationCardItem({ c, showProduct = true }: { c: ExplorationC
               <span className="sh-strong">{c.title}</span>
             </Link>
           </span>
-          {/* A fixed footer, pinned to the bottom: the DS tag of its page, the product, who explores it, one line each
-              (a long one ends in an ellipsis). Every card of a row has the same footer, so the tags, the product lines
-              and the names line up whatever the titles' length; a card without a product keeps the line empty. On a
-              product page the product goes without saying: the line is left out. */}
+          {/* A fixed footer, pinned to the bottom: the DS tag of its page, then who explores it and the product on one
+              line (a long one ends in an ellipsis). Every card of a row has the same footer, so the tags and the names
+              line up whatever the titles' length. On a product page the product goes without saying: it is left out. */}
           <span className="sh-card-foot">
             <span className="sh-card-tagline">
               {c.state && (
-                <Badge tone={c.tone ?? 'neutral'} dot={c.dot ?? false} size="md" className={c.state === 'Exploring' ? 'sh-card-tag xp-exploring' : 'sh-card-tag'}>
+                <Badge tone={c.tone ?? 'neutral'} dot={c.dot ?? false} size="sm" className={c.state === 'Exploring' ? 'sh-card-tag xp-exploring' : 'sh-card-tag'}>
                   {c.state}
                 </Badge>
               )}
             </span>
-            {showProduct && <span className="t-ui t-muted sh-card-product">{c.product ? `in ${c.product}` : ' '}</span>}
             <span className="t-ui sh-card-who">
               <Who p={c.author} size="xs" />
-              <span className="sh-card-name">{c.author.name}</span>
+              <span className="sh-card-name">
+                {c.author.name}
+                {showProduct && c.product ? <span className="sh-card-product">{SEP}{c.product}</span> : null}
+              </span>
             </span>
           </span>
         </div>

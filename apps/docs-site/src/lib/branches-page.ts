@@ -38,8 +38,13 @@ export const STATE_TABS: { value: StateTab; label: string }[] = [
 
 const TAB_VALUES = new Set<string>(STATE_TABS.map((t) => t.value));
 
-/** Every tab stays, even at 0, so the lifecycle stays readable and people always know where to look. */
-export const STABLE_TABS: readonly StateTab[] = STATE_TABS.map((t) => t.value);
+/**
+ * The tabs a designer uses: All, Waiting on me, Exploring and Shipped, always there. Waiting for code, Being built and
+ * In review are the developers' side: Being built lists them, so here they show only when an old link opens one.
+ * Archived shows when something is archived.
+ */
+export const STABLE_TABS: readonly StateTab[] = ['all', 'waiting', 'exploring', 'shipped'];
+const DEV_TABS: readonly StateTab[] = ['code', 'building', 'review'];
 
 const STAGE_TAB: Partial<Record<LifecycleStage, StageTab>> = { exploring: 'exploring', 'waiting-for-code': 'code', 'being-built': 'building', 'in-review': 'review' };
 const LABEL_TAB: Record<string, StageTab> = {
@@ -70,7 +75,7 @@ export function stateOf(r: { lifecycle: string; pill: { label: string } | null; 
 
 /** The tabs with their counts: every one of them, in the lifecycle's order. */
 export function visibleTabs(counts: Partial<Record<StateTab, number>>, current: StateTab): { value: StateTab; label: string; count: number }[] {
-  return STATE_TABS.map((t) => ({ ...t, count: counts[t.value] ?? 0 })).filter((t) => STABLE_TABS.includes(t.value) || t.count > 0 || t.value === current);
+  return STATE_TABS.map((t) => ({ ...t, count: counts[t.value] ?? 0 })).filter((t) => STABLE_TABS.includes(t.value) || t.value === current || (t.count > 0 && !DEV_TABS.includes(t.value)));
 }
 
 /** The people filter's value for the signed-in viewer (a key designerKey never makes: it strips "~"). */

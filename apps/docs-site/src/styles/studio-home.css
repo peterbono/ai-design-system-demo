@@ -419,20 +419,22 @@
   flex: 1;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
 .sh-card-title {
   display: -webkit-box;
+  line-height: var(--typography-h3-line-height);
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
-/* The footer: tag, product, person, one line each, pinned to the bottom so every card of a row lines them up. */
+/* The footer: the tag, then the person and the product on one line, pinned to the bottom so every card of a row lines
+   them up. */
 .sh-card-foot {
   display: grid;
-  gap: var(--space-1-5);
+  gap: var(--space-1);
   min-width: 0;
   margin-block-start: auto;
   padding-block-start: var(--space-1);
@@ -447,7 +449,6 @@
   max-width: 100%;
 }
 
-.sh-card-product,
 .sh-card-name {
   overflow: hidden;
   min-width: 0;

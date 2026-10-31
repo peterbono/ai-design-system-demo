@@ -34,7 +34,7 @@ describe('Start an exploration', () => {
     await expectNoAxeViolations(document.body);
   });
 
-  it("offers Product admin and the library only with Bridge's own config, never the Admin demo", async () => {
+  it("offers the product admin and the library only with Bridge's own config, never the Admin demo", async () => {
     // The layout embeds the repository's settings (#bridge-repo): here, the products of this repository's config.
     const embed = document.createElement('script');
     embed.id = 'bridge-repo';
@@ -49,7 +49,7 @@ describe('Start an exploration', () => {
       await screen.findByRole('option', { name: /The library/ });
       const options = screen.getAllByRole('option').map((o) => o.textContent ?? '');
       expect(options).toHaveLength(2);
-      expect(options[0]).toContain('Product admin');
+      expect(options[0]).toContain('Art print shop');
       expect(options[1]).toContain('The library');
       expect(options.join(' ')).not.toContain('Admin demo');
     } finally {

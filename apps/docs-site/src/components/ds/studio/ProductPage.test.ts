@@ -57,10 +57,10 @@ describe('ProductPageView', () => {
       ['waiting', 1],
       ['shipped', 1],
     ]);
-    // The facts line: where it is live, its repository, Bridge reaches it.
-    expect(screen.getByRole('link', { name: /admin\.acme\.app/ }).getAttribute('href')).toBe('https://admin.acme.app');
-    expect(screen.getByRole('link', { name: /acme\/product-admin/ }).getAttribute('href')).toBe('https://github.com/acme/product-admin');
-    expect(screen.getByText('Connected')).toBeTruthy();
+    // One quiet line: the live product. The repository and a healthy connection are not shown.
+    expect(screen.getByRole('link', { name: /Open the live product/ }).getAttribute('href')).toBe('https://admin.acme.app');
+    expect(screen.queryByRole('link', { name: /acme\/product-admin/ })).toBeNull();
+    expect(screen.queryByText('Connected')).toBeNull();
     // On a product page the product goes without saying.
     expect(container.querySelector('.sh-card-product')).toBeNull();
     // The one primary action on the title's line; archived ones behind their fold.
@@ -76,7 +76,7 @@ describe('ProductPageView', () => {
     expect(container.querySelector('.pp-empty')!.textContent).toContain('Try a token, a variant or a new component');
     expect(container.querySelector('.pp-empty')!.textContent).toContain('Start an exploration');
     expect(container.querySelector('[data-st-actions]')!.textContent).toBe('');
-    expect(screen.getByText('In the library repository')).toBeTruthy();
+    expect(container.querySelector('.pp-facts')).toBeNull();
     await expectNoAxeViolations(container);
   });
 

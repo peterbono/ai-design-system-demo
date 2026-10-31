@@ -83,6 +83,67 @@ function VerdictZone({ verdict }: { verdict: Verdict }) {
   );
 }
 
+/** "304 of 304" reads as one figure: the count in the display face, the total small after a slash. */
+function PillarValue({ value }: { value: string }) {
+  const m = /^(\S+) of (\S+)$/.exec(value);
+  if (!m) return <>{value}</>;
+  return (
+    <>
+      {m[1]}
+      <span className="ql-pillar-of">
+        <span aria-hidden="true">/</span>
+        <span className="sr-only"> of </span>
+        {m[2]}
+      </span>
+    </>
+  );
+}
+
+/** What the number is made of: brand and theme tiles, each product's share, one dot per component. */
+function PillarViz({ viz }: { viz: NonNullable<Pillar['viz']> }) {
+  if (viz.kind === 'combos')
+    return (
+      <ul className="ql-viz ql-tiles" aria-label="Per brand and theme">
+        {viz.items.map((c) => (
+          <li key={c.label} className={c.pass === c.total ? 'ql-tile' : 'ql-tile is-fail'}>
+            <span className="ql-tile-name">{c.label}</span>
+            <span className="num">{c.pass === c.total ? c.total : `${c.pass}/${c.total}`}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  if (viz.kind === 'products')
+    return (
+      <ul className="ql-viz ql-shares" aria-label="Per product">
+        {viz.items.map((p) => (
+          <li key={p.name}>
+            <span className="ql-share-name">{p.name}</span>
+            <span className="ql-share-bar" aria-hidden="true">
+              <span style={{ inlineSize: `${Math.max(0, Math.min(100, p.pct))}%` }} />
+            </span>
+            <span className="num ql-share-pct">{formatPct(p.pct)}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  const left = viz.total - viz.reviewed - viz.drafted;
+  return (
+    <div className="ql-viz">
+      <span className="ql-dots" role="img" aria-label={`${viz.reviewed} reviewed, ${viz.drafted} drafted, ${left} missing`}>
+        {Array.from({ length: viz.total }, (_, i) => (
+          <span key={i} className={i < viz.reviewed ? 'is-ok' : i < viz.reviewed + viz.drafted ? 'is-draft' : undefined} />
+        ))}
+      </span>
+      {viz.reviewed < viz.total ? (
+        <span className="ql-dots-key">
+          {viz.drafted ? <span className="is-draft">{viz.drafted} drafted</span> : null}
+          {left ? <span>{left} missing</span> : null}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /** The three pillars: one card shape, aligned on one grid (similarity, common region). */
 function Pillars({ pillars }: { pillars: Pillar[] }) {
   return (
@@ -92,14 +153,20 @@ function Pillars({ pillars }: { pillars: Pillar[] }) {
           <Card padding="compact" className="ql-pillar-card">
             <CardBody className={p.tone === 'fail' ? 'ql-pillar is-fail' : 'ql-pillar'}>
             <h3 className="ql-pillar-name">{p.name}</h3>
-            <p className="ql-pillar-value">{p.value}</p>
+            <p className="ql-pillar-value">
+              <PillarValue value={p.value} />
+              {p.delta ? <span className="ql-pillar-delta">{p.delta}</span> : null}
+            </p>
             <p className="ql-pillar-label">{p.label}</p>
-            {p.meter !== null ? (
+            {p.viz ? (
+              <PillarViz viz={p.viz} />
+            ) : p.meter !== null ? (
               <Progress value={p.meter} size="sm" tone={p.tone === 'fail' ? 'danger' : 'signal'} aria-label={`${p.name}: ${p.value} ${p.label}`} className="ql-meter" />
             ) : (
               <span className="ql-meter-gap" aria-hidden="true" />
             )}
-            <p className="ql-pillar-sentence">{p.sentence}</p>
+            {/* The picture already says what the sentence would; it stays when something fails or nothing is counted. */}
+            {!p.viz || p.tone === 'fail' ? <p className="ql-pillar-sentence">{p.sentence}</p> : <span aria-hidden="true" />}
             <Link variant="standalone" className="ql-next" href={p.next.href}>
               {p.next.label}
             </Link>

@@ -73,10 +73,12 @@ describe('state tabs and the address', () => {
     expect(stateOf({ lifecycle: 'shipped', pill: null })).toBeNull();
   });
 
-  it('shows every lifecycle tab, even at 0, in the lifecycle order', () => {
+  it("shows the designer's tabs, leaving the developers' side to Being built", () => {
     const tabs = (c: Record<string, number>, cur = 'all') => visibleTabs(c, cur as never).map((t) => `${t.label} ${t.count}`);
-    expect(tabs({ all: 3, exploring: 2, review: 1 })).toEqual(['All 3', 'Waiting on me 0', 'Exploring 2', 'Waiting for code 0', 'Being built 0', 'In review 1', 'Shipped 0', 'Archived 0']);
-    expect(tabs({})).toHaveLength(8);
+    expect(tabs({ all: 3, exploring: 2, review: 1 })).toEqual(['All 3', 'Waiting on me 0', 'Exploring 2', 'Shipped 0']);
+    expect(tabs({ archived: 2 })).toEqual(['All 0', 'Waiting on me 0', 'Exploring 0', 'Shipped 0', 'Archived 2']);
+    // An old link to a developer tab still opens it.
+    expect(tabs({ review: 1 }, 'review')).toContain('In review 1');
   });
 
   it('says what an empty tab is for, in designer words', () => {

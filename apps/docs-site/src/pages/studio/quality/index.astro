@@ -61,7 +61,8 @@ const figures = healthFigures({
   guidance,
 });
 const verdict = qualityVerdict({ contrastFail: contrast.fail, findings });
-const pillars = qualityPillars({ figures, contrast, adoption: adoption ? (combinedAdoption(adoptionFigureInput(adoption))?.now ?? null) : null, guidance });
+const combined = adoption ? combinedAdoption(adoptionFigureInput(adoption)) : null;
+const pillars = qualityPillars({ figures, contrast, combos, adoption: combined?.now ?? null, adoptionBefore: combined?.before, products: adoption?.products.map((p) => ({ name: p.name, pct: p.latest.component })), guidance });
 // The shared summary (Share): the verdict line without the figures, then one sentence per figure.
 const openFindings = findings.filter((f) => f.severity === 'fail' || f.severity === 'warn');
 const sentence = healthSentence(contrast.fail, openFindings.length, openFindings.length === 1 ? openFindings[0]!.title : undefined);

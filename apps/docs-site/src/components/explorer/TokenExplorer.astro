@@ -39,7 +39,7 @@ interface Props {
 }
 const { mode, focus, hosted = false } = Astro.props;
 // Studio (mode "edit") renders the explorer as the page itself: a page header, ONE toolbar row (filter field, type
-// chips with counts, one Options menu for collections, usage, brand and modes, columns; New token), then the table at
+// chips with counts, one Options menu for collections, usage, brand and modes, columns; New token in the title line), then the table at
 // full width with flat rows. The Library (mode "read") keeps its lens and tree, card, heading and inline controls.
 const app = mode === 'edit';
 // The brand and density selectors render here, statically, from the same token set the browser builds
@@ -70,7 +70,13 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
     app && (
       <header class="st-head xp-apphead" data-scene="tokens">
         <div class="st-head-main">
-          <div class="st-title-row"><h1 class="st-title">Tokens</h1></div>
+          <div class="st-title-row">
+            <h1 class="st-title">Tokens</h1>
+            {/* The primary action owns the end of the title line, as on every Studio page (StudioHeader.astro). */}
+            <div class="st-head-actions">
+              <Button variant="primary" size="md" iconStart={Plus} className="xp-new" id="ed-add" data-tooltip="Adds a draft in this browser. No GitHub needed." aria-label="New token">New token</Button>
+            </div>
+          </div>
           {hosted && <div data-xp-team-source />}
           <p class="st-sub" id="xp-title" data-xp-title data-st-summary aria-live="polite"></p>
           <span class="sr-only" data-xp-count aria-live="polite"></span>
@@ -155,7 +161,6 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                 <p class="xp-menu-keys small muted"><XpKeys /></p>
               </div>
             </details>
-            <Button variant="primary" size="md" iconStart={Plus} className="xp-new" id="ed-add" data-tooltip="Adds a draft in this browser. No GitHub needed." aria-label="New token">New token</Button>
           </div>
         ) : (
           <>

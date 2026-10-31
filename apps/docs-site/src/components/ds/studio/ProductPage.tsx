@@ -2,8 +2,7 @@
 //   - The shared page header (StudioHead): the product's name, one live summary sentence ("2 exploring, 1 waiting for
 //     code."), and "Start an exploration" at the end of the title's line, preselected with this product (the one start
 //     flow, StartExploration). No drawing in the header: the action owns the end of the line.
-//   - The product's facts on one quiet line: where it is live, its repository (or "In the library repository"), and
-//     whether Bridge reaches it, when Studio already knows.
+//   - One quiet line under the header: "Open the live product", and a warning only when Bridge cannot reach it.
 //   - Its explorations, grouped by where they stand (Exploring, Waiting for code, Being built, In review, Shipped: the lifecycle's words), each
 //     the exploration card of the home (ExplorationCards.tsx); archived ones folded at the end.
 //   - Nothing explored yet: a calm Field Guide drawing, shown at once, the reason in one sentence and the one action.
@@ -31,37 +30,18 @@ export interface ProductPageViewProps {
 
 function Facts({ product, data }: { product: ProductConfig; data: ProductPageData }) {
   const f = productFacts(product, data.ownRepo, data.reached);
-  const parts = [
-    f.production && (
-      <Link key="prod" href={f.production.href} variant="subtle" external>
-        {f.production.label}
-      </Link>
-    ),
-    f.repo && (
-      <Link key="repo" href={f.repo.href} variant="subtle" external>
-        {f.repo.label}
-      </Link>
-    ),
-    f.inLibrary && <span key="lib">{f.inLibrary}</span>,
-    f.connection && (
-      <span key="conn" className={f.connection.ok ? 'pp-conn' : 'pp-conn is-off'}>
-        {f.connection.text}
-      </span>
-    ),
-  ].filter(Boolean);
-  if (!parts.length) return null;
+  // Only what a designer acts on: the live product, and the connection only when Bridge cannot reach it. The repository
+  // and a healthy "Connected" are developer facts and noise here (Settings has them).
+  const off = f.connection && !f.connection.ok ? f.connection.text : null;
+  if (!f.production && !off) return null;
   return (
     <p className="t-ui t-muted pp-facts">
-      {parts.map((node, i) => (
-        <span key={i} className="pp-fact">
-          {i > 0 && (
-            <span className="pp-sep" aria-hidden="true">
-              ·
-            </span>
-          )}
-          {node}
-        </span>
-      ))}
+      {f.production && (
+        <Link href={f.production.href} variant="subtle" external>
+          Open the live product
+        </Link>
+      )}
+      {off && <span className="pp-conn is-off">{off}</span>}
     </p>
   );
 }
