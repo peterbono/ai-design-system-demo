@@ -819,30 +819,38 @@ details[open] > summary .cg-sec-chev {
 }
 
 /* The toolbar: DS Tabs (underline) say where the work stands, one per state with its count, on a rule that spans the
-   width; the kind and people selects sit at the end of the same line, above the rule, or on their own line once the
-   tabs need the width. On a phone the tab list scrolls sideways inside its row, never the page. */
+   width; the kind and people selects sit at the end of the same line. When the states outgrow the line the tab list
+   scrolls inside its row (never the page); on narrow screens the selects move above the tabs, the tabs keep the rule. */
 .bl-filters {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-3);
+  gap: var(--space-4);
   border-block-end: var(--border-width-default) solid var(--color-border-default);
 }
 
 .bl-tabs {
+  flex: 1 1 auto;
   min-inline-size: 0;
-  max-inline-size: 100%;
   margin-block-end: calc(-1 * var(--border-width-default));
 }
 
 .bl-filters > .bl-narrow {
-  margin-inline-start: auto;
+  flex: none;
+  flex-wrap: nowrap;
   padding-block-end: var(--space-2);
 }
 
-@media (max-width: 640px) {
+.bl-narrow > * {
+  inline-size: var(--size-40);
+}
+
+@media (max-width: 900px) {
+  .bl-filters {
+    flex-wrap: wrap;
+  }
+
   .bl-filters > .bl-narrow {
-    margin-inline-start: 0;
+    order: -1;
     inline-size: 100%;
   }
 
@@ -860,22 +868,11 @@ details[open] > summary .cg-sec-chev {
   margin: 0;
 }
 
-/* The kind and people filters sit on the same line as the state tabs when they fit, wide enough for the longest
-   kind; the people select is narrower (a first name, or You). */
+/* The kind and people filters, side by side. */
 .bl-narrow {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  max-inline-size: 100%;
-}
-
-.bl-narrow > :first-child {
-  inline-size: var(--size-60);
-  max-inline-size: 100%;
-}
-
-.bl-narrow > :last-child {
-  inline-size: var(--size-40);
   max-inline-size: 100%;
 }
 
