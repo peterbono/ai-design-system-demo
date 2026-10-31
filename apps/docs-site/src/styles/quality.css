@@ -1,7 +1,8 @@
-/* Studio Quality (Field Guide): a Harbor opener with the verdict and the three library health figures, then one
-   section per figure (contrast and tokens, adoption, guidance), the audit reports on their own routes. Four sizes on
-   a screen: h2 (page title and figures), body (verdict, section titles, figure labels), ui (rows, details), caption
-   (badges). Color only for status: DS Badge tones, danger text on a failing figure. */
+/* Studio Quality (Field Guide), components/ds/studio/QualityView.tsx: the verdict in the page's one Harbor zone next
+   to the lighthouse drawing, the three pillars as one group of identical cards, then one section per pillar. Four
+   sizes on a screen: h2 (page title, verdict, pillar numbers), body (verdict sentence, section titles), ui (cards,
+   rows, details), caption (badges). Color only for status: DS Badge tones and Progress, danger on a failing pillar.
+   The audit report pages reuse the row and disclosure classes (ql-h, ql-row, ql-more). */
 
 .ql {
   max-width: var(--studio-page-max);
@@ -34,70 +35,6 @@
   display: none;
 }
 
-/* Harbor opener: the verdict and one action on a line, then the three figures, each a door to its section. */
-.ql-open {
-  display: grid;
-  gap: var(--space-5);
-  margin-bottom: var(--space-10);
-  padding: var(--space-6) var(--space-7);
-}
-
-.ql-open-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-6);
-}
-
-.ql-figs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--size-60), 1fr));
-  gap: var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.ql-figs > li {
-  display: grid;
-  margin: 0;
-}
-
-.ql-fig {
-  display: grid;
-  align-content: start;
-  gap: var(--space-0-5);
-}
-
-.ql-fig-value {
-  margin: 0;
-  font-family: var(--typography-h2-family);
-  font-size: var(--typography-h2-size);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--typography-h2-line-height);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: var(--typography-h2-tracking);
-}
-
-.ql-fig.is-fail .ql-fig-value {
-  color: var(--color-feedback-danger-text);
-}
-
-.ql-fig-label {
-  margin: 0;
-  font-size: var(--typography-body-size);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--typography-body-line-height);
-}
-
-.ql-open-sentence {
-  flex: 1 1 calc(var(--size-64) + var(--size-20));
-  margin: 0;
-  font-size: var(--typography-body-size);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--typography-body-line-height);
-}
-
 .ql-h {
   margin: 0 0 var(--space-3);
   font-family: var(--typography-body-family);
@@ -110,8 +47,8 @@
   margin-bottom: var(--space-3);
 }
 
-.ql section + section {
-  margin-top: var(--space-10);
+.ql-section {
+  margin-top: var(--space-12);
 }
 
 /* One card, one line per finding. */
@@ -204,6 +141,137 @@ a.ql-act {
   font-size: var(--typography-ui-size);
 }
 
+/* The verdict: the drawing and the words side by side in the Harbor zone, the one action under the sentence. */
+.ql-verdict {
+  display: grid;
+  grid-template-columns: minmax(0, var(--size-64)) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-6) var(--space-10);
+  padding: var(--space-6) var(--space-10) var(--space-6) var(--space-6);
+}
+
+.ql-scene {
+  inline-size: 100%;
+  block-size: auto;
+}
+
+.ql-verdict-text {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ql-verdict-title {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h2-line-height);
+  letter-spacing: var(--typography-h2-tracking);
+  font-variation-settings: "SOFT" 50;
+}
+
+.ql-verdict-sentence {
+  max-inline-size: 65ch;
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.ql-cta {
+  margin-top: var(--space-2);
+}
+
+/* The three pillars: one card shape on one grid, the same rows in the same order, so they line up. */
+.ql-pillars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-60), 1fr));
+  gap: var(--space-4);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each card spans the same six rows (subgrid), so name, number, meter, sentence and link line up across cards. */
+.ql-pillars > li,
+.ql-pillars .ql-pillar-card,
+.ql-pillars .ql-pillar {
+  display: grid;
+  grid-row: span 6;
+  grid-template-rows: subgrid;
+  row-gap: var(--space-1);
+  margin: 0;
+}
+
+.ql-pillar {
+  align-content: start;
+}
+
+.ql-pillar > p {
+  margin: 0;
+}
+
+.ql-pillar-name {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ql-pillar-value {
+  margin-top: var(--space-1);
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-h2-line-height);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--typography-h2-tracking);
+}
+
+.ql-pillar.is-fail .ql-pillar-value {
+  color: var(--color-feedback-danger-text);
+}
+
+.ql-pillar-label {
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ql-meter,
+.ql-meter-gap {
+  margin-block: var(--space-2);
+}
+
+.ql-meter-gap {
+  display: block;
+  block-size: var(--space-1);
+}
+
+.ql-pillar-sentence {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+a.ql-next {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: var(--size-8);
+  margin-top: var(--space-1);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Disclosures under a section: the contrast per brand and theme, adoption's earlier runs. */
+.ql-acc {
+  margin-top: var(--space-3);
+}
+
 .ql-combos {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(var(--size-40), 1fr));
@@ -221,43 +289,94 @@ a.ql-act {
   padding: var(--space-2) var(--space-3);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
+  font-size: var(--typography-ui-size);
 }
 
-.ql-combos li span:first-child {
+.ql-combo-name {
   flex: 1 1 auto;
   font-weight: var(--font-weight-semibold);
 }
 
-.ql-cleanup {
+/* A secondary, developer-side link at the end of a section: plain, small, never a button. */
+.ql-quiet {
+  margin: var(--space-3) 0 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* Adoption: one row per product, the two meters in fixed columns so they line up across products. */
+.ql-product {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--size-40) var(--size-40) var(--size-40);
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ql-metric {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.ql-metric-value {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.ql-runs {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  padding: 0;
   list-style: none;
 }
 
-.ql-cleanup li {
+.ql-run {
   display: grid;
-  gap: var(--space-0-5);
-}
-
-/* Adoption: one row per product, the two AdoptionMetric blocks (adoption.css) in fixed columns so the values line up. */
-.ql-ad-row {
   grid-template-columns: minmax(0, 1fr) var(--size-40) var(--size-40) var(--size-40);
-  align-items: start;
-  padding-block: var(--space-4);
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+  padding-block: var(--space-2);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
 }
 
-.ql-ad-row > .ql-title,
-.ql-ad-row > .ql-act {
-  align-self: center;
+.ql-runs > li + li {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+/* Tokens: the calm note, the same row shape as a finding, alone in its card. */
+.ql-note {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
 }
 
 @media (max-width: 760px) {
-  .ql-open {
+  .ql-verdict {
+    grid-template-columns: minmax(0, 1fr);
     padding: var(--space-5);
   }
 
+  .ql-scene {
+    max-inline-size: var(--size-60);
+  }
+
   .ql-row,
-  .ql-ad-row {
+  .ql-product,
+  .ql-run {
     grid-template-columns: minmax(0, 1fr) auto;
     padding: var(--space-3) var(--space-4);
+  }
+
+  .ql-run {
+    padding-inline: 0;
   }
 
   .ql-badge {
@@ -270,15 +389,13 @@ a.ql-act {
     grid-column: 2;
   }
 
-  .ql-ad-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .ql-ad-row > .ql-title {
+  .ql-product > .ql-main,
+  .ql-run > .ql-main {
     grid-column: 1 / -1;
   }
 
-  .ql-ad-row .ql-act {
+  .ql-product .ql-act,
+  .ql-run .ql-act {
     grid-column: 1 / -1;
     justify-self: start;
   }

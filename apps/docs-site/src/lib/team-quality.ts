@@ -8,24 +8,11 @@ import { tokenUsage, type RepoModel, type SnapshotAudit } from '@bridge-ds/core'
 import type { ContrastFailRow } from '../components/ds/studio/ContrastFailTable';
 import type { GuidanceState } from './components';
 import type { Issue } from './stats';
-import { firstFindingTarget, qualityModel, type ComboResult, type Finding } from './quality';
-import { HEALTH_SECTION, healthFigures, healthSentence, type HealthFigure } from './library-health';
+import { qualityModel, type ComboResult, type Finding } from './quality';
+import { HEALTH_SECTION, combinedAdoption, healthFigures, healthSentence, type HealthFigure } from './library-health';
+import { adoptionFigureInput, adoptionView, qualityPillars, qualityVerdict, type AdoptionView, type Pillar, type Verdict } from './quality-view';
 import { fileUrl, HOSTED_DOCS_URL } from './team-load';
 import { studioHref } from './team-path';
-
-/**
- * One entry per audited product (audit target path): its latest run now, its first run before. Several runs of one
- * product would otherwise count it several times in the combined figure.
- */
-export function adoptionPerProduct(audits: readonly SnapshotAudit[]): { now: SnapshotAudit['metrics']; before: SnapshotAudit['metrics'] | null }[] {
-  const byPath = new Map<string, SnapshotAudit[]>();
-  for (const a of audits) byPath.set(a.target.path, [...(byPath.get(a.target.path) ?? []), a]);
-  return [...byPath.values()].map((runs) => {
-    const sorted = [...runs].sort((x, y) => Date.parse(x.generatedAt) - Date.parse(y.generatedAt));
-    const last = sorted[sorted.length - 1]!;
-    return { now: last.metrics, before: sorted.length > 1 ? sorted[0]!.metrics : null };
-  });
-}
 
 export interface TeamQualityInput {
   model: RepoModel;
@@ -35,23 +22,14 @@ export interface TeamQualityInput {
   sha: string;
   /** Adoption audits of the team's snapshot; null without a snapshot. */
   audits: SnapshotAudit[] | null;
+  /** When the snapshot was written: runs from that write are the current ones (lib/quality-view adoptionView). */
+  snapshotAt?: string;
   /**
    * Who reads the page: a developer (a tech owner) gets the setup in config words; anyone else (a designer) reads what
    * is missing and that a developer turns it on, never a config file, a workflow or what Bridge could not parse.
    * Default developer.
    */
   audience?: 'developer' | 'designer';
-}
-
-export interface TeamAdoptionRow {
-  id: string;
-  label: string;
-  token: number | null;
-  component: number | null;
-  /** ISO date of the run. */
-  generatedAt: string;
-  /** The full report on the bridge-data branch, on GitHub. */
-  href: string;
 }
 
 export interface TeamGuidanceRow {
@@ -74,12 +52,17 @@ export interface TeamQuality {
   cleanup: Issue[];
   unusedTotal: number;
   figures: HealthFigure[];
+  /** The shared summary's verdict line (Share). */
   sentence: string;
-  /** The opener's one action; null when a designer has nothing to do there (only a developer sets checks up). */
-  cta: { label: string; href: string } | null;
+  /** The verdict card: mood, title, sentence and the page's one action (null when nothing needs the viewer). */
+  verdict: Verdict;
+  /** Accessibility, adoption, documentation: the same card each. */
+  pillars: Pillar[];
+  /** Studio Tokens filtered to the tokens nothing reads. */
+  unusedHref: string;
   guidance: { total: number; reviewed: number; drafted: number; missing: number; rows: TeamGuidanceRow[] };
-  /** Null: no audit to show (no snapshot, or a snapshot without audits). */
-  adoption: TeamAdoptionRow[] | null;
+  /** Null: no audit to show (no snapshot, or a snapshot without audits). Otherwise the latest run per product first. */
+  adoption: AdoptionView | null;
   /** What the model could not read (invalid config, a docs.json that does not parse). */
   problems: string[];
 }
@@ -205,7 +188,7 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
   // The contrast finding: the checks file on GitHub instead of the demo's contrast grid; no checks is not a pass.
   const checksHref = model.contrast.path ? fileUrl(owner, repo, sha, model.contrast.path) : HOSTED_DOCS_URL;
   const gate: Finding = hasChecks
-    ? { ...findings.find((f) => f.kind === 'contrast')!, action: { label: 'Open the checks file', href: checksHref } }
+    ? { ...findings.find((f) => f.kind === 'contrast')!, action: { label: 'Open the checks on GitHub', href: checksHref } }
     : {
         id: 'contrast',
         kind: 'contrast',
@@ -231,23 +214,32 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
   };
 
   const audits = input.audits?.length ? input.audits : null;
-  const adoption: TeamAdoptionRow[] | null = audits
-    ? audits.map((a) => ({
-        id: a.id,
-        label: a.label ?? a.target.path,
-        token: a.metrics.tokenAdoption,
-        component: a.metrics.componentAdoption,
-        generatedAt: a.generatedAt,
-        href: `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/blob/bridge-data/${a.path.split('/').map(encodeURIComponent).join('/')}`,
-      }))
+  const reportHref = (a: SnapshotAudit) => `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/blob/bridge-data/${a.path.split('/').map(encodeURIComponent).join('/')}`;
+  const adoption: AdoptionView | null = audits
+    ? adoptionView(
+        audits.map((a) => ({
+          id: a.id,
+          label: a.label ?? a.target.path,
+          product: a.target.path,
+          ...(a.label ? {} : { productName: a.target.path }),
+          generatedAt: a.generatedAt,
+          token: a.metrics.tokenAdoption,
+          component: a.metrics.componentAdoption,
+          ds: a.metrics.dsComponentInstances,
+          ui: a.metrics.uiComponentInstances,
+          href: reportHref(a),
+        })),
+        input.snapshotAt ? { liveSince: input.snapshotAt } : {},
+      )
     : null;
 
   // The three figures: the same rules as the self-hosted page, with the team's two honest exceptions (no checks, no
   // audit) said in words instead of a zero.
   const base = healthFigures({
     contrast,
-    adoption: audits ? adoptionPerProduct(audits) : [],
+    adoption: adoption ? adoptionFigureInput(adoption) : [],
     guidance,
+    adoptionSince: 'at the first audit',
   });
   const figures: HealthFigure[] = [];
   for (const f of base) {
@@ -278,17 +270,9 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
   const open = all2.filter((f) => f.severity === 'fail' || f.severity === 'warn');
   const only = open.length === 1 ? open[0] : null;
   const sentence = healthSentence(contrast.fail, open.length, only?.title);
-  const first = firstFindingTarget(all2);
-  const cta =
-    only?.action && !contrast.fail
-      ? { label: only.action.label === 'Review' ? 'Review guidance' : only.action.label, href: only.action.href }
-      : open.length
-        ? first
-        : designer
-          ? null
-          : hasChecks
-            ? { label: 'Open the checks file', href: checksHref }
-            : { label: 'How to add checks', href: HOSTED_DOCS_URL };
+  const verdict = qualityVerdict({ contrastFail: contrast.fail, findings: all2 });
+  const combined = adoption ? combinedAdoption(adoptionFigureInput(adoption)) : null;
+  const pillars = qualityPillars({ figures, contrast: { total: contrast.total, fail: contrast.fail, hasChecks }, adoption: combined?.now ?? null, guidance });
 
   return {
     hasChecks,
@@ -301,7 +285,9 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
     unusedTotal: unusedSemantic.length + orphanPrimitives.length,
     figures,
     sentence,
-    cta,
+    verdict,
+    pillars,
+    unusedHref: studioHref('tokens/?usage=unused'),
     guidance,
     adoption,
     // What Bridge could not parse (a config or docs file) is for developers: they fix the file.

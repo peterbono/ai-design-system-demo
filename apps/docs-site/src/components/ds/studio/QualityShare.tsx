@@ -137,7 +137,7 @@ export function QualityShare({ figures, sentence, path }: QualityShareProps) {
         {said}
       </p>
       <Menu>
-        <MenuTrigger render={<Button variant="secondary" iconStart={Share2}>Share</Button>} />
+        <MenuTrigger render={<Button variant="ghost" iconStart={Share2}>Share</Button>} />
         <MenuContent align="end">
           <MenuItem icon={Copy} onClick={() => void copy()}>
             Copy summary

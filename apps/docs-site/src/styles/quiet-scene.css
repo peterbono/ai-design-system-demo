@@ -184,3 +184,83 @@
     animation: none;
   }
 }
+
+/* --- The lighthouse (Studio Quality): the beam swings across the lamp; the weather follows the verdict. -------- */
+
+.qs .qs-lh-beam {
+  fill: var(--color-surface-default);
+  opacity: 0.85;
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  animation: qs-lh-sweep calc(var(--_breath) * 8) var(--motion-easing-standard) infinite;
+}
+
+:root[data-theme="dark"] .qs .qs-lh-beam {
+  fill: var(--color-text-default);
+  opacity: 0.3;
+}
+
+.qs-lh-band {
+  fill: var(--color-surface-default);
+  opacity: 0;
+  transition: opacity var(--motion-duration-slow) var(--motion-easing-standard);
+  animation: qs-lh-mist calc(var(--_breath) * 4) var(--motion-easing-standard) infinite alternate;
+}
+
+.qs-lh-band-2 {
+  animation-direction: alternate-reverse;
+}
+
+:root[data-theme="dark"] .qs-lh-band {
+  fill: var(--color-text-muted);
+}
+
+/* Haze: one band low over the sea. Fog: three, the beam dimmed and the sun gone. */
+.qs[data-mood="haze"] .qs-lh-band-1 {
+  opacity: 0.8;
+}
+
+.qs[data-mood="fog"] .qs-lh-band {
+  opacity: 0.9;
+}
+
+.qs[data-mood="fog"] .qs-lh-beam {
+  opacity: 0.4;
+}
+
+.qs[data-mood="haze"] .qs-lh-sun,
+.qs[data-mood="fog"] .qs-lh-sun {
+  display: none;
+}
+
+@keyframes qs-lh-sweep {
+  0% {
+    transform: scaleX(1);
+  }
+
+  50% {
+    transform: scaleX(-1);
+  }
+
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes qs-lh-mist {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(var(--space-2));
+  }
+}
+
+/* Reduced motion: the rest frame, the beam out to sea. */
+@media (prefers-reduced-motion: reduce) {
+  .qs .qs-lh-beam,
+  .qs-lh-band {
+    animation: none;
+  }
+}

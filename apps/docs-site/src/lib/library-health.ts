@@ -34,6 +34,8 @@ export interface HealthInput {
   /** Per product: the current run and, when it exists, the run before the move to Bridge. */
   adoption: { now: AdoptionMetrics; before?: AdoptionMetrics | null }[];
   guidance: { total: number; reviewed: number; drafted: number; missing: number };
+  /** What the earlier adoption value was: "before Bridge" (default), or "at the first audit" when runs are not a migration. */
+  adoptionSince?: string;
 }
 
 /** Section ids on the Quality page, one per figure. */
@@ -79,12 +81,13 @@ export function healthFigures(input: HealthInput): HealthFigure[] {
   const a = combinedAdoption(input.adoption);
   if (a) {
     const across = plural(a.products, 'product');
-    const up = a.before === null ? '' : `, up from ${pct(a.before)} before Bridge`;
+    const since = input.adoptionSince ?? 'before Bridge';
+    const up = a.before === null ? '' : `, up from ${pct(a.before)} ${since}`;
     out.push({
       id: 'adoption',
       value: pct(a.now),
       label: 'of components come from the design system',
-      detail: a.before === null ? `Across ${across}.` : `Up from ${pct(a.before)} before Bridge, across ${across}.`,
+      detail: a.before === null ? `Across ${across}.` : `Up from ${pct(a.before)} ${since}, across ${across}.`,
       sentence: `${pct(a.now)} of components in ${across} come from the design system${up}.`,
       tone: null,
       href: `#${HEALTH_SECTION.adoption}`,

@@ -68,13 +68,70 @@ function Harbor() {
   );
 }
 
+/**
+ * Studio Quality: a lighthouse on its rock, its beam sweeping slowly over the sea. The weather follows the verdict
+ * (`mood`, lib/quality-view.ts): the sun when clear, a band of haze when something needs a look, fog when something
+ * blocks the library. Weather and beam: the lighthouse block of styles/quiet-scene.css.
+ */
+function Lighthouse() {
+  return (
+    <>
+      <g className="qs-sky">
+        <Ink className="qs-lh-sun" d="M42 15A8 8 0 1 1 26 15A8 8 0 1 1 42 15Z" fill="paper" />
+      </g>
+      {/* One wedge from the lamp, swinging across it (scaleX) so it sweeps from one side to the other. */}
+      <path className="qs-lh-beam" d="M120 41.5L234 27Q238 43 234 59L120 44.5Z" />
+      <g className="qs-ground">
+        <g className="qs-swell">
+          <Ink d={ripples(6, 128, 3) + ripples(150, 128, 4)} strokeWidth={1.6} />
+        </g>
+        <g className="qs-swell qs-swell-2">
+          <Ink d={ripples(20, 142, 3) + ripples(136, 142, 4)} strokeWidth={1.6} />
+        </g>
+        <Ink d="M72 130Q78 116 94 113L148 113Q162 116 170 130Z" fill="paper" />
+        <Ink d="M104 114L108.5 54L131.5 54L136 114Z" fill="paper" />
+        <Ink d="M106.6 82L133.4 82L134.2 94L105.8 94Z" fill="deep" />
+        <Ink d="M108 62L132 62" />
+        <Ink d="M116 114L116 104Q120 100 124 104L124 114" />
+        <Ink d="M103 54L137 54L137 49L103 49Z" fill="paper" />
+        <Ink d="M111 49L111 36L129 36L129 49" fill="paper" />
+        <Ink d="M123.2 43A3.2 3.2 0 1 1 116.8 43A3.2 3.2 0 1 1 123.2 43Z" fill="deep" />
+        <Ink d="M108 36L120 25L132 36Z" fill="paper" />
+        <Ink d="M120 25L120 20" />
+      </g>
+      {/* Weather: haze is the first band, fog is all three. */}
+      <g className="qs-lh-fog">
+        <rect className="qs-lh-band qs-lh-band-1" x="28" y="96" width="132" height="10" rx="5" />
+        <rect className="qs-lh-band qs-lh-band-2" x="96" y="66" width="140" height="12" rx="6" />
+        <rect className="qs-lh-band qs-lh-band-3" x="4" y="40" width="110" height="10" rx="5" />
+      </g>
+    </>
+  );
+}
+
 const SCENES = {
   harbor: { viewBox: '0 0 240 120', draw: Harbor },
+  lighthouse: { viewBox: '0 0 240 160', draw: Lighthouse },
 } satisfies Record<string, { viewBox: string; draw: () => ReactNode }>;
 
 export type QuietSceneName = keyof typeof SCENES;
 
-export function QuietScene({ scene = 'harbor', width = 220, className, label }: { scene?: QuietSceneName; width?: number; className?: string; label?: string }) {
+/** The weather of a scene that has one (the lighthouse): clear, haze or fog. */
+export type QuietSceneMood = 'clear' | 'haze' | 'fog';
+
+export function QuietScene({
+  scene = 'harbor',
+  width = 220,
+  className,
+  label,
+  mood,
+}: {
+  scene?: QuietSceneName;
+  width?: number;
+  className?: string;
+  label?: string;
+  mood?: QuietSceneMood;
+}) {
   const s = SCENES[scene];
   const [, , bw, bh] = s.viewBox.split(' ').map(Number);
   const Draw = s.draw;
@@ -82,6 +139,7 @@ export function QuietScene({ scene = 'harbor', width = 220, className, label }: 
     <svg
       className={`ill qs${className ? ` ${className}` : ''}`}
       data-scene={scene}
+      data-mood={mood}
       width={width}
       height={Math.round((width * bh!) / bw!)}
       viewBox={s.viewBox}
