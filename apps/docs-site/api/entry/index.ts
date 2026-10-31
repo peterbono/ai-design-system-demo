@@ -54,6 +54,10 @@
 //   GET  /api/entry?team=_team/<id>         a member of a team made in Bridge: { team } (name, role, repo, storybook,
 //                                           discovery, memberCount, people: names and roles, never an email, for its
 //                                           Settings); 404 for anyone else, like a team that does not exist
+//   GET  /api/entry?ai-tools=<team>         a member of the team (email member, or the linked GitHub account on its
+//                                           repository): { tools } the team default of the AI tools new members start
+//                                           from (src/lib/ai-tools.ts), null when none; 404 for anyone else
+//   POST { action: 'ai-tools', team, tools }  admin: sets that default (null or [] clears it); { tools }, 400 bad_tools
 //   POST { action: 'link-team', team, storybook }  admin: keeps the Storybook connected with the quick start. { team }
 //   POST { action: 'link-team', team, repo }  admin of the team and of the repository: the team moves to the repository
 //                                           (members, admins, discovery, requests, invites, name). { repo, next }
@@ -73,7 +77,7 @@
 // team that did not open itself to a domain is never listed, and asking to join it answers the same 404 as a team that
 // does not exist. Requests expire after 14 days; deleting the account deletes them.
 //
-// Storage: api/_lib/teams.ts (discovery, requests), api/_lib/members.ts (memberships), api/invites (invites by email).
+// Storage: api/_lib/teams.ts (discovery, requests, the AI tools default), api/_lib/members.ts (memberships), api/invites (invites by email).
 // Env (server only): KV_REST_API_URL + KV_REST_API_TOKEN (or the UPSTASH_ pair), LIBRARY_SESSION_SECRET,
 // GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY (admins, sizes, reviewer and admin invites), RESEND_API_KEY +
 // INVITE_EMAIL_FROM (request emails), PUBLIC_SITE_URL (optional).
@@ -99,6 +103,8 @@ import {
   type Discovery,
   getDiscovery,
   getTeamNames,
+  getTeamAiTools,
+  putTeamAiTools,
   getRequest,
   JOIN_REQUEST_TTL_MS,
   type JoinRequest,
@@ -115,6 +121,7 @@ import {
 } from '../_lib/teams.js';
 import { acceptInviteForGithub, githubApp as invitesApp, inviteStoreOn, maskEmail, type InviteStore, type StoredInvite } from '../invites/index.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
+import { parseAiTools } from '../../src/lib/ai-tools.js';
 import { isTeamKey, STUDIO_ROOT, teamHref as studioTeamHref, teamKeyId, teamKeyOf } from '../../src/lib/team-path.js';
 
 export type { FetchLike };
@@ -933,6 +940,8 @@ async function moveTeam(ctx: Ctx, from: string, to: string): Promise<void> {
   const names = await getTeamNames(redis, [from, to]);
   const name = names.get(from)?.name;
   if (name && !names.get(to)) await putTeamName(redis, to, name, now);
+  const tools = await getTeamAiTools(redis, from);
+  if (tools && !(await getTeamAiTools(redis, to))) await putTeamAiTools(redis, to, tools);
   for (const inv of await invites.list(from)) {
     const left = Math.ceil((Date.parse(inv.expiresAt) - now) / 1000);
     await invites.remove(inv);
@@ -1002,6 +1011,8 @@ async function onAction(ctx: Ctx, req: Request, a: Account, body: Record<string,
       return onLinkTeam(ctx, a, body);
     case 'rename-team':
       return onRenameTeam(ctx, a, body);
+    case 'ai-tools':
+      return onTeamAiTools(ctx, a, body);
     default:
       return fail(400, 'bad_request', 'Unknown action.');
   }
@@ -1054,6 +1065,39 @@ async function onInviteLink(ctx: Ctx, req: Request, a: Account | null, body: Rec
   });
 }
 
+/** An admin sets the team default of the AI tools (null or [] clears it). */
+async function onTeamAiTools(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
+  const admin = await requireAdmin(ctx, a, body.team ?? body.repo);
+  const clear = body.tools === null || (Array.isArray(body.tools) && body.tools.length === 0);
+  const tools = clear ? null : parseAiTools(body.tools);
+  if (!clear && !tools) return fail(400, 'bad_tools', 'Pick at least one AI tool, or none for no default.');
+  await putTeamAiTools(ctx.svc.redis, admin.full, tools);
+  return json(200, { tools });
+}
+
+/**
+ * Anyone on the team may read its AI tools default: an email member (or a seeded admin), else the account's linked
+ * GitHub account with access to the repository (read by the app, matched by GitHub id). Anyone else: 404.
+ */
+async function onGetTeamAiTools(ctx: Ctx, a: Account, arg: string): Promise<Response> {
+  let t: TeamRef;
+  try {
+    t = await resolveTeam(ctx, arg);
+  } catch {
+    return fail(404, 'not_found', TEAM_GONE);
+  }
+  let member = await isMemberOf(ctx, a, t.full);
+  if (!member && !t.id && a.github && ctx.svc.app) {
+    const token = await ctx.svc.app.installationToken(t.owner, t.repo);
+    if (token) {
+      const r = await gh(ctx.f, token, `/repos/${t.owner}/${t.repo}/collaborators/${encodeURIComponent(a.github.login)}/permission`);
+      member = r.status === 200 && r.data?.user?.id === a.github.id && typeof r.data?.permission === 'string' && r.data.permission !== 'none';
+    }
+  }
+  if (!member) return fail(404, 'not_found', TEAM_GONE);
+  return json(200, { tools: await getTeamAiTools(ctx.svc.redis, t.full) }, { 'Cache-Control': 'private, no-store' });
+}
+
 /** The account is on the team: an email membership, or (local mode) a seeded admin. */
 async function isMemberOf(ctx: Ctx, a: Account, repo: string): Promise<boolean> {
   if (await ctx.svc.members.get(repo, a.email.toLowerCase())) return true;
@@ -1089,6 +1133,8 @@ export async function handleEntry(req: Request, env: EntryEnv, deps: EntryDeps):
       const list = await listRequests(svc.redis, admin.full, ctx.now());
       return json(200, { requests: list.map(({ id, name, email, createdAt, expiresAt }) => ({ id, name, email, createdAt, expiresAt })) }, noStore);
     }
+    const aiToolsOf = params.get('ai-tools');
+    if (aiToolsOf !== null) return await onGetTeamAiTools(ctx, a, aiToolsOf);
     const teamOf = params.get('team');
     if (teamOf !== null) return await onGetTeam(ctx, a, teamOf);
     const discoveryOf = params.get('discovery');

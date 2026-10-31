@@ -101,6 +101,20 @@
 }
 
 /* Cells line up on their first line of text, so a label stays level with its value however long the value runs. */
+.set-row-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.set-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .set-row {
   display: grid;
   grid-template-columns: minmax(var(--size-40), 30%) minmax(0, 1fr) auto;

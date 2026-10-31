@@ -14,6 +14,7 @@ import { Button, Card, CardBody, EmptyState, Input, Skeleton } from '@bridge-ds/
 import ButtonLink from '../ButtonLink';
 import MembersSection from './MembersSection';
 import AppearanceSetting from './AppearanceSetting';
+import AiToolsSetting from './AiToolsSetting';
 import { TEAM_NAME_WORDS, teamNameProblem } from '../../../lib/team-name';
 import { adminOnlyText } from '../../../lib/settings-view';
 import { signInHref } from '../../../lib/account';
@@ -239,6 +240,10 @@ export default function TeamKeySettings() {
             />
           </CardBody>
         </Card>
+      </Band>
+
+      <Band id="ai-tools" title="Your AI tools" intro="The AI you build with: Bridge shows the next step in these only. Your own choice.">
+        <AiToolsSetting />
       </Band>
 
       <Band id="appearance" title="Appearance" intro="How Bridge looks for you, only in this browser. It changes nothing for your team.">

@@ -64,6 +64,57 @@ project servers the first time):
 }
 ```
 
+### Using Bridge with GitHub Copilot
+
+Bridge talks to AI through MCP, so a team that reaches Claude (or another model) only through GitHub Copilot uses
+the same server, in VS Code with Copilot Chat in **Agent mode**.
+
+**In a product repository**, run once and commit what it writes:
+
+```sh
+npx @bridge-ds/cli connect --ds <owner/name> --tool copilot    # --tool both: Claude Code and Copilot
+```
+
+It writes, merging into files that exist and never replacing what the team wrote:
+
+- `.vscode/mcp.json`: the Bridge server under `"servers"`, `{ "type": "stdio", "command": "npx", "args": ["-y",
+  "@bridge-ds/mcp", "--repo", "<owner/name>"] }`, the same command as `.mcp.json` for Claude Code. Other servers,
+  `"inputs"` and comments are kept (the file is only rewritten when the Bridge entry changes).
+- `.github/copilot-instructions.md`: the short Bridge section (between `<!-- bridge:start -->` and
+  `<!-- bridge:end -->`), the repository-wide instructions Copilot reads. When the repository's `AGENTS.md` carries the
+  Bridge section already, the section stays there only: VS Code attaches a root `AGENTS.md` to chat requests by
+  default (`chat.useAgentsMdFile`), so a second copy would say the same thing twice.
+- `.bridge/product.json`, as for Claude.
+
+Without `--tool`, `bridge connect` sets up Claude Code, plus Copilot when the repository already has
+`.vscode/mcp.json` or `.github/copilot-instructions.md`.
+
+**For the design system repository itself** (or any folder), add the server to VS Code once:
+
+```sh
+code --add-mcp '{"name":"bridge","type":"stdio","command":"npx","args":["-y","@bridge-ds/mcp","--repo","<owner/name>"]}'
+```
+
+Then open the folder in VS Code, start the `bridge` server (MCP: List Servers, or when Copilot asks), and in
+Copilot Chat, Agent mode, paste the line Studio gives: "Continue Bridge exploration #12 ...". The server needs a
+GitHub token where it runs, as for Claude Code (`GITHUB_TOKEN`, or the `gh` sign-in).
+
+**Copilot Business and Enterprise:** an organization or enterprise admin must turn on the **MCP servers in
+Copilot** policy first; it is off by default. An enterprise can also restrict which servers are allowed.
+
+**In Studio**, each person picks the AI tools they use once (onboarding, then Settings > Your AI tools; an admin sets
+the team default new members start from). The exploration page and Start an exploration then show only those tools:
+the VS Code (Copilot) tab has the same line to paste, "Copy for Copilot", and the one command the repository needs.
+
+**Not built yet:** the Copilot coding agent on github.com (an issue assigned to Copilot). The same instructions files
+are written for it to read; giving it the Bridge tools is a possible next step.
+
+Sources: [Add and manage MCP servers in VS Code](https://code.visualstudio.com/docs/copilot/customization/mcp-servers),
+[MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration),
+[Custom instructions in VS Code](https://code.visualstudio.com/docs/copilot/customization/custom-instructions),
+[Extending Copilot Chat with MCP](https://docs.github.com/en/copilot/how-tos/provide-context/use-mcp/extend-copilot-chat-with-mcp),
+[Adding repository custom instructions](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions).
+
 ### Other MCP clients
 
 Any client that speaks MCP over stdio works: run `npx -y @bridge-ds/mcp` with `--repo owner/name [--ref branch]`

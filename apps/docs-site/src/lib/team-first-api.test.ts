@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { type Account, ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/account';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
-import { getDiscovery, getTeamRecord, teamsForDomain } from '../../api/_lib/teams';
+import { getDiscovery, getTeamAiTools, getTeamRecord, teamsForDomain } from '../../api/_lib/teams';
 import { handleAccount, lastAdminOf } from '../../api/account/index';
 import { handleEntry, LINK_APP_MISSING, REPO_ADMIN_ONLY, TEAM_GONE } from '../../api/entry/index';
 import { type EmailMessage, handleInvites, inviteStoreOn, LAST_ADMIN, REVIEWER_NEEDS_REPO } from '../../api/invites/index';
@@ -325,5 +325,49 @@ describe('deleting the account: the last admin, said before the confirm field', 
     expect(await getTeamRecord(s.redis, team.id)).toBeNull();
     expect(await teamsForDomain(s.redis, 'northwind.io')).toEqual([]);
     expect(teamKeyOf(team.id)).toBe(team.key);
+  });
+});
+
+describe('AI tools: the person picks theirs, an admin sets the team default', () => {
+  it('keeps the person choice on the account; an empty or unknown list is refused', async () => {
+    const s = setup();
+    const mia = await s.cookie('mia@northwind.io', 'Mia');
+    expect(await s.account(mia, { action: 'ai-tools', tools: [] })).toEqual({ status: 400, body: { error: 'bad_tools', message: 'Pick at least one AI tool.' } });
+    expect((await s.account(mia, { action: 'ai-tools', tools: ['cursor'] })).status).toBe(400);
+    const r = await s.account(mia, { action: 'ai-tools', tools: ['copilot', 'claude-app', 'copilot'] });
+    expect(r.status).toBe(200);
+    expect(r.body.account.aiTools).toEqual(['claude-app', 'copilot']);
+    const me = await handleAccount(new Request(`${ORIGIN}/api/account`, { headers: { host: HOST, cookie: mia } }), ENV, { fetch: async () => res(404, {}), now: () => T0, redis: s.redis, members: s.members, email: { send: async () => undefined } });
+    expect(((await me.json()) as any).account.aiTools).toEqual(['claude-app', 'copilot']);
+  });
+
+  it('members read the team default, anyone else gets 404; only an admin sets or clears it', async () => {
+    const s = setup();
+    const { jo, team } = await created(s);
+    const kim = await s.cookie('kim@northwind.io', 'Kim');
+    expect(await s.entry(kim, `?ai-tools=${team.key}`)).toEqual({ status: 404, body: { error: 'not_found', message: TEAM_GONE } });
+    await s.members.put(team.key, { email: 'kim@northwind.io', name: 'Kim', role: 'edit', version: 1, addedBy: 'Jo Park', at: new Date(T0).toISOString() });
+    expect(await s.entry(kim, `?ai-tools=${team.key}`)).toEqual({ status: 200, body: { tools: null } });
+    expect((await s.act(kim, { action: 'ai-tools', team: team.key, tools: ['copilot'] })).status).toBe(403);
+    expect((await s.act(jo, { action: 'ai-tools', team: team.key, tools: ['nope'] })).status).toBe(400);
+    expect(await s.act(jo, { action: 'ai-tools', team: team.key, tools: ['copilot', 'claude-code'] })).toEqual({ status: 200, body: { tools: ['claude-code', 'copilot'] } });
+    expect((await s.entry(kim, `?ai-tools=${team.key}`)).body).toEqual({ tools: ['claude-code', 'copilot'] });
+    expect(await s.act(jo, { action: 'ai-tools', team: team.key, tools: null })).toEqual({ status: 200, body: { tools: null } });
+    expect((await s.entry(kim, `?ai-tools=${team.key}`)).body).toEqual({ tools: null });
+  });
+
+  it('a GitHub admin of the repository reads and sets it; linking a team made in Bridge moves the default', async () => {
+    const s = setup();
+    const { team } = await created(s);
+    const jo = await s.cookie('jo@northwind.io', 'Jo Park', { login: 'jo-gh', id: 42 });
+    await s.act(jo, { action: 'ai-tools', team: team.key, tools: ['copilot'] });
+    expect((await s.act(jo, { action: 'link-team', team: team.key, repo: REPO })).status).toBe(200);
+    expect(await getTeamAiTools(s.redis, REPO)).toEqual(['copilot']);
+    expect(await getTeamAiTools(s.redis, team.key)).toBeNull();
+    expect((await s.entry(jo, `?ai-tools=${REPO}`)).body).toEqual({ tools: ['copilot'] });
+    const gh = await s.cookie('gh@northwind.io', 'Gh', { login: 'jo-gh', id: 42 });
+    expect((await s.entry(gh, `?ai-tools=${REPO}`)).body).toEqual({ tools: ['copilot'] });
+    const outsider = await s.cookie('out@else.io', 'Out', { login: 'out', id: 9 });
+    expect((await s.entry(outsider, `?ai-tools=${REPO}`)).status).toBe(404);
   });
 });

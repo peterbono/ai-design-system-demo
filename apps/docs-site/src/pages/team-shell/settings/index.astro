@@ -15,6 +15,7 @@ import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSec
 import ClaudeConnector from '../../../components/ds/studio/ClaudeConnector';
 import TeamSettings from '../../../components/ds/studio/TeamSettings';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
+import AiToolsSetting from '../../../components/ds/studio/AiToolsSetting';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
 import { TEAM_NAME_WORDS } from '../../../lib/team-name';
 ---
@@ -35,6 +36,11 @@ import { TEAM_NAME_WORDS } from '../../../lib/team-name';
     <ClaudeConnector client:only="react" />
   </section>
   <TeamSettings client:load />
+  <section class="ts-band" id="ai-tools" aria-labelledby="ts-ai-tools">
+    <h2 id="ts-ai-tools" class="ts-h">Your AI tools</h2>
+    <p class="ts-intro">The AI you build with: Bridge shows the next step in these only. Your own choice; an admin also sets the team default.</p>
+    <AiToolsSetting client:only="react" />
+  </section>
   <section class="ts-band" id="appearance" aria-labelledby="ts-appearance">
     <h2 id="ts-appearance" class="ts-h">Appearance</h2>
     <p class="ts-intro">How Bridge looks for you, only in this browser. It changes nothing for your team.</p>

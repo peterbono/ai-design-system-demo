@@ -20,7 +20,8 @@
 //                 bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no tier
 //                 numbers), and that token values ship once the look is approved and the automatic checks pass (TV-1).
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
-//   Figma and Claude, then Integrations (Jira), then Appearance: light or dark, a preference of this browser,
+//   Figma and Claude, then Integrations (Jira), then Your AI tools (the person's own, components/ds/studio/AiToolsSetting.tsx),
+//   then Appearance: light or dark, a preference of this browser,
 //   not a team rule (components/ds/studio/AppearanceSetting.tsx).
 //   Settings speak designer words (lib/vocabulary): no developer section; the repository, branch, file and keys behind
 //   a section sit in its "For developers" fold (components/ds/studio/SettingsParts.tsx DevFold).
@@ -35,6 +36,7 @@ import StudioHeader from '../../../components/StudioHeader.astro';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
 import ChangeRules from '../../../components/ds/studio/ChangeRules';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
+import AiToolsSetting from '../../../components/ds/studio/AiToolsSetting';
 import { signInConfig } from '../../../lib/signin-config';
 import { Badge, Button, Card, CardBody, CardHeader, Input, Link, SegmentedControl } from '@bridge-ds/react';
 import { DevFold } from '../../../components/ds/studio/SettingsParts';
@@ -478,6 +480,15 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
         </section>
       )
     }
+    <section class="set-band" id="ai-tools" aria-labelledby="set-ai-tools">
+      <div class="set-band-intro">
+        <h2 id="set-ai-tools" class="set-h">Your AI tools</h2>
+        <p class="set-intro">The AI you build with: Bridge shows the next step in these only. Your own choice.</p>
+      </div>
+      <div class="set-band-body">
+        <AiToolsSetting client:load />
+      </div>
+    </section>
     <section class="set-band" id="appearance" aria-labelledby="set-appearance">
       <div class="set-band-intro">
         <h2 id="set-appearance" class="set-h">Appearance</h2>

@@ -215,6 +215,12 @@
   user-select: all;
 }
 
+/* Never answered which AI tools: the quiet way to pick them, under the line (AiToolPanel.tsx). */
+.xp-paste-other {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+}
+
 /* "Connect Bridge to your Claude first" (ConnectClaudeDialog, in a portal): two numbered steps, the address with its
    Copy button on one row, the link to Claude's connectors under it, then one quiet line. */
 .xp-cc-steps {
@@ -644,6 +650,11 @@
 
   .xp-paste-head {
     flex-wrap: wrap;
+  }
+
+  /* Three tabs fit a phone: "VS Code (Copilot)" reads "VS Code" (AiToolPanel.tsx). */
+  .xp-tab-more {
+    display: none;
   }
 
   .xp-acts > * {

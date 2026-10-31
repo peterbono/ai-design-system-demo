@@ -1,12 +1,13 @@
 // The exploration page while it runs, the validated boards X1 and X2 (Changes > <product> > <exploration>):
 // - X1, not started (nothing on the branch beyond the Bridge note): "Not started", who started it, the "Nothing built
-//   yet" panel with the line to paste in Claude (Claude app or Terminal), "Continue in Claude" (opens a new Claude
-//   conversation with the line in it, after the connect steps while the viewer's own Claude has no Bridge yet:
-//   ConnectClaudeDialog; copies it for the Terminal),
+//   yet" panel with the line to paste in the viewer's own AI tools only (AiToolPanel.tsx: Claude app, Terminal, VS
+//   Code with Copilot; one tool: no tabs; never answered: the inferred ones and "Use another AI tool?"), the tool's
+//   button ("Continue in Claude" opens a new Claude conversation with the line in it, after the connect steps while
+//   the viewer's own Claude has no Bridge yet: ConnectClaudeDialog; copies it for the Terminal; "Copy for Copilot"),
 //   "See the product today", and an empty "Your preview" frame.
 // - X2, exploring: "Exploring", who changed what and when, the preview (a captured image when Bridge has one, else a
 //   neutral frame) with one group of actions: "Open the preview" (with the Bridge toolbar, Before and After, when the
-//   product supports it) and "Continue in Claude", the Harbor card "Happy with it?" (Done exploring), and the last 3
+//   product supports it) and the tool's button, the Harbor card "Happy with it?" (Done exploring), and the last 3
 //   events.
 // - After Done exploring (Waiting for code, Being built, Shipped), the same family: the status tag, who said done and
 //   when, the preview with one action, and the one Harbor zone on what happens next: the hand-off in three steps (the
@@ -14,10 +15,10 @@
 //   runs that check itself, the page shows it while it runs). The activity under it. A write's line is a DS toast.
 // The "..." menu holds Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
 // over lib/exploration-page.ts. Styles: styles/exploration-page.css.
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { ChevronLeft, Copy as CopyIcon, Ellipsis, ExternalLink } from 'lucide-react';
+import { ChevronLeft, Ellipsis, ExternalLink } from 'lucide-react';
 import {
   Accordion,
   AccordionItem,
@@ -36,7 +37,6 @@ import {
   MenuContent,
   MenuItem,
   MenuTrigger,
-  SegmentedControl,
   Skeleton,
   Spinner,
   ToastProvider,
@@ -52,7 +52,10 @@ import { studioHref } from '../../../lib/team-path';
 import { plateDrawing } from '../../../lib/branch-thumb';
 import { capturedLine } from '../../../lib/preview-shots';
 import { TERMINAL_SETUP_LINE } from '../../../lib/claude-connector';
-import { ConnectClaudeDialog } from './ConnectClaudeDialog';
+import type { AiTool } from '../../../lib/ai-tools';
+import { claudeNewUrl, ToolAction, ToolPanel, useAiTools, type ToolLines, type ToolSetup } from './AiToolPanel';
+
+export { claudeNewUrl };
 
 export type ExplorationStage = 'loading' | 'not-started' | 'exploring' | 'handed-off';
 
@@ -67,7 +70,6 @@ export interface HandoffView {
   /** The one action of a piece still without a library side (send it), when this viewer can. */
   onPiece?: ((piece: SentPiece) => Promise<string | void>) | null;
 }
-export type ClaudeWhere = 'app' | 'terminal';
 
 export interface ExplorationPageProps {
   number: number;
@@ -77,7 +79,7 @@ export interface ExplorationPageProps {
   /** Who started it, and " · Admin demo · today" after the name. */
   author: PageFace;
   startedTail: string;
-  /** The line to paste in Claude, per tab. */
+  /** The line to paste, per tool: the Claude app's line also goes to Copilot Chat. */
   lines: { app: string; terminal: string };
   /** The product as it is today (X1's quiet link); null when not set up. */
   todayUrl: string | null;
@@ -133,105 +135,34 @@ export interface ExplorationPageProps {
   onClaudeConnected?: () => void;
   /** A product exploration: the command the Terminal needs once in the product's folder (bridge connect). */
   terminalSetup?: string | null;
+  /** The command VS Code needs once for Copilot: bridge connect --tool copilot in a product, code --add-mcp for the library. */
+  copilotSetup?: { label: string; command: string } | null;
 }
 
-const COPIED = 'Copied. Paste it in Claude.';
-const OPENED = 'Opened in Claude with the line ready. Press Enter to start.';
+/** The tool the panel has open, for the buttons further down the page (Check in Claude, the X2 action). */
+const ToolContext = createContext<AiTool>('claude-app');
 
-/** A new Claude conversation with the line already in the message box (claude.ai/new?q=). */
-export const claudeNewUrl = (line: string) => `https://claude.ai/new?q=${encodeURIComponent(line)}`;
+const linesOf = (p: ExplorationPageProps): ToolLines => ({ 'claude-app': p.lines.app, 'claude-code': p.lines.terminal, copilot: p.lines.app });
+const setupOf = (p: ExplorationPageProps): ToolSetup => ({
+  'claude-code': p.terminalSetup ? { label: TERMINAL_SETUP_LINE, command: p.terminalSetup } : null,
+  copilot: p.copilotSetup ?? null,
+});
 
-function ClaudeGlyph({ size = 'xs' }: { size?: 'xs' | 'sm' }) {
-  return <Avatar kind="agent" brand="claude" name="Claude" size={size} decorative className="xp-claude" />;
-}
-
-function ContinuePanel({ p, where, setWhere, say }: { p: ExplorationPageProps; where: ClaudeWhere; setWhere: (w: ClaudeWhere) => void; say: (s: string) => void }) {
-  const line = where === 'app' ? p.lines.app : p.lines.terminal;
-  const copy = () => p.onCopy(line).then(() => say(COPIED), () => say('Select the line and copy it.'));
+/** The open tool's button with this page's line and connector gate. */
+function ContinueButton({ p, tool, line, say, variant, children, size = 'lg' }: { p: ExplorationPageProps; tool: AiTool; line: string; say: (s: string) => void; variant: 'primary' | 'secondary'; children?: string; size?: 'md' | 'lg' }) {
   return (
-    <div className="xp-paste">
-      <div className="xp-paste-head">
-        <span className="xp-muted" id="xp-paste-label">
-          Paste this in Claude
-        </span>
-        <SegmentedControl
-          size="sm"
-          label="Where you use Claude"
-          value={where}
-          onValueChange={(v) => setWhere(v as ClaudeWhere)}
-          items={[
-            { value: 'app', label: 'Claude app' },
-            { value: 'terminal', label: 'Terminal' },
-          ]}
-        />
-      </div>
-      <div className="xp-paste-body">
-        <code className="xp-line" id="xp-line">
-          {line}
-        </code>
-        <Tooltip content="Copy">
-          <IconButton icon={CopyIcon} label="Copy the line" variant="secondary" size="sm" onClick={() => void copy()} />
-        </Tooltip>
-      </div>
-      {where === 'terminal' && p.terminalSetup && (
-        <p className="xp-paste-setup">
-          <span className="xp-muted">{TERMINAL_SETUP_LINE}</span> <code className="xp-mono">{p.terminalSetup}</code>
-        </p>
-      )}
-    </div>
-  );
-}
-
-/**
- * "Continue in Claude": for the Claude app, opens a new Claude conversation with the line in the message box (and
- * copies it too, in case the viewer uses another Claude); for the Terminal, copies the line to paste. While the
- * viewer's own Claude has no Bridge (claudeLink 'no'), the Claude app path shows the connect steps first.
- */
-function ContinueButton({ p, line, say, variant, open = true, children = 'Continue in Claude', size = 'lg' }: { p: ExplorationPageProps; line: string; say: (s: string) => void; variant: 'primary' | 'secondary'; open?: boolean; children?: string; size?: 'md' | 'lg' }) {
-  const [asking, setAsking] = useState(false);
-  const copy = () => p.onCopy(line).then(() => !open && say(COPIED), () => !open && say('Select the line and copy it.'));
-  if (open && p.claudeLink === 'no')
-    return (
-      <>
-        <Button variant={variant} size={size} className="xp-continue" aria-haspopup="dialog" onClick={() => setAsking(true)}>
-          <ClaudeGlyph />
-          {children}
-        </Button>
-        <ConnectClaudeDialog
-          open={asking}
-          onOpenChange={setAsking}
-          address={p.connectorAddress ?? '/mcp'}
-          continueHref={claudeNewUrl(line)}
-          onCopy={p.onCopy}
-          onContinue={() => {
-            void copy();
-            say(OPENED);
-            p.onClaudeConnected?.();
-          }}
-        />
-      </>
-    );
-  if (!open)
-    return (
-      <Button variant={variant} size={size} className="xp-continue" onClick={() => void copy()}>
-        <ClaudeGlyph />
-        {children}
-      </Button>
-    );
-  return (
-    <Button
+    <ToolAction
+      tool={tool}
+      line={line}
+      onCopy={p.onCopy}
+      say={say}
       variant={variant}
       size={size}
-      className="xp-continue"
-      render={<a href={claudeNewUrl(line)} target="_blank" rel="noopener" />}
-      onClick={() => {
-        void copy();
-        say(OPENED);
-      }}
-    >
-      <ClaudeGlyph />
-      {children}
-    </Button>
+      {...(p.claudeLink ? { claudeLink: p.claudeLink } : {})}
+      {...(p.connectorAddress ? { connectorAddress: p.connectorAddress } : {})}
+      {...(p.onClaudeConnected ? { onClaudeConnected: p.onClaudeConnected } : {})}
+      {...(children ? { children } : {})}
+    />
   );
 }
 
@@ -397,6 +328,16 @@ function PieceItem({ piece, onPiece, say }: { piece: SentPiece; onPiece: Handoff
   );
 }
 
+/** "Check in Claude" (or "Copy for Copilot"): the same check in the open tool. */
+function CheckButton({ p, line, say }: { p: ExplorationPageProps; line: string; say: (s: string) => void }) {
+  const tool = useContext(ToolContext);
+  return (
+    <ContinueButton p={p} tool={tool} line={line} say={say} variant="secondary" size="md">
+      {tool === 'copilot' ? 'Copy for Copilot' : 'Check in Claude'}
+    </ContinueButton>
+  );
+}
+
 /** What the library gets from it: the pieces with their request status, the check while it runs, or not checked. */
 function LibraryPart({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void }) {
   const x = h.pieces;
@@ -416,11 +357,7 @@ function LibraryPart({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
       ) : x.state === 'unchecked' ? (
         <div className="xp-unchecked">
           <p className="xp-muted">Not checked against the library.</p>
-          {x.claude && (
-            <ContinueButton p={p} line={x.claude} say={say} variant="secondary" size="md">
-              Check in Claude
-            </ContinueButton>
-          )}
+          {x.claude && <CheckButton p={p} line={x.claude} say={say} />}
         </div>
       ) : (
         <ul className="xp-pieces">
@@ -460,9 +397,12 @@ export function ExplorationPage(p: ExplorationPageProps) {
 }
 
 function ExplorationBody(p: ExplorationPageProps) {
-  const [where, setWhere] = useState<ClaudeWhere>('app');
+  const { view, tab, setTab } = useAiTools(p.claudeLink);
   const [said, setSaid] = useState('');
-  const line = where === 'app' ? p.lines.app : p.lines.terminal;
+  const lines = linesOf(p);
+  const line = lines[tab];
+  const only = view.tools.length === 1 ? view.tools[0] : null;
+  const withWhat = only === 'copilot' ? 'GitHub Copilot' : only ? 'Claude AI' : 'your AI tool';
   const archive = () => {
     setSaid('');
     p.onArchive?.()
@@ -472,6 +412,7 @@ function ExplorationBody(p: ExplorationPageProps) {
   const notStarted = p.stage === 'not-started';
   const handoff = p.stage === 'handed-off' ? (p.handoff ?? null) : null;
   return (
+    <ToolContext.Provider value={tab}>
     <div className="xp">
       <div className="xp-top">
         <Breadcrumb items={p.crumbs} className="xp-crumbs" />
@@ -535,11 +476,11 @@ function ExplorationBody(p: ExplorationPageProps) {
               <h2 className="xp-h-lg" id="xp-start-h">
                 Nothing built yet
               </h2>
-              <p className="xp-body">You explore with Claude AI and the library. Your preview appears here after the first change.</p>
+              <p className="xp-body">You explore with {withWhat} and the library. Your preview appears here after the first change.</p>
             </div>
-            <ContinuePanel p={p} where={where} setWhere={setWhere} say={setSaid} />
+            <ToolPanel tools={view.tools} tab={tab} setTab={setTab} chosen={view.chosen} lines={lines} setup={setupOf(p)} onCopy={p.onCopy} say={setSaid} />
             <div className="xp-acts">
-              <ContinueButton p={p} line={line} say={setSaid} variant="primary" open={where === 'app'} />
+              <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="primary" />
               {p.todayUrl && (
                 <Link href={p.todayUrl} target="_blank" rel="noopener" className="xp-today">
                   See the product today
@@ -573,7 +514,7 @@ function ExplorationBody(p: ExplorationPageProps) {
                   Open the preview
                 </Button>
               )}
-              {!handoff && <ContinueButton p={p} line={p.lines.app} say={setSaid} variant="secondary" />}
+              {!handoff && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
             </div>
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
               <p className="xp-muted xp-note" id="xp-preview-note">
@@ -615,6 +556,7 @@ function ExplorationBody(p: ExplorationPageProps) {
         </AccordionItem>
       </Accordion>
     </div>
+    </ToolContext.Provider>
   );
 }
 

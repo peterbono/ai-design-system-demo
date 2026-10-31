@@ -33,7 +33,7 @@ import {
 import { pieceRows, type PieceRowView } from '../lib/product-branch';
 import { checkPieces } from './connector-api';
 import { forgetClaudeLink, knownClaudeLink, viewerClaudeLink } from './claude-link';
-import { connectorUrl, terminalSetup } from '../lib/claude-connector';
+import { connectorUrl, copilotSetup, terminalSetup } from '../lib/claude-connector';
 import { ARCHIVED_LINE, explorationKey, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { developerLines, productCrumbs, productProduction, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -236,6 +236,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
         repaint(d, key, { claudeLink: 'unknown' });
       },
       terminalSetup: own ? terminalSetup(`${CFG.owner}/${CFG.repo}`) : null,
+      // VS Code (Copilot): bridge connect --tool copilot in the product, or the server added to VS Code for the library.
+      copilotSetup: copilotSetup(`${CFG.owner}/${CFG.repo}`, Boolean(own)),
     },
   };
   mod.paintExplorationPage(d, current.props);

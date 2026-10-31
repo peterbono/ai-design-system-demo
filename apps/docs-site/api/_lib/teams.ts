@@ -18,6 +18,7 @@
 import type { Redis } from './redis.js';
 import { parseRepo } from './http.js';
 import { TEAM_KEY_OWNER, teamKeyId, teamKeyOf } from '../../src/lib/team-path.js';
+import { parseAiTools, type AiTool } from '../../src/lib/ai-tools.js';
 
 export interface Discovery {
   domain: string;
@@ -49,6 +50,8 @@ export const requestsKey = (repo: string) => `bridge:joinreqs:${lc(repo)}`;
 export const myRequestsKey = (email: string) => `bridge:joinreq:mine:${lc(email)}`;
 export const undoKey = (repo: string, id: string) => `bridge:joinreq:undo:${lc(repo)}:${id}`;
 export const teamNameKey = (repo: string) => `bridge:team:name:${lc(repo)}`;
+/** The team default of the AI tools new members start from (src/lib/ai-tools.ts), a JSON array; absent: none. */
+export const teamAiToolsKey = (repo: string) => `bridge:team:ai-tools:${lc(repo)}`;
 
 /** How long an admin can take back an approve or decline (the home's Undo toast is shorter). */
 export const UNDO_TTL_S = 30;
@@ -217,6 +220,19 @@ export async function putTeamName(redis: Redis, repo: string, name: string | nul
   }
 }
 
+/** The team default of the AI tools (an admin set it in Settings), or null when it has none. */
+export async function getTeamAiTools(redis: Redis, repo: string): Promise<AiTool[] | null> {
+  const raw = await redis.cmd('GET', teamAiToolsKey(repo));
+  return typeof raw === 'string' ? parseAiTools(raw) : null;
+}
+
+/** Keeps the team default (`null` or an empty list: no default, the key goes). */
+export async function putTeamAiTools(redis: Redis, repo: string, tools: readonly AiTool[] | null): Promise<void> {
+  const list = tools?.length ? parseAiTools(tools) : null;
+  if (list) await redis.cmd('SET', teamAiToolsKey(repo), JSON.stringify(list));
+  else await redis.cmd('DEL', teamAiToolsKey(repo));
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Teams created in Bridge ("Create your team", api/entry create-team): they exist before any repository
 //
@@ -258,7 +274,7 @@ export async function deleteTeamRecord(redis: Redis, r: TeamRecord): Promise<voi
   await redis.pipe([['DEL', teamRecordKey(r.id)], ...(r.repo ? [['DEL', teamByRepoKey(r.repo)]] : [])]);
 }
 
-/** Forgets what a team keeps under a key: its discovery (and the domain index), name and pending requests. */
+/** Forgets what a team keeps under a key: its discovery (and the domain index), name, AI tools default and pending requests. */
 export async function forgetTeamKey(redis: Redis, key: string, now: number): Promise<void> {
   const d = await getDiscovery(redis, key);
   for (const r of await listRequests(redis, key, now)) await removeRequest(redis, key, r.email);
@@ -267,6 +283,7 @@ export async function forgetTeamKey(redis: Redis, key: string, now: number): Pro
     ['DEL', discoveryKey(key)],
     ['DEL', requestsKey(key)],
     ['DEL', teamNameKey(key)],
+    ['DEL', teamAiToolsKey(key)],
   ]);
 }
 

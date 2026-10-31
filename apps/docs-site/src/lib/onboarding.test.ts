@@ -165,7 +165,7 @@ describe('Create your team (board E6): the workspace of a Bridge account', () =>
   it('has six steps, the team first, no GitHub sign-in step', () => {
     const steps = ws();
     expect(steps.map((s) => s.id)).toEqual(['create', 'library', 'products', 'changes', 'figma', 'claude']);
-    expect(steps.map((s) => s.title)).toEqual(['Your team', 'Your design system', 'Products', 'How changes reach your code', 'Figma plugin', 'Claude AI (MCP)']);
+    expect(steps.map((s) => s.title)).toEqual(['Your team', 'Your design system', 'Products', 'How changes reach your code', 'Figma plugin', 'Your AI tools']);
     expect(progressLabel(steps)).toBe('0 of 6 done');
   });
 

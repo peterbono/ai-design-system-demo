@@ -41,6 +41,73 @@ import { ENTRY_WORDS, teamNameFromDomain } from '../../../lib/entry';
 import { readStart, rememberStart } from '../../../scripts/start';
 import { humanizeRepo } from '../../../lib/demo';
 import { TEAM_NAME_WORDS, teamNameProblem } from '../../../lib/team-name';
+import { AI_TOOLS_WORDS, FALLBACK_TOOLS, toolsSummary, type AiTool } from '../../../lib/ai-tools';
+import { copilotSetup } from '../../../lib/claude-connector';
+import { AiToolsChoice } from './AiToolPanel';
+
+/**
+ * Step "Your AI tools": which AI the person builds with (Claude app, Claude Code in a terminal, GitHub Copilot in VS
+ * Code), saved for them (scripts/ai-tools.ts), then what each chosen tool needs once. Asked once: the exploration
+ * page and the Start dialog then show only these tools. Settings > Your AI tools changes it later.
+ */
+function AiToolsStep({ ctx, done, panel, onSaved, next }: { ctx: OnboardingContext; done: boolean; panel: (children: ReactNode, footer: ReactNode) => ReactNode; onSaved: () => void; next: () => void }) {
+  const [value, setValue] = useState<AiTool[]>([...FALLBACK_TOOLS]);
+  const [saved, setSaved] = useState<AiTool[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void import('../../../scripts/ai-tools').then(async (m) => {
+      const r = await m.readAiTools();
+      const start = r.mine ?? r.teamDefault;
+      if (start) setValue(start);
+      if (r.mine) setSaved(r.mine);
+    });
+  }, []);
+  const save = async () => {
+    if (!value.length) return setError(AI_TOOLS_WORDS.pickOne);
+    setBusy(true);
+    setError(null);
+    try {
+      const { saveMyAiTools } = await import('../../../scripts/ai-tools');
+      await saveMyAiTools(value);
+      setSaved(value);
+      onSaved();
+    } catch (err) {
+      setError((err as Error).message || 'Bridge did not answer. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const unchanged = done && saved && saved.join() === value.join();
+  return panel(
+    <>
+      <AiToolsChoice value={value} onChange={setValue} error={error} hideLabel />
+      {value.includes('claude-code') && !ctx.workspace && <CodeBlock code={ctx.mcpCommand} label="Claude Code: add Bridge once" />}
+      {value.includes('claude-app') && (
+        <p className="onb-quiet">
+          Claude app: add the Bridge connector once. <Link href={ctx.claudeHref}>How to connect Claude</Link>
+        </p>
+      )}
+      {value.includes('copilot') && !ctx.workspace && (
+        <>
+          <CodeBlock code={copilotSetup(ctx.repo, false).command} label="VS Code: add the Bridge MCP server once" />
+          <p className="onb-quiet">
+            In a product repository, <code>npx @bridge-ds/cli connect --ds {ctx.repo} --tool copilot</code> sets it up for everyone there. {AI_TOOLS_WORDS.copilotPolicy}
+          </p>
+        </>
+      )}
+      {ctx.workspace && <p className="onb-quiet">What each tool needs once comes with the repository, on step 2.</p>}
+      {saved && <p className="onb-quiet">Saved: {toolsSummary(saved)}. Change it later in Settings.</p>}
+    </>,
+    unchanged ? (
+      <Button onClick={next}>Continue</Button>
+    ) : (
+      <Button onClick={() => void save()} loading={busy}>
+        Save and continue
+      </Button>
+    ),
+  );
+}
 
 export interface OnboardingContext {
   repo: string;
@@ -736,27 +803,39 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
       );
       break;
     }
-    case 'figma':
-    case 'claude': {
-      const figma = open === 'figma';
-      if (!figma && ctx.workspace) {
-        panel = needsRepo('Your own Claude gets Bridge tools on your design system, and can apply suggestions in the repo.');
-        break;
-      }
+    case 'claude':
+      panel = (
+        <AiToolsStep
+          ctx={ctx}
+          done={step.state === 'done'}
+          panel={(children, footer) => (
+            <Panel step={step} total={total} title={STEP_TITLE.claude} lead={AI_TOOLS_WORDS.lead} footer={nav(footer)}>
+              {children}
+            </Panel>
+          )}
+          onSaved={() => {
+            actions.mark('claude');
+            next();
+          }}
+          next={next}
+        />
+      );
+      break;
+    case 'figma': {
       const done = step.state === 'done';
       panel = (
         <Panel
           step={step}
           total={total}
-          title={STEP_TITLE[open]}
-          lead={figma ? 'The plugin brings your tokens into Figma Variables and sends your variable edits for review.' : 'Your own Claude gets Bridge tools on this design system, and can apply suggestions in the repo.'}
+          title={STEP_TITLE.figma}
+          lead="The plugin brings your tokens into Figma Variables and sends your variable edits for review."
           footer={nav(
             done ? (
               <Button onClick={next}>Continue</Button>
             ) : (
               <Button
                 onClick={() => {
-                  actions.mark(open);
+                  actions.mark('figma');
                   next();
                 }}
               >
@@ -765,20 +844,11 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
             ),
           )}
         >
-          {figma ? (
-            <p>
-              <ButtonLink variant="secondary" href={ctx.figmaHref}>
-                Install the plugin
-              </ButtonLink>
-            </p>
-          ) : (
-            <>
-              <CodeBlock code={ctx.mcpCommand} label="Add Bridge to Claude Code once" />
-              <p className="onb-quiet">
-                Then ask it to <q>Apply Bridge suggestion</q> with the issue number, or anything about the library. <Link href={ctx.claudeHref}>Other Claude apps</Link>
-              </p>
-            </>
-          )}
+          <p>
+            <ButtonLink variant="secondary" href={ctx.figmaHref}>
+              Install the plugin
+            </ButtonLink>
+          </p>
         </Panel>
       );
       break;

@@ -5,6 +5,7 @@
 // Signed in, <html data-account> is set so the GitHub-only account blocks step aside (styles/account.css).
 import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, isPersonalKey, parseAccount, parseBlocked, signInHref, type Account, type AccountInfo, type BlockedTeam, type SignedIn } from '../lib/account';
 import { forgetContributors, seedContributors } from './contribute-session';
+import type { AiTool } from '../lib/ai-tools';
 import { isContribAuth } from '../lib/contribute';
 import { noteAccountTeamNames } from '../lib/recent-teams';
 
@@ -136,6 +137,9 @@ async function update(body: Record<string, unknown>): Promise<Account | null> {
 }
 
 export const renameAccount = (name: string) => update({ action: 'rename', name: name.trim() });
+
+/** The AI tools the person uses (lib/ai-tools.ts), kept on their account. */
+export const saveAiTools = (tools: AiTool[]) => update({ action: 'ai-tools', tools });
 
 /**
  * Forgets what this browser keeps about the person (lib/account.ts isPersonalKey): email memberships, teams, roles,
