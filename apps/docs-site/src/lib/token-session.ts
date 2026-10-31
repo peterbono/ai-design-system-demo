@@ -129,3 +129,13 @@ export function authFailure(err: unknown, action?: string, mode: SessionMode = '
 export function errorText(err: unknown, fallback: string, action?: string, mode: SessionMode = 'token', signIn = false): string {
   return authFailure(err, action, mode, signIn)?.text ?? fallback;
 }
+
+/**
+ * GitHub answers reads with `Cache-Control: max-age=60`, so the browser may serve a pull request from before a write
+ * (Done exploring, Archive) for a minute: the page then repaints the state it just left. For a while after this tab
+ * wrote, reads ask GitHub again ('no-cache': a revalidation, a 304 when nothing changed).
+ */
+export const READ_AFTER_WRITE_MS = 90_000;
+
+/** The fetch cache mode of a read: 'no-cache' shortly after a write from this tab, else the browser's default. */
+export const readCacheMode = (wroteAt: number | null, now: number): RequestCache => (wroteAt !== null && now - wroteAt >= 0 && now - wroteAt < READ_AFTER_WRITE_MS ? 'no-cache' : 'default');

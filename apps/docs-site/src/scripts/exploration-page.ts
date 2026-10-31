@@ -77,8 +77,11 @@ async function capturedImage(r: ExplorationRow, files: readonly string[] | null)
   }
 }
 
-/** Paints a running exploration in place. `product`: its product (the library for a library exploration). `reopen` reloads it after a write. */
-export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pull: ExplorationPullLike, product: ProductConfig, products: readonly ProductConfig[], reopen: () => void) {
+/**
+ * Paints a running exploration in place. `product`: its product (the library for a library exploration). `reopen`
+ * reads it again after a write and opens the page of its new state with `said`, the line the write produced.
+ */
+export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pull: ExplorationPullLike, product: ProductConfig, products: readonly ProductConfig[], reopen: (said?: string) => void, said?: string) {
   mod ??= await import('../components/ds/studio/ExplorationPage');
   const key = explorationKey(r);
   const own = productRepoByKey(r.product);
@@ -129,13 +132,13 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
           focus,
           after: (line) => {
             repaint(d, key, { said: line });
-            reopen();
+            reopen(line);
           },
         }),
       onArchive: writable
         ? async () => {
             await archiveExplorationOnGitHub(gh, r.number, { archived: true });
-            reopen();
+            reopen(ARCHIVED_LINE);
             return ARCHIVED_LINE;
           }
         : null,
@@ -143,6 +146,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       developer: developerLines({ number: r.number, branch: r.branch, links: [], ...(own ? { product: own.product.key, repo: own.repo } : {}) }),
       take: takeItLines(r.branch),
       githubUrl: safeUrl(r.url, '#'),
+      ...(said ? { said } : {}),
     },
   };
   mod.paintExplorationPage(d, current.props);
