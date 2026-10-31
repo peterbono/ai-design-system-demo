@@ -28,8 +28,10 @@ import {
   Button,
   Icon,
   Link,
-  SegmentedControl,
   Skeleton,
+  Tab,
+  Tabs,
+  TabsList,
 } from "@bridge-ds/react";
 import { Check, Hammer } from "lucide-react";
 import {
@@ -523,16 +525,15 @@ export default function BeingBuilt() {
         )}
       </section>
       <div className="bb-bar">
-        <SegmentedControl
-          label="Show"
-          size="md"
-          value={filter}
-          onValueChange={(f) => setFilter(f as BuildFilter)}
-          items={BUILD_FILTERS.map((f) => ({
-            value: f.value,
-            label: counts[f.value] ? `${f.label} ${counts[f.value]}` : f.label,
-          }))}
-        />
+        <Tabs value={filter} onValueChange={(f) => f !== null && setFilter(f as BuildFilter)}>
+          <TabsList aria-label="Show">
+            {BUILD_FILTERS.map((f) => (
+              <Tab key={f.value} value={f.value} count={counts[f.value] ?? 0}>
+                {f.label}
+              </Tab>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
       {shown.length ? (
         <Rows views={shown} data={data} now={now} onOpen={go} />
