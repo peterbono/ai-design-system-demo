@@ -9,6 +9,7 @@ import { anchorOf } from '../../../../lib/library/token-href';
 import { colorRamps, tokenAxes, tokenRows } from '../../../../lib/library/tokens';
 import { GroupSection, LibraryHeader, TokenGroup } from '../FoundationParts';
 import { pageHref, studioLink, type LibraryData } from '../library-data';
+import { ConfluenceCopy } from '../ConfluenceCopy';
 
 const SPECIMEN: Record<string, SpecimenGroup> = {
   'color.bg': 'color.bg',
@@ -43,7 +44,7 @@ export default function ColorView({ data }: { data: LibraryData }) {
   const semanticUsing = (primitivePath: string) => colors.filter((s) => modes.some((m) => s.modes[m]!.chain.includes(primitivePath))).map((s) => s.path);
   return (
     <div data-fd-page="">
-      <LibraryHeader title={COLOR_PAGE.title} art={COLOR_PAGE.art} studio={studioLink(data, COLOR_PAGE.studio)} canEdit={data.extras.canEdit}>
+      <LibraryHeader title={COLOR_PAGE.title} art={COLOR_PAGE.art} studio={studioLink(data, COLOR_PAGE.studio)} canEdit={data.extras.canEdit} actions={<ConfluenceCopy data={data} route={pageHref(data, 'foundations/color/')} />}>
         {COLOR_PAGE.lead}
       </LibraryHeader>
 

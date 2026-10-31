@@ -7,7 +7,8 @@ import { ClipboardCopy, Search, X } from 'lucide-react';
 import { allTokenRows, typeChips } from '../../../../lib/all-tokens';
 import { jsonForScript } from '../../../../lib/html';
 import { tokenAxes, tokenRows } from '../../../../lib/library/tokens';
-import { studioLink, type LibraryData } from '../library-data';
+import { pageHref, studioLink, type LibraryData } from '../library-data';
+import { ConfluenceCopy } from '../ConfluenceCopy';
 
 const MODES = ['light', 'dark'];
 
@@ -44,6 +45,9 @@ export default function AllTokensView({ data }: { data: LibraryData }) {
             ALL_TOKENS_PAGE.lead
           )}
         </p>
+        <div className="lib-actions">
+          <ConfluenceCopy data={data} route={pageHref(data, 'tokens/')} />
+        </div>
       </header>
 
       <div className="at-bar">

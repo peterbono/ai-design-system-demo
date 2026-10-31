@@ -62,6 +62,8 @@ export const DOCS_FIGMA_PLUGIN = '/docs/figma-plugin/';
 export const DOCS_AUTOMATIC_MEASURE = '/docs/automatic-measure/';
 /** Security and data, for IT and security teams reviewing Bridge (pages/docs/security.astro). */
 export const DOCS_SECURITY = '/docs/security/';
+/** Docs in Confluence: Copy for Confluence on each Library page, the Markdown export, the planned live sync. */
+export const DOCS_CONFLUENCE = '/docs/confluence/';
 export const STUDIO_HOME = '/studio/';
 /** The read-only demo ("Open the demo" on /start/ and the team menu): the hosted Studio of the dedicated demo repo (lib/demo DEMO_REPOS). */
 export const DEMO = '/studio/peterbono/bridge-demo-ds/';

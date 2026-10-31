@@ -5,7 +5,7 @@
 import '../styles/docs.css';
 import Landing from './Landing.astro';
 import { Link, Tag } from '@bridge-ds/react';
-import { DOCS_AUTOMATIC_MEASURE, DOCS_FIGMA_PLUGIN, DOCS_HOME, DOCS_SECURITY } from '../lib/nav';
+import { DOCS_AUTOMATIC_MEASURE, DOCS_CONFLUENCE, DOCS_FIGMA_PLUGIN, DOCS_HOME, DOCS_SECURITY } from '../lib/nav';
 
 export interface DocsSection {
   id: string;
@@ -23,6 +23,7 @@ const guides = [
   { href: DOCS_HOME, label: 'Getting started' },
   { href: DOCS_FIGMA_PLUGIN, label: 'Figma plugin' },
   { href: DOCS_AUTOMATIC_MEASURE, label: 'Automatic measure' },
+  { href: DOCS_CONFLUENCE, label: 'Docs in Confluence' },
   { href: DOCS_SECURITY, label: 'Security and data' },
 ];
 ---
