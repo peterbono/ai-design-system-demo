@@ -63,6 +63,13 @@ describe('qualityPillars', () => {
     expect(p[0]!.sentence).toBe('304 checked in 2 brands, light and dark.');
   });
 
+  it('says the adoption gain from the same starting point as the adoption sentence', () => {
+    const base = { figures: [], contrast: { total: 1, fail: 0 }, adoption: 98.9, adoptionBefore: 80.8, guidance: { total: 0, reviewed: 0 } };
+    expect(qualityPillars(base)[1]!.delta).toBe('+18.1 pts since Bridge');
+    expect(qualityPillars({ ...base, adoptionSince: 'at the first audit' })[1]!.delta).toBe('+18.1 pts since the first audit');
+    expect(qualityPillars({ ...base, adoptionBefore: null })[1]!.delta).toBeNull();
+  });
+
   it('marks a failing contrast pillar and leaves the meter out when there is nothing to count', () => {
     const figures = healthFigures({ contrast: { total: 10, fail: 2, brands: 1 }, adoption: [], guidance: { total: 0, reviewed: 0, drafted: 0, missing: 0 } });
     const p = qualityPillars({ figures, contrast: { total: 10, fail: 2 }, adoption: null, guidance: { total: 0, reviewed: 0 } });

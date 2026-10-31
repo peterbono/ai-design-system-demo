@@ -100,6 +100,8 @@ export interface PillarInput {
   adoption: number | null;
   /** Combined adoption before Bridge, for the gain next to the number. */
   adoptionBefore?: number | null | undefined;
+  /** What the earlier value was, as the adoption sentence says it: "before Bridge" (default) or "at the first audit". */
+  adoptionSince?: string | undefined;
   /** Each product's latest component adoption, for the adoption card's rows. */
   products?: { name: string; pct: number | null }[] | undefined;
   /** The contrast checks per brand and theme, for the accessibility card's tiles. */
@@ -143,7 +145,7 @@ export function qualityPillars(input: PillarInput): Pillar[] {
       tone: null,
       next: { label: input.adoption === null ? 'How adoption is measured' : 'See each product', href: `#${HEALTH_SECTION.adoption}` },
       viz: input.adoption !== null && products.length ? { kind: 'products', items: products } : null,
-      delta: before !== null && Math.abs(before) >= 0.1 ? `${before > 0 ? '+' : '−'}${Math.round(Math.abs(before) * 10) / 10} pts since Bridge` : null,
+      delta: before !== null && Math.abs(before) >= 0.1 ? `${before > 0 ? '+' : '−'}${Math.round(Math.abs(before) * 10) / 10} pts ${input.adoptionSince === 'at the first audit' ? 'since the first audit' : 'since Bridge'}` : null,
     },
     {
       id: 'guidance',

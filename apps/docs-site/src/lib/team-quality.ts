@@ -272,7 +272,7 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
   const sentence = healthSentence(contrast.fail, open.length, only?.title);
   const verdict = qualityVerdict({ contrastFail: contrast.fail, findings: all2 });
   const combined = adoption ? combinedAdoption(adoptionFigureInput(adoption)) : null;
-  const pillars = qualityPillars({ figures, contrast: { total: contrast.total, fail: contrast.fail, hasChecks }, combos: contrast.combos, adoption: combined?.now ?? null, adoptionBefore: combined?.before, products: adoption?.products.map((p) => ({ name: p.name, pct: p.latest.component })), guidance });
+  const pillars = qualityPillars({ figures, contrast: { total: contrast.total, fail: contrast.fail, hasChecks }, combos: contrast.combos, adoption: combined?.now ?? null, adoptionBefore: combined?.before, adoptionSince: 'at the first audit', products: adoption?.products.map((p) => ({ name: p.name, pct: p.latest.component })), guidance });
 
   return {
     hasChecks,
