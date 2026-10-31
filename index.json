@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "branch": "bridge-shots",
+  "shots": {
+    "peterbono/bridge-product-admin#2": {
+      "sha": "5584f9417761d3a95f8c55f4cae19d82e59cfc5d",
+      "capturedAt": "2026-10-31T02:58:44.395Z",
+      "image": "peterbono/bridge-product-admin/2.webp",
+      "url": "https://bridge-product-admin-git-explore-das-355771-peterbonos-projects.vercel.app/",
+      "route": "/?tenant=northwind",
+      "screen": "Orders waiting to ship alert"
+    }
+  }
+}
