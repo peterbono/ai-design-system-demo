@@ -48,15 +48,21 @@ export function explorationFiles(x: { number: number; headSha: string; product?:
 export type ProductPull = ExplorationPullLike & { repo: string; product: string };
 
 let read: Promise<{ at: ProductRepo; pulls: ProductPull[] | null }[]> | null = null;
+let readFor = '';
 
 /**
  * The open explorations of every product repository, one read each, in parallel. `pulls` is null for a repository
- * that could not be read (not connected, GitHub busy): lists leave it out. Read once per page unless `fresh`.
+ * that could not be read (not connected, GitHub busy): lists leave it out. Read once per page unless `fresh`, and again
+ * when the product repositories change: on a team shell a read made before its settings arrived (the default products,
+ * no product repository) must not stand for the team's own.
  */
 export function readProductPulls(fresh = false): Promise<{ at: ProductRepo; pulls: ProductPull[] | null }[]> {
-  if (fresh) read = null;
+  const repos = siteProductRepos();
+  const sig = repos.map((at) => `${at.product.key}=${at.repo}`).join(',');
+  if (fresh || sig !== readFor) read = null;
+  readFor = sig;
   read ??= Promise.all(
-    siteProductRepos().map((at) =>
+    repos.map((at) =>
       ghGet<ExplorationPullLike[]>(productPullsPath(at.repo)).then(
         (f) => ({ at, pulls: tagProductPulls(f.data, at) }),
         () => ({ at, pulls: null }),
