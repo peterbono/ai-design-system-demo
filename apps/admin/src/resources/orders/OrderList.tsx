@@ -6,6 +6,8 @@ import { ConfirmButton, DataTable, DateFilter, FilterBar, Page, SearchFilter, ty
 import { CustomerCell, MobileRow, Mono, Muted, fullName } from '../../ui';
 import { useFormat } from '../../format';
 import type { Customer, Order, OrderStatus } from '../../types';
+import { LateBadge } from './LateBadge';
+import { isLateOrder, lateCutoff } from './lateness';
 import styles from './orders.module.css';
 
 const STATUSES: OrderStatus[] = ['ordered', 'delivered', 'cancelled'];
@@ -84,6 +86,7 @@ function OrdersTable() {
   const ids = useMemo(() => Array.from(new Set((data ?? []).map((o) => o.customer_id))), [data]);
   const { data: customers } = useGetMany<Customer>('customers', { ids }, { enabled: ids.length > 0 });
   const byId = useMemo(() => new Map((customers ?? []).map((c) => [c.id, c])), [customers]);
+  const lateBefore = useMemo(() => lateCutoff(), []);
 
   const columns: Column<Order>[] = [
     { source: 'date', label: translate('orders.fields.date'), sortable: true, render: (o) => <span className={styles.nowrap}>{fmt.dateTime(o.date)}</span> },
@@ -106,6 +109,14 @@ function OrdersTable() {
     { source: 'total_ex_taxes', label: translate('orders.fields.subtotal'), numeric: true, sortable: true, hideBelow: 'lg', render: (o) => <Muted>{fmt.money(o.total_ex_taxes)}</Muted> },
     { source: 'total', label: translate('orders.fields.total'), numeric: true, sortable: true, render: (o) => <strong className={styles.amount}>{fmt.money(o.total)}</strong> },
   ];
+  if (status === 'ordered') {
+    // Lateness only applies to orders still waiting to ship, so the column lives on that tab only.
+    columns.splice(1, 0, {
+      source: 'late',
+      label: translate('orders.fields.status'),
+      render: (o) => (isLateOrder(o, lateBefore) ? <LateBadge /> : null),
+    });
+  }
   if (status === 'delivered') {
     columns.push({
       source: 'returned',
@@ -129,7 +140,12 @@ function OrdersTable() {
             title={fullName(c) || '…'}
             meta={`${o.reference} · ${fmt.dateTime(o.date)}`}
             end={<strong className={styles.amount}>{fmt.money(o.total)}</strong>}
-            endMeta={translate('orders.items', { smart_count: o.basket.reduce((n, b) => n + b.quantity, 0) })}
+            endMeta={
+              <span className={styles.dateCell}>
+                {isLateOrder(o, lateBefore) && <LateBadge />}
+                {translate('orders.items', { smart_count: o.basket.reduce((n, b) => n + b.quantity, 0) })}
+              </span>
+            }
           />
         );
       }}

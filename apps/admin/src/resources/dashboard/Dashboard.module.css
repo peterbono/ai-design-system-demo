@@ -115,6 +115,12 @@
   font-size: var(--font-size-100);
 }
 
+.age {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .amount {
   color: var(--color-text-default);
   font-size: var(--font-size-200);

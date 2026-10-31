@@ -8,6 +8,8 @@ import { CustomerCell, StatCard, Stars, Muted, fullName } from '../../ui';
 import { useFormat } from '../../format';
 import { usePreferences } from '../../preferences';
 import type { Customer, Order, Review } from '../../types';
+import { LateBadge } from '../orders/LateBadge';
+import { isLateOrder, lateCutoff } from '../orders/lateness';
 import styles from './Dashboard.module.css';
 
 const RevenueChart = lazy(() => import('./RevenueChart'));
@@ -16,9 +18,9 @@ export function Dashboard() {
   const translate = useTranslate();
   const fmt = useFormat();
   const { tenant } = usePreferences();
-  const { since30, since60 } = useMemo(() => {
+  const { since30, since60, lateBefore } = useMemo(() => {
     const today = startOfDay(new Date());
-    return { since30: subDays(today, 30), since60: subDays(today, 60) };
+    return { since30: subDays(today, 30), since60: subDays(today, 60), lateBefore: lateCutoff() };
   }, []);
 
   const { data: orders, isPending } = useGetList<Order>('orders', {
@@ -130,13 +132,17 @@ export function Dashboard() {
                   {pendingShown.map((order) => {
                     const customer = personById.get(order.customer_id);
                     const items = order.basket.reduce((n, b) => n + b.quantity, 0);
+                    const isLate = isLateOrder(order, lateBefore);
                     return (
                       <li key={order.id}>
                         <LinkBase to={`/orders/${order.id}`} className={styles.row}>
                           <CustomerCell customer={customer} secondary={`${order.reference} · ${translate('orders.items', { smart_count: items })}`} />
                           <span className={styles.rowEnd}>
                             <span className={styles.amount}>{fmt.money(order.total)}</span>
-                            <Muted>{fmt.relative(order.date)}</Muted>
+                            <span className={styles.age}>
+                              {isLate && <LateBadge />}
+                              <Muted>{fmt.relative(order.date)}</Muted>
+                            </span>
                           </span>
                         </LinkBase>
                       </li>

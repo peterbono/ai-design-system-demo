@@ -136,6 +136,7 @@ export const en = {
       line_total: 'Total',
     },
     returned_yes: 'Returned',
+    late: 'Late',
     returned_no: 'No',
     empty: {
       ordered: 'No orders to ship',

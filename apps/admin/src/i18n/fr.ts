@@ -145,6 +145,7 @@ export const fr: Messages = {
       line_total: 'Total',
     },
     returned_yes: 'Retournée',
+    late: 'En retard',
     returned_no: 'Non',
     empty: { ordered: 'Aucune commande à expédier', delivered: 'Aucune commande livrée', cancelled: 'Aucune commande annulée' },
     empty_hint: 'Les commandes apparaissent ici après la validation du panier.',
