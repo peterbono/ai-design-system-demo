@@ -494,7 +494,9 @@ function HomeBody(p: StudioHomeProps) {
   return (
     <div className="sh">
       {note}
-      <section className="zone sh-zone" aria-labelledby="sh-hello" aria-busy={loading || undefined}>
+      <section className={`zone sh-zone${quiet ? ' sh-zone-quiet' : ''}`} aria-labelledby="sh-hello" aria-busy={loading || undefined}>
+        {/* Nothing waits: the zone becomes a window onto a calm harbor, not an empty box (on a phone, only the water). */}
+        {quiet && <QuietScene scene="harbor" layout="window" />}
         <div className="sh-head">
           <div className="sh-head-text">
             <div className="sh-hello-row">
@@ -505,8 +507,6 @@ function HomeBody(p: StudioHomeProps) {
             </div>
             {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} lead={p.demo ? p.demo.lead : undefined} /> : <p className="t-body">{p.needs.length ? 'Your changes need you.' : QUIET_LINE}</p>}
           </div>
-          {/* Nothing waits: the zone is a calm harbor, not an empty box (the drawing hides on a phone). */}
-          {quiet && <QuietScene scene="harbor" width={240} className="sh-art" />}
         </div>
         {loading ? (
           <>

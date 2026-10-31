@@ -64,6 +64,22 @@
   /* The ground line keeps the zone's gap above the task list. */
 }
 
+/* Nothing waits: the zone is a window onto the harbor (QuietScene layout="window"). The water runs along its whole
+   bottom, clipped by the rounded corners; the text stands in the sky above it, its block anchored to the horizon so
+   the greeting's baseline lines up with the top of the bridge's arch. */
+.sh-zone-quiet {
+  position: relative;
+  align-content: end;
+  container-type: inline-size;
+  min-height: var(--size-64);
+  padding-bottom: calc(var(--space-12) * 2 + var(--space-3));
+  overflow: hidden;
+}
+
+.sh-zone-quiet .sh-head {
+  position: relative;
+}
+
 .sh-strong {
   font-weight: var(--font-weight-semibold);
 }
@@ -495,6 +511,11 @@
 
   .sh-head .sh-art {
     display: none;
+  }
+
+  .sh-zone-quiet {
+    min-height: 0;
+    padding-bottom: calc(var(--space-10) + var(--space-6));
   }
 
   .sh-row-body {
