@@ -449,7 +449,10 @@ export function teamRewrite(url: string, reserved: ReadonlySet<string>): string 
     const [owner, repo] = escaped ? [parts[3], parts[4]] : [parts[2], parts[3]];
     if (!owner || !repo || !OWNER.test(owner) || !REPO.test(repo) || repo === '.' || repo === '..') return null;
     if (!escaped && reserved.has(owner)) return null;
-    const rest = parts.slice(escaped ? 5 : 4).join('/');
+    const restParts = parts.slice(escaped ? 5 : 4);
+    // A product page: one shell for every product (lib/team-shells.ts PRODUCT_SHELL_ROUTE), as vercel.json does.
+    if (restParts[0] === 'products' && restParts[1] && /^[A-Za-z0-9][A-Za-z0-9-]*$/.test(restParts[1]) && !restParts[2]) return `/team-shell/products/item/${query}`;
+    const rest = restParts.join('/');
     return `/team-shell/${rest}${query}`;
   }
   if (parts[1] === 'library') {

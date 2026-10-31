@@ -1,0 +1,5 @@
+---
+"@bridge-ds/docs-site": minor
+---
+
+Studio gets a product level, like projects in Figma: one page per product bridge.config.json lists (/studio/products/<key>/, and on a team /studio/<owner>/<repo>/products/<key>/), with the shared header and a live summary ("2 exploring, 1 waiting for code."), the product's facts on one quiet line (where it is live, its repository or "In the library repository", whether Bridge reaches it), its explorations grouped by where they stand (Running, In review, Waiting for code, Being built, Shipped, Archived folded) and "Start an exploration" preselected with the product. A calm Field Guide moment stands in when nothing is explored yet. The side nav lists the products under the main nav, the Home renames its section "Recent explorations" and adds a row of product folder cards (a mosaic of their latest screens and what is in progress), Changes' product headings open the product page, and the "7 of 8 connected" chip moves out of the greeting to the status line next to the library's health.

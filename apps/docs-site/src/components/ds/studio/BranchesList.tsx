@@ -53,6 +53,7 @@ import { VOCAB } from '../../../lib/vocabulary';
 import { changesSummary, setPageSummary } from '../../../lib/page-summary';
 import type { ProductConfig, ToolingConfig } from '@bridge-ds/core';
 import { studioHref } from '../../../lib/team-path';
+import { productHref } from '../../../lib/product-page';
 
 export interface ListRow {
   number: number;
@@ -545,8 +546,12 @@ export function BranchesList(p: BranchesListProps) {
       ) : (
         groups.map((g) => (
           <section className="bl-group" key={g.key} aria-labelledby={`bl-${g.key}`}>
+            {/* The product's name opens its page (lib/product-page.ts), like a project in Figma. */}
             <h2 className="bl-h2" id={`bl-${g.key}`}>
-              {g.label} <span className="bl-count">{g.count}</span>
+              <Link href={productHref(g.key)} variant="subtle" data-product-link={g.key}>
+                {g.label}
+              </Link>{' '}
+              <span className="bl-count">{g.count}</span>
             </h2>
             <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
               {g.rows.map((x) => branchRow(x, undefined, g.rows.some(pickable)))}

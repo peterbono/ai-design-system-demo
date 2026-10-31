@@ -324,6 +324,8 @@ const onboarding = {
                 paint();
               },
               onHide: () => remember({ hidden: true }),
+              // On the status line under the Harbor zone, next to the library's health: quiet, never a second primary.
+              quiet: true,
             })
           : undefined;
       const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: (d?.branches.length ?? 0) + (d?.explorations.length ?? 0) });

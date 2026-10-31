@@ -64,6 +64,8 @@ export interface StartExplorationProps {
    * `choice`: the title of a way-to-start card (the home with nothing at all), the card's primary action.
    */
   appearance?: 'menu' | 'card' | 'button' | 'choice';
+  /** The product the start is for (a product page): preselected in "Where", the person can still pick another. */
+  product?: string | null;
 }
 
 export const START_CHANGE_EVENT = 'bridge:start-change';
@@ -102,7 +104,7 @@ function pageProducts(): ProductConfig[] {
   }
 }
 
-export default function StartExploration({ components, appearance = 'menu' }: StartExplorationProps) {
+export default function StartExploration({ components, appearance = 'menu', product = null }: StartExplorationProps) {
   // The server render and the first client render agree; the page's choice comes in right after.
   const [look, setLook] = useState<StartChangeLook>({ variant: 'primary', hidden: false });
   const [open, setOpen] = useState(false);
@@ -169,7 +171,7 @@ export default function StartExploration({ components, appearance = 'menu' }: St
   const onOpenChange = (next: boolean) => {
     if (busy) return;
     if (next) {
-      reset(products, productParam(location.search));
+      reset(products, product ?? productParam(location.search));
       setToolSaid('');
       // The connect steps come first on the Claude app path while the viewer's own Claude has no Bridge.
       void import('../../../scripts/claude-link').then((m) => {

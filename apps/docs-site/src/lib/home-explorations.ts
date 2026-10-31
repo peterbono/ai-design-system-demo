@@ -45,6 +45,8 @@ export interface ExplorationCard {
   href: string;
   /** "Account": the product it was tried in, when it names one. */
   product: string | null;
+  /** The key of the product it belongs to (bridge.config.json products), the library's for a library exploration. */
+  productKey?: string;
   /** Who explores it: the person who asked, before the account (often Claude AI) that opened it. */
   author: Person;
   stage: ExplorationStage;
@@ -82,6 +84,22 @@ export function explorationProduct(p: Pick<ExplorationPull, 'labels'> & { produc
     return key.charAt(0).toUpperCase() + key.slice(1);
   }
   return null;
+}
+
+/**
+ * The key of the product an exploration belongs to: the product repository it was read in, else its "product: <key>"
+ * label, else the default product (the library). Lower case; a label naming no configured product keeps its key.
+ */
+export function explorationProductKey(p: Pick<ExplorationPull, 'labels'> & { product?: string | undefined }, products: readonly ProductConfig[]): string {
+  const lib = defaultProduct(products);
+  if (p.product) return p.product.toLowerCase();
+  for (const l of labelNames(p)) {
+    if (!l.toLowerCase().startsWith(PRODUCT_LABEL_PREFIX)) continue;
+    const key = l.slice(PRODUCT_LABEL_PREFIX.length).trim();
+    if (!key) continue;
+    return (findProduct(products, key)?.key ?? key).toLowerCase();
+  }
+  return lib.key.toLowerCase();
 }
 
 /** An exploration, or a branch started for a product: what the home's section shows. Library changes are not. */
@@ -179,6 +197,8 @@ export interface HomeExplorationsOptions<P extends ExplorationPull = Exploration
    * "Not started" or "Exploring", as its page. Omitted: "Exploring".
    */
   files?: (p: P) => readonly string[] | null | undefined;
+  /** Archived explorations: left out (the default), or the only ones kept (a product page's Archived fold). */
+  archived?: 'exclude' | 'only';
 }
 
 /**
@@ -207,7 +227,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
     .filter((p) => {
       if (seen.has(keyOf(p))) return false;
       seen.add(keyOf(p));
-      return !givenUp(p) && !isArchivedExploration(p.labels) && isHomeExploration(p, opts.products) && (!opts.onlyOwn || isOwnExploration(p, opts.viewer));
+      return !givenUp(p) && isArchivedExploration(p.labels) === (opts.archived === 'only') && isHomeExploration(p, opts.products) && (!opts.onlyOwn || isOwnExploration(p, opts.viewer));
     })
     .map((p): ExplorationCard => {
       const files = opts.files;
@@ -220,6 +240,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
         title: explorationTitle(p),
         href: explorationHref(p),
         product,
+        productKey: explorationProductKey(p, opts.products),
         author: opts.author(p),
         stage,
         state,
@@ -252,5 +273,5 @@ export const YOUR_CHANGES_HREF = () => studioHref('changes/?who=mine');
 export function explorationsFor(cards: ExplorationCard[], contributor: boolean): { cards: ExplorationCard[]; title: string; seeAll: string } {
   return contributor
     ? { cards: cards.filter((c) => c.own), title: 'Your explorations', seeAll: YOUR_CHANGES_HREF() }
-    : { cards, title: 'Explorations', seeAll: studioHref('changes/') };
+    : { cards, title: 'Recent explorations', seeAll: studioHref('changes/') };
 }
