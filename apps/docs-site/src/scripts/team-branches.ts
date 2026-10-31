@@ -145,7 +145,7 @@ export async function initTeamBranches(): Promise<void> {
     }
     reviews.closePr();
     if (r.view === 'exploration') {
-      // An exploration in a product's own repository: the exploration page reads that repository.
+      // An exploration: the exploration page, which reads a product's own repository when it lives there.
       showMain(null);
       const m = await loadExplorationsModule();
       void m.openExploration(r.n, false, r.product);
@@ -204,7 +204,9 @@ export async function initTeamBranches(): Promise<void> {
     if (n) {
       e.preventDefault();
       const product = pr?.dataset.product;
-      go(sg ? `?suggestion=${n}` : rq ? `?request=${n}` : product ? `?exploration=${n}&product=${encodeURIComponent(product)}` : `?pr=${n}`);
+      // An exploration opens on its exploration page, in the design system repository or a product's own one.
+      const exploration = pr?.dataset.openExploration !== undefined ? `?exploration=${n}${product ? `&product=${encodeURIComponent(product)}` : ''}` : null;
+      go(sg ? `?suggestion=${n}` : rq ? `?request=${n}` : (exploration ?? `?pr=${n}`));
       return;
     }
     const start = t.closest<HTMLElement>('[data-start-for]');

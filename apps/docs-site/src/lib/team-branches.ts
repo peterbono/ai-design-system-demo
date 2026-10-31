@@ -15,8 +15,11 @@ import { REQUEST_TRIAGE_IN_STUDIO } from './studio-flags';
 export type TeamBranchesRoute =
   | { view: 'list' }
   | { view: 'pr'; n: number }
-  /** An exploration in a product's own repository (&product=<key>): it opens on the exploration page, not as a branch here. */
-  | { view: 'exploration'; n: number; product: string }
+  /**
+   * An exploration: it opens on the exploration page, never as a branch review. `product` when it lives in a product's
+   * own repository (&product=<key>), null in the team's design system repository.
+   */
+  | { view: 'exploration'; n: number; product: string | null }
   | { view: 'suggestion'; n: number }
   | { view: 'request'; n: number }
   | { view: 'requests' }
@@ -30,8 +33,8 @@ export function teamBranchesRoute(search: string, requestTriage: boolean = REQUE
   };
   if (num('suggestion')) return { view: 'suggestion', n: num('suggestion') };
   const product = p.get('product')?.trim().toLowerCase();
-  if (num('exploration') && product && /^[a-z0-9][a-z0-9-]*$/.test(product)) return { view: 'exploration', n: num('exploration'), product };
-  const pr = num('pr') || num('exploration');
+  if (num('exploration')) return { view: 'exploration', n: num('exploration'), product: product && /^[a-z0-9][a-z0-9-]*$/.test(product) ? product : null };
+  const pr = num('pr');
   if (pr) return { view: 'pr', n: pr };
   if (num('request')) return { view: 'request', n: num('request') };
   const v = p.get('view');

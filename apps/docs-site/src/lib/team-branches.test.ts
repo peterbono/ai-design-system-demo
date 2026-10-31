@@ -6,7 +6,7 @@ describe('teamBranchesRoute', () => {
   it('opens a branch, an exploration (a branch too) or a suggestion in place, else the list', () => {
     expect(teamBranchesRoute('')).toEqual({ view: 'list' });
     expect(teamBranchesRoute('?pr=12')).toEqual({ view: 'pr', n: 12 });
-    expect(teamBranchesRoute('?exploration=7')).toEqual({ view: 'pr', n: 7 });
+    expect(teamBranchesRoute('?exploration=7')).toEqual({ view: 'exploration', n: 7, product: null });
     expect(teamBranchesRoute('?suggestion=3&pr=4')).toEqual({ view: 'suggestion', n: 3 });
     expect(teamBranchesRoute('?pr=abc')).toEqual({ view: 'list' });
     expect(teamBranchesRoute('?pr=-2')).toEqual({ view: 'list' });
