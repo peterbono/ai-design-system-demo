@@ -246,9 +246,10 @@ export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
  * Loads everything, painting as it goes. Signed out (or no working token) it reads nothing: the page asks to sign in.
  * `stat` is read on every paint: a team page passes a getter, so the repo facts (contrast, guidance drafts) fill in
  * when its design system is read, without reading GitHub again (`onRepaint` hands back the way to repaint). Join
- * requests are Bridge's own (api/entry): they paint as soon as they are read, whatever GitHub does.
+ * requests are Bridge's own (api/entry): they paint as soon as they are read, whatever GitHub does. `settings`: on a
+ * team shell, the read of its settings (bridge.config.json products), awaited before the products are known.
  */
-export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: (d: HomeData) => void, onRepaint?: (repaint: () => void) => void): Promise<void> {
+export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: (d: HomeData) => void, onRepaint?: (repaint: () => void) => void, settings?: Promise<unknown>): Promise<void> {
   const facts = typeof stat === 'function' ? stat : () => stat;
   const viewer = currentViewer()?.login ?? null;
   const now = Date.now();
@@ -284,6 +285,10 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       if (rows.length) repaint();
     });
   const { owner, repo } = readRepo();
+  // The open changes start at once; on a team the products and their repositories wait for its settings (`settings`).
+  const openRead = ghGet<HomePull[]>(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`);
+  openRead.catch(() => undefined);
+  if (settings) await settings.catch(() => undefined);
   // The explorations in products' own repositories, one read each in parallel; an unreachable one adds nothing.
   let productOpen: HomePull[] = [];
   const productRead = import('./product-repos')
@@ -292,7 +297,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     .catch(() => (productOpen = []));
   let pulls: HomePull[];
   try {
-    pulls = (await ghGet<HomePull[]>(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`)).data;
+    pulls = (await openRead).data;
   } catch (err) {
     failed = err instanceof RateLimitError ? (limitLine(err) ?? busyText(err.resetAt ? (err.resetAt.getTime() - Date.now()) / 1000 : null)) : 'GitHub could not be reached. Reload the page to try again.';
     repaint();

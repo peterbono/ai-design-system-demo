@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// A product page: its explorations grouped by where they stand, the archived ones folded, and the calm empty moment
+// A product page: its explorations grouped by where they stand, the archived ones counted in one quiet line, and the calm empty moment
 // with the one action. The sidebar's Products group: one link per configured product, the current one marked.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
@@ -47,7 +47,7 @@ const data = (over: Partial<ProductPageData> = {}): ProductPageData => ({
 });
 
 describe('ProductPageView', () => {
-  it('groups the explorations by where they stand, says it in the header, and folds the archived ones', async () => {
+  it('groups the explorations by where they stand, says it in the header, and counts the archived ones in one line', async () => {
     const cards = [card(1), card(2), card(3, { stage: 'with-devs', state: 'Waiting for code' }), card(4, { stage: 'kept', state: 'Shipped' })];
     const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards, archived: [card(9)] }) }));
     expect(screen.getByRole('heading', { level: 1, name: 'Product admin' })).toBeTruthy();
@@ -63,9 +63,13 @@ describe('ProductPageView', () => {
     expect(screen.queryByText('Connected')).toBeNull();
     // On a product page the product goes without saying.
     expect(container.querySelector('.sh-card-product')).toBeNull();
-    // The one primary action on the title's line; archived ones behind their fold.
+    // The one primary action on the title's line; archived ones are one quiet line to Changes' Archived tab, no cards.
     expect(container.querySelector('[data-st-actions]')!.textContent).toContain('Start an exploration');
-    expect(screen.getByRole('button', { name: /Archived/ }).getAttribute('aria-expanded')).toBe('false');
+    const line = container.querySelector('[data-archived-line]')!;
+    expect(line.textContent).toBe('1 archived. See archived');
+    expect(screen.getByRole('link', { name: 'See archived' }).getAttribute('href')).toBe('/studio/changes/?state=archived&product=admin-app');
+    expect(line.querySelector('.sh-card-item')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Archived/ })).toBeNull();
     await expectNoAxeViolations(container);
   });
 
@@ -78,6 +82,14 @@ describe('ProductPageView', () => {
     expect(container.querySelector('[data-st-actions]')!.textContent).toBe('');
     expect(container.querySelector('.pp-facts')).toBeNull();
     await expectNoAxeViolations(container);
+  });
+
+  it('says "2 archived." in the plural, and nothing at all without archived ones', () => {
+    const { container, unmount } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)], archived: [card(8), card(9)] }) }));
+    expect(container.querySelector('[data-archived-line]')!.textContent).toBe('2 archived. See archived');
+    unmount();
+    const none = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }) }));
+    expect(none.container.querySelector('[data-archived-line]')).toBeNull();
   });
 
   it('says when the team lists no such product', () => {

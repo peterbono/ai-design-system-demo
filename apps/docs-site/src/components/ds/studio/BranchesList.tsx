@@ -271,7 +271,8 @@ export function BranchesList(p: BranchesListProps) {
     };
   };
   const openItems = openDesign.map((r) => classify(r, null));
-  const archivedItems = archived.map((r) => classify(r, 'archived'));
+  // An archived exploration says so on its tag, never "Exploring" (its stage before it was archived).
+  const archivedItems = archived.map((r) => classify({ ...r, pill: { label: LIFECYCLE_LABEL.archived, tone: 'neutral' } }, 'archived'));
   const shippedItems = shippedDesign.map((r) => classify(r, 'shipped'));
   const waitingExtras = viewer
     ? (p.waiting ?? []).map((w) => {

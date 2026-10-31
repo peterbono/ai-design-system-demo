@@ -10,6 +10,10 @@ import {
   isOwnExploration,
   libraryChangesLine,
   libraryChangesOf,
+  ownOpenWork,
+  quietSentence,
+  recentExplorations,
+  RECENT_CARDS,
   SCREEN_SKETCH,
   cardTag,
   type ExplorationPull,
@@ -209,5 +213,33 @@ describe('the state of a running exploration card, from its files', () => {
 
   it('leaves the other stages as they are', () => {
     expect(explorationStage({ ...billing, draft: false }, () => ['.bridge/x.md']).state).toBe('In review');
+  });
+});
+
+describe('the quiet team Home', () => {
+  const c = (n: number, over: Record<string, unknown> = {}) =>
+    ({ number: n, key: String(n), title: `S${n}`, href: '#', product: null, author: person('ann', 'Ann', null), stage: 'exploring', state: 'Exploring', updated: `2026-10-${String(10 + n).padStart(2, '0')}T10:00:00Z`, preview: SCREEN_SKETCH, own: false, ...over }) as Parameters<typeof recentExplorations>[0][number];
+
+  it('keeps the four newest explorations, whatever their stage, and how many there are in all', () => {
+    const cards = [c(1), c(2, { stage: 'kept', state: 'Shipped' }), c(3), c(4, { stage: 'with-devs', state: 'Waiting for code' }), c(5), c(6)];
+    const r = recentExplorations(cards);
+    expect(RECENT_CARDS).toBe(4);
+    expect(r.cards.map((x) => x.number)).toEqual([6, 5, 4, 3]);
+    expect(r.total).toBe(6);
+  });
+
+  it("says what is open of the viewer's own work in the Changes words, else that nothing is", () => {
+    expect(ownOpenWork([c(1, { own: true, stage: 'with-devs', state: 'Waiting for code' })])).toBe('1 waiting for code.');
+    expect(ownOpenWork([c(1, { own: true }), c(2, { own: true, stage: 'found', state: '1 new piece found' }), c(3, { own: true, stage: 'with-devs', state: 'Being built' }), c(4, { own: true, stage: 'in-review', state: 'In review' })])).toBe('2 exploring, 1 being built, 1 in review.');
+    // Someone else's, shipped, kept or archived: not open work of the viewer.
+    expect(ownOpenWork([c(1), c(2, { own: true, stage: 'kept', state: 'Shipped' }), c(3, { own: true, state: 'Archived' })])).toBeNull();
+    // Library changes: a draft is being built, one waiting for a developer waits for code, one sent is in review.
+    expect(ownOpenWork([], [{ stage: 'draft' }, { stage: 'waiting' }, { stage: 'ready' }])).toBe('1 waiting for code, 1 being built, 1 in review.');
+  });
+
+  it('tells the truth after the greeting', () => {
+    expect(quietSentence('1 waiting for code.')).toBe('Nothing needs you. 1 waiting for code.');
+    expect(quietSentence(null)).toBe('Nothing needs you, and you have nothing in progress.');
+    expect(quietSentence(null, true)).toBe('Nothing needs you.');
   });
 });
