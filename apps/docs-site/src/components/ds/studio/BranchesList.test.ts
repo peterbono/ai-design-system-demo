@@ -52,11 +52,11 @@ const triggers = () => screen.getAllByRole('combobox').map((c) => c.textContent 
 describe('BranchesList tabs and filters', () => {
   it('shows the state tabs with their counts, and the kind and people filters', async () => {
     const { container } = render(createElement(BranchesList, props()));
-    expect(screen.getByRole('radio', { name: /^All\s*3$/ })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: /^Waiting on me\s*1$/ })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: /^In review\s*3$/ })).toBeTruthy();
-    expect(screen.queryByRole('radio', { name: /Mine/ })).toBeNull();
-    expect(screen.queryByRole('radio', { name: /Exploring/ })).toBeNull();
+    expect(screen.getByRole('tab', { name: /^All\s*3$/ })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /^Waiting on me\s*1$/ })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /^In review\s*3$/ })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: /Mine/ })).toBeNull();
+    expect(screen.queryByRole('tab', { name: /Exploring/ })).toBeNull();
     expect(triggers().some((t) => t.includes('All kinds'))).toBe(true);
     expect(triggers().some((t) => t.includes('Everyone'))).toBe(true);
     await expectNoAxeViolations(container);
@@ -66,14 +66,14 @@ describe('BranchesList tabs and filters', () => {
     const user = userEvent.setup();
     const ex = (n: number, label: string) => row(n, 'ann', { opens: 'exploration', lifecycle: 'exploration', pill: { label, tone: 'neutral' } });
     render(createElement(BranchesList, props({ rows: [ex(1, 'Not started'), ex(2, 'Exploring'), ex(3, 'Exploring')], archived: [ex(4, 'Archived')] })));
-    const names = screen.getAllByRole('radio').map((r) => r.textContent);
+    const names = screen.getAllByRole('tab').map((r) => r.textContent);
     expect(names).toEqual(['All3', 'Waiting on me0', 'Not started1', 'Exploring2', 'Archived1']);
     expect(screen.queryByText(/archived exploration\./)).toBeNull();
-    await user.click(screen.getByRole('radio', { name: /^Exploring/ }));
+    await user.click(screen.getByRole('tab', { name: /^Exploring/ }));
     expect(screen.queryByText('Change 1')).toBeNull();
     expect(screen.getByText('Change 2')).toBeTruthy();
     expect(new URLSearchParams(location.search).get('state')).toBe('exploring');
-    await user.click(screen.getByRole('radio', { name: /^Archived/ }));
+    await user.click(screen.getByRole('tab', { name: /^Archived/ }));
     expect(screen.getByText('Change 4')).toBeTruthy();
     expect(screen.queryByText('Change 2')).toBeNull();
   });
@@ -91,7 +91,7 @@ describe('BranchesList tabs and filters', () => {
     const user = userEvent.setup();
     render(createElement(BranchesList, props()));
     expect(screen.getByText(/Nothing here matches these filters/)).toBeTruthy();
-    await user.click(screen.getByRole('radio', { name: /^Waiting on me/ }));
+    await user.click(screen.getByRole('tab', { name: /^Waiting on me/ }));
     expect(new URLSearchParams(location.search).get('kind')).toBe('docs');
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(screen.getByText('Change 2')).toBeTruthy();
