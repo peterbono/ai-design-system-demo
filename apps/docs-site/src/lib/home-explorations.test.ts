@@ -83,6 +83,9 @@ describe('the explorations of the Studio home', () => {
     // Promoted: the label is gone and it waits for its approvals.
     expect(explorationStage({ ...profile, draft: false, labels: [{ name: 'product: account' }] }).state).toBe('In review');
     expect(explorationStage({ ...profile, state: 'closed', merged_at: '2026-10-23T10:00:00Z' })).toEqual({ stage: 'kept', state: 'Kept in the library' });
+    // Done exploring said but the exploration label could not be removed: with the developers, not running.
+    const done = '<!-- bridge-exploration {"name":"Profile page","doneAt":"2026-10-31T13:35:11.487Z","doneSha":"aaa"} -->';
+    expect(explorationStage({ ...profile, body: done, head: { ref: 'explore/profile-page', sha: 'aaa' } })).toEqual({ stage: 'with-devs', state: 'Waiting for code' });
   });
 
   it('titles a card with the exploration name, else the title for people', () => {

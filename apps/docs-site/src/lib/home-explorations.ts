@@ -107,7 +107,9 @@ export function explorationStage(
    */
   files?: () => readonly string[] | null | undefined,
 ): { stage: ExplorationStage; state: string } {
-  const handed = !isActiveExploration(p.labels ?? []) && isHandedOff({ labels: p.labels ?? [], body: p.body });
+  // Done exploring is read from the body first (core explorationStatus): a label that could not be removed does not
+  // make a handed-off exploration read as running again.
+  const handed = isHandedOff({ labels: p.labels ?? [], body: p.body }) && explorationStatus({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body, headSha: p.head?.sha, draft: p.draft }) !== 'active';
   if (p.merged_at || p.state === 'merged') return { stage: 'kept', state: handed ? EXPLORATION_STATUS_LABEL.shipped : 'Kept in the library' };
   if (handed && p.draft !== false) {
     const s = explorationStatus({ state: p.state ?? 'open', labels: p.labels ?? [], body: p.body, headSha: p.head?.sha, draft: p.draft });
