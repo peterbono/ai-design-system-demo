@@ -53,12 +53,15 @@ describe('ExplorationPage, not started (X1)', () => {
     expect(screen.queryByText(/Same as the product today/)).toBeNull();
   });
 
-  it('Continue in Claude copies the line of the selected tab', async () => {
+  it('Continue in Claude opens a new Claude conversation with the line (Claude app), copies it for the Terminal', async () => {
     const onCopy = vi.fn(async () => {});
     paint({ onCopy });
-    fireEvent.click(screen.getByRole('button', { name: /Continue in Claude/ }));
+    const open = screen.getByRole('link', { name: /Continue in Claude/ });
+    expect(open.getAttribute('href')).toBe(`https://claude.ai/new?q=${encodeURIComponent(base.lines.app)}`);
+    expect(open.getAttribute('target')).toBe('_blank');
+    fireEvent.click(open);
     expect(onCopy).toHaveBeenLastCalledWith(base.lines.app);
-    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Copied. Paste it in Claude.'));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Opened in Claude with the line ready. Press Enter to start.'));
     await act(async () => {
       fireEvent.click(screen.getByRole('radio', { name: 'Terminal' }));
     });
@@ -92,7 +95,7 @@ describe('ExplorationPage, exploring (X2)', () => {
     expect(screen.getByText('Exploring')).toBeTruthy();
     expect(screen.getByText('changed Orders table and Bulk actions bar,', { exact: false })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://bridge-admin-git-explore.example.com/');
-    expect(screen.getByRole('button', { name: /Continue in Claude/ })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Continue in Claude/ })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Nothing built yet' })).toBeNull();
   });
 
@@ -101,7 +104,7 @@ describe('ExplorationPage, exploring (X2)', () => {
     expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://bridge-admin-git-explore.example.com/?bridge=611');
     expect(screen.queryByRole('link', { name: /Try it in the product/ })).toBeNull();
     const acts = screen.getByRole('link', { name: /Open the preview/ }).parentElement!;
-    expect(within(acts).getByRole('button', { name: /Continue in Claude/ })).toBeTruthy();
+    expect(within(acts).getByRole('link', { name: /Continue in Claude/ })).toBeTruthy();
     expect(acts.children).toHaveLength(2);
   });
 
@@ -146,7 +149,7 @@ describe('ExplorationPage, exploring (X2)', () => {
     expect(screen.queryByRole('heading', { name: 'Happy with it?' })).toBeNull();
     expect(screen.queryByRole('button', { name: /done exploring/i })).toBeNull();
     expect(screen.getByRole('link', { name: /Open the preview/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Continue in Claude/ })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Continue in Claude/ })).toBeTruthy();
   });
 
   it('a viewer who cannot keep it reads who can, never a GitHub error', () => {
@@ -184,7 +187,7 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
     expect(screen.getByText('Waiting for code')).toBeTruthy();
     expect(screen.getByText(/said done exploring/, { selector: '.xp-meta span' })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://orders-git-explore.vercel.app/?bridge=611');
-    expect(screen.queryByRole('button', { name: /Continue in Claude/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Continue in Claude/ })).toBeNull();
     const next = screen.getByRole('region', { name: 'What happens next' });
     expect(within(next).getByRole('list', { name: 'From exploration to product' }).querySelectorAll('li')).toHaveLength(3);
     expect(within(next).getByText('Waiting for a developer')).toBeTruthy();
@@ -237,9 +240,11 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
     const onCopy = vi.fn(async () => {});
     handed({ pieces: { state: 'unchecked', claude: 'Check what the exploration "Orders" (#611) adds that the library does not have, and record it in Bridge.' } }, { onCopy });
     expect(screen.getByText('Not checked against the library.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /Check in Claude/ }));
+    const check = screen.getByRole('link', { name: /Check in Claude/ });
+    expect(check.getAttribute('href')).toContain('https://claude.ai/new?q=');
+    fireEvent.click(check);
     expect(onCopy).toHaveBeenCalledWith(expect.stringContaining('adds that the library does not have'));
-    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Copied. Paste it in Claude.'));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Opened in Claude with the line ready. Press Enter to start.'));
   });
 
   it('says the line of the write that brought it here as a toast, once', async () => {

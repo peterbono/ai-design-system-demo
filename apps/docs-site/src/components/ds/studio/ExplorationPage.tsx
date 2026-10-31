@@ -1,6 +1,6 @@
 // The exploration page while it runs, the validated boards X1 and X2 (Changes > <product> > <exploration>):
 // - X1, not started (nothing on the branch beyond the Bridge note): "Not started", who started it, the "Nothing built
-//   yet" panel with the line to paste in Claude (Claude app or Terminal), "Continue in Claude" (copies the line),
+//   yet" panel with the line to paste in Claude (Claude app or Terminal), "Continue in Claude" (opens a new Claude conversation with the line in it; copies it for the Terminal),
 //   "See the product today", and an empty "Your preview" frame.
 // - X2, exploring: "Exploring", who changed what and when, the preview (a captured image when Bridge has one, else a
 //   neutral frame) with one group of actions: "Open the preview" (with the Bridge toolbar, Before and After, when the
@@ -120,6 +120,10 @@ export interface ExplorationPageProps {
 }
 
 const COPIED = 'Copied. Paste it in Claude.';
+const OPENED = 'Opened in Claude with the line ready. Press Enter to start.';
+
+/** A new Claude conversation with the line already in the message box (claude.ai/new?q=). */
+export const claudeNewUrl = (line: string) => `https://claude.ai/new?q=${encodeURIComponent(line)}`;
 
 function ClaudeGlyph({ size = 'xs' }: { size?: 'xs' | 'sm' }) {
   return <Avatar kind="agent" brand="claude" name="Claude" size={size} decorative className="xp-claude" />;
@@ -157,11 +161,32 @@ function ContinuePanel({ p, where, setWhere, say }: { p: ExplorationPageProps; w
   );
 }
 
-function ContinueButton({ p, line, say, variant }: { p: ExplorationPageProps; line: string; say: (s: string) => void; variant: 'primary' | 'secondary' }) {
+/**
+ * "Continue in Claude": for the Claude app, opens a new Claude conversation with the line in the message box (and
+ * copies it too, in case the viewer uses another Claude); for the Terminal, copies the line to paste.
+ */
+function ContinueButton({ p, line, say, variant, open = true, children = 'Continue in Claude', size = 'lg' }: { p: ExplorationPageProps; line: string; say: (s: string) => void; variant: 'primary' | 'secondary'; open?: boolean; children?: string; size?: 'md' | 'lg' }) {
+  const copy = () => p.onCopy(line).then(() => !open && say(COPIED), () => !open && say('Select the line and copy it.'));
+  if (!open)
+    return (
+      <Button variant={variant} size={size} className="xp-continue" onClick={() => void copy()}>
+        <ClaudeGlyph />
+        {children}
+      </Button>
+    );
   return (
-    <Button variant={variant} size="lg" className="xp-continue" onClick={() => void p.onCopy(line).then(() => say(COPIED), () => say('Select the line and copy it.'))}>
+    <Button
+      variant={variant}
+      size={size}
+      className="xp-continue"
+      render={<a href={claudeNewUrl(line)} target="_blank" rel="noopener" />}
+      onClick={() => {
+        void copy();
+        say(OPENED);
+      }}
+    >
       <ClaudeGlyph />
-      Continue in Claude
+      {children}
     </Button>
   );
 }
@@ -348,10 +373,9 @@ function LibraryPart({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
         <div className="xp-unchecked">
           <p className="xp-muted">Not checked against the library.</p>
           {x.claude && (
-            <Button variant="secondary" size="md" className="xp-continue" onClick={() => void p.onCopy(x.claude!).then(() => say(COPIED), () => say('Select the line and copy it.'))}>
-              <ClaudeGlyph />
+            <ContinueButton p={p} line={x.claude} say={say} variant="secondary" size="md">
               Check in Claude
-            </Button>
+            </ContinueButton>
           )}
         </div>
       ) : (
@@ -471,7 +495,7 @@ function ExplorationBody(p: ExplorationPageProps) {
             </div>
             <ContinuePanel p={p} where={where} setWhere={setWhere} say={setSaid} />
             <div className="xp-acts">
-              <ContinueButton p={p} line={line} say={setSaid} variant="primary" />
+              <ContinueButton p={p} line={line} say={setSaid} variant="primary" open={where === 'app'} />
               {p.todayUrl && (
                 <Link href={p.todayUrl} target="_blank" rel="noopener" className="xp-today">
                   See the product today
