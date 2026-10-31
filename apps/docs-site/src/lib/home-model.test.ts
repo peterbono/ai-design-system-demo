@@ -13,6 +13,7 @@ import {
   ago,
   branchStatus,
   changeNeed,
+  explorationReviewNeed,
   contrastNeed,
   daysSince,
   displayName,
@@ -133,6 +134,17 @@ describe('waiting time', () => {
 const facts = (over: Partial<ChangeFacts>): ChangeFacts => ({ number: 1, title: 'Darker default background', author: ann, asker: ann, since: daysAgo(4), task: 'design', thumb: icon, ...over });
 
 describe('rows', () => {
+  it('a review asked of the viewer on an exploration: "Review <name>", opening the exploration page, one status tag', () => {
+    const { title: _title, task: _task, ...base } = facts({});
+    const r = explorationReviewNeed({ ...base, number: 12, name: 'Denser tables', href: '/studio/changes/?exploration=12' }, NOW);
+    expect(r).toMatchObject({ key: 'exploration-review-12', kind: 'review', title: 'Review Denser tables', href: '/studio/changes/?exploration=12', line: 'Ann asks for your review', waitsOnYou: true, pill: { label: 'Waiting 4 days', tone: 'warning' } });
+    expect(explorationReviewNeed({ ...base, number: 12, product: 'shop', name: 'Checkout', href: '/studio/changes/?exploration=12&product=shop' }, NOW).key).toBe('exploration-review-shop#12');
+    // More than 3 waiting: the rows fold into "N more" and Review all leads (splitNeeds).
+    const many = [1, 2, 3, 4].map((n) => explorationReviewNeed({ ...base, number: n, name: `X${n}`, href: `?exploration=${n}` }, NOW));
+    expect(splitNeeds(many).shown).toHaveLength(3);
+    expect(splitNeeds(many).more?.count).toBe(1);
+  });
+
   it('a review: who asks, how long it waits', () => {
     const r = changeNeed(facts({}), NOW);
     expect(r).toMatchObject({ kind: 'review', line: 'Ann asks for your review', waitsOnYou: true, pill: { label: 'Waiting 4 days', tone: 'warning' }, href: '/studio/changes/?pr=1' });

@@ -61,6 +61,10 @@ import { previewShotOf } from './preview-shots';
 import { knownNames } from './people';
 import { loginKey } from '../lib/people';
 import { siteApprovers } from './teams';
+import { pullReviewsOf } from './review-reads';
+import { libraryScope } from './next-release';
+import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
+import { explorationLifecycle, reviewStateOf } from '../lib/review-state';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -128,13 +132,24 @@ async function readyLabelEvent(r: ExplorationRow): Promise<{ login: string; at: 
   }
 }
 
-/** The pull request's reviews (one read, once the developers have started); an empty list when GitHub cannot be read. */
-async function pullReviews(r: ExplorationRow): Promise<PullReviewLike[]> {
+/** The pull request's reviews (one read, once the developers have started, shared with the lists' cache); none when GitHub cannot be read. */
+async function pullReviews(r: ExplorationRow, version: string | null): Promise<PullReviewLike[]> {
   const own = productRepoByKey(r.product);
+  return (await pullReviewsOf(own ? own.repo : `${CFG.owner}/${CFG.repo}`, r.number, version)) ?? [];
+}
+
+/**
+ * Whether a merged library exploration waits for the library release: the release pull request (one read of the open
+ * ones, only for a shipped library exploration) lists its merge commit under a library package.
+ */
+async function waitsForRelease(mergeSha: string | null | undefined): Promise<boolean> {
+  if (!mergeSha) return false;
   try {
-    return (await ghGet<PullReviewLike[]>(`${own ? `/repos/${own.repo}` : R}/pulls/${r.number}/reviews?per_page=100`)).data;
+    const open = (await ghGet<{ state: string; head?: { ref?: string }; body?: string | null }[]>(`${R}/pulls?state=open&per_page=100`)).data;
+    const body = open.find((p) => /^changeset-release\//.test(p.head?.ref ?? ''))?.body;
+    return body ? inNextRelease(mergeSha, libraryRelease(parseReleaseBody(body), libraryScope()).ids) : false;
   } catch {
-    return [];
+    return false;
   }
 }
 
@@ -333,22 +348,28 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const builders = buildersOf({ assignees: (pull as { assignees?: { login: string }[] }).assignees ?? [], commits, doneAt, author: r.author });
   // The review step: the pull request's reviews (one read, once the developers have started), its draft state, and who
   // is asked: the requested reviewers, else the design approvers of the team.
-  const reviews = status === 'ready' ? [] : await pullReviews(r);
+  const reviews = status === 'ready' ? [] : await pullReviews(r, (pull as { updated_at?: string }).updated_at ?? r.headSha);
   const verdict = reviewVerdictOf(reviews);
-  const asked = reviewersAsked({ requested: (pull as { requested_reviewers?: { login?: string }[] }).requested_reviewers ?? [], approvers: siteApprovers().design, builders });
+  const requested = (pull as { requested_reviewers?: { login?: string }[] }).requested_reviewers ?? [];
+  const asked = reviewersAsked({ requested, approvers: siteApprovers().design, builders });
+  // The lifecycle's stage (lib/review-state), the same words as Being built, Changes and the home.
+  const library = !own && isLibrary;
+  const nextRelease = status === 'shipped' && library ? await waitsForRelease((pull as { merge_commit_sha?: string | null }).merge_commit_sha) : false;
+  const lifecycle = explorationLifecycle({ status, review: reviewStateOf({ draft: pull.draft ?? null, requested, approvers: siteApprovers().design, builders, reviews }), nextRelease });
   const more = connected() ? await namesOf([...new Set([doneLogin, ...builders, ...asked, ...(verdict ? [verdict.login] : [])])]).catch(() => ({}) as Record<string, string>) : {};
   if (current?.key !== key) return;
   const allNames = { ...names, ...knownNamesOf([...asked, ...(verdict ? [verdict.login] : [])]), ...more };
   const doneBy = faceOf(doneLogin, false, allNames);
   const shippedAt = (pull as { merged_at?: string | null }).merged_at ?? null;
   const review = {
-    draft: pull.draft !== false,
+    // Reviewers asked on a draft: the developers asked for a review all the same.
+    draft: pull.draft !== false && !requested.length,
     asked: asked.map((l) => faceOf(l, false, allNames)),
     verdict: verdict ? { kind: verdict.kind, by: faceOf(verdict.login, false, allNames) } : null,
     viewer,
     compareUrl: v.state === 'branch' ? v.url : null,
   };
-  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, review });
+  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, review, nextRelease });
   const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
   // Who may run the check: someone who can write it, signed in with GitHub, in a team that writes branches.
   const canCheck = connected() && direct && !emailOnProduct && (keeper || currentAccess()?.write === true);
@@ -380,6 +401,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     ...(status === 'shipped' ? { previewUrl: todayUrl, tryUrl: null, previewNote: null, previewBuilding: false } : {}),
     handoff: {
       status,
+      stage: lifecycle,
       doneBy,
       doneWhen: doneAt ? startedWhen(doneAt) : '',
       steps,

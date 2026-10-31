@@ -12,15 +12,20 @@
 import { assembleBuildRequests, BUILD_REQUEST_LABEL, DEFAULT_PRODUCTS, parseExplorationBody, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient } from '@bridge-ds/core';
 import { fixRows, isLoginLike, parseSession, type FixRow, type Session } from '../lib/claude-connector';
 import { isSampleTeam } from '../lib/demo';
-import { BUILD_CACHE_MS, buildCacheKey, explorationBuildRows, slimIssue, slimPull, toBuildIssue, toBuildPull, type ExplorationBuildRow, type RestIssue, type RestPull } from '../lib/building-view';
+import { BUILD_CACHE_MS, buildCacheKey, explorationBuildRows, slimIssue, slimPull, toBuildIssue, toBuildPull, withLifecycle, type ExplorationBuildRow, type LifecycleExtra, type RestIssue, type RestPull } from '../lib/building-view';
+import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
+import { needsReviewRead } from '../lib/review-state';
+import { libraryScope } from './next-release';
+import { readReviews } from './review-reads';
+import { siteApprovers } from './teams';
 import { sampleBuildData, SAMPLE_BUILDERS } from '../lib/building-sample';
 import { personName } from '../lib/people';
-import { ghGet, readRepo } from './github-session';
+import { currentViewer, ghGet, readRepo } from './github-session';
 import { knownNames, lookUpNames } from './people';
 import { siteConfig } from './repo-context';
 
 export interface BuildData {
-  views: BuildRequestView[];
+  views: (BuildRequestView & LifecycleExtra)[];
   /** The issue bodies by number, for the detail (what was sent). */
   bodies: Map<number, string>;
   /** Sample data of the demo's sample team: read only, never GitHub. */
@@ -35,7 +40,7 @@ export interface BuildData {
   /** The pull requests read, so the fixes can be read again while Claude works without reading GitHub again. */
   pulls?: RestPull[];
   /** Explorations handed to developers, as rows of the list (none on the sample team). */
-  explorations?: ExplorationBuildRow[];
+  explorations?: (ExplorationBuildRow & LifecycleExtra)[];
 }
 
 const noRepoPage = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-no-repo');
@@ -149,10 +154,26 @@ async function read(): Promise<BuildData> {
   const explored = [...pulls.data, ...(productPulls as unknown as RestPull[])];
   const doneBy = explored.map((p) => parseExplorationBody(p.body)?.doneBy);
   const logins = [...issues.flatMap((i) => [i.user?.login, ...(i.assignees ?? []).map((a) => a.login)]), ...pulls.data.map((p) => p.user?.login), ...askers, ...doneBy].filter((l): l is string => Boolean(l));
-  const names = await lookUpNames([...new Set(logins)]).catch(() => knownNames());
+  // The lifecycle (lib/review-state): the reviews of the few pull requests in review (open explorations handed to
+  // developers that are no longer drafts, build requests in review), read at once and cached; and the library release
+  // (the release pull request the changesets action keeps open, already in the list read) for In the next release.
+  const assembled = assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.data.map(toBuildPull), now, nameOf: (l) => l });
+  const inReview = new Set(assembled.filter((v) => v.status === 'in-review' && v.pull?.state === 'open').map((v) => v.pull!.number));
+  const toRead = [
+    ...explored.filter((p) => needsReviewRead(p) || (!p.product && inReview.has(Number(p.number)) && p.state === 'open' && p.draft === false)),
+  ].map((p) => {
+    const own = (p as RestPull & { repo?: string }).repo;
+    return { key: p.product ? `${p.product}#${p.number}` : String(p.number), repo: p.product && own ? own : repo, number: Number(p.number), version: p.updated_at ?? p.head?.sha ?? null };
+  });
+  const [names, reviews] = await Promise.all([lookUpNames([...new Set(logins)]).catch(() => knownNames()), readReviews(toRead.filter((x, i, all) => all.findIndex((y) => y.key === x.key) === i))]);
   const nameOf = (l: string) => personName(l, names);
+  const releaseBody = pulls.data.find((p) => p.state === 'open' && /^changeset-release\//.test(p.head?.ref ?? ''))?.body ?? null;
+  const ids = releaseBody ? libraryRelease(parseReleaseBody(releaseBody), libraryScope()).ids : new Set<string>();
+  const nextRelease = (p: RestPull) => inNextRelease(p.merge_commit_sha, ids);
+  const viewer = currentViewer()?.login ?? null;
+  const lifecycle = { reviews: (k: string) => reviews.get(k) ?? null, nextRelease, nameOf, viewer };
   return {
-    views: assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.data.map(toBuildPull), now, nameOf }),
+    views: withLifecycle(assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.data.map(toBuildPull), now, nameOf }), { pulls: pulls.data, ...lifecycle }),
     bodies: new Map(issues.map((i) => [i.number, i.body ?? ''])),
     sample: false,
     stale: requests.stale || builds.stale || pulls.stale,
@@ -160,8 +181,17 @@ async function read(): Promise<BuildData> {
     jiraBase: jiraBase(),
     fixes: fixRows(sessions, pulls.data, now, nameOf),
     pulls: pulls.data,
-    explorations: explorationBuildRows(explored, { products: (await productRepos)?.configuredProducts() ?? DEFAULT_PRODUCTS, now, nameOf }),
+    explorations: explorationBuildRows(explored, { products: (await productRepos)?.configuredProducts() ?? DEFAULT_PRODUCTS, now, approvers: approversNow(), ...lifecycle }),
   };
+}
+
+/** The design approvers, teams expanded once read (none when the roles cannot be read). */
+function approversNow(): string[] {
+  try {
+    return siteApprovers().design;
+  } catch {
+    return [];
+  }
 }
 
 /** The open build requests' views of a team read with its own client (a team's Library page), the sample ones on the sample team. */

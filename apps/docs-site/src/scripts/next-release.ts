@@ -1,10 +1,13 @@
-// Being built > the next release (components/NextRelease.astro): the release pull request in plain words, shown only
+// Being built > the next release (components/NextRelease.astro): the library part of the release pull request in plain
+// words (Bridge's own tool packages never count; only tool updates: no card), shown only
 // to whoever may publish it (the merge right, governance.rights, else the owners), with "Review and publish" opening
 // it in Changes, where publishing is merging it. Nobody else sees the card, and the release is read only once the
 // viewer is known to hold that right (one GitHub read). Never writes.
 import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, readRepo } from './github-session';
 import { releasePull, type QueuePull } from '../lib/review-queue';
-import { parseReleaseBody, releaseCard } from '../lib/release-view';
+import { parseReleaseBody, releaseCard, type LibraryScope } from '../lib/release-view';
+import { siteConfig } from './repo-context';
+import type { ProductConfig, ToolingConfig } from '@bridge-ds/core';
 import { owners, shippers } from './pr-status';
 import { loadTeams } from './teams';
 import { isHosted, studioHref } from '../lib/team-path';
@@ -23,6 +26,16 @@ function canPublish(): boolean {
   const o = owners();
   const holders = (shippers() ?? [...new Set([...o.design, ...o.tech])]).map((x) => x.replace(/^@/, '').toLowerCase());
   return holders.includes(viewer.toLowerCase());
+}
+
+/** What tells the library from Bridge's own packages: bridge.config.json tooling and products (none: all library). */
+export function libraryScope(): LibraryScope {
+  try {
+    const c = siteConfig() as { tooling?: ToolingConfig; products?: ProductConfig[] };
+    return { tooling: c.tooling ?? null, products: c.products ?? [] };
+  } catch {
+    return {};
+  }
 }
 
 let release: ReleasePullLike | null | undefined;
@@ -46,15 +59,16 @@ function paint() {
         .then(paint);
     })();
   }
-  const show = Boolean(mine && release);
+  // Only the library's changes count: a release of Bridge's own tool packages alone shows no card.
+  const c = mine && release ? releaseCard(parseReleaseBody(release.body), libraryScope()) : null;
+  const show = Boolean(c);
   // The page's one Harbor zone while it shows: the list's sentence steps down (styles/building.css).
   document.documentElement.toggleAttribute('data-next-release', show);
   card.hidden = !show;
-  if (!show || !release) return;
-  const c = releaseCard(parseReleaseBody(release.body));
+  if (!c || !release) return;
   $('bb-release-title')!.textContent = c.breaking ? `${c.title} Some of it needs action from product teams.` : c.title;
   const lines = $('bb-release-lines')!;
-  lines.innerHTML = [...c.lines, ...(c.tools ? [c.tools] : [])].map((l) => `<li>${esc(l)}</li>`).join('');
+  lines.innerHTML = c.lines.map((l) => `<li>${esc(l)}</li>`).join('');
   lines.hidden = !lines.innerHTML;
   const cta = $('bb-release-cta') as HTMLAnchorElement | null;
   if (cta) cta.href = studioHref(`changes/?pr=${release.number}`);

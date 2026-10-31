@@ -2,6 +2,7 @@
 // pure view rules over @bridge-ds/core's exploration-resume words. Not started: the Continue in Claude panel and an
 // empty "Your preview" frame. Exploring: the preview, the last activity in words, Done exploring, the last 3 events.
 // Later states keep their own pages. No DOM, no fetch: tested in exploration-page.test.ts.
+import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
 import { changedThings, continueLines, explorationActivity, humanAuthorOf, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
 
 /** A person or Claude on the page: the login (for the face), the name to show, and whether it is Claude. */
@@ -119,7 +120,10 @@ export type TagTone = 'neutral' | 'info' | 'success' | 'warning';
  * and the same tone. Not started is grey, Exploring is Harbor, Waiting for code waits on someone (amber), Being built
  * is in progress, Shipped is done.
  */
-export function explorationTag(status: string, opts: { notStarted?: boolean } = {}): { label: string; tone: TagTone; dot: boolean } {
+export function explorationTag(status: string, opts: { notStarted?: boolean; stage?: LifecycleStage | null } = {}): { label: string; tone: TagTone; dot: boolean } {
+  // The lifecycle stage, once read (lib/review-state): Being built splits into In review, Shipped into In the next release.
+  if (opts.stage === 'in-review') return { label: LIFECYCLE_LABEL['in-review'], tone: 'warning', dot: false };
+  if (opts.stage === 'next-release') return { label: LIFECYCLE_LABEL['next-release'], tone: 'info', dot: false };
   if (status === 'active') return opts.notStarted ? { label: 'Not started', tone: 'neutral', dot: false } : { label: 'Exploring', tone: 'info', dot: true };
   if (status === 'ready') return { label: 'Waiting for code', tone: 'warning', dot: false };
   if (status === 'building') return { label: 'Being built', tone: 'info', dot: true };
@@ -154,33 +158,8 @@ const names = (people: readonly PageFace[]) => (people.length <= 2 ? people.map(
 /** "Oct 30", "today", "yesterday": a day in words, for the hand-off steps. */
 const dayOf = (iso: string | null | undefined, now?: Date): string => (iso ? startedWhen(iso, now) : '');
 
-/** A review of the pull request as GitHub lists it (GET pulls/{n}/reviews). */
-export interface PullReviewLike {
-  user?: { login?: string } | null;
-  state: string;
-  submitted_at?: string | null;
-}
-
-/**
- * Where the review stands from the pull request's reviews: each reviewer's last say that counts (approved or changes
- * requested; a dismissal clears it, a comment changes nothing). Changes requested by anyone wins over an approval,
- * as on GitHub. Null when nobody has decided yet.
- */
-export function reviewVerdictOf(reviews: readonly PullReviewLike[]): { kind: 'approved' | 'changes'; login: string } | null {
-  const last = new Map<string, { state: string; login: string }>();
-  for (const r of reviews) {
-    const login = r.user?.login;
-    if (!login || /\[bot\]$/i.test(login)) continue;
-    const key = login.toLowerCase();
-    if (r.state === 'APPROVED' || r.state === 'CHANGES_REQUESTED') last.set(key, { state: r.state, login });
-    else if (r.state === 'DISMISSED') last.delete(key);
-  }
-  const all = [...last.values()];
-  const changes = all.filter((x) => x.state === 'CHANGES_REQUESTED').pop();
-  if (changes) return { kind: 'changes', login: changes.login };
-  const ok = all.filter((x) => x.state === 'APPROVED').pop();
-  return ok ? { kind: 'approved', login: ok.login } : null;
-}
+// The review reading (who is asked, each reviewer's last say) is shared by every page: lib/review-state.ts.
+export { reviewersAsked, reviewVerdictOf, type PullReviewLike } from './review-state';
 
 /**
  * The review of the developers' work, as the hand-off steps read it: still a draft (they are building), who is asked
@@ -200,7 +179,7 @@ export interface HandoffReview {
  * developers' work checked before it ships), Shipped. `builders`: the developers known on it (assigned, or who pushed
  * after Done exploring). `review`: read once the developers have started; without it, they are still building.
  */
-export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | null; doneAt: string | null; builders: readonly PageFace[]; shippedAt?: string | null; product: string; review?: HandoffReview | null; now?: Date }): HandoffStep[] {
+export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | null; doneAt: string | null; builders: readonly PageFace[]; shippedAt?: string | null; product: string; review?: HandoffReview | null; nextRelease?: boolean; now?: Date }): HandoffStep[] {
   const when = dayOf(input.doneAt, input.now);
   const done: HandoffStep = { status: 'done', title: 'Done exploring', detail: [input.doneBy?.name, when].filter(Boolean).join(', ') || 'Handed to your developers' };
   const who = input.builders.length ? names(input.builders) : null;
@@ -238,27 +217,12 @@ export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | 
     return { status: 'waiting', title: 'Review', detail: asked.length ? `Waiting for ${names(asked)}` : 'Waiting for a reviewer', current: true };
   })();
   const ship: HandoffStep =
-    stage === 'shipped'
+    stage === 'shipped' && input.nextRelease
+      ? { status: 'waiting', title: 'Shipped', detail: 'In the next release of the library', current: true }
+      : stage === 'shipped'
       ? { status: 'done', title: 'Shipped', detail: [`In ${input.product}`, dayOf(input.shippedAt, input.now)].filter(Boolean).join(', '), current: true }
       : { status: 'waiting', title: 'Shipped', detail: `Then live in ${input.product}`, ...(stage === 'approved' ? { current: true } : {}) };
   return [done, build, review, ship];
-}
-
-/**
- * Who is asked to review: the pull request's requested reviewers, else the design approvers of the team (logins,
- * deduplicated, never the person who built it alone or a bot).
- */
-export function reviewersAsked(input: { requested?: readonly { login?: string }[] | null; approvers: readonly string[]; builders?: readonly string[] }): string[] {
-  const out: string[] = [];
-  const add = (l: string | null | undefined) => {
-    if (l && !/\[bot\]$/i.test(l) && !out.some((x) => x.toLowerCase() === l.toLowerCase())) out.push(l);
-  };
-  for (const r of input.requested ?? []) add(r.login);
-  if (out.length) return out;
-  const built = new Set((input.builders ?? []).map((b) => b.toLowerCase()));
-  // A team the directory could not expand ("org/team") names nobody yet.
-  for (const a of input.approvers) if (!a.includes('/') && !built.has(a.toLowerCase())) add(a);
-  return out;
 }
 
 /**

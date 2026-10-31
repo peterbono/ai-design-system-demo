@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { assembleBuildRequests, composeBuildRequestIssue, figmaAheadLine, buildSummaryLine, DEFAULT_PRODUCTS, type ProductConfig } from '@bridge-ds/core';
 import { sampleBuildData, SAMPLE_BUILDERS } from './building-sample';
-import { ageLabel, buildDetail, explorationBuildRows, mergeRows, type RestPull, detailFromQuery, detailQuery, filterCounts, jiraLink, listedRows, pageSentence, rowThumb, propLine, rowLine, slimIssue, slimPull, statusTag, timelineSteps, toBuildIssue, toBuildPull } from './building-view';
+import { ageLabel, buildDetail, explorationBuildRows, mergeRows, type RestPull, detailFromQuery, detailQuery, filterCounts, jiraLink, listedRows, pageSentence, rowThumb, propLine, rowLine, slimIssue, slimPull, statusTag, timelineSteps, toBuildIssue, toBuildPull, matchesBuildTab, withLifecycle } from './building-view';
 
 const NOW = Date.parse('2026-10-24T12:00:00Z');
 const sample = () => {
@@ -32,8 +32,8 @@ describe('Being built', () => {
 
   it('counts the filters and says the page in one sentence', () => {
     const views = sample();
-    expect(filterCounts(views, NOW)).toEqual({ all: 6, waiting: 2, 'in-progress': 3, 'shipped-this-week': 1 });
-    expect(pageSentence(views)).toBe('3 being built, 2 waiting for a developer, 1 for more than a week.');
+    expect(filterCounts(views, NOW)).toEqual({ all: 6, waiting: 2, 'in-progress': 2, 'in-review': 1, 'shipped-this-week': 1 });
+    expect(pageSentence(views)).toBe('2 being built, 1 in review, 2 waiting for a developer, 1 for more than a week.');
     expect(pageSentence([])).toBe('Nothing is being built yet.');
     expect(buildSummaryLine(views)).toBe('3 being built, 2 waiting to be picked up.');
   });
@@ -188,14 +188,16 @@ describe('Being built: explorations handed to developers', () => {
       pull(8, { state: 'closed' }),
       { ...pull(9, {}), body: 'Fixes the button', head: { ref: 'fix/button', sha: 'x' }, labels: [] },
     ]);
-    expect(list.map((r) => `${r.number}:${r.status}:${r.label}`)).toEqual(['611:requested:Waiting for code', '2:in-progress:Being built', '3:in-progress:Being built', '4:shipped:Shipped']);
+    expect(list.map((r) => `${r.number}:${r.status}:${r.label}`)).toEqual(['611:requested:Waiting for code', '2:in-progress:Being built', '3:in-review:In review', '4:shipped:Shipped']);
     const [ready, building, , shipped] = list;
     expect(ready).toMatchObject({ title: 'Explore new design pr being built', requestedBy: 'ann', builders: [], stale: false, exploration: { href: 'changes/?exploration=611', product: 'Admin demo' } });
     expect(ready!.exploration.line).toMatch(/^Admin demo · Done exploring by Ann on /);
     expect(building!.builders).toEqual(['theo']);
     expect(building!.exploration.line).toMatch(/Developers are building it$/);
     expect(shipped!.exploration.line).toBe('Shipped 1 day ago');
-    expect(filterCounts(list, NOW)).toEqual({ all: 4, waiting: 1, 'in-progress': 2, 'shipped-this-week': 1 });
+    expect(filterCounts(list, NOW)).toEqual({ all: 4, waiting: 1, 'in-progress': 1, 'in-review': 1, 'shipped-this-week': 1 });
+    // In review names who must review: nobody asked by name, no approver known.
+    expect(list[2]!.exploration.line).toMatch(/Waiting for a reviewer$/);
     expect(list.map((r) => r.exploration.line).join(' ')).not.toMatch(/—/);
   });
 
@@ -219,7 +221,7 @@ describe('Being built: explorations handed to developers', () => {
     const views = sample();
     const all = listedRows(mergeRows(views, late), NOW);
     expect(all).toHaveLength(7);
-    expect(pageSentence(all)).toBe('3 being built, 3 waiting for a developer, 2 for more than a week.');
+    expect(pageSentence(all)).toBe('2 being built, 1 in review, 3 waiting for a developer, 2 for more than a week.');
   });
 
   it('keeps the exploration block of a long body in the session cache, and the head commit', () => {
@@ -229,5 +231,70 @@ describe('Being built: explorations handed to developers', () => {
     expect(slim.body!.length).toBeLessThan(4400);
     expect(slim.head).toEqual({ ref: 'explore/thing-15', sha: 'h1' });
     expect(rows([slim])[0]).toMatchObject({ status: 'requested', title: 'Thing 15' });
+  });
+
+  it('splits Being built into In review with who must review, from the reviews read', () => {
+    const asked = pull(20, { name: 'Cards', draft: false, requested_reviewers: [{ login: 'florian' }] });
+    const draftAsked = pull(21, { name: 'Tabs', requested_reviewers: [{ login: 'lee' }], head: { ref: 'explore/tabs', sha: 'h9' } });
+    const changes = pull(22, { name: 'Lists', draft: false });
+    const approvers = pull(23, { name: 'Menus', draft: false });
+    const names = (l: string) => ({ florian: 'Florian', lee: 'Lee', dana: 'Dana' })[l] ?? l;
+    const list = explorationBuildRows([asked, draftAsked, changes, approvers], {
+      products,
+      now: NOW,
+      nameOf: names,
+      approvers: ['dana'],
+      reviews: (k) => (k === '22' ? [{ user: { login: 'lee' }, state: 'CHANGES_REQUESTED' }] : null),
+    });
+    expect(list.map((r) => [r.number, r.status, r.reviewLine])).toEqual([
+      [20, 'in-review', "Waiting for Florian's review"],
+      [21, 'in-review', "Waiting for Lee's review"],
+      [22, 'in-review', 'Changes requested by Lee'],
+      [23, 'in-review', "Waiting for Dana's review"],
+    ]);
+    expect(rowLine(list[0]!, NOW)).toMatch(/Waiting for Florian's review$/);
+    expect(statusTag(list[0]!)).toEqual({ label: 'In review', tone: 'warning' });
+    expect(list.filter((r) => matchesBuildTab(r, 'in-review', NOW))).toHaveLength(4);
+    expect(list.filter((r) => matchesBuildTab(r, 'in-progress', NOW))).toHaveLength(0);
+    // The viewer asked: their own words.
+    const mine = explorationBuildRows([asked], { products, now: NOW, nameOf: names, viewer: 'florian' });
+    expect(mine[0]!.reviewLine).toBe('Waiting for your review');
+  });
+
+  it('reads a merged library exploration as In the next release until the library is published, whatever its age', () => {
+    const merged = { ...pull(30, { name: 'Pills', state: 'closed', merged_at: iso(20) }), merge_commit_sha: 'abc1234def' };
+    const recent = { ...pull(31, { name: 'Chips', state: 'closed', merged_at: iso(1) }), merge_commit_sha: 'fff0000aaa' };
+    const nextRelease = (p: RestPull) => (p.merge_commit_sha ?? '').startsWith('abc1234');
+    const list = explorationBuildRows([merged, recent], { products, now: NOW, nameOf, nextRelease });
+    expect(list.map((r) => [r.number, r.label, r.nextRelease ?? false, r.exploration.line])).toEqual([
+      [30, 'In the next release', true, 'In the next release'],
+      [31, 'Shipped', false, 'Shipped 1 day ago'],
+    ]);
+    expect(statusTag(list[0]!)).toEqual({ label: 'In the next release', tone: 'info' });
+    expect(list.filter((r) => matchesBuildTab(r, 'shipped-this-week', NOW))).toHaveLength(2);
+  });
+
+  it('carries the lifecycle onto build requests: In the next release, and who reviews', () => {
+    const views = sample();
+    const shipped = views.find((v) => v.status === 'shipped')!;
+    const review = views.find((v) => v.status === 'in-review')!;
+    const pulls: RestPull[] = [
+      { number: shipped.pull!.number, html_url: '', state: 'closed', merged_at: iso(2), merge_commit_sha: 'abc1234ff' },
+      { number: review.pull!.number, html_url: '', state: 'open', draft: false, requested_reviewers: [{ login: 'lee' }] },
+    ];
+    const out = withLifecycle(views, { pulls, nextRelease: (p) => p.merge_commit_sha === 'abc1234ff', nameOf: (l) => (l === 'lee' ? 'Lee' : l) });
+    const s2 = out.find((v) => v.id === shipped.id)!;
+    expect(s2.nextRelease).toBe(true);
+    expect(rowLine(s2, NOW)).toBe('In the next release');
+    const r2 = out.find((v) => v.id === review.id)!;
+    expect(rowLine(r2, NOW)).toMatch(/· Waiting for Lee's review$/);
+    // Nothing read about it: the row keeps its words.
+    expect(withLifecycle(views, { pulls: [] })).toEqual(views);
+  });
+
+  it('keeps the release pull request body whole, and the merge commit and requested reviewers', () => {
+    const release: RestPull = { number: 99, html_url: '', state: 'open', head: { ref: 'changeset-release/main' }, body: 'x'.repeat(9000) };
+    expect(slimPull(release).body).toHaveLength(9000);
+    expect(slimPull({ ...pull(40, {}), merge_commit_sha: 'abc', requested_reviewers: [{ login: 'lee' }] })).toMatchObject({ merge_commit_sha: 'abc', requested_reviewers: [{ login: 'lee' }] });
   });
 });

@@ -27,6 +27,7 @@ import { previewShotOf } from './preview-shots';
 import {
   CLAUDE,
   changeNeed,
+  explorationReviewNeed,
   joinNeed,
   contrastNeed,
   guidanceChangeOf,
@@ -44,6 +45,8 @@ import {
   type TimelineEvent,
 } from '../lib/home-model';
 import { isHosted, studioHref } from '../lib/team-path';
+import { explorationNameOf, needsReviewRead, reviewsFromStatus, reviewStateOf, waitsOnViewer } from '../lib/review-state';
+import { explorationHref } from '../lib/explorations-view';
 import { busyText } from '../lib/team-load';
 import { isDemoRepo } from '../lib/demo';
 
@@ -204,6 +207,8 @@ function reviewerLogin(p: HomePull, st: PullStatus | null | undefined): string |
 
 interface Classified {
   pull: HomePull;
+  /** An exploration in review: its Needs you row opens the exploration page (lib/home-model explorationReviewNeed). */
+  exploration?: boolean;
   task: ChangeFacts['task'] | null;
   blocker?: string;
   changesBy?: string[];
@@ -367,6 +372,12 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     return changes.map(({ pull, c }): Classified => {
       const requested = (pull.requested_reviewers ?? []).map((r) => r.login);
       const base = { pull, agent: Boolean(c.agent), guidance: Boolean(c.guidance), onlyReviewer: false, task: null as ChangeFacts['task'] | null };
+      // An exploration handed to developers and sent for review: the lifecycle's review rule (lib/review-state), read
+      // from the status already read (who approved, who asked for changes), never one more call.
+      if (needsReviewRead(pull)) {
+        const state = reviewStateOf({ draft: pull.draft ?? null, requested: pull.requested_reviewers ?? [], approvers: design, reviews: reviewsFromStatus(statuses.get(pull.number)) });
+        return { ...base, exploration: true, task: waitsOnViewer(state, viewer) ? 'requested' : null };
+      }
       const task = waitingOn(
         { author: pull.user.login, draft: pull.draft, labels: pull.labels, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested, changesRequested: c.changesBy, autoShip: c.autoShip },
         { login: viewer, role },
@@ -407,8 +418,21 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
         thumb: resolved.get(p.number) ?? { kind: 'icon', icon: x.guidance ? 'guidance' : 'branch' },
         onlyReviewer: x.onlyReviewer,
       };
-      needs.push(changeNeed(facts, now));
+      if (x.exploration) {
+        // Who asks: the developers on it (assigned), else the person who opened it.
+        const dev = (p as { assignees?: { login: string }[] }).assignees?.[0]?.login;
+        needs.push(explorationReviewNeed({ ...facts, asker: dev ? pick(dev)! : facts.asker, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number })}`) }, now));
+      } else needs.push(changeNeed(facts, now));
       asked.add(p.number);
+    }
+    // An exploration of a product's own repository whose review GitHub asks of the viewer by name (its requested
+    // reviewers, already in the list read): the same row.
+    for (const p of productOpen) {
+      if (!needsReviewRead(p)) continue;
+      const state = reviewStateOf({ draft: p.draft ?? null, requested: p.requested_reviewers ?? [], approvers: [] });
+      if (!state.requested.some((l) => same(l, viewer)) || !waitsOnViewer(state, viewer)) continue;
+      const asker = pick(p.user.login)!;
+      needs.push(explorationReviewNeed({ number: p.number, product: p.product ?? null, author: asker, asker, since: null, thumb: { kind: 'icon', icon: 'branch' }, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`) }, now));
     }
     // A guidance draft whose change already has its own row (a review waits on you) shows once, as that change.
     for (let i = needs.length - 1; i >= 0; i--) if (needs[i]!.kind === 'guidance' && needs[i]!.number && asked.has(needs[i]!.number!)) needs.splice(i, 1);

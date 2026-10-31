@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { jargonIn } from './vocabulary';
-import { historySummary, isDsChange, packageLine, parseReleaseBody, releaseCard, splitActivity, waitingLine } from './release-view';
+import { historySummary, inNextRelease, isDsChange, isLibraryPackage, libraryRelease, packageLine, parseReleaseBody, releaseCard, splitActivity, waitingLine } from './release-view';
 
 // Shape of the body the changesets action writes on the release pull request (trimmed from #58).
 const BODY = `This PR was opened by the [Changesets release](https://github.com/changesets/action) GitHub action.
@@ -48,10 +48,10 @@ describe('release body', () => {
 
   it('reads each package, its new version and its highest bump', () => {
     expect(plan.packages).toEqual([
-      { name: '@bridge-ds/cli', version: '0.3.0', bump: 'minor' },
-      { name: '@bridge-ds/core', version: '0.3.0', bump: 'minor' },
-      { name: '@bridge-ds/react', version: '1.1.0', bump: 'minor' },
-      { name: '@bridge-ds/tokens', version: '1.0.1', bump: 'patch' },
+      { name: '@bridge-ds/cli', version: '0.3.0', bump: 'minor', ids: ['3d3d77d', '196d02b'] },
+      { name: '@bridge-ds/core', version: '0.3.0', bump: 'minor', ids: ['80228c0', '3d3d77d'] },
+      { name: '@bridge-ds/react', version: '1.1.0', bump: 'minor', ids: ['9574d19'] },
+      { name: '@bridge-ds/tokens', version: '1.0.1', bump: 'patch', ids: [] },
     ]);
   });
 
@@ -64,28 +64,71 @@ describe('release body', () => {
   });
 });
 
-describe('release card', () => {
-  const card = releaseCard(parseReleaseBody(BODY));
+// Bridge's own repository: its tool packages are tooling (bridge.config.json), the Admin demo a product folder.
+const SCOPE = {
+  tooling: { paths: ['apps/docs-site/', 'apps/figma-plugin/', 'packages/core/', 'packages/cli/', 'packages/mcp/'] },
+  products: [
+    { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
+    { key: 'admin-app', name: 'Product admin', repo: 'peterbono/bridge-product-admin' },
+    { key: 'library', name: 'Library', path: 'packages', default: true },
+  ],
+};
 
-  it('says how many changes and that they are ready to publish', () => {
-    expect(card.title).toBe('Next release: 4 changes, ready to publish.');
+describe('the library release', () => {
+  it('tells library packages from Bridge tool packages and product folders', () => {
+    expect(isLibraryPackage('@bridge-ds/react', SCOPE)).toBe(true);
+    expect(isLibraryPackage('@bridge-ds/tokens', SCOPE)).toBe(true);
+    expect(isLibraryPackage('@bridge-ds/core', SCOPE)).toBe(false);
+    expect(isLibraryPackage('@bridge-ds/docs-site', SCOPE)).toBe(false);
+    expect(isLibraryPackage('@bridge-ds/admin', SCOPE)).toBe(false);
+    // A team's DS repository without tooling: everything it releases is the library.
+    expect(isLibraryPackage('@acme/ui', {})).toBe(true);
   });
 
-  it('puts the design system packages first, in plain words', () => {
-    expect(card.lines).toEqual(['Components 1.1.0, new options', 'Tokens 1.0.1, fixes']);
-    expect(card.tools).toBe('And 2 Bridge tool updates: Command line tool, Bridge core.');
+  it('counts only the changes listed under library packages', () => {
+    const lib = libraryRelease(parseReleaseBody(BODY), SCOPE);
+    expect(lib.packages.map((p) => p.name)).toEqual(['@bridge-ds/react', '@bridge-ds/tokens']);
+    expect(lib.changes).toBe(1);
+    expect([...lib.ids]).toEqual(['9574d19']);
+  });
+
+  it('reads a merged change as in the next release when the release lists its merge commit', () => {
+    const { ids } = libraryRelease(parseReleaseBody(BODY), SCOPE);
+    expect(inNextRelease('9574d19aa0b1c2', ids)).toBe(true);
+    expect(inNextRelease('3d3d77d0000000', ids)).toBe(false);
+    expect(inNextRelease(null, ids)).toBe(false);
+    expect(inNextRelease('9574', ids)).toBe(false);
+  });
+});
+
+describe('release card', () => {
+  const card = releaseCard(parseReleaseBody(BODY), SCOPE)!;
+
+  it('counts the library changes only, Figma-like', () => {
+    expect(card.title).toBe('Library update ready: 1 change. Publish so your products can update.');
+  });
+
+  it('names the products that receive it', () => {
+    expect(card.lines).toEqual(['Product admin gets it when it updates @bridge-ds/react and @bridge-ds/tokens.']);
     expect(card.breaking).toBe(false);
+  });
+
+  it('lists the packages in plain words when no product has its own repository', () => {
+    expect(releaseCard(parseReleaseBody(BODY), { tooling: SCOPE.tooling, products: [] })!.lines).toEqual(['Components 1.1.0, new options', 'Tokens 1.0.1, fixes']);
+  });
+
+  it('shows no card when only Bridge tool updates wait', () => {
+    expect(releaseCard(parseReleaseBody('## @bridge-ds/core@0.4.0\n### Minor Changes\n- abcdef1: a'), SCOPE)).toBeNull();
   });
 
   it('flags a breaking release', () => {
     expect(packageLine({ name: '@bridge-ds/tokens', version: '2.0.0', bump: 'major' })).toBe('Tokens 2.0.0, action needed');
-    expect(releaseCard({ changes: 1, packages: [{ name: '@bridge-ds/tokens', version: '2.0.0', bump: 'major' }] }).breaking).toBe(true);
+    expect(releaseCard({ changes: 1, packages: [{ name: '@bridge-ds/tokens', version: '2.0.0', bump: 'major', ids: ['abcdef1'] }] })!.breaking).toBe(true);
   });
 
   it('has no developer words in what a designer reads', () => {
-    const text = [card.title, ...card.lines, card.tools].join(' ');
+    const text = [card.title, ...card.lines].join(' ');
     expect(jargonIn(text)).toEqual([]);
-    expect(text).not.toMatch(/npm|@bridge-ds/i);
   });
 
   it('says what is live when no release waits', () => {
