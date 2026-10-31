@@ -1,7 +1,9 @@
 // Studio "Being built" (pages/studio/building.astro and its team shell): the build requests sent from Figma and where
 // each one stands, read from GitHub only (scripts/building-data.ts, rules in lib/building-view.ts and @bridge-ds/core).
-//   - One sentence first (the Harbor zone), then the filters (All, Waiting to be picked up, In progress, Shipped this
-//     week) and one row per build request: the shared BranchRow, who builds it, when it was sent, one status tag.
+//   - One sentence first (the Harbor zone), then the tabs in the lifecycle's words (All, Waiting to be picked up, In
+//     progress, In review, Shipped this week; lib/review-state) and one row per build request: the shared BranchRow,
+//     who builds it, when it was sent, one status tag. An In review row names who must review ("Waiting for Florian's
+//     review", "Changes requested by Lee"); a merged library change reads In the next release until it is published.
 //     The whole row opens the detail in place (?request=N, ?pull=N); no row buttons.
 //   - The detail: what was sent (summary, before and after, props needed, the Figma link), the status line, and a
 //     "For developers" fold with the GitHub and Jira links and "Copy brief for Claude".
@@ -38,8 +40,6 @@ import {
 import { Check, Hammer } from "lucide-react";
 import {
   BUILD_IMAGE_LABEL,
-  matchesBuildFilter,
-  type BuildFilter,
   type BuildRequestView,
 } from "@bridge-ds/core";
 import { BranchRow } from "./BranchRow";
@@ -48,7 +48,7 @@ import { Who } from "./faces";
 import { person } from "../../../lib/home-model";
 import { safeUrl } from "../../../lib/html";
 import {
-  BUILD_FILTERS,
+  BUILD_TABS,
   EMPTY_FILTER,
   EMPTY_WORDS,
   buildDetail,
@@ -57,6 +57,7 @@ import {
   filterCounts,
   jiraLink,
   listedRows,
+  matchesBuildTab,
   mergeRows,
   pageSentence,
   propLine,
@@ -66,7 +67,9 @@ import {
   statusTag,
   timelineSteps,
   viewTitle,
+  type BuildTab,
   type ExplorationBuildRow,
+  type LifecycleExtra,
 } from "../../../lib/building-view";
 import { FIX_ROW_TITLE, type FixRow } from "../../../lib/claude-connector";
 import { studioHref } from "../../../lib/team-path";
@@ -88,7 +91,7 @@ const avatar = (login: string) =>
   `https://github.com/${encodeURIComponent(login)}.png?size=64`;
 const external = { target: "_blank", rel: "noopener noreferrer" } as const;
 const POLL_MS = 10_000;
-type Row = BuildRequestView | FixRow | ExplorationBuildRow;
+type Row = (BuildRequestView | FixRow | ExplorationBuildRow) & LifecycleExtra;
 const isFix = (v: Row): v is FixRow => "fix" in v;
 const isExploration = (v: Row): v is ExplorationBuildRow => "exploration" in v;
 
@@ -448,7 +451,7 @@ function Detail({
 export default function BeingBuilt() {
   const [data, setData] = useState<BuildData | null>(null);
   const [failed, setFailed] = useState(false);
-  const [filter, setFilter] = useState<BuildFilter>("all");
+  const [filter, setFilter] = useState<BuildTab>("all");
   const [open, setOpen] = useState<{
     kind: "issue" | "pull";
     number: number;
@@ -542,7 +545,7 @@ export default function BeingBuilt() {
   if (!rows.length) return <Empty />;
 
   const counts = filterCounts(rows, now);
-  const shown = rows.filter((v) => matchesBuildFilter(v, filter, now));
+  const shown = rows.filter((v) => matchesBuildTab(v, filter, now));
   return (
     <div className="bb">
       {(data.sample || data.stale) && (
@@ -560,9 +563,9 @@ export default function BeingBuilt() {
         </div>
       )}
       <div className="bb-bar">
-        <Tabs value={filter} onValueChange={(f) => f !== null && setFilter(f as BuildFilter)}>
+        <Tabs value={filter} onValueChange={(f) => f !== null && setFilter(f as BuildTab)}>
           <TabsList aria-label="Show">
-            {BUILD_FILTERS.map((f) => (
+            {BUILD_TABS.map((f) => (
               <Tab key={f.value} value={f.value} count={counts[f.value] ?? 0}>
                 {f.label}
               </Tab>

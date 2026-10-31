@@ -1,0 +1,5 @@
+---
+'@bridge-ds/docs-site': minor
+---
+
+One lifecycle, the same states and words on every Studio page: Exploring, Waiting for code, Being built, In review, Shipped (a library change reads In the next release until the library version is published), Archived. A shared review reading (`lib/review-state.ts`: who is asked, each reviewer's last say, changes requested wins) feeds the exploration page, Being built, Changes and the home. Being built gets an In review tab whose rows say who must review ("Waiting for Florian's review", "Changes requested by Lee"), and its release card counts only library changes ("Library update ready: 3 changes. Publish so your products can update.", with the products that receive it; Bridge tool updates alone show no card). Changes shows every lifecycle tab with its count, even at 0, and Waiting on me lists the explorations whose review is asked of you. The home adds a "Review <exploration>" Needs you row that opens the exploration. Reviews are read only for open explorations sent for review (a few, at once, cached for 5 minutes).

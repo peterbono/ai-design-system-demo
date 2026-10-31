@@ -56,7 +56,9 @@ describe('BranchesList tabs and filters', () => {
     expect(screen.getByRole('tab', { name: /^Waiting on me\s*1$/ })).toBeTruthy();
     expect(screen.getByRole('tab', { name: /^In review\s*3$/ })).toBeTruthy();
     expect(screen.queryByRole('tab', { name: /Mine/ })).toBeNull();
-    expect(screen.queryByRole('tab', { name: /Exploring/ })).toBeNull();
+    // Every lifecycle tab stays, even at 0, so the lifecycle stays readable.
+    expect(screen.getByRole('tab', { name: /^Exploring\s*0$/ })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /^Being built\s*0$/ })).toBeTruthy();
     expect(triggers().some((t) => t.includes('All kinds'))).toBe(true);
     expect(triggers().some((t) => t.includes('Everyone'))).toBe(true);
     await expectNoAxeViolations(container);
@@ -67,15 +69,42 @@ describe('BranchesList tabs and filters', () => {
     const ex = (n: number, label: string) => row(n, 'ann', { opens: 'exploration', lifecycle: 'exploration', pill: { label, tone: 'neutral' } });
     render(createElement(BranchesList, props({ rows: [ex(1, 'Not started'), ex(2, 'Exploring'), ex(3, 'Exploring')], archived: [ex(4, 'Archived')] })));
     const names = screen.getAllByRole('tab').map((r) => r.textContent);
-    expect(names).toEqual(['All3', 'Waiting on me0', 'Not started1', 'Exploring2', 'Archived1']);
+    expect(names).toEqual(['All3', 'Waiting on me0', 'Exploring3', 'Waiting for code0', 'Being built0', 'In review0', 'Shipped0', 'Archived1']);
     expect(screen.queryByText(/archived exploration\./)).toBeNull();
     await user.click(screen.getByRole('tab', { name: /^Exploring/ }));
-    expect(screen.queryByText('Change 1')).toBeNull();
+    // Not started is a running exploration too: under Exploring.
+    expect(screen.getByText('Change 1')).toBeTruthy();
     expect(screen.getByText('Change 2')).toBeTruthy();
     expect(new URLSearchParams(location.search).get('state')).toBe('exploring');
     await user.click(screen.getByRole('tab', { name: /^Archived/ }));
     expect(screen.getByText('Change 4')).toBeTruthy();
     expect(screen.queryByText('Change 2')).toBeNull();
+  });
+
+  it('lists an exploration in review under In review with who must review, and in Waiting on me when the review is asked of the viewer', async () => {
+    const user = userEvent.setup();
+    const xp = (n: number, over: Partial<ListRow>) => row(n, 'ann', { opens: 'exploration', lifecycle: 'exploration', ...over });
+    render(
+      createElement(
+        BranchesList,
+        props({
+          viewer: 'florian',
+          rows: [
+            xp(5, { stage: 'in-review', pill: { label: 'In review', tone: 'warning' }, reviewLine: 'Waiting for your review', yourTurn: true }),
+            xp(6, { stage: 'in-review', pill: { label: 'In review', tone: 'warning' }, reviewLine: 'Changes requested by Lee' }),
+            xp(7, { stage: 'being-built', pill: { label: 'Being built', tone: 'info' } }),
+            xp(8, { stage: 'waiting-for-code', pill: { label: 'Waiting for code', tone: 'warning' } }),
+          ],
+        }),
+      ),
+    );
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['All4', 'Waiting on me1', 'Exploring0', 'Waiting for code1', 'Being built1', 'In review2', 'Shipped0', 'Archived0']);
+    await user.click(screen.getByRole('tab', { name: /^In review/ }));
+    expect(screen.getByText('Change 6').closest('li')!.textContent).toContain('Changes requested by Lee');
+    expect(screen.queryByText('Change 7')).toBeNull();
+    await user.click(screen.getByRole('tab', { name: /^Waiting on me/ }));
+    expect(screen.getByText('Change 5')).toBeTruthy();
+    expect(screen.queryByText('Change 6')).toBeNull();
   });
 
   it('opens old ?who=mine links on You, first in the people filter', () => {

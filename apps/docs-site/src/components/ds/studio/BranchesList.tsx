@@ -1,8 +1,9 @@
 // Branches (/studio/changes/): all the work, not a second triage page (triage lives on Home and the review queue).
-//   - DS Tabs (underline) say where the work stands: All (the default), Waiting on me, then each state in the words
-//     of its tag (Not started, Exploring, Draft, In review, Waiting for code), Shipped, and Archived last, each with its count
-//     (lib/branches-page STATE_TABS, stateOf; ?state=). All and Waiting on me always show, the other tabs only while
-//     they hold something. On a phone the control scrolls sideways inside its row, never the page.
+//   - DS Tabs (underline) say where the work stands, the one lifecycle of every Studio page (lib/review-state): All
+//     (the default), Waiting on me, Exploring, Waiting for code, Being built, In review, Shipped and Archived, each
+//     with its count (lib/branches-page STATE_TABS, stateOf; ?state=). Every tab shows, even at 0, so the lifecycle
+//     stays readable. An In review exploration names who must review on its line; one whose review is asked of the
+//     viewer is in Waiting on me. On a phone the control scrolls sideways inside its row, never the page.
 //   - Two DS Selects narrow every tab: the kind of change (?kind=) and whose it is (?people=: Everyone, You, then each
 //     designer by display name). Old ?who=mine, ?view=mine, ?who=waiting, ?by=, ?archived=1 and ?status= links keep
 //     working (lib/branches-page changesFiltersParam).
@@ -53,6 +54,7 @@ import { VOCAB } from '../../../lib/vocabulary';
 import { changesSummary, setPageSummary } from '../../../lib/page-summary';
 import type { ProductConfig, ToolingConfig } from '@bridge-ds/core';
 import { studioHref } from '../../../lib/team-path';
+import { LIFECYCLE_LABEL, type LifecycleStage } from '../../../lib/review-state';
 
 export interface ListRow {
   number: number;
@@ -93,6 +95,10 @@ export interface ListRow {
   product?: string | null;
   /** Who asked for it, as Bridge records it in the body ("Requested by Ann Leroy."): the designer of the change. */
   requester?: { name: string | null; login: string | null } | null;
+  /** An exploration's lifecycle stage once read (lib/review-state): its tab. */
+  stage?: LifecycleStage | null;
+  /** An In review exploration: who must review ("Waiting for Florian's review", "Changes requested by Lee"). */
+  reviewLine?: string | null;
 }
 
 export interface BranchesListProps {
@@ -292,11 +298,11 @@ export function BranchesList(p: BranchesListProps) {
   const filtered = active.kind !== 'all' || Boolean(active.by);
   const kept = queue.filter((q) => passes(q, active));
   const counts = Object.fromEntries(
-    (['all', 'waiting', 'not-started', 'exploring', 'draft', 'review', 'code', 'shipped', 'archived'] as StateTab[]).map((t) => [t, inTab(t).filter((q) => passes(q, active)).length]),
+    (['all', 'waiting', 'exploring', 'code', 'building', 'review', 'shipped', 'archived'] as StateTab[]).map((t) => [t, inTab(t).filter((q) => passes(q, active)).length]),
   ) as Record<StateTab, number>;
   const tabs = visibleTabs(counts, tab);
   // The page header's summary sentence (lib/page-summary): what is open, by where it stands, whatever the filters.
-  const summary = p.loading && !p.rows.length ? '' : changesSummary(Object.fromEntries((['not-started', 'exploring', 'draft', 'review', 'code'] as const).map((t) => [t, openItems.filter((q) => q.state === t).length])));
+  const summary = p.loading && !p.rows.length ? '' : changesSummary(Object.fromEntries((['exploring', 'code', 'building', 'review'] as const).map((t) => [t, openItems.filter((q) => q.state === t).length])));
   useEffect(() => setPageSummary(summary), [summary]);
   const waitingView = tab === 'waiting' && Boolean(viewer);
   const rowKey = (r: ListRow) => (r.product ? `${r.product}#${r.number}` : String(r.number));
@@ -374,7 +380,7 @@ export function BranchesList(p: BranchesListProps) {
                     who={whoNode(r)}
                     title={r.title}
                     jira={r.jira}
-                    line={child ? childLine(nameOf(r)) : (line ?? (r.ago ? `${nameOf(r)}${SEP}${r.ago}` : nameOf(r)))}
+                    line={child ? childLine(nameOf(r)) : (line ?? (r.reviewLine ? `${nameOf(r)}${SEP}${r.reviewLine}` : r.ago ? `${nameOf(r)}${SEP}${r.ago}` : nameOf(r)))}
                     href={href}
                     linkAttributes={r.opens === 'pr' ? { 'data-open-pr': r.number } : { 'data-open-exploration': r.number, ...(r.product ? { 'data-product': r.product } : {}) }}
                     pill={r.pill}
@@ -535,7 +541,9 @@ export function BranchesList(p: BranchesListProps) {
                 {g.rows.map((x) => {
                   const product = products.find((pp) => pp.key === x.product)?.name;
                   const line = [product, nameOf(x.r), shippedOn(x.r.merged_at!)].filter(Boolean).join(SEP);
-                  return branchRow({ ...x, r: { ...x.r, pill: null }, child: false }, line);
+                  // Shipped says when on the line; a library change the release has not published yet keeps its tag.
+                  const waits = x.r.pill?.label === LIFECYCLE_LABEL['next-release'];
+                  return branchRow({ ...x, r: { ...x.r, pill: waits ? x.r.pill : null }, child: false }, line);
                 })}
               </ul>
             </section>

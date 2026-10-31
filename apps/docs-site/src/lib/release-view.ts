@@ -1,6 +1,7 @@
 // The next release, in plain words: read from the release pull request the changesets action keeps open
 // (changeset-release/main, "Version packages"), and the Overview activity split between the design system and
 // Bridge's own apps. Pure: no DOM, no fetch. Unit tested in release-view.test.ts.
+import { isToolingFile, type ProductConfig, type ToolingConfig } from '@bridge-ds/core';
 import { VOCAB } from './vocabulary';
 import { humanTitle } from './pr-title';
 import { mdTitleText } from './markdown';
@@ -14,6 +15,8 @@ export interface ReleasePackage {
   version: string;
   /** Highest bump listed under the package. */
   bump: Bump;
+  /** The changesets listed under the package (short commit ids, lower case), never its "Updated dependencies" lines. */
+  ids?: string[];
 }
 
 export interface ReleasePlan {
@@ -37,7 +40,7 @@ export function parseReleaseBody(body: string | null | undefined): ReleasePlan {
   for (const line of (body ?? '').split(/\r?\n/)) {
     const pkg = line.match(/^##\s+(@?[\w./-]+)@(\d+\.\d+\.\d+[\w.-]*)\s*$/);
     if (pkg) {
-      current = { name: pkg[1]!, version: pkg[2]!, bump: 'patch' };
+      current = { name: pkg[1]!, version: pkg[2]!, bump: 'patch', ids: [] };
       packages.push(current);
       bump = null;
       continue;
@@ -50,7 +53,11 @@ export function parseReleaseBody(body: string | null | undefined): ReleasePlan {
       continue;
     }
     const entry = line.match(/^-\s+(?:\[?([0-9a-f]{7,40})\]?(?:\([^)]*\))?:)/i);
-    if (entry && current && bump) ids.add(entry[1]!.toLowerCase());
+    if (entry && current && bump) {
+      const id = entry[1]!.toLowerCase();
+      ids.add(id);
+      if (!current.ids!.includes(id)) current.ids!.push(id);
+    }
   }
   return { changes: ids.size, packages };
 }
@@ -79,26 +86,74 @@ const BUMP_WORD: Record<Bump, string> = { major: 'action needed', minor: 'new op
 /** "Components 1.1.0, new options". */
 export const packageLine = (p: ReleasePackage) => `${packageWord(p.name)} ${p.version}, ${BUMP_WORD[p.bump]}`;
 
+// ---------------------------------------------------------------------------------------------------------------
+// The library release: what product teams install, never Bridge's own tool packages
+
+/** What tells a library package from the rest: bridge.config.json `tooling` and the products with a folder of their own. */
+export interface LibraryScope {
+  tooling?: ToolingConfig | null;
+  products?: readonly Pick<ProductConfig, 'key' | 'path' | 'repo' | 'default' | 'name'>[] | null;
+}
+
+/** The folders a workspace package may live in: "@bridge-ds/react" in packages/react/ or apps/react/. */
+const folders = (name: string) => {
+  const short = name.replace(/^@[\w.-]+\//, '');
+  return [`packages/${short}`, `apps/${short}`];
+};
+
+/**
+ * Whether a package of the release is the library (what product teams install): its folder is not tooling (core
+ * isToolingFile over bridge.config.json `tooling`) and not a product of this repository (a product with its own
+ * folder, the Admin demo's apps/admin). A repository without `tooling` releases only its library.
+ */
+export function isLibraryPackage(name: string, scope: LibraryScope = {}): boolean {
+  const own = (scope.products ?? []).filter((p) => !p.default && !p.repo && p.path).map((p) => p.path!.replace(/^\.?\/+|\/+$/g, ''));
+  return folders(name).every((f) => !isToolingFile(`${f}/package.json`, scope.tooling ?? null) && !own.some((o) => f === o || f.startsWith(`${o}/`)));
+}
+
+/** The library part of a release: its packages and its changes (each changeset once). */
+export function libraryRelease(plan: ReleasePlan, scope: LibraryScope = {}): { changes: number; packages: ReleasePackage[]; ids: Set<string> } {
+  const packages = plan.packages.filter((p) => isLibraryPackage(p.name, scope));
+  const ids = new Set(packages.flatMap((p) => p.ids ?? []));
+  return { changes: ids.size, packages, ids };
+}
+
+/**
+ * Whether a merged change waits for the library release: the release lists its changeset under a library package
+ * (the changesets action names each one by the short id of the commit that added it, the change's merge commit).
+ */
+export function inNextRelease(mergeSha: string | null | undefined, ids: ReadonlySet<string>): boolean {
+  const sha = (mergeSha ?? '').toLowerCase();
+  if (sha.length < 7) return false;
+  for (const id of ids) if (sha.startsWith(id)) return true;
+  return false;
+}
+
 export interface ReleaseCard {
-  /** "Next release: 14 changes, ready to publish." */
+  /** "Library update ready: 3 changes. Publish so your products can update." */
   title: string;
-  /** Design system packages first, in plain words. */
+  /** Which products receive it: "Product admin gets it when it updates @bridge-ds/react." */
   lines: string[];
-  /** "And 6 Bridge tool updates: Bridge core, Figma plugin, ..." or null. Versions only for what teams install. */
-  tools: string | null;
   breaking: boolean;
 }
 
-export function releaseCard(plan: ReleasePlan): ReleaseCard {
-  const n = plan.changes;
-  const ds = plan.packages.filter((p) => DS_PACKAGES.includes(p.name));
-  const rest = plan.packages.filter((p) => !DS_PACKAGES.includes(p.name));
-  const count = n ? `${n} ${n === 1 ? VOCAB.branch : VOCAB.branches}` : `${plan.packages.length} ${plan.packages.length === 1 ? 'package' : 'packages'}`;
+const andList = (xs: readonly string[]) => (xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+/**
+ * The release card of Being built, Figma-like: the library changes only (Bridge's tool updates never count). Null
+ * when the release holds no library change: no card then. Under it, the products that receive it (a product with its
+ * own repository gets it when it updates the library packages); without such a product, the packages in plain words.
+ */
+export function releaseCard(plan: ReleasePlan, scope: LibraryScope = {}): ReleaseCard | null {
+  const lib = libraryRelease(plan, scope);
+  if (!lib.packages.length) return null;
+  const n = lib.changes || lib.packages.length;
+  const names = andList(lib.packages.map((p) => p.name));
+  const receivers = (scope.products ?? []).filter((p) => p.repo && !p.default);
   return {
-    title: `Next release: ${count}, ready to publish.`,
-    lines: ds.map(packageLine),
-    tools: rest.length ? `${ds.length ? 'And ' : ''}${rest.length} Bridge tool ${rest.length === 1 ? 'update' : 'updates'}: ${rest.map((p) => packageWord(p.name)).join(', ')}.` : null,
-    breaking: plan.packages.some((p) => p.bump === 'major'),
+    title: `Library update ready: ${n} ${n === 1 ? 'change' : 'changes'}. Publish so your products can update.`,
+    lines: receivers.length ? receivers.map((p) => `${p.name} gets it when it updates ${names}.`) : lib.packages.map(packageLine),
+    breaking: lib.packages.some((p) => p.bump === 'major'),
   };
 }
 

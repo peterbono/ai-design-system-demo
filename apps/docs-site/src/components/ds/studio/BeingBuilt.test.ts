@@ -42,7 +42,7 @@ describe('Being built', () => {
     data = sample();
     render(createElement(BeingBuilt));
     await screen.findByText('Tabs: put a count after the label');
-    await userEvent.click(screen.getByRole('tab', { name: /In progress/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /In review/ }));
     expect(screen.queryByText('Tabs: put a count after the label')).toBeNull();
     await userEvent.click(screen.getByText('Badge: add an info tone'));
     expect(location.search).toBe('?request=33');
@@ -179,7 +179,7 @@ describe('Being built', () => {
     summary.setAttribute('data-st-summary', '');
     const { container } = render(createElement(BeingBuilt));
     const title = await screen.findByText('Explore new design pr being built');
-    expect(summary.textContent).toMatch(/^\d+ being built, \d+ waiting for a developer/);
+    expect(summary.textContent).toMatch(/^\d+ being built, \d+ in review, \d+ waiting for a developer/);
     summary.remove();
     expect(container.querySelectorAll('.sh-row-item')).toHaveLength(9);
     expect(screen.queryByText('Still running')).toBeNull();
@@ -194,12 +194,17 @@ describe('Being built', () => {
       expect(readFileSync(new URL(page, import.meta.url), 'utf8')).toContain('Explorations handed to developers, and changes from Figma or from Components that need code, land here.');
     expect(container.textContent).not.toMatch(/—/);
     expect(screen.getByRole('tab', { name: /Waiting to be picked up/ }).textContent).toContain('3');
-    expect(screen.getByRole('tab', { name: /In progress/ }).textContent).toContain('4');
+    expect(screen.getByRole('tab', { name: /In progress/ }).textContent).toContain('2');
+    // Marked ready for review by the developers: In review, with who must review on its line.
+    expect(screen.getByRole('tab', { name: /In review/ }).textContent).toContain('2');
+    expect(screen.getByText('Billing screen').closest('li')!.textContent).toContain('Waiting for a reviewer');
     expect(screen.getByRole('tab', { name: /Shipped this week/ }).textContent).toContain('2');
     await userEvent.click(screen.getByRole('tab', { name: /Waiting to be picked up/ }));
     expect(screen.getByText('Explore new design pr being built')).toBeTruthy();
     expect(screen.queryByText('Billing screen')).toBeNull();
     await userEvent.click(screen.getByRole('tab', { name: /In progress/ }));
+    expect(screen.queryByText('Billing screen')).toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: /In review/ }));
     expect(screen.getByText('Billing screen')).toBeTruthy();
     await userEvent.click(screen.getByRole('tab', { name: /Shipped this week/ }));
     expect(screen.getByText('Wishlist')).toBeTruthy();

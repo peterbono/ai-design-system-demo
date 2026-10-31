@@ -378,6 +378,16 @@ export function changeNeed(c: ChangeFacts, now: number): NeedRow {
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/**
+ * The Needs you row of an exploration whose review is asked of the viewer (lib/review-state waitsOnViewer): "Review
+ * <exploration name>", opening the exploration page, where the hand-off's Review step compares the developers' work
+ * with the exploration. The same row component and rules as every review row (one status tag, Review all past 3).
+ */
+export function explorationReviewNeed(c: Omit<ChangeFacts, 'task' | 'title'> & { name: string; href: string; product?: string | null }, now: number): NeedRow {
+  const row = changeNeed({ ...c, title: `Review ${c.name}`, task: 'requested' }, now);
+  return { ...row, key: `exploration-review-${c.product ? `${c.product}#` : ''}${c.number}`, href: c.href };
+}
+
 /** A usage guidance draft by Claude, as the home reads it (the component's slug finds its open change). */
 export interface GuidanceDraft {
   name: string;

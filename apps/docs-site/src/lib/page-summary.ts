@@ -18,14 +18,13 @@ export const ACTIONS_SELECTOR = '[data-st-actions]';
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const cap = (s: string) => s.replace(/^./, (c) => c.toUpperCase());
 
-/** Changes: what is open, by where it stands. "2 explorations running, 1 waiting for a developer." */
-export function changesSummary(c: Partial<Record<'not-started' | 'exploring' | 'draft' | 'review' | 'code', number>>): string {
+/** Changes: what is open, by where it stands, in the lifecycle's words. "2 exploring, 1 in review." */
+export function changesSummary(c: Partial<Record<'exploring' | 'code' | 'building' | 'review', number>>): string {
   const parts = [
-    c.exploring ? `${count(c.exploring, 'exploration')} running` : '',
-    c['not-started'] ? `${c['not-started']} not started` : '',
-    c.draft ? count(c.draft, 'draft') : '',
+    c.exploring ? `${c.exploring} exploring` : '',
+    c.code ? `${c.code} waiting for code` : '',
+    c.building ? `${c.building} being built` : '',
     c.review ? `${c.review} in review` : '',
-    c.code ? `${c.code} waiting for a developer` : '',
   ].filter(Boolean);
   return parts.length ? `${cap(parts.join(', '))}.` : 'Nothing in progress right now.';
 }

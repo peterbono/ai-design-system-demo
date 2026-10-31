@@ -7,8 +7,6 @@
 import {
   BUILD_FILTER_LABEL,
   BUILD_STALE_DAYS,
-  EXPLORATION_STATUS_LABEL,
-  explorationStatus,
   isArchivedExploration,
   isExplorationPull,
   parseExplorationBody,
@@ -32,6 +30,7 @@ import { daysSince, type PillTone } from './home-model';
 import { safeUrl } from './html';
 import { isProductBranch } from './product-branch';
 import { explorationHref } from './explorations-view';
+import { LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, type LifecycleStage, type PullReviewLike } from './review-state';
 
 /** The fields of a GitHub issue the page reads (GET /repos/{o}/{r}/issues). */
 export interface RestIssue {
@@ -66,6 +65,10 @@ export interface RestPull {
   assignees?: { login: string }[] | null;
   head?: { ref: string; sha?: string } | null;
   base?: { ref: string; sha?: string } | null;
+  /** The merge commit: a merged library change waits for the release while the release lists it (lib/release-view). */
+  merge_commit_sha?: string | null;
+  /** Who GitHub asks for a review (lib/review-state). */
+  requested_reviewers?: { login?: string }[] | null;
   /** Read in a product's own repository (scripts/product-repos.ts): that product's key. */
   product?: string;
 }
@@ -137,10 +140,13 @@ function slimBody(body: string | null | undefined): string {
   return `${b.slice(0, Math.min(4000, m.index)).trim()}\n\n${m[0]}`;
 }
 
+/** The release pull request the changesets action keeps open: its body is the release plan, kept whole. */
+const isReleaseHead = (p: RestPull) => /^changeset-release\//.test(p.head?.ref ?? '');
+
 export const slimPull = (p: RestPull): RestPull => ({
   number: Number(p.number),
   title: p.title,
-  body: slimBody(p.body),
+  body: isReleaseHead(p) ? (p.body ?? '') : slimBody(p.body),
   html_url: p.html_url,
   state: p.state,
   draft: Boolean(p.draft),
@@ -153,17 +159,51 @@ export const slimPull = (p: RestPull): RestPull => ({
   assignees: (p.assignees ?? []).map((a) => ({ login: a.login })),
   // The head commit: an exploration done exploring reads "Being built" once developers pushed past it.
   head: p.head ? { ref: p.head.ref, ...(p.head.sha ? { sha: p.head.sha } : {}) } : null,
+  merge_commit_sha: p.merge_commit_sha ?? null,
+  requested_reviewers: (p.requested_reviewers ?? []).filter((r) => r.login).map((r) => ({ login: r.login })),
 });
 
 // ---------------------------------------------------------------------------------------------------------------
 // Rows
 
-export const BUILD_FILTERS: { value: BuildFilter; label: string }[] = (['all', 'waiting', 'in-progress', 'shipped-this-week'] as const).map((value) => ({ value, label: BUILD_FILTER_LABEL[value] }));
+/**
+ * What a row of Being built may carry besides core's view: the lifecycle's review line (who must review) and whether
+ * a merged library change waits for the library release (lib/review-state, lib/release-view).
+ */
+export interface LifecycleExtra {
+  /** "Waiting for Florian's review", "Changes requested by Lee": an In review row. */
+  reviewLine?: string | null;
+  /** Merged, and the next library release lists it: "In the next release" until it is published. */
+  nextRelease?: boolean;
+}
 
-/** The one tag of a row. Only a stale request is highlighted; shipped is the only green. */
-export function statusTag(v: Pick<BuildRequestView, 'status' | 'label' | 'stale'>): { label: string; tone: PillTone | 'info' } {
-  const tone: Record<BuildStatus, PillTone | 'info'> = { requested: 'neutral', 'picked-up': 'info', 'in-progress': 'info', 'in-review': 'info', shipped: 'success', 'not-planned': 'neutral' };
-  return { label: v.label, tone: v.stale ? 'warning' : tone[v.status] };
+/** The tabs of Being built: the lifecycle's words (All, Waiting to be picked up, In progress, In review, Shipped this week). */
+export type BuildTab = BuildFilter | 'in-review';
+
+export const BUILD_TABS: { value: BuildTab; label: string }[] = [
+  { value: 'all', label: BUILD_FILTER_LABEL.all },
+  { value: 'waiting', label: BUILD_FILTER_LABEL.waiting },
+  { value: 'in-progress', label: BUILD_FILTER_LABEL['in-progress'] },
+  { value: 'in-review', label: LIFECYCLE_LABEL['in-review'] },
+  { value: 'shipped-this-week', label: BUILD_FILTER_LABEL['shipped-this-week'] },
+];
+
+/**
+ * Whether a row shows under a tab: In progress is picked up or being built, In review its own tab, Shipped this week
+ * what shipped in the last 7 days and what waits for the library release (whatever its age).
+ */
+export function matchesBuildTab(v: Pick<BuildRequestView, 'status' | 'shippedAt' | 'timeline'> & LifecycleExtra, tab: BuildTab, now: number): boolean {
+  if (tab === 'in-review') return v.status === 'in-review';
+  if (tab === 'in-progress') return v.status === 'picked-up' || v.status === 'in-progress';
+  if (tab === 'shipped-this-week') return v.status === 'shipped' && (Boolean(v.nextRelease) || matchesBuildFilter(v, 'shipped-this-week', now));
+  return matchesBuildFilter(v, tab, now);
+}
+
+/** The one tag of a row. Only a stale request is highlighted; shipped is the only green, In the next release waits. */
+export function statusTag(v: Pick<BuildRequestView, 'status' | 'label' | 'stale'> & LifecycleExtra): { label: string; tone: PillTone | 'info' } {
+  if (v.nextRelease) return { label: LIFECYCLE_LABEL['next-release'], tone: 'info' };
+  const tone: Record<BuildStatus, PillTone | 'info'> = { requested: 'neutral', 'picked-up': 'info', 'in-progress': 'info', 'in-review': 'warning', shipped: 'success', 'not-planned': 'neutral' };
+  return { label: v.status === 'in-review' ? LIFECYCLE_LABEL['in-review'] : v.label, tone: v.stale ? 'warning' : tone[v.status] };
 }
 
 /** "Today", "1 day", "9 days": how long a request has existed. */
@@ -204,10 +244,10 @@ export function mergeRows<V extends BuildRequestView>(views: readonly BuildReque
  */
 export const listedRows = <V extends BuildRequestView>(rows: readonly V[], now: number): V[] => rows.filter((v) => matchesBuildFilter(v, 'all', now));
 
-/** The counts on the filters: "In progress 3". */
-export function filterCounts(views: readonly BuildRequestView[], now: number): Record<BuildFilter, number> {
-  const out = { all: 0, waiting: 0, 'in-progress': 0, 'shipped-this-week': 0 } as Record<BuildFilter, number>;
-  for (const f of Object.keys(out) as BuildFilter[]) out[f] = views.filter((v) => matchesBuildFilter(v, f, now)).length;
+/** The counts on the tabs: "In progress 3", "In review 1". */
+export function filterCounts(views: readonly (BuildRequestView & LifecycleExtra)[], now: number): Record<BuildTab, number> {
+  const out = { all: 0, waiting: 0, 'in-progress': 0, 'in-review': 0, 'shipped-this-week': 0 } as Record<BuildTab, number>;
+  for (const f of Object.keys(out) as BuildTab[]) out[f] = views.filter((v) => matchesBuildTab(v, f, now)).length;
   return out;
 }
 
@@ -223,16 +263,18 @@ export function pageSentence(views: readonly BuildRequestView[]): string {
     return `Nothing is being built right now. ${declined === 1 ? 'One change was' : `${declined} changes were`} closed without being built this week.`;
   }
   const waiting = open.filter((v) => v.status === 'requested').length;
-  const building = open.length - waiting;
-  const parts = [...(building ? [`${building} being built`] : []), ...(waiting ? [`${waiting} waiting for a developer`] : [])];
+  const review = open.filter((v) => v.status === 'in-review').length;
+  const building = open.length - waiting - review;
+  const parts = [...(building ? [`${building} being built`] : []), ...(review ? [`${review} in review`] : []), ...(waiting ? [`${waiting} waiting for a developer`] : [])];
   return `${parts.join(', ')}${stale ? `, ${stale} for more than a week` : ''}.`.replace(/^./, (c) => c.toUpperCase());
 }
 
 /** What a filter with nothing in it says. */
-export const EMPTY_FILTER: Record<BuildFilter, string> = {
+export const EMPTY_FILTER: Record<BuildTab, string> = {
   all: 'Nothing is being built.',
   waiting: 'Every build request has been picked up.',
   'in-progress': 'Nothing is in progress right now.',
+  'in-review': 'Nothing waits for a review right now.',
   'shipped-this-week': 'Nothing shipped this week yet.',
 };
 
@@ -322,10 +364,12 @@ export const buildCacheKey = (repo: string, what: 'requests' | 'builds' | 'pulls
 export const BUILD_CACHE_MS = 5 * 60 * 1000;
 
 /** Line 2 of a row: when it was sent, then who builds it ("Sent 4 days ago · Ana is on it"). */
-export function rowLine(v: Pick<BuildRequestView, 'status' | 'createdAt' | 'stale' | 'sentence' | 'shippedAt' | 'builders'>, now: number, nameOf: (login: string) => string = (l) => l): string {
+export function rowLine(v: Pick<BuildRequestView, 'status' | 'createdAt' | 'stale' | 'sentence' | 'shippedAt' | 'builders'> & LifecycleExtra, now: number, nameOf: (login: string) => string = (l) => l): string {
   const d = daysSince(v.createdAt, now);
   const sent = d === 0 ? 'Sent today' : `Sent ${d} ${d === 1 ? 'day' : 'days'} ago`;
   if (v.status === 'requested') return v.stale ? 'Nobody has picked it up yet' : sent;
+  if (v.status === 'shipped' && v.nextRelease) return 'In the next release';
+  if (v.status === 'in-review' && v.reviewLine) return `${sent} · ${v.reviewLine}`;
   if (v.status === 'shipped') {
     const s = v.shippedAt ? daysSince(v.shippedAt, now) : null;
     return s === null ? 'In the library' : s === 0 ? 'Shipped today' : `Shipped ${s} ${s === 1 ? 'day' : 'days'} ago`;
@@ -370,30 +414,47 @@ export interface ExplorationBuildRow extends BuildRequestView {
 
 
 const DAY = 86_400_000;
-const EXPLORATION_BUILD_STATUS = { ready: 'requested', building: 'in-progress', shipped: 'shipped' } as const;
+/** The lifecycle stages Being built lists, as core's build statuses (the tabs and the order read them). */
+const STAGE_BUILD_STATUS: Partial<Record<LifecycleStage, BuildStatus>> = { 'waiting-for-code': 'requested', 'being-built': 'in-progress', 'in-review': 'in-review', 'next-release': 'shipped', shipped: 'shipped' };
+
+/** What the exploration rows read besides the pull requests: the review reads and the release. */
+export interface ExplorationRowsContext {
+  products: readonly ProductConfig[];
+  now: number;
+  nameOf?: (login: string) => string;
+  /** The design approvers (lib/review-state reviewersAsked falls back on them). */
+  approvers?: readonly string[];
+  /** The reviews read for a pull request ("product#number" or "number"), when they were read (needsReviewRead). */
+  reviews?: (key: string) => readonly PullReviewLike[] | null | undefined;
+  /** Whether a merged pull request waits for the library release (lib/release-view inNextRelease). */
+  nextRelease?: (p: RestPull) => boolean;
+  /** The signed-in viewer: "Waiting for your review". */
+  viewer?: string | null;
+}
 
 /**
  * The explorations handed to developers among pull requests already read (the design system's list of Being built,
- * the open ones of each product repository): waiting for code reads Waiting to be picked up, developers pushing reads
- * In progress, merged this week reads Shipped this week. Running, archived, closed and older shipped ones stay out.
+ * the open ones of each product repository), in the lifecycle's words (lib/review-state): Waiting for code reads
+ * Waiting to be picked up, Being built reads In progress, In review its own tab with who must review, merged reads
+ * Shipped this week, or In the next release while the library release lists it. Running, archived, closed and older
+ * shipped ones stay out.
  */
-export function explorationBuildRows(
-  pulls: readonly RestPull[],
-  ctx: { products: readonly ProductConfig[]; now: number; nameOf?: (login: string) => string },
-): ExplorationBuildRow[] {
+export function explorationBuildRows(pulls: readonly RestPull[], ctx: ExplorationRowsContext): (ExplorationBuildRow & LifecycleExtra)[] {
   const nameOf = ctx.nameOf ?? ((l: string) => l);
   const seen = new Set<string>();
-  return pulls.flatMap((p): ExplorationBuildRow[] => {
+  return pulls.flatMap((p): (ExplorationBuildRow & LifecycleExtra)[] => {
     const key = p.product ? `${p.product}#${p.number}` : String(p.number);
     if (seen.has(key)) return [];
     seen.add(key);
     const core = { state: p.state, merged_at: p.merged_at ?? null, labels: p.labels ?? [], headRef: p.head?.ref, body: p.body ?? '', headSha: p.head?.sha, draft: p.draft };
     if (!isExplorationPull(core) || isArchivedExploration(core.labels)) return [];
-    const was = explorationStatus(core);
-    if (was !== 'ready' && was !== 'building' && was !== 'shipped') return [];
-    const shippedAt = was === 'shipped' ? (p.merged_at ?? null) : null;
-    if (was === 'shipped' && !(shippedAt && ctx.now - Date.parse(shippedAt) <= 7 * DAY)) return [];
-    const status = EXPLORATION_BUILD_STATUS[was];
+    const merged = Boolean(p.merged_at);
+    const nextRelease = merged && !p.product && Boolean(ctx.nextRelease?.(p));
+    const { stage, review } = pullLifecycle(p, { approvers: ctx.approvers ?? [], reviews: ctx.reviews?.(key) ?? null, nextRelease });
+    const status = STAGE_BUILD_STATUS[stage];
+    if (!status) return [];
+    const shippedAt = status === 'shipped' ? (p.merged_at ?? null) : null;
+    if (status === 'shipped' && !nextRelease && !(shippedAt && ctx.now - Date.parse(shippedAt) <= 7 * DAY)) return [];
     const block = parseExplorationBody(p.body);
     const raw = block?.name?.trim() || (p.title ?? '').replace(/^Exploration:\s*/i, '').trim() || `Exploration #${p.number}`;
     const name = raw.charAt(0).toUpperCase() + raw.slice(1);
@@ -405,11 +466,27 @@ export function explorationBuildRows(
     const stale = status === 'requested' && ageDays > BUILD_STALE_DAYS;
     const done = `Done exploring${doneBy ? ` by ${nameOf(doneBy)}` : ''}${doneAt ? ` on ${shortDate(doneAt)}` : ''}`;
     const s = shippedAt ? daysSince(shippedAt, ctx.now) : 0;
-    const where = { requested: null, 'in-progress': 'Developers are building it', shipped: s === 0 ? 'Shipped today' : `Shipped ${s} ${s === 1 ? 'day' : 'days'} ago` } as const;
+    const reviewWords = stage === 'in-review' ? reviewLine(review, { viewer: ctx.viewer ?? null, nameOf }) : null;
+    const where: Record<BuildStatus, string | null> = {
+      requested: null,
+      'picked-up': null,
+      'in-progress': 'Developers are building it',
+      'in-review': reviewWords,
+      shipped: nextRelease ? LIFECYCLE_LABEL['next-release'] : s === 0 ? 'Shipped today' : `Shipped ${s} ${s === 1 ? 'day' : 'days'} ago`,
+      'not-planned': null,
+    };
     const line = [product, status === 'shipped' ? null : done, where[status]].filter(Boolean).join(' · ');
-    const sentence = { requested: 'Waiting for a developer.', 'in-progress': 'Developers are building it.', shipped: 'Shipped.' } as const;
+    const sentence: Record<BuildStatus, string> = {
+      requested: 'Waiting for a developer.',
+      'picked-up': 'Developers are building it.',
+      'in-progress': 'Developers are building it.',
+      'in-review': `${reviewWords ?? 'In review'}.`,
+      shipped: nextRelease ? 'In the next release of the library.' : 'Shipped.',
+      'not-planned': '',
+    };
     const timeline: BuildRequestView['timeline'] = [{ status: 'requested', at: createdAt, ...(doneBy ? { who: doneBy } : {}) }];
     if (status !== 'requested') timeline.push({ status: 'in-progress' });
+    if (status === 'in-review' || status === 'shipped') timeline.push({ status: 'in-review' });
     if (shippedAt) timeline.push({ status: 'shipped', at: shippedAt });
     return [
       {
@@ -421,9 +498,9 @@ export function explorationBuildRows(
         title: name,
         requestKind: null,
         status,
-        label: EXPLORATION_STATUS_LABEL[was],
+        label: LIFECYCLE_LABEL[stage],
         sentence: sentence[status],
-        builders: status === 'in-progress' ? (p.assignees ?? []).map((a) => a.login) : [],
+        builders: status === 'in-progress' || status === 'in-review' ? (p.assignees ?? []).map((a) => a.login) : [],
         requestedBy: doneBy ?? block?.author ?? p.user?.login ?? null,
         createdAt,
         ageDays,
@@ -435,7 +512,32 @@ export function explorationBuildRows(
         figmaUrl: null,
         timeline,
         exploration: { href: `changes/${explorationHref({ number: Number(p.number), product: p.product })}`, line, product },
+        ...(reviewWords ? { reviewLine: reviewWords } : {}),
+        ...(nextRelease ? { nextRelease: true } : {}),
       },
     ];
+  });
+}
+
+/**
+ * Build requests in the lifecycle's words, from the pull requests already read: a shipped one whose work the library
+ * release lists reads In the next release; one in review names who must review (its requested reviewers, and the
+ * reviews when they were read). Nothing else changes.
+ */
+export function withLifecycle<V extends BuildRequestView>(
+  views: readonly V[],
+  ctx: { pulls: readonly RestPull[]; nextRelease?: (p: RestPull) => boolean; reviews?: (key: string) => readonly PullReviewLike[] | null | undefined; nameOf?: (login: string) => string; viewer?: string | null },
+): (V & LifecycleExtra)[] {
+  const byNumber = new Map(ctx.pulls.filter((p) => !p.product).map((p) => [Number(p.number), p]));
+  return views.map((v) => {
+    const p = v.pull ? byNumber.get(v.pull.number) : undefined;
+    if (!p) return v;
+    if (v.status === 'shipped' && p.merged_at && ctx.nextRelease?.(p)) return { ...v, label: LIFECYCLE_LABEL['next-release'], sentence: 'In the next release of the library. Products get it when they update.', nextRelease: true };
+    if (v.status === 'in-review') {
+      const review = reviewStateOf({ draft: p.draft ?? null, requested: p.requested_reviewers ?? [], approvers: [], reviews: ctx.reviews?.(String(p.number)) ?? null });
+      if (!review.requested.length && !review.verdict) return v;
+      return { ...v, reviewLine: reviewLine(review, { viewer: ctx.viewer ?? null, nameOf: ctx.nameOf ?? ((l) => l) }) };
+    }
+    return v;
   });
 }

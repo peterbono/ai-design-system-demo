@@ -40,7 +40,10 @@ describe('state tabs and the address', () => {
     expect(changesFiltersParam('?who=waiting')).toEqual({ state: 'waiting', kind: 'all', by: null });
     expect(changesFiltersParam('?archived=1').state).toBe('archived');
     expect(changesFiltersParam('?status=waiting').state).toBe('code');
-    expect(changesFiltersParam('?status=draft').state).toBe('draft');
+    expect(changesFiltersParam('?status=draft').state).toBe('building');
+    // The tabs before the one lifecycle: Not started is Exploring, Draft is Being built.
+    expect(changesFiltersParam('?state=not-started').state).toBe('exploring');
+    expect(changesFiltersParam('?state=draft').state).toBe('building');
     expect(changesFiltersParam('?by=dana&kind=docs')).toEqual({ state: 'all', kind: 'docs', by: 'dana' });
     expect(changesFiltersParam('?by=~everyone').by).toBeNull();
   });
@@ -53,32 +56,34 @@ describe('state tabs and the address', () => {
   });
 
   it('puts each row under the tab its tag names', () => {
-    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Not started' } })).toBe('not-started');
+    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Not started' } })).toBe('exploring');
     expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Exploring' } })).toBe('exploring');
     expect(stateOf({ lifecycle: 'exploration', pill: null })).toBe('exploring');
     expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Waiting for code' } })).toBe('code');
-    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Being built' } })).toBeNull();
-    expect(stateOf({ lifecycle: 'draft', pill: { label: 'Draft' } })).toBe('draft');
+    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Being built' } })).toBe('building');
+    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'In review' } })).toBe('review');
+    // The stage, once read, decides over the tag.
+    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Being built' }, stage: 'in-review' })).toBe('review');
+    expect(stateOf({ lifecycle: 'exploration', pill: null, stage: 'archived' })).toBeNull();
+    expect(stateOf({ lifecycle: 'draft', pill: { label: 'Being built' } })).toBe('building');
+    expect(stateOf({ lifecycle: 'draft', pill: { label: 'Waiting for code' } })).toBe('code');
     expect(stateOf({ lifecycle: 'draft', pill: { label: 'Waiting for a developer' } })).toBe('code');
     expect(stateOf({ lifecycle: 'ready', pill: { label: 'Waiting for Ann' } })).toBe('review');
     expect(stateOf({ lifecycle: 'waiting', pill: null })).toBe('code');
     expect(stateOf({ lifecycle: 'shipped', pill: null })).toBeNull();
   });
 
-  it('shows All and Waiting on me always, the other tabs while they hold something or are picked', () => {
+  it('shows every lifecycle tab, even at 0, in the lifecycle order', () => {
     const tabs = (c: Record<string, number>, cur = 'all') => visibleTabs(c, cur as never).map((t) => `${t.label} ${t.count}`);
-    expect(tabs({ all: 3, exploring: 2, 'not-started': 1 })).toEqual(['All 3', 'Waiting on me 0', 'Not started 1', 'Exploring 2']);
-    expect(tabs({ all: 1, archived: 1, review: 1 })).toEqual(['All 1', 'Waiting on me 0', 'In review 1', 'Archived 1']);
-    expect(tabs({ all: 0 }, 'code')).toEqual(['All 0', 'Waiting on me 0', 'Waiting for code 0']);
-    // Shipped sits before Archived, the last tab.
-    expect(tabs({ all: 1, archived: 2, shipped: 5 })).toEqual(['All 1', 'Waiting on me 0', 'Shipped 5', 'Archived 2']);
+    expect(tabs({ all: 3, exploring: 2, review: 1 })).toEqual(['All 3', 'Waiting on me 0', 'Exploring 2', 'Waiting for code 0', 'Being built 0', 'In review 1', 'Shipped 0', 'Archived 0']);
+    expect(tabs({})).toHaveLength(8);
   });
 
   it('says what an empty tab is for, in designer words', () => {
     expect(emptyTabLine('waiting', false)).toBe('Sign in to see what waits on you.');
     expect(emptyTabLine('waiting', true)).toMatch(/^Nothing waits on you\./);
     expect(emptyTabLine('all', true)).toBe('No open change.');
-    for (const t of ['all', 'waiting', 'not-started', 'exploring', 'draft', 'review', 'code', 'archived'] as const) {
+    for (const t of ['all', 'waiting', 'exploring', 'code', 'building', 'review', 'shipped', 'archived'] as const) {
       expect(jargonIn(emptyTabLine(t, true))).toEqual([]);
       expect(emptyTabLine(t, true)).not.toContain('\u2014');
     }

@@ -54,6 +54,7 @@ import {
 import ButtonLink from '../ButtonLink';
 import { Drawing } from './Drawing';
 import { Who } from './faces';
+import type { LifecycleStage } from '../../../lib/review-state';
 import { explorationTag, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
 import { studioHref } from '../../../lib/team-path';
 import { plateDrawing } from '../../../lib/branch-thumb';
@@ -69,6 +70,8 @@ export type ExplorationStage = 'loading' | 'not-started' | 'exploring' | 'handed
 /** After Done exploring: where it stands, the four steps, and what the library gets from it. */
 export interface HandoffView {
   status: HandoffStatus;
+  /** The lifecycle's stage (lib/review-state): In review and In the next release have their own tag. */
+  stage?: LifecycleStage | null;
   /** Who said Done exploring, and when in words ("Oct 30"). */
   doneBy: PageFace | null;
   doneWhen: string;
@@ -282,8 +285,8 @@ function SaidToast({ said }: { said: string | undefined }) {
 }
 
 /** "Waiting for code", "Being built", "Shipped": the tag of the title row, with the same words as the lists. */
-function StatusTag({ status, notStarted }: { status: string; notStarted?: boolean }) {
-  const t = explorationTag(status, notStarted ? { notStarted } : {});
+function StatusTag({ status, notStarted, stage }: { status: string; notStarted?: boolean; stage?: LifecycleStage | null }) {
+  const t = explorationTag(status, { ...(notStarted ? { notStarted } : {}), stage: stage ?? null });
   return (
     <Badge tone={t.tone} size="md" dot={t.dot} className={status === 'active' && !notStarted ? 'xp-exploring' : undefined}>
       {t.label}
@@ -461,7 +464,7 @@ function ExplorationBody(p: ExplorationPageProps) {
           <h1 className="xp-pagetitle" tabIndex={-1}>
             {p.title}
           </h1>
-          {p.stage !== 'loading' && <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} />}
+          {p.stage !== 'loading' && <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} stage={handoff?.stage ?? null} />}
           <span className="xp-spacer" />
           {(p.onRename || p.onReopen || p.onArchive) && (
             <Menu>

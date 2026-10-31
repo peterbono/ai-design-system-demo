@@ -83,6 +83,10 @@ import { backToDraft, detailStatus, statusActionFor, takeSaid, type StatusAction
 import { ACTION_LABEL } from '../lib/change-status';
 import { ownedBy, PRODUCTS } from '../lib/branches-page';
 import { waitsOnMe } from '../lib/waiting-on';
+import { LIFECYCLE_LABEL, needsReviewRead, pullLifecycle, reviewLine, waitsOnViewer, type LifecyclePull, type LifecycleStage, type PullReviewLike } from '../lib/review-state';
+import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
+import { readReviews } from './review-reads';
+import { libraryScope } from './next-release';
 import { viewerRole } from './needs-you';
 import { contributeMine, type Mine } from './contribute-session';
 import {
@@ -146,6 +150,9 @@ interface Pull {
   merged?: boolean;
   merged_at?: string | null;
   closed_at?: string | null;
+  /** The merge commit: a merged library change reads In the next release while the release lists it. */
+  merge_commit_sha?: string | null;
+  requested_reviewers?: { login: string }[];
   mergeable?: boolean | null;
   /** Set when GitHub merges it by itself once its checks pass (Bridge arms it for token values, /api/ship). */
   auto_merge?: unknown;
@@ -309,6 +316,14 @@ interface Row {
   requested?: string[];
   /** An exploration in a product's own repository: the product key (its number is the product's own). */
   product?: string;
+  /** The merge commit (closed rows): In the next release while the library release lists it. */
+  merge_commit_sha?: string | null;
+  /** An exploration's lifecycle stage (lib/review-state), once its review was read when it needs one. */
+  stage?: LifecycleStage;
+  /** An In review exploration: who must review, in words ("Waiting for Florian's review"). */
+  reviewLine?: string | null;
+  /** The review of an In review exploration waits on the viewer (lib/review-state waitsOnViewer). */
+  reviewWaits?: boolean;
 }
 
 /** How many recently closed branches are read for the Shipped tab (one request). */
@@ -324,14 +339,38 @@ let listLoading = true;
 
 /** The status pill of a row: its lifecycle in words, else who acts now (pr-status rowWho), the same tone rules. */
 function pillOf(r: Row, lifecycle: Lifecycle | 'exploration'): ListRow['pill'] {
-  if (lifecycle === 'exploration') return r.explorationLabel ? { label: r.explorationLabel, tone: r.explorationLabel === 'Exploring' ? 'info' : 'neutral' } : null;
-  // A branch opened from Figma before Claude drafted the code waits on a developer (decision RT-1).
-  if (lifecycle === 'draft' && claudeStage(r.labels) === 'waiting') return { label: 'Waiting for a developer', tone: lifecycleTone(lifecycle) };
+  // A merged library change waits for the library release until it is published.
+  if (r.merged_at && inNextRelease(r.merge_commit_sha, releaseIds)) return { label: LIFECYCLE_LABEL['next-release'], tone: 'info' };
+  // One lifecycle, the same words on every page (lib/review-state): a running exploration keeps Not started or
+  // Exploring, the later stages their lifecycle words.
+  if (lifecycle === 'exploration') {
+    if (r.stage && r.stage !== 'exploring') return { label: LIFECYCLE_LABEL[r.stage], tone: STAGE_TONE[r.stage] };
+    return r.explorationLabel ? { label: r.explorationLabel, tone: r.explorationLabel === 'Exploring' ? 'info' : 'neutral' } : null;
+  }
+  // A branch opened from Figma before Claude drafted the code waits on a developer (decision RT-1): Waiting for code.
+  if (lifecycle === 'draft' && claudeStage(r.labels) === 'waiting') return { label: LIFECYCLE_LABEL['waiting-for-code'], tone: lifecycleTone(lifecycle) };
+  // A draft is work in progress before anyone is asked to review it: Being built.
+  if (lifecycle === 'draft') return { label: LIFECYCLE_LABEL['being-built'], tone: lifecycleTone(lifecycle) };
   if (lifecycle !== 'ready') return { label: LIFECYCLE[lifecycle].short, tone: lifecycleTone(lifecycle) };
   if (r.skipped) return { label: 'Status unknown', tone: 'neutral' };
   if (!r.kind) return { label: 'Checking', tone: 'neutral' };
   return statusPill(r.kind, rowWho(r.kind, facts(r)));
 }
+
+/** The tones of the lifecycle's tags, as the exploration page shows them (lib/exploration-page explorationTag). */
+const STAGE_TONE: Record<LifecycleStage, NonNullable<ListRow['pill']>['tone']> = {
+  exploring: 'info',
+  'waiting-for-code': 'warning',
+  'being-built': 'info',
+  'in-review': 'warning',
+  'next-release': 'info',
+  shipped: 'success',
+  archived: 'neutral',
+  closed: 'neutral',
+};
+
+/** The library changes the open release pull request lists (lib/release-view libraryRelease): In the next release. */
+let releaseIds: Set<string> = new Set();
 
 /**
  * The demo persona a visitor without an account stands in for ("Dana", bridge.config.json "demo"), on a demo
@@ -379,11 +418,12 @@ function listRow(r: Row): ListRow {
   const demoApproved = seat !== null && isSampleTeam(`${repo.owner}/${repo.repo}`) && demoApprovals().has(r.number);
   const turn =
     !demoApproved &&
-    lifecycle !== 'exploration' &&
+    (lifecycle === 'exploration' ? Boolean(r.reviewWaits) : true) &&
+    (lifecycle === 'exploration' ||
     waitsOnMe(
       { author: own ? (listViewer() ?? r.user.login) : r.user.login, draft: r.draft, labels: r.labels, nature: r.nature, guidance: r.guidance, lifecycle, who: rowWho(r.kind, facts(r)), requested: r.requested, changesRequested: r.changesRequested },
       { login: seat ?? listViewer(), role: seat ? 'reviewer' : contributor ? 'contributor' : viewerRole(), seat: seat !== null },
-    );
+    ));
   return {
     number: r.number,
     title: humanTitle(mdTitleText(withoutJiraKey(r.title))),
@@ -414,6 +454,8 @@ function listRow(r: Row): ListRow {
     })(),
     ...(r.product ? { product: r.product } : {}),
     requester: requesterOf(r.body),
+    ...(r.stage ? { stage: r.stage } : {}),
+    ...(r.reviewLine ? { reviewLine: r.reviewLine } : {}),
   };
 }
 
@@ -500,6 +542,7 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   nature: natureOf(p.title, 'labels' in p ? p.labels : undefined),
   agent: 'body' in p ? agentMade({ body: p.body, labels: p.labels }) : Boolean(p.agent),
   ...('requested_reviewers' in p && Array.isArray(p.requested_reviewers) ? { requested: (p.requested_reviewers as { login: string }[]).map((x) => x.login) } : {}),
+  ...('merge_commit_sha' in p ? { merge_commit_sha: p.merge_commit_sha ?? null } : {}),
 });
 
 /** An exploration read in a product's own repository, as a row of its product's group (status from that pull request). */
@@ -526,8 +569,40 @@ function productExploreRow(p: import('./product-repos').ProductPull): Row {
     explorationStatus: s,
     explorationLabel: explorationStateLabel({ status: s, archived: isArchivedExploration(labels) }),
     product: p.product,
+    ...(Array.isArray((p as { requested_reviewers?: unknown }).requested_reviewers) ? { requested: ((p as unknown as { requested_reviewers: { login: string }[] }).requested_reviewers).map((x) => x.login) } : {}),
   };
 }
+
+/**
+ * The lifecycle stage of each exploration row (lib/review-state): its reviews are read only for the open ones handed
+ * to developers that are no longer drafts (a few, at once, cached), so an In review row names who must review and
+ * Waiting on me lists the ones that wait on the viewer. Repaints once read.
+ */
+async function readExplorationReviews(rows: Row[], pulls: readonly LifecyclePullOf[]) {
+  const viewer = listViewer();
+  const approvers = siteApprovers().design;
+  const byKey = new Map(pulls.map((p) => [p.product ? `${p.product}#${p.number}` : String(p.number), p]));
+  const keyOf = (r: Row) => (r.product ? `${r.product}#${r.number}` : String(r.number));
+  const stageAll = (reviews: Map<string, PullReviewLike[]>) => {
+    for (const r of rows) {
+      const p = byKey.get(keyOf(r));
+      if (!p) continue;
+      const { stage, review } = pullLifecycle(p, { approvers, reviews: reviews.get(keyOf(r)) ?? null });
+      r.stage = stage;
+      r.reviewLine = stage === 'in-review' ? reviewLine(review, { viewer, nameOf }) : null;
+      r.reviewWaits = stage === 'in-review' && waitsOnViewer(review, viewer);
+    }
+  };
+  stageAll(new Map());
+  const toRead = rows.filter((r) => byKey.has(keyOf(r)) && needsReviewRead(byKey.get(keyOf(r))!));
+  if (!toRead.length) return;
+  const reviews = await readReviews(toRead.map((r) => ({ key: keyOf(r), repo: byKey.get(keyOf(r))!.repo ?? `${repo.owner}/${repo.repo}`, number: r.number, version: r.updated_at ?? r.head.sha })));
+  stageAll(reviews);
+  paintRows(openRows, listLoading);
+}
+
+/** An open pull request as the lifecycle reads it, with the repository it lives in when it is a product's own. */
+type LifecyclePullOf = LifecyclePull & { number: number; product?: string; repo?: string };
 
 /**
  * The state of each running exploration row: "Not started" while its branch only carries Bridge notes, else
@@ -590,20 +665,27 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=100`);
     allOpen = openPulls(f.data);
     // The review queue, and the running explorations listed with it under their own status.
-    live = { pulls: reviewQueue(allOpen), staleAt: f.stale ? (f.cachedAt ?? new Date(0).toISOString()) : null };
+    // An exploration handed to developers that is no longer a draft is In review: it stays an exploration row (its own
+    // page, its lifecycle words), out of the branch rows.
+    live = { pulls: reviewQueue(allOpen).filter((p) => !needsReviewRead(p)), staleAt: f.stale ? (f.cachedAt ?? new Date(0).toISOString()) : null };
+    // The library release (the release pull request is among the open ones): a merged library change reads In the
+    // next release until it is published.
+    const release = allOpen.find((p) => /^changeset-release\//.test(p.head.ref));
+    releaseIds = release?.body ? libraryRelease(parseReleaseBody(release.body), libraryScope()).ids : new Set();
     // Open explorations under their own status (running, or with the developers while a draft); archived ones wait
     // behind the Archived line and stay out of every count.
     const exploreRow = (p: Pull): Row => {
       const s = explorationStatus({ state: p.state, labels: p.labels as never, headRef: p.head.ref, body: p.body, headSha: p.head.sha, draft: p.draft });
       return { ...toRow(p, null), exploration: true, explorationStatus: s, explorationLabel: explorationStateLabel({ status: s, archived: isArchivedExploration(p.labels as never) }) };
     };
-    exploreRows = allOpen.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft, head: p.head, body: p.body })).map(exploreRow);
+    exploreRows = allOpen.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft, head: p.head, body: p.body }) || needsReviewRead(p)).map(exploreRow);
     archivedRows = allOpen.filter((p) => isArchivedOpen({ state: p.state, labels: p.labels as never })).map(exploreRow);
     // Explorations in products' own repositories: rows of their product's group, under their own status too.
     const own = await productRead;
-    exploreRows = [...exploreRows, ...own.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft, head: p.head, body: p.body })).map(productExploreRow)];
+    exploreRows = [...exploreRows, ...own.filter((p) => isListedExploration({ state: p.state, labels: p.labels as never, draft: p.draft, head: p.head, body: p.body }) || needsReviewRead(p as LifecyclePull)).map(productExploreRow)];
     archivedRows = [...archivedRows, ...own.filter((p) => isArchivedOpen({ state: p.state, labels: p.labels as never })).map(productExploreRow)];
     readExplorationStates(exploreRows);
+    void readExplorationReviews(exploreRows, [...allOpen, ...(own as unknown as LifecyclePullOf[])]);
   } catch (err) {
     failure = err;
   }

@@ -6,8 +6,8 @@ import { changesSummary, setPageSummary, tokensSummary } from './page-summary';
 
 describe('page summary', () => {
   it('says what is open on Changes, by where it stands', () => {
-    expect(changesSummary({ exploring: 2, code: 1 })).toBe('2 explorations running, 1 waiting for a developer.');
-    expect(changesSummary({ exploring: 1, review: 3, draft: 1, 'not-started': 2 })).toBe('1 exploration running, 2 not started, 1 draft, 3 in review.');
+    expect(changesSummary({ exploring: 2, code: 1 })).toBe('2 exploring, 1 waiting for code.');
+    expect(changesSummary({ exploring: 1, review: 3, building: 2 })).toBe('1 exploring, 2 being built, 3 in review.');
     expect(changesSummary({})).toBe('Nothing in progress right now.');
   });
 

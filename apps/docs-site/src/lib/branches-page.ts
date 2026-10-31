@@ -7,57 +7,68 @@
 // branches-page.test.ts; the page is components/ds/studio/BranchesList.tsx, fed by scripts/reviews.ts.
 import { DEFAULT_PRODUCTS, isToolingPull, productOfBranch, type ProductConfig, type ToolingConfig } from '@bridge-ds/core';
 import { MAX_TOGETHER } from './combine-changes';
-import { STATUS_WORDS, VOCAB } from './vocabulary';
+import { VOCAB } from './vocabulary';
+import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
 
 // ---------------------------------------------------------------------------------------------------------------
 // The state tabs and the people filter
 
 /**
- * The tabs of the page: where each change stands, in the words its tag shows. All (every open change, the default),
- * Waiting on me (the one rule of every surface, lib/waiting-on), then each state, Shipped (what was added to the
- * library or to a product, newest first: the history of the work), Archived last. Whose work it is
- * belongs to the people filter only (You, then each designer by name), so the tabs never mix people and states.
- * Being built has its own page (Studio > Being built): those rows stay under All.
+ * The tabs of the page: the one lifecycle of every Studio page (lib/review-state), in the words its tags show. All
+ * (every open change, the default), Waiting on me (the one rule of every surface, lib/waiting-on, and the reviews
+ * asked of the viewer), then Exploring, Waiting for code, Being built, In review, Shipped (what was added to the
+ * library or to a product, newest first: the history of the work), Archived last. Whose work it is belongs to the
+ * people filter only (You, then each designer by name), so the tabs never mix people and states.
  */
-export type StateTab = 'all' | 'waiting' | 'not-started' | 'exploring' | 'draft' | 'review' | 'code' | 'shipped' | 'archived';
+export type StateTab = 'all' | 'waiting' | 'exploring' | 'code' | 'building' | 'review' | 'shipped' | 'archived';
+
+/** The lifecycle tabs a listed open row can sit in. */
+export type StageTab = 'exploring' | 'code' | 'building' | 'review';
 
 export const STATE_TABS: { value: StateTab; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'waiting', label: 'Waiting on me' },
-  { value: 'not-started', label: 'Not started' },
-  { value: 'exploring', label: 'Exploring' },
-  { value: 'draft', label: STATUS_WORDS.draft },
-  { value: 'review', label: STATUS_WORDS.inReview },
-  { value: 'code', label: STATUS_WORDS.waitingShort },
-  { value: 'shipped', label: 'Shipped' },
-  { value: 'archived', label: 'Archived' },
+  { value: 'exploring', label: LIFECYCLE_LABEL.exploring },
+  { value: 'code', label: LIFECYCLE_LABEL['waiting-for-code'] },
+  { value: 'building', label: LIFECYCLE_LABEL['being-built'] },
+  { value: 'review', label: LIFECYCLE_LABEL['in-review'] },
+  { value: 'shipped', label: LIFECYCLE_LABEL.shipped },
+  { value: 'archived', label: LIFECYCLE_LABEL.archived },
 ];
 
 const TAB_VALUES = new Set<string>(STATE_TABS.map((t) => t.value));
 
-/** Tabs that stay even at 0, so people always know where to look. The others show only while they hold something. */
-export const STABLE_TABS: readonly StateTab[] = ['all', 'waiting'];
+/** Every tab stays, even at 0, so the lifecycle stays readable and people always know where to look. */
+export const STABLE_TABS: readonly StateTab[] = STATE_TABS.map((t) => t.value);
+
+const STAGE_TAB: Partial<Record<LifecycleStage, StageTab>> = { exploring: 'exploring', 'waiting-for-code': 'code', 'being-built': 'building', 'in-review': 'review' };
+const LABEL_TAB: Record<string, StageTab> = {
+  'Not started': 'exploring',
+  [LIFECYCLE_LABEL.exploring]: 'exploring',
+  [LIFECYCLE_LABEL['waiting-for-code']]: 'code',
+  [LIFECYCLE_LABEL['being-built']]: 'building',
+  [LIFECYCLE_LABEL['in-review']]: 'review',
+};
 
 /**
- * The state of a listed row, the tab it belongs to (null: All only). An exploration follows its tag ("Not started",
- * "Exploring", "Waiting for code"; not read yet: Exploring, as its page says while its files load); a branch follows
- * its lifecycle, a Figma branch waiting for a developer under Waiting for code.
+ * The lifecycle tab of a listed row (null: All only). An exploration follows its stage once read (lib/review-state),
+ * else its tag ("Not started" and "Exploring" are both Exploring; not read yet: Exploring, as its page says while its
+ * files load); a branch follows its lifecycle: a draft is Being built, a Figma branch waiting for a developer is
+ * Waiting for code, a branch sent for review is In review.
  */
-export function stateOf(r: { lifecycle: string; pill: { label: string } | null }): Exclude<StateTab, 'all' | 'waiting' | 'shipped' | 'archived'> | null {
+export function stateOf(r: { lifecycle: string; pill: { label: string } | null; stage?: LifecycleStage | null }): StageTab | null {
   if (r.lifecycle === 'exploration') {
+    if (r.stage) return STAGE_TAB[r.stage] ?? null;
     const l = r.pill?.label ?? null;
-    if (l === 'Not started') return 'not-started';
-    if (l === null || l === 'Exploring') return 'exploring';
-    if (l === STATUS_WORDS.waitingShort) return 'code';
-    return null;
+    return l === null ? 'exploring' : (LABEL_TAB[l] ?? null);
   }
   if (r.lifecycle === 'waiting') return 'code';
-  if (r.lifecycle === 'draft') return r.pill?.label === 'Waiting for a developer' ? 'code' : 'draft';
+  if (r.lifecycle === 'draft') return r.pill?.label === LIFECYCLE_LABEL['waiting-for-code'] || r.pill?.label === 'Waiting for a developer' ? 'code' : 'building';
   if (r.lifecycle === 'ready') return 'review';
   return null;
 }
 
-/** The tabs to show, from their counts: All and Waiting on me always, the others with something in them or picked. */
+/** The tabs with their counts: every one of them, in the lifecycle's order. */
 export function visibleTabs(counts: Partial<Record<StateTab, number>>, current: StateTab): { value: StateTab; label: string; count: number }[] {
   return STATE_TABS.map((t) => ({ ...t, count: counts[t.value] ?? 0 })).filter((t) => STABLE_TABS.includes(t.value) || t.count > 0 || t.value === current);
 }
@@ -84,9 +95,11 @@ export function changesFiltersParam(search: string): ChangesFilters {
   const kind = k === 'product' || k === 'library' || k === 'docs' ? k : 'all';
   const st = q.get('state');
   const status = q.get('status');
+  // The tabs before the one lifecycle: Not started is Exploring now, Draft is Being built.
+  const renamed = st === 'not-started' ? 'exploring' : st === 'draft' ? 'building' : st;
   const state: StateTab =
-    st && TAB_VALUES.has(st)
-      ? (st as StateTab)
+    renamed && TAB_VALUES.has(renamed)
+      ? (renamed as StateTab)
       : q.get('who') === 'waiting'
         ? 'waiting'
         : q.get('archived') === '1'
@@ -94,7 +107,7 @@ export function changesFiltersParam(search: string): ChangesFilters {
           : status === 'merged' || status === 'shipped' || status === 'closed' || q.get('view') === 'history'
             ? 'shipped'
             : status === 'draft'
-            ? 'draft'
+            ? 'building'
             : status === 'ready'
               ? 'review'
               : status === 'waiting'
@@ -177,16 +190,14 @@ export function emptyTabLine(tab: StateTab, signedIn: boolean): string {
   switch (tab) {
     case 'waiting':
       return signedIn ? 'Nothing waits on you. When someone asks for your review, it lands here.' : 'Sign in to see what waits on you.';
-    case 'not-started':
-      return 'Every exploration has started. New ones wait here until something is built in them.';
     case 'exploring':
       return 'Nothing is being explored right now. Start an exploration to try an idea on real screens.';
-    case 'draft':
-      return 'No draft. A change stays here until it is sent for review.';
-    case 'review':
-      return `No ${VOCAB.branch} in review.`;
     case 'code':
-      return 'Nothing waits for code. Approved changes land here until a developer builds them.';
+      return 'Nothing waits for code. An exploration lands here when you say Done exploring, until a developer picks it up.';
+    case 'building':
+      return 'Nothing is being built right now. Work lands here once developers start on it.';
+    case 'review':
+      return `No ${VOCAB.branch} in review. Work lands here when developers ask for a review.`;
     case 'shipped':
       return 'Nothing shipped yet. Changes and explorations land here once they are in the library or in a product.';
     case 'archived':
