@@ -383,7 +383,9 @@ export function isHandedOff(p: Pick<ExplorationPullLike, 'labels' | 'body'>): bo
 export function explorationStatus(p: ExplorationPullLike): ExplorationStatus {
   const merged = Boolean(p.merged || p.merged_at || p.state === 'merged');
   if (p.state !== 'open' && !merged) return 'closed';
-  if (p.state === 'open' && (labelNames(p.labels).includes(EXPLORATION_LABEL) || isUnlabeledExploration(p))) return 'active';
+  // Done exploring is written in the body: it stands even when the label could not be removed (a token without the
+  // right to edit labels), so the exploration never reads as running again.
+  if (p.state === 'open' && !parseExplorationBody(p.body)?.doneAt && (labelNames(p.labels).includes(EXPLORATION_LABEL) || isUnlabeledExploration(p))) return 'active';
   if (!isHandedOff(p)) return 'promoted';
   if (merged) return 'shipped';
   if (p.draft === false) return 'building';

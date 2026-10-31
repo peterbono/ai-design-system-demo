@@ -41,7 +41,10 @@ export function askDoneExploring(
     confirm: async (pieces) => {
       const viewer = currentViewer()?.login;
       const res = await doneExploringOnGitHub(opts.client(), r.number, { pieces, products: opts.products ?? [], previewUrl: opts.previewUrl, ...(viewer ? { openedBy: viewer } : {}), ...(opts.library ? { library: opts.library() } : {}), source: 'studio' });
-      opts.after(`${doneLine(res.pieces.proposed.length)}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`);
+      // The designer reads what happened to their pieces; GitHub housekeeping (a label, the note) is for developers.
+      const other = res.warnings.filter((w) => !res.pieces.warnings.includes(w));
+      if (other.length) console.warn(`Done exploring #${r.number}: ${other.join(' ')}`);
+      opts.after(`${doneLine(res.pieces.proposed.length)}${res.pieces.warnings.length ? ` ${res.pieces.warnings.join(' ')}` : ''}`);
     },
     closed: (done) => {
       if (!done && opts.focus?.isConnected) opts.focus.focus();
