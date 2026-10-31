@@ -108,6 +108,7 @@ export const fr: Messages = {
     average_basket: 'Panier moyen %{value}',
     pending_orders: 'Commandes à expédier',
     pending_orders_hint: '%{smart_count} commande en attente |||| %{smart_count} commandes en attente',
+    late: 'En retard',
     see_all: 'Voir les commandes',
     no_pending: 'Toutes les commandes sont expédiées',
     no_pending_hint: 'Les nouvelles commandes apparaissent ici dès la validation du panier.',

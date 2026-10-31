@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo } from 'react';
 import { LinkBase, useGetList, useGetMany, useTranslate } from 'ra-core';
-import { Card, CardBody, CardHeader, EmptyState, Link, Skeleton } from '@bridge-ds/react';
+import { Badge, Card, CardBody, CardHeader, EmptyState, Link, Skeleton } from '@bridge-ds/react';
 import { DollarSign, MessageSquareText, ShoppingBag, UserPlus } from 'lucide-react';
 import { startOfDay, subDays } from 'date-fns';
 import { Page } from '../../ra-bridge';
@@ -12,13 +12,16 @@ import styles from './Dashboard.module.css';
 
 const RevenueChart = lazy(() => import('./RevenueChart'));
 
+/** An order still waiting to ship after this many days is flagged as late. */
+const LATE_AFTER_DAYS = 3;
+
 export function Dashboard() {
   const translate = useTranslate();
   const fmt = useFormat();
   const { tenant } = usePreferences();
-  const { since30, since60 } = useMemo(() => {
+  const { since30, since60, lateBefore } = useMemo(() => {
     const today = startOfDay(new Date());
-    return { since30: subDays(today, 30), since60: subDays(today, 60) };
+    return { since30: subDays(today, 30), since60: subDays(today, 60), lateBefore: subDays(today, LATE_AFTER_DAYS) };
   }, []);
 
   const { data: orders, isPending } = useGetList<Order>('orders', {
@@ -130,13 +133,21 @@ export function Dashboard() {
                   {pendingShown.map((order) => {
                     const customer = personById.get(order.customer_id);
                     const items = order.basket.reduce((n, b) => n + b.quantity, 0);
+                    const isLate = new Date(order.date) < lateBefore;
                     return (
                       <li key={order.id}>
                         <LinkBase to={`/orders/${order.id}`} className={styles.row}>
                           <CustomerCell customer={customer} secondary={`${order.reference} · ${translate('orders.items', { smart_count: items })}`} />
                           <span className={styles.rowEnd}>
                             <span className={styles.amount}>{fmt.money(order.total)}</span>
-                            <Muted>{fmt.relative(order.date)}</Muted>
+                            <span className={styles.age}>
+                              {isLate && (
+                                <Badge tone="warning" size="sm" data-bridge-change="Late order badge">
+                                  {translate('dashboard.late')}
+                                </Badge>
+                              )}
+                              <Muted>{fmt.relative(order.date)}</Muted>
+                            </span>
                           </span>
                         </LinkBase>
                       </li>
