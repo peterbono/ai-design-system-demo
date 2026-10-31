@@ -68,6 +68,81 @@ function Harbor() {
   );
 }
 
+/** The water of the window layout, in pixels from the horizon (y 0) down: one unbroken horizon line across the whole
+ * zone, then two broken rows of ripples. Long enough for the widest zone; the zone clips it. */
+const WATER_LENGTH = 3200;
+const waves = (y: number, run: number, every: number, offset: number) => {
+  let d = '';
+  for (let x = offset - every; x < WATER_LENGTH; x += every) d += `M${x} ${y}` + 'q10 -3 20 0t20 0'.repeat(run);
+  return d;
+};
+
+function Water() {
+  return (
+    <g className="qs-ground">
+      <g className="qs-swell qs-swell-3">
+        <Ink d={waves(36, 2, 260, 150)} strokeWidth={1.4} />
+      </g>
+      <g className="qs-swell qs-swell-2">
+        <Ink d={waves(18, 3, 200, 40)} strokeWidth={1.6} />
+      </g>
+      <g className="qs-swell qs-horizon">
+        <Ink d={`M-40 0${'q10 -3 20 0t20 0'.repeat(Math.ceil((WATER_LENGTH + 80) / 40))}`} strokeWidth={1.6} />
+      </g>
+    </g>
+  );
+}
+
+/** The harbor seen through the window: the viewBox bottom (y 200) is the horizon, its right edge the zone's right
+ * edge. The bridge stands on the water in the right third and runs out of frame; the boat rides in the foreground
+ * left of it; two gulls cross the sky between them, the sun and a cloud sit above the arch. Nothing reaches left of x 100. */
+function HarborWindow() {
+  return (
+    <>
+      <g className="qs-sky">
+        <Ink d="M518 40a14 14 0 1 0 28 0a14 14 0 1 0 -28 0Z" fill="paper" />
+        <g className="qs-drift">
+          <Ink d="M483 63Q478 53 489 51Q492 41 504 44Q512 36 522 44Q534 42 534 54Q540 63 529 63Z" fill="paper" />
+        </g>
+        <g className="qs-glide">
+          <g className="qs-flap">
+            <Ink d="M296 50q6 -6 12 0q6 -6 12 0" strokeWidth={1.6} />
+          </g>
+          <g className="qs-flap qs-flap-late">
+            <Ink d="M328 66q4.5 -4.5 9 0q4.5 -4.5 9 0" strokeWidth={1.6} />
+          </g>
+        </g>
+      </g>
+      <g className="qs-ground">
+        {/* The arch and its hangers, the deck, the near pier on the water, the far pier out of frame. */}
+        <Ink d="M390 154Q590 44 790 154" />
+        <Ink d="M440 130V154M490 113V154M540 102.5V154M590 99V154M640 102.5V154M690 113V154M740 130V154" strokeWidth={1.4} />
+        <Ink d="M380 148L398 147.6L400 202L378 202.4Z" fill="paper" />
+        <Ink d="M370 154Q585 156.5 800 154" />
+        <Ink d="M389 147.5V76" strokeWidth={1.6} />
+        <g className="qs-flag">
+          <Ink d="M389 76Q403 75 417 82Q403 89 389 92Z" fill="deep" strokeWidth={1.6} />
+        </g>
+        <g className="qs-swell qs-swell-2">
+          <Ink d="M362 212q5 -2 10 0t10 0M404 214q5 -2 10 0t10 0" strokeWidth={1.4} />
+        </g>
+      </g>
+      <g className="qs-boat">
+        <g className="qs-rock">
+          <Ink d="M178 166Q175 190 177 216" strokeWidth={1.4} />
+          <Ink d="M208 188L178 166" strokeWidth={1.8} />
+          <Ink d="M199.6 178a6.4 6.4 0 1 0 12.8 0a6.4 6.4 0 1 0 -12.8 0Z" fill="paper" />
+          <Ink d="M206 185V194" />
+          <Ink d="M250 194V126" />
+          <Ink d="M250 130L250 186L290 186Z" fill="paper" />
+          <Ink d="M250 140L250 186L224 186Z" fill="paper" />
+          <Ink d="M190 194L298 194L284 210L204 210Z" fill="paper" />
+        </g>
+      </g>
+    </>
+  );
+}
+
 /**
  * Studio Quality: a lighthouse on its rock, its beam sweeping slowly over the sea. The weather follows the verdict
  * (`mood`, lib/quality-view.ts): the sun when clear, a band of haze when something needs a look, fog when something
@@ -110,29 +185,53 @@ function Lighthouse() {
 }
 
 const SCENES = {
-  harbor: { viewBox: '0 0 240 120', draw: Harbor },
+  harbor: { viewBox: '0 0 240 120', draw: Harbor, window: { viewBox: '100 0 600 200', draw: HarborWindow } },
   lighthouse: { viewBox: '0 0 240 160', draw: Lighthouse },
-} satisfies Record<string, { viewBox: string; draw: () => ReactNode }>;
+} satisfies Record<string, { viewBox: string; draw: () => ReactNode; window?: { viewBox: string; draw: () => ReactNode } }>;
 
 export type QuietSceneName = keyof typeof SCENES;
+export type QuietSceneLayout = 'inline' | 'window';
 
 /** The weather of a scene that has one (the lighthouse): clear, haze or fog. */
 export type QuietSceneMood = 'clear' | 'haze' | 'fog';
 
+/**
+ * `layout="inline"` (default): the drawing as one block of `width`. `layout="window"` (scenes that have a window
+ * drawing): the scene fills its positioned parent like a view through a window (styles/quiet-scene.css): water across
+ * the whole width along the bottom, the scene anchored bottom right on it and cropped by the right edge. The parent
+ * clips it (overflow hidden), keeps its own content above the water and, as an inline-size container, lets the
+ * smallest details go when narrow; on a phone only the water stays.
+ */
 export function QuietScene({
   scene = 'harbor',
+  layout = 'inline',
   width = 220,
   className,
   label,
   mood,
 }: {
   scene?: QuietSceneName;
+  layout?: QuietSceneLayout;
   width?: number;
   className?: string;
   label?: string;
   mood?: QuietSceneMood;
 }) {
-  const s = SCENES[scene];
+  const s: { viewBox: string; draw: () => ReactNode; window?: { viewBox: string; draw: () => ReactNode } } = SCENES[scene];
+  const a11y = { role: label ? 'img' : undefined, 'aria-label': label, 'aria-hidden': label ? undefined : ('true' as const) };
+  if (layout === 'window' && s.window) {
+    const View = s.window.draw;
+    return (
+      <div className={`ill qs qs-window${className ? ` ${className}` : ''}`} data-scene={scene} data-mood={mood} data-layout="window" {...a11y}>
+        <svg className="qs-water" fill="none" focusable="false" aria-hidden="true">
+          <Water />
+        </svg>
+        <svg className="qs-view" viewBox={s.window.viewBox} preserveAspectRatio="xMaxYMax meet" fill="none" focusable="false" aria-hidden="true">
+          <View />
+        </svg>
+      </div>
+    );
+  }
   const [, , bw, bh] = s.viewBox.split(' ').map(Number);
   const Draw = s.draw;
   return (
@@ -144,9 +243,7 @@ export function QuietScene({
       height={Math.round((width * bh!) / bw!)}
       viewBox={s.viewBox}
       fill="none"
-      role={label ? 'img' : undefined}
-      aria-label={label}
-      aria-hidden={label ? undefined : 'true'}
+      {...a11y}
       focusable="false"
     >
       <Draw />

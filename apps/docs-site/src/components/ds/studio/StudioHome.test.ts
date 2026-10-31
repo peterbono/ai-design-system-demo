@@ -326,9 +326,15 @@ describe('StudioHome, quiet', () => {
     const { container } = render(createElement(StudioHome, props()));
     expect(screen.getByText('Nothing needs you. The harbor is calm.')).toBeTruthy();
     const zone = container.querySelector('.sh-zone')!;
-    const scene = zone.querySelector('svg.qs[data-scene="harbor"]');
+    expect(zone.classList.contains('sh-zone-quiet')).toBe(true);
+    // A window onto the harbor: water across the whole zone, the scene anchored right on its horizon.
+    const scene = zone.querySelector('.qs[data-scene="harbor"][data-layout="window"]');
     expect(scene).not.toBeNull();
     expect(scene!.getAttribute('aria-hidden')).toBe('true');
+    expect(scene!.querySelector('svg.qs-water')).not.toBeNull();
+    expect(scene!.querySelector('svg.qs-view')!.getAttribute('preserveAspectRatio')).toBe('xMaxYMax meet');
+    // Only the flag carries Deep Harbor.
+    expect(scene!.querySelectorAll('[data-fill="deep"]')).toHaveLength(1);
     // Every ink line draws in on the same clock.
     expect([...scene!.querySelectorAll('path')].every((path) => path.getAttribute('pathLength') === '1')).toBe(true);
     // Starting stays in Your explorations: the zone adds no action of its own.
@@ -339,8 +345,10 @@ describe('StudioHome, quiet', () => {
   it('shows no scene while loading or when something waits', () => {
     localStorage.setItem('bridge.home.contributor-tour', 'done');
     const { container, rerender } = render(createElement(StudioHome, props({ state: 'loading' })));
-    expect(container.querySelector('svg.qs')).toBeNull();
+    expect(container.querySelector('.qs')).toBeNull();
+    expect(container.querySelector('.sh-zone-quiet')).toBeNull();
     rerender(createElement(StudioHome, props({ needs: [sentBack] })));
-    expect(container.querySelector('svg.qs')).toBeNull();
+    expect(container.querySelector('.qs')).toBeNull();
+    expect(container.querySelector('.sh-zone-quiet')).toBeNull();
   });
 });
