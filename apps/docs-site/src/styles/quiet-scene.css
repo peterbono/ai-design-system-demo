@@ -9,6 +9,52 @@
   overflow: visible;
 }
 
+/* --- Window layout: the scene fills its positioned parent (which clips it), water along the whole bottom. ------- */
+
+.qs-window {
+  --_water: var(--space-12);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The water band: the horizon line at its top edge, the ripples below it. Pixel units, cropped by the parent. */
+.qs-water {
+  position: absolute;
+  inset: auto 0 0;
+  width: 100%;
+  height: var(--_water);
+  overflow: visible;
+}
+
+/* The scene stands on the horizon, anchored right; it shrinks with the zone before it ever reaches the text. */
+.qs-view {
+  position: absolute;
+  right: 0;
+  bottom: var(--_water);
+  width: var(--_view, 56%);
+  height: calc(100% - var(--_water));
+  overflow: visible;
+}
+
+/* A narrow window (its parent is an inline-size container) lets the gulls go: they would fly into the text. */
+@container (max-width: 940px) {
+  .qs-view .qs-glide {
+    display: none;
+  }
+}
+
+/* On a phone the window keeps only the water. */
+@media (max-width: 640px) {
+  .qs-window {
+    --_water: var(--space-10);
+  }
+
+  .qs-view {
+    display: none;
+  }
+}
+
 /* --- Draw-in, once: the ground, then the boat, then the sky. ----------------------------------------------- */
 
 .qs path {
