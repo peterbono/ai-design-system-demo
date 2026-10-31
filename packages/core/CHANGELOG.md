@@ -1,5 +1,25 @@
 # @bridge-ds/core
 
+## 0.25.0
+
+### Minor Changes
+
+- 59c0cca: Studio Changes and the home leave out pull requests that only change Bridge itself. bridge.config.json takes an
+  optional `tooling` key: the folders that are the tool around the design system (`paths`, with `!` to keep a file as
+  design system) and the pull request title scopes that mean tooling (`scopes`, the guess until the changed files are
+  read). Core `isToolingPull` decides: the changed files once read, the title's scopes before; explorations, bridge/
+  branches and changes Bridge opened for someone are never left out. Without the key (a team's design system
+  repository) nothing changes. Bridge's own repository lists Studio, the core, the CLI, the MCP server and the toolbar,
+  so Shipped shows design system work only. The side nav's account row shows the GitHub profile name, the @login
+  staying in its menu.
+
+### Patch Changes
+
+- 61b4f83: Client-agnostic wording: the server instructions and tool descriptions speak to any MCP client (Claude, GitHub
+  Copilot, others) where nothing is Claude-specific, and commits, comments and pull requests made through the MCP
+  server say "with an AI tool through the Bridge MCP server" instead of naming Claude.
+- faf78be: Exploration activity: a merge commit ("Merge branch 'main' into ...") reads "brought in the latest product", and the line under the title skips it.
+
 ## 0.24.1
 
 ### Patch Changes

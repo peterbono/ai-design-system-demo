@@ -1,5 +1,23 @@
 # @bridge-ds/mcp
 
+## 0.11.5
+
+### Patch Changes
+
+- 61b4f83: Client-agnostic wording: the server instructions and tool descriptions speak to any MCP client (Claude, GitHub
+  Copilot, others) where nothing is Claude-specific, and commits, comments and pull requests made through the MCP
+  server say "with an AI tool through the Bridge MCP server" instead of naming Claude.
+- 9985e11: Studio: "Start an exploration" replaces "Start a change" on the Changes header, with the same one-step flow as the
+  home. A change to the library is an exploration whose target is the library: the Where menu lists each product,
+  then The library (Tokens, variants, new components). The old two-step type dialog is gone. "Something looks wrong?
+  Report it" stays in the dialog footer; the token editor stays on Tokens and the home's Edit tokens. Old
+  ?view=explorations&start=new links open the new dialog with the library picked. The MCP Jira hint names the new button.
+- Updated dependencies [59c0cca]
+- Updated dependencies [61b4f83]
+- Updated dependencies [faf78be]
+  - @bridge-ds/core@0.25.0
+  - @bridge-ds/visual@0.3.19
+
 ## 0.11.4
 
 ### Patch Changes
