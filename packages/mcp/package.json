@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/mcp",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "type": "module",
   "description": "Bridge MCP server: lets Claude (Claude Code, Claude Desktop or any MCP client) read, check and propose changes to a DTCG design system repo through pull requests.",
   "license": "FSL-1.1-MIT",
@@ -55,7 +55,7 @@
     "build:package": "node ../../scripts/build-packages.mjs mcp"
   },
   "dependencies": {
-    "@bridge-ds/core": "^0.24.0",
+    "@bridge-ds/core": "^0.24.1",
     "@bridge-ds/visual": "^0.3.18",
     "@modelcontextprotocol/sdk": "1.31.0",
     "typescript": "5.9.3",
