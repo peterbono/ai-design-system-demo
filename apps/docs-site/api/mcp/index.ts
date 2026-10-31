@@ -420,7 +420,9 @@ async function onView(view: string, req: Request, env: ConnectorEnv, deps: Conne
     try {
       const r = await (deps.checkPieces ?? ((c, n) => pieces.missingPiecesOp(c, { pr: n, record: true })))(ctx, /^\d+$/.test(pr) ? Number(pr) : pr);
       return json(200, { checked: r.recorded, pieces: r.pieces.length }, NO_STORE);
-    } catch {
+    } catch (err) {
+      // The function log says why (GitHub's status and message, never the token); Studio shows one sentence.
+      console.error(`library check failed for ${t.full}#${pr}: ${err instanceof Error ? err.message : String(err)}`);
       return fail(422, 'check_failed', PIECES_WORDS.failed);
     }
   }

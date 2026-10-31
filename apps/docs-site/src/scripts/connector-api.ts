@@ -3,7 +3,7 @@
 // and the session cookie. Every rule is checked by the server.
 import { CONTRIBUTE_HEADER } from '../lib/contribute';
 import type { Connection } from '../lib/claude-connector';
-import { getToken, signedInWithGitHub } from './github-session';
+import { getToken, noteWrite, signedInWithGitHub } from './github-session';
 
 export const CONNECTOR_API = '/api/mcp';
 
@@ -58,5 +58,7 @@ export async function listFixSessions(repo: string): Promise<unknown[]> {
 export async function checkPieces(repo: string, ref: string): Promise<{ checked: boolean; pieces: number }> {
   if (!signedInWithGitHub()) throw new ConnectorUnavailable();
   const r = await call<{ checked?: boolean; pieces?: number }>('POST', '?view=pieces', { repo, pr: ref });
+  // The server wrote the result on the pull request: the reads that follow ask GitHub, not the browser's copy.
+  noteWrite();
   return { checked: r.checked === true, pieces: typeof r.pieces === 'number' ? r.pieces : 0 };
 }

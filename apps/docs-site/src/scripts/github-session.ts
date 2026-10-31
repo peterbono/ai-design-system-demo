@@ -871,7 +871,11 @@ function cacheSet(url: string, data: unknown) {
 
 /** When this tab last wrote to GitHub: reads ask GitHub again for a while after (lib/token-session readCacheMode). */
 let wroteAt: number | null = null;
-const noteWrite = () => {
+/**
+ * Notes a write to GitHub. Exported for writes this site's server makes for the tab (the library check records its
+ * result on the pull request): the next reads ask GitHub again, not the browser's copy from before.
+ */
+export const noteWrite = () => {
   wroteAt = Date.now();
 };
 const freshRead = (): RequestCache => readCacheMode(wroteAt, Date.now());
