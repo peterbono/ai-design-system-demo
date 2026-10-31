@@ -1,5 +1,15 @@
 # @bridge-ds/toolbar
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [ff5d30f]
+- Updated dependencies [87e4794]
+- Updated dependencies [d1d97bb]
+- Updated dependencies [4967d1f]
+  - @bridge-ds/core@0.26.0
+
 ## 0.4.1
 
 ### Patch Changes

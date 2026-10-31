@@ -1,5 +1,17 @@
 # @bridge-ds/core
 
+## 0.26.0
+
+### Minor Changes
+
+- d1d97bb: Exploration page "..." menu: Rename (the pull request title and the exploration's name in its body, the branch and preview link unchanged) and Back to exploring (undoes Done exploring while no developer has pushed since: the developer section and the done marker leave the body, the `exploration` label comes back, `ready-for-devs` goes; a refused label write still succeeds through the body). New core exports: `renameExplorationOnGitHub`, `reopenExplorationOnGitHub`, `withExplorationName`, `withoutDoneExploring`, `renamedExplorationTitle`; the exploration block gains `reopenedAt`.
+
+### Patch Changes
+
+- ff5d30f: Being built lists explorations handed to developers next to build requests: waiting for code reads Waiting to be picked up, developers pushing reads In progress, merged this week reads Shipped this week. Each row carries an Exploration tag, the product, who said Done exploring and when, and opens the exploration. Done exploring now records who said it in the exploration block (`doneBy`). Explorations in product repositories come from the one read Changes and the home already make.
+- 87e4794: Done exploring stands even when the `exploration` label could not be removed: the exploration reads as waiting for code, not running. Studio no longer shows designers GitHub housekeeping warnings after Done exploring (they go to the console for developers).
+- 4967d1f: Open the preview works when Vercel built the branch but Bridge has no Vercel comment to read: a finished Vercel commit status now gives the branch alias Vercel serves (core `vercelBranchAlias`, the shortened `-git-...-<hash>-` form included), and an exploration started for a product of the design system repository falls back to that product's own preview template when the page lists no preview apps (a team page).
+
 ## 0.25.0
 
 ### Minor Changes
