@@ -3,9 +3,10 @@
 // mapped to the nearest token of the scale; a step the map does not know reads its token's own description.
 import { primitiveRows, groupRows, type FoundationRow } from '../../../../lib/library/foundations';
 import { GroupSection, LibraryHeader, ScopeSwitch, TokenList, v } from '../FoundationParts';
-import { studioLink, systemName, type LibraryData } from '../library-data';
+import { pageHref, studioLink, systemName, type LibraryData } from '../library-data';
+import { ConfluenceCopy } from '../ConfluenceCopy';
 
-const STEPS: Record<string, { role: string; leading: string; tracking: string }> = {
+export const TYPE_STEPS: Record<string, { role: string; leading: string; tracking: string }> = {
   '1000': { role: 'Display: the home hero and onboarding only (typography.display)', leading: 'none', tracking: 'tighter' },
   '900': { role: 'Numbers that must win a glance', leading: 'none', tracking: 'tighter' },
   '800': { role: 'Page titles (typography.h1)', leading: 'tight', tracking: 'tight' },
@@ -18,13 +19,13 @@ const STEPS: Record<string, { role: string; leading: string; tracking: string }>
   '100': { role: 'Captions, badges, table meta (typography.caption)', leading: 'snug', tracking: 'wide' },
 };
 const FALLBACK_STEP = { role: '', leading: 'normal', tracking: 'normal' };
-const WEIGHTS: Record<string, string> = {
+export const TYPE_WEIGHTS: Record<string, string> = {
   'font.weight.regular': 'Body text.',
   'font.weight.medium': 'Labels and buttons.',
   'font.weight.semibold': 'Titles.',
   'font.weight.bold': 'Only for numbers that must win a glance.',
 };
-const LEADING: Record<string, string> = {
+export const TYPE_LEADING: Record<string, string> = {
   'font.line-height.none': 'Icons and single glyphs, never text that wraps.',
   'font.line-height.tight': 'Headings from 24 px up.',
   'font.line-height.snug': 'Captions and card titles.',
@@ -46,17 +47,17 @@ export const TYPOGRAPHY_PAGE = {
 export default function TypographyView({ data }: { data: LibraryData }) {
   const { model } = data;
   const sizes = primitiveRows(model, 'font.size');
-  const stepOf = (r: FoundationRow) => STEPS[lastOf(r.path)];
+  const stepOf = (r: FoundationRow) => TYPE_STEPS[lastOf(r.path)];
   const sizeRows = withRole([...sizes].reverse(), Object.fromEntries(sizes.map((r) => [r.path, stepOf(r) ? `${stepOf(r)!.role}.` : ''])));
   const leadingRows = primitiveRows(model, 'font.line-height');
-  const weights = withRole(primitiveRows(model, 'font.weight'), WEIGHTS);
-  const leading = withRole(leadingRows, LEADING);
+  const weights = withRole(primitiveRows(model, 'font.weight'), TYPE_WEIGHTS);
+  const leading = withRole(leadingRows, TYPE_LEADING);
   const tracking = primitiveRows(model, 'font.tracking');
   const families = [...groupRows(model, 'font.family'), ...primitiveRows(model, 'font.family')];
   const lh = (name: string) => leadingRows.find((r) => r.path.endsWith(`.${name}`))?.values.light ?? '';
   return (
     <div data-fd-page="">
-      <LibraryHeader title={TYPOGRAPHY_PAGE.title} art={TYPOGRAPHY_PAGE.art} studio={studioLink(data, TYPOGRAPHY_PAGE.studio)} canEdit={data.extras.canEdit}>
+      <LibraryHeader title={TYPOGRAPHY_PAGE.title} art={TYPOGRAPHY_PAGE.art} studio={studioLink(data, TYPOGRAPHY_PAGE.studio)} canEdit={data.extras.canEdit} actions={<ConfluenceCopy data={data} route={pageHref(data, 'foundations/typography/')} />}>
         {data.team ? TYPOGRAPHY_PAGE.teamLead : TYPOGRAPHY_PAGE.lead}
       </LibraryHeader>
 
@@ -67,7 +68,7 @@ export default function TypographyView({ data }: { data: LibraryData }) {
         <div className="fd-stage" data-scope-stage="" role="group" aria-label="Type scale specimen">
           {sizeRows.map((r) => {
             const step = lastOf(r.path);
-            const s = STEPS[step] ?? FALLBACK_STEP;
+            const s = TYPE_STEPS[step] ?? FALLBACK_STEP;
             const n = Number(step);
             return (
               <div key={r.path} className="sp-type-row">

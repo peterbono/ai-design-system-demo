@@ -17,6 +17,13 @@
   margin-top: var(--space-8);
 }
 
+/* Browse components, and on Bridge's own Library "Export the docs" (the zip for Confluence). */
+.hm-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 .hm-hero-art .ill {
   width: 100%;
   height: auto;

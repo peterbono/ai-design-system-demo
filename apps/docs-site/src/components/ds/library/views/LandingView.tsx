@@ -3,6 +3,7 @@
 // release notes. Bridge's own home renders it at build time (pages/library/index.astro), a team's Library in the
 // browser (LibraryTeamPage.tsx).
 import { Badge, Link } from '@bridge-ds/react';
+import { Download } from 'lucide-react';
 import ButtonLink from '../../ButtonLink';
 import { Drawing } from '../../studio/Drawing';
 import type { IllustrationName } from '../../../../brand/illustrations';
@@ -10,6 +11,7 @@ import { libraryHome } from '../../../../lib/library/home';
 import { loadComponents } from '../../../../lib/library/components';
 import { tokenRows } from '../../../../lib/library/tokens';
 import { pageHref, systemName, type LibraryData } from '../library-data';
+import { EXPORT_ZIP } from '../../../../lib/library/confluence/render';
 
 export default function LandingView({ data }: { data: LibraryData }) {
   const { model, extras } = data;
@@ -39,9 +41,16 @@ export default function LandingView({ data }: { data: LibraryData }) {
               </>
             )}
           </p>
-          <ButtonLink variant="primary" href={pageHref(data, 'components/')}>
-            Browse components
-          </ButtonLink>
+          <div className="hm-hero-actions">
+            <ButtonLink variant="primary" href={pageHref(data, 'components/')}>
+              Browse components
+            </ButtonLink>
+            {!data.team && (
+              <ButtonLink variant="secondary" href={EXPORT_ZIP} download="bridge-library-docs.zip" iconStart={Download} title="Every Library page as Markdown, with an index, to import into Confluence">
+                Export the docs
+              </ButtonLink>
+            )}
+          </div>
         </div>
         <div className="hm-hero-art">
           <Drawing name="hero" width={400} label="Two people finishing a plank bridge" />

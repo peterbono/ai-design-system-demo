@@ -21,6 +21,7 @@ import { tokenAxes } from '../../../../lib/library/tokens';
 import { humanDate } from '../../../../lib/library/stats';
 import { mdTitleParts } from '../../../../lib/markdown';
 import { componentHref, libraryLink, pageHref, sourceHref, type LibraryData } from '../library-data';
+import { ConfluenceCopy } from '../ConfluenceCopy';
 
 export interface ComponentViewProps {
   data: LibraryData;
@@ -144,11 +145,18 @@ export default function ComponentView({ data, component: c, Example, heroTools, 
             }
             actions={
               own || extras.canEdit ? (
-                <span data-maintainer-only={own ? '' : undefined} data-le-read-only="">
-                  <ButtonLink variant="secondary" size="sm" href={editHref} iconStart={Pencil} data-le-edit="">
-                    Edit
-                  </ButtonLink>
-                </span>
+                <>
+                  {own && (
+                    <span data-le-read-only="">
+                      <ConfluenceCopy data={data} route={componentHref(data, c.slug)} />
+                    </span>
+                  )}
+                  <span data-maintainer-only={own ? '' : undefined} data-le-read-only="">
+                    <ButtonLink variant="secondary" size="sm" href={editHref} iconStart={Pencil} data-le-edit="">
+                      Edit
+                    </ButtonLink>
+                  </span>
+                </>
               ) : undefined
             }
           />

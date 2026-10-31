@@ -2,7 +2,8 @@
 // shadow primitives behind them.
 import { groupRows, primitiveRows } from '../../../../lib/library/foundations';
 import { GroupSection, LibraryHeader, TokenGroup, TokenList } from '../FoundationParts';
-import { studioLink, type LibraryData } from '../library-data';
+import { pageHref, studioLink, type LibraryData } from '../library-data';
+import { ConfluenceCopy } from '../ConfluenceCopy';
 
 export const ELEVATION_PAGE = {
   title: 'Elevation',
@@ -16,7 +17,7 @@ export default function ElevationView({ data }: { data: LibraryData }) {
   const shadows = primitiveRows(model, 'shadow');
   return (
     <div data-fd-page="">
-      <LibraryHeader title={ELEVATION_PAGE.title} art={ELEVATION_PAGE.art} studio={studioLink(data, ELEVATION_PAGE.studio)} canEdit={data.extras.canEdit}>
+      <LibraryHeader title={ELEVATION_PAGE.title} art={ELEVATION_PAGE.art} studio={studioLink(data, ELEVATION_PAGE.studio)} canEdit={data.extras.canEdit} actions={<ConfluenceCopy data={data} route={pageHref(data, 'foundations/elevation/')} />}>
         {ELEVATION_PAGE.lead}
       </LibraryHeader>
 

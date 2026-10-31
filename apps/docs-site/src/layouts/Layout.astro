@@ -427,6 +427,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       import { initLibraryTeam } from '../scripts/library-team';
       import { initSpaceSwitch } from '../scripts/space-switch';
       import { initSignInLinks } from '../scripts/signin-links';
+      // "Copy for Confluence" on Library doc pages: one delegated click listener.
+      import '../scripts/confluence-copy';
       // A team's Library: noindex first, then its links, name and data (a no-op elsewhere).
       if (document.documentElement.hasAttribute('data-library-shell')) initLibraryTeam();
       initShell();

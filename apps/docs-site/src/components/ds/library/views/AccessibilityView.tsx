@@ -10,7 +10,8 @@ import { buildGroups, combos as makeCombos, groupStatus, resultFor, rowTitle, sh
 import { contrastFile, contrastPairs, evaluatePairs, THRESHOLDS } from '../../../../lib/library/contrast';
 import { tokenAxes } from '../../../../lib/library/tokens';
 import { LibraryHeader, vars } from '../FoundationParts';
-import { studioLink, systemName, type LibraryData } from '../library-data';
+import { pageHref, studioLink, systemName, type LibraryData } from '../library-data';
+import { ConfluenceCopy } from '../ConfluenceCopy';
 
 const TONE: Record<Status, 'success' | 'neutral' | 'danger'> = { aaa: 'success', aa: 'neutral', fail: 'danger' };
 const cssVar = (path: string) => `var(--${path.replace(/\./g, '-')})`;
@@ -54,9 +55,12 @@ export default function AccessibilityView({ data }: { data: LibraryData }) {
         studioLabel={ACCESSIBILITY_PAGE.studioLabel}
         canEdit={data.extras.canEdit}
         actions={
-          <Link href="#how-we-check" variant="standalone" data-a11y-how>
-            How we check
-          </Link>
+          <>
+            <Link href="#how-we-check" variant="standalone" data-a11y-how>
+              How we check
+            </Link>
+            <ConfluenceCopy data={data} route={pageHref(data, 'foundations/accessibility/')} />
+          </>
         }
       >
         <p className="a11y-status" data-state={summary.failing ? 'fail' : 'pass'}>

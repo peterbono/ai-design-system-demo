@@ -1,0 +1,49 @@
+---
+// /docs/confluence/: Docs in Confluence, for teams whose documentation must live there. Both ways out of the Library
+// come from one generator (lib/library/confluence/): Copy for Confluence on a page, Export the docs on the Library
+// home. The live sync is planned and said so, without a date.
+import Docs from '../../layouts/Docs.astro';
+import { Link } from '@bridge-ds/react';
+import { LIBRARY_HOME } from '../../lib/nav';
+
+const sections = [
+  { id: 'copy', label: 'Copy one page' },
+  { id: 'export', label: 'Export every page' },
+  { id: 'source', label: 'Bridge stays the source' },
+  { id: 'sync', label: 'Live sync (planned)' },
+];
+---
+
+<Docs title="Docs in Confluence" description="Put the Library docs in Confluence: copy one page ready to paste, or export every page as Markdown. A live sync from your own CI is planned." sections={sections}>
+  <p>When your company keeps its documentation in Confluence, the design system docs can live there too. The Library stays where people and agents edit them; Confluence gets a clean copy.</p>
+
+  <section aria-labelledby="copy">
+    <h2 id="copy">Copy one page</h2>
+    <p>Every Library page with docs has <strong>Copy for Confluence</strong> in its header: each component, each token page of Foundations, Accessibility and All tokens. Choose it, open a Confluence page in edit mode and paste.</p>
+    <p>What you get:</p>
+    <ul>
+      <li>Headings, paragraphs and lists as Confluence text.</li>
+      <li>Tables for props (name, type, default, required, description) and for tokens (name, value, description).</li>
+      <li>Color tokens with their hex in light and dark, beside a swatch cell painted with the color. If your Confluence drops cell colors, the hex is still there.</li>
+      <li>Code as code blocks. A live example becomes its code and a link, <strong>See it live in Bridge</strong>: Confluence cannot run the real component.</li>
+      <li>Links that point back to the Library page, never relative ones.</li>
+    </ul>
+    <p>Where rich copy is not available, the page is copied as Markdown instead: paste it in a Confluence Markdown macro.</p>
+  </section>
+
+  <section aria-labelledby="export">
+    <h2 id="export">Export every page</h2>
+    <p>On the <Link href={LIBRARY_HOME}>Library home</Link>, <strong>Export the docs</strong> downloads a zip with one Markdown file per page (<code>foundations/</code>, <code>tokens.md</code>, <code>components/</code>) and an <code>index.md</code> that lists them all with their Bridge address.</p>
+    <p>Import the files with Confluence's Markdown importer, or paste a file into a Markdown macro. The zip is built with the site, so it always matches the pages you see.</p>
+  </section>
+
+  <section aria-labelledby="source">
+    <h2 id="source">Bridge stays the source</h2>
+    <p>Each copy ends with one line: <em>Generated from Bridge on the day it was made. Edit it in Bridge</em>, with the page's address. Readers in Confluence know where the docs come from and where to change them. Props and tokens come from the code, so a change made in Confluence would be lost on the next copy: edit in Bridge, then copy or export again.</p>
+  </section>
+
+  <section aria-labelledby="sync">
+    <h2 id="sync">Live sync (planned)</h2>
+    <p>Next: publish the docs to a Confluence space on each library release, from your team's own CI, with your own Confluence credentials. Bridge never holds them. Until then, copy or export after a release.</p>
+  </section>
+</Docs>
