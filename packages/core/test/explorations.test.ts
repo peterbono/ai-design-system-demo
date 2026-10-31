@@ -87,6 +87,8 @@ describe('done exploring: status, plan and body', () => {
     expect(explorationStatus({ ...base, headSha: 'aaa', draft: false })).toBe('building');
     expect(explorationStatus({ ...base, state: 'closed', merged_at: '2026-11-01' })).toBe('shipped');
     expect(explorationStatus({ ...base, state: 'closed' })).toBe('closed');
+    // The label could not be removed (a token without the right to edit labels): done exploring still stands.
+    expect(explorationStatus({ ...base, labels: [EXPLORATION_LABEL], headSha: 'aaa' })).toBe('ready');
     // Held out of the review queue while it runs, is archived, or is with the developers as a draft.
     expect(isHeldExploration({ state: 'open', labels: [EXPLORATION_READY_LABEL], draft: true })).toBe(true);
     expect(isHeldExploration({ state: 'open', labels: [EXPLORATION_READY_LABEL], draft: false })).toBe(false);
