@@ -11,6 +11,7 @@ import {
   libraryChangesLine,
   libraryChangesOf,
   SCREEN_SKETCH,
+  cardTag,
   type ExplorationPull,
 } from './home-explorations';
 import { person } from './home-model';
@@ -96,11 +97,26 @@ describe('the explorations of the Studio home', () => {
     expect(b!.href).toMatch(/changes\/\?pr=45$/);
   });
 
-  it('keeps the explored screen when known, a sketch otherwise: never a generic icon', () => {
+  it('keeps the explored screen when known, else a plate with the product and the changed screen: never a generic icon', () => {
     const shot = { kind: 'screen', src: '/sample/explorations/profile-page.png' } as const;
     const cards = homeExplorations([profile, billing], { products, author: who, preview: (p) => (p.number === 36 ? shot : null) });
-    expect(cards.map((c) => c.preview)).toEqual([shot, SCREEN_SKETCH]);
+    expect(cards.map((c) => c.preview)).toEqual([shot, { ...SCREEN_SKETCH, product: 'Account', screen: null }]);
     expect(cards.every((c) => c.preview.kind === 'screen')).toBe(true);
+    // Its files read: the plate names the screen it changed.
+    const named = homeExplorations([profile], { products, author: who, files: () => ['apps/account/src/pages/ProfilePage.tsx'] });
+    expect(named[0]!.preview).toMatchObject({ kind: 'screen', src: null, product: 'Account' });
+    expect((named[0]!.preview as { screen: string | null }).screen).toBe('Profile page');
+  });
+
+  it('tags each state with the tone of the exploration page', () => {
+    expect(cardTag('exploring', 'Not started')).toEqual({ tone: 'neutral', dot: false });
+    expect(cardTag('exploring', 'Exploring')).toEqual({ tone: 'info', dot: true });
+    expect(cardTag('found', '2 new pieces found')).toEqual({ tone: 'info', dot: true });
+    expect(cardTag('with-devs', 'Waiting for code')).toEqual({ tone: 'warning', dot: false });
+    expect(cardTag('with-devs', 'Being built')).toEqual({ tone: 'info', dot: true });
+    expect(cardTag('kept', 'Shipped')).toEqual({ tone: 'success', dot: false });
+    expect(cardTag('kept', 'Kept in the library')).toEqual({ tone: 'success', dot: false });
+    expect(cardTag('in-review', 'In review')).toEqual({ tone: 'info', dot: false });
   });
 
   it('lists the ones still being tried first, newest first inside', () => {

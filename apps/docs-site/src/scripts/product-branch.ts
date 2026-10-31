@@ -171,7 +171,7 @@ async function paintVisual(d: HTMLElement, r: ExplorationRow) {
   }
 }
 
-async function readView(r: ExplorationRow, gh: ReturnType<typeof client>, products: readonly ProductConfig[]): Promise<{ view: ProductBranchView; names: Record<string, string> } | null> {
+export async function readView(r: ExplorationRow, gh: ReturnType<typeof client>, products: readonly ProductConfig[]): Promise<{ view: ProductBranchView; names: Record<string, string> } | null> {
   try {
     // In the product's own repository, the linked requests and library branches are read in the design system's.
     const view = await productBranchViewOnGitHub(gh, r.number, { products, viewer: currentViewer()?.login ?? null, ...(r.product ? { library: client() } : {}) });
@@ -180,6 +180,49 @@ async function readView(r: ExplorationRow, gh: ReturnType<typeof client>, produc
   } catch {
     return null;
   }
+}
+
+/**
+ * The action of one piece row (send it to the library, use its preview, switch to the published version), with the
+ * viewer's token through the core functions. Shared by the product branch page and the page after Done exploring.
+ */
+export function pieceActor(x: { r: ExplorationRow; gh: ReturnType<typeof client>; lib: ReturnType<typeof client>; own: boolean; mode: ChangesMode; products: readonly ProductConfig[]; lastView: () => ProductBranchView | null; refresh: () => void }) {
+  const { r, gh, lib, mode, products } = x;
+  return async (row: Pick<PieceRowView, 'id' | 'title'>, kind: PieceActionKind): Promise<string | void> => {
+    const viewer = currentViewer()?.login;
+    if (kind === 'open') {
+      const res = await openLibraryBranchOnGitHub(gh, {
+        // Core opens a branch when the mode is left out: Studio always says which one this repo uses.
+        mode,
+        pr: r.number,
+        piece: row.id,
+        base: CFG.defaultBranch,
+        products,
+        exploration: { packages: CFG.packages, apps: CFG.apps },
+        writeTokens: tokenWriter(lib),
+        ...(x.own ? { library: lib } : {}),
+        ...(viewer ? { openedBy: viewer } : {}),
+        source: 'studio',
+      });
+      x.refresh();
+      if (res.status === 'suggested') return `${suggestionSentLine(res.link?.number ?? 0)}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
+      if (mode === 'suggest') return `Sent to the library as a request for ${row.title}. Your DS lead decides on it.${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
+      const what = res.plan.kind === 'token-change' ? 'token change' : res.plan.kind === 'exploration' ? 'library change' : 'request';
+      return `Opened a ${what} for ${row.title}.${res.preview?.status === 'merged' ? ' Your feature uses its preview now.' : ''}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
+    }
+    // Suggest mode: the product branch is not written from Studio (a developer switches it or uses a preview).
+    assertBranchWrites(kind === 'switch' ? 'switch features to the published version' : 'update features');
+    if (kind === 'switch') {
+      const res = await switchToPublishedOnGitHub(gh, r.number);
+      x.refresh();
+      return res.said;
+    }
+    const l = x.lastView()?.linked.find((v) => v.link.piece === row.id);
+    if (!l || !l.link.branch) throw new Error('This library change has nothing to preview yet.');
+    const res = await useLibraryPreviewOnGitHub(gh, { productBranch: r.branch, libraryBranch: l.link.branch, libraryNumber: l.link.number });
+    x.refresh();
+    return res.said;
+  };
 }
 
 /** Paints a product branch in place. `reopen` reads it again after a write, with the line it produced (`said`). */
@@ -196,41 +239,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
   // A reader in a direct-mode team suggests the missing pieces (lib/write-route): nothing fails at GitHub after a click.
   const access = connected() ? await resolveAccess().catch(() => null) : null;
   const mode = sendModeFor(access, changesModeOnPage());
-  const act = async (row: PieceRowView, kind: PieceActionKind): Promise<string | void> => {
-    const viewer = currentViewer()?.login;
-    if (kind === 'open') {
-      const res = await openLibraryBranchOnGitHub(gh, {
-        // Core opens a branch when the mode is left out: Studio always says which one this repo uses.
-        mode,
-        pr: r.number,
-        piece: row.id,
-        base: CFG.defaultBranch,
-        products,
-        exploration: { packages: CFG.packages, apps: CFG.apps },
-        writeTokens: tokenWriter(lib),
-        ...(own ? { library: lib } : {}),
-        ...(viewer ? { openedBy: viewer } : {}),
-        source: 'studio',
-      });
-      void refresh();
-      if (res.status === 'suggested') return `${suggestionSentLine(res.link?.number ?? 0)}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
-      if (mode === 'suggest') return `Sent to the library as a request for ${row.title}. Your DS lead decides on it.${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
-      const what = res.plan.kind === 'token-change' ? 'token change' : res.plan.kind === 'exploration' ? 'library change' : 'request';
-      return `Opened a ${what} for ${row.title}.${res.preview?.status === 'merged' ? ' Your feature uses its preview now.' : ''}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
-    }
-    // Suggest mode: the product branch is not written from Studio (a developer switches it or uses a preview).
-    assertBranchWrites(kind === 'switch' ? 'switch features to the published version' : 'update features');
-    if (kind === 'switch') {
-      const res = await switchToPublishedOnGitHub(gh, r.number);
-      void refresh();
-      return res.said;
-    }
-    const l = lastView?.linked.find((x) => x.link.piece === row.id);
-    if (!l || !l.link.branch) throw new Error('This library change has nothing to preview yet.');
-    const res = await useLibraryPreviewOnGitHub(gh, { productBranch: r.branch, libraryBranch: l.link.branch, libraryNumber: l.link.number });
-    void refresh();
-    return res.said;
-  };
+  const act = pieceActor({ r, gh, lib, own: Boolean(own), mode, products, lastView: () => lastView, refresh: () => void refresh() });
   const refresh = async () => {
     const read = await readView(r, gh, products);
     if (current?.n !== key) return;
@@ -328,7 +337,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
  * The piece actions in the repo's mode: in suggest mode a missing piece is suggested to the library ("Suggest to the
  * library"), and a linked suggestion offers no branch action (no preview to use, nothing to switch).
  */
-function pieceActions(rows: PieceRowView[], mode: ChangesMode): PieceRowView[] {
+export function pieceActions(rows: PieceRowView[], mode: ChangesMode): PieceRowView[] {
   if (mode === 'direct') return rows;
   return rows.map((row) => (row.action?.kind === 'open' ? { ...row, action: { ...row.action, label: sendButton('piece', mode) } } : row.action ? { ...row, action: null } : row));
 }

@@ -6,6 +6,7 @@ import { doneExploringOnGitHub, type GitHubClient, type ProductConfig } from '@b
 import { doneLine, donePieces } from '../lib/explorations-view';
 import type { DoneExploringDetail } from '../components/ds/studio/DoneExploring';
 import { currentViewer } from './github-session';
+import { checkPieces } from './connector-api';
 
 export const DONE_EXPLORING_EVENT = 'bridge:done-exploring-ask';
 
@@ -23,6 +24,11 @@ export function askDoneExploring(
     products?: readonly ProductConfig[];
     after: (line: string) => void;
     focus?: HTMLElement | null;
+    /**
+     * Never checked: run the library check while the dialog is open. `repo` is the design system repository the
+     * server checks from, `ref` the exploration ("12", "shop#12"), `body` reads its description again afterwards.
+     */
+    check?: { repo: string; ref: string; body: () => Promise<string | null | undefined> } | null;
   },
 ) {
   const found = donePieces(body);
@@ -40,6 +46,15 @@ export function askDoneExploring(
     closed: (done) => {
       if (!done && opts.focus?.isConnected) opts.focus.focus();
     },
+    check: opts.check
+      ? async () => {
+          const c = opts.check!;
+          const r = await checkPieces(c.repo, c.ref).catch(() => null);
+          if (!r) return null;
+          const after = donePieces(await c.body());
+          return after.checked ? after : null;
+        }
+      : null,
   };
   document.dispatchEvent(new CustomEvent(DONE_EXPLORING_EVENT, { detail }));
 }

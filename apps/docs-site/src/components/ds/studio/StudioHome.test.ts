@@ -158,8 +158,10 @@ describe('StudioHome, explorations only', () => {
     expect(items[1]!.querySelector('.bt--icon')).toBeNull();
     expect(screen.getByRole('link', { name: 'Billing screen' }).getAttribute('href')).toBe('/studio/changes/?exploration=37');
     const parts = [...items[2]!.querySelector('.sh-card-status')!.children].map((c) => c.textContent?.trim());
-    expect(parts.slice(0, 2)).toEqual([`2 new pieces found${SEP.trimEnd()}`, `in Account${SEP.trimEnd()}`]);
-    expect(parts[2]).toMatch(/Dana$/);
+    // Where it stands as the DS tag of its page, the product beside it, who explores it on its own line.
+    expect(parts).toEqual(['2 new pieces found', 'in Account']);
+    expect(items[2]!.querySelector('.sh-card-status [class*="badge"]')?.textContent).toBe('2 new pieces found');
+    expect(items[2]!.querySelector('.sh-card-who')!.textContent).toMatch(/Dana$/);
     await expectNoAxeViolations(container);
   });
 
@@ -175,9 +177,11 @@ describe('StudioHome, explorations only', () => {
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 
-  it('draws a screen sketch while an exploration has no capture: never a generic icon', () => {
-    const { container } = render(createElement(StudioHome, props({ explorations: [exploration(36, { preview: { kind: 'screen', src: null } })] })));
-    expect(container.querySelector('.sh-cards .bt-sketch')).toBeTruthy();
+  it('shows a plate naming the changed screen and the product while an exploration has no capture: never a generic icon or a fake wireframe', () => {
+    const { container } = render(createElement(StudioHome, props({ explorations: [exploration(36, { preview: { kind: 'screen', src: null, product: 'Admin demo', screen: 'Dashboard' } })] })));
+    expect(container.querySelector('.sh-cards .bt-plate svg.ill')).toBeTruthy();
+    expect(container.querySelector('.sh-cards .bt-plate-screen')!.textContent).toBe('Dashboard');
+    expect(container.querySelector('.sh-cards .bt-plate-product')!.textContent).toBe('Admin demo');
     expect(container.querySelector('.sh-cards .bt--icon')).toBeNull();
   });
 
@@ -302,13 +306,11 @@ describe('StudioHome, the tour on a phone', () => {
 });
 
 describe('StudioHome, status lines', () => {
-  it('never starts a wrapped line with the separator: the dot is glued to what comes before it', () => {
+  it('never starts a wrapped line with the separator: the card parts wrap on their own, with no dot', () => {
     localStorage.setItem('bridge.home.contributor-tour', 'done');
     const { container } = render(createElement(StudioHome, props({ explorations: [exploration(36, { state: '2 new pieces found' })] })));
     const status = container.querySelector('.sh-card-status')!;
-    // Each part wraps on its own; the first part ends with " ·", no part starts with the dot.
     const parts = [...status.children].map((c) => c.textContent ?? '');
-    expect(parts[0]).toMatch(/ ·$/);
     for (const p of parts) expect(p.trimStart().startsWith('·')).toBe(false);
     expect(SEP).toBe(' · ');
     // No breakable space before a dot anywhere on the home.

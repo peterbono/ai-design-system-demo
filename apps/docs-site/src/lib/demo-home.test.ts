@@ -127,13 +127,14 @@ describe("the DS lead's queue on the demo", () => {
     );
   });
 
-  it('reads the explored screen of another demo when the visual impact run has one, a sketch until then', () => {
+  it('reads the explored screen of another demo when the visual impact run has one, a plate until then', () => {
     const explore = pull(7, { labels: [{ name: 'exploration' }], head: { ref: 'explore/pill-buttons' } });
-    expect(teamExplorations([explore])[0]!.preview).toEqual({ kind: 'screen', src: null });
+    const plate = { kind: 'screen', src: null, product: 'Library', screen: null };
+    expect(teamExplorations([explore])[0]!.preview).toEqual(plate);
     const previews = new Map([[7, { kind: 'screen', src: 'https://raw.githubusercontent.com/o/r/bridge-visual/pr-7/sha/after.png' } as const]]);
     expect(teamExplorations([explore], { previews })[0]!.preview).toEqual(previews.get(7));
     // Off the sample team, the seeded captures are not used.
-    expect(teamExplorations([pull(8, { head: { ref: 'explore/profile-page' } })])[0]!.preview).toEqual({ kind: 'screen', src: null });
+    expect(teamExplorations([pull(8, { head: { ref: 'explore/profile-page' } })])[0]!.preview).toEqual(plate);
   });
 });
 

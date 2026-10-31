@@ -319,13 +319,42 @@
 }
 
 .sh-card {
+  display: flex;
   flex: 1;
+  flex-direction: column;
 }
 
+/* Title (two lines at most), then the state tag with the product and who explores it, pinned to the bottom: in a row
+   of cards the tags and names line up whatever the titles' length, and nothing floats in empty space. */
 .sh-card-body {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-3) var(--space-4) var(--space-4);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.sh-card-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sh-card-body > .sh-card-status {
+  margin-block-start: auto;
+}
+
+.sh-card-who {
+  color: var(--color-text-muted);
+}
+
+/* "Exploring" in Harbor, as on the exploration page's title row. */
+.sh-card .sh-card-tag.xp-exploring {
+  --_bg: var(--color-surface-selected);
+  --_border: transparent;
+  --_text: var(--color-text-link);
+  --_mark: var(--color-text-link);
 }
 
 /* The card's title. No "Sample" on the demo: its banner already says the data is sample data. */
@@ -337,10 +366,10 @@
 }
 
 .sh-card-status {
-  display: inline-flex;
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-1) var(--space-2);
 }
 
 .sh-card-stage {

@@ -1,11 +1,12 @@
 // The before/after thumbnail of a branch (Studio home rows and cards). Draws a ThumbSpec from lib/branch-thumb.ts:
 // two halves split by a dashed line, the after half on the subtle surface, or one centred icon when there is no
-// before/after to show, or one explored screen (an exploration card: its capture, else a sketch). Decorative: the row or card next to it says the same thing in words. Styles:
+// before/after to show, or one explored screen (an exploration card: its capture, else a plate naming the screen). Decorative: the row or card next to it says the same thing in words. Styles:
 // styles/branch-thumb.css.
 import type { ReactNode } from 'react';
 import { BookOpen, Component, Contrast, GitBranch, Palette, UserPlus } from 'lucide-react';
 import { Icon, type LucideIcon } from '@bridge-ds/react';
 import { fitScale, type ThumbIcon, type ThumbSpec } from '../../../lib/branch-thumb';
+import { Drawing } from './Drawing';
 
 type ThumbSize = 'row' | 'card';
 
@@ -71,13 +72,21 @@ function Lines() {
   );
 }
 
-/** A screen not captured yet: a title bar, a heading and two blocks, drawn with the thumbnail's own lines. */
-function ScreenSketch() {
+/**
+ * A screen not captured yet: the Field Guide drawing of a screen being painted, the changed screen's name and the
+ * product (a row thumbnail keeps the drawing only). Never a fake wireframe that reads as a broken image.
+ */
+function ScreenPlate({ product, screen, size }: { product: string | null | undefined; screen: string | null | undefined; size: ThumbSize }) {
+  const name = screen ?? product ?? null;
   return (
-    <span className="bt-sketch">
-      <span className="bt-sketch-head" />
-      <span className="bt-sketch-block" />
-      <span className="bt-sketch-block" />
+    <span className="bt-plate">
+      <Drawing name="paint" width={size === 'row' ? 28 : 56} className="bt-plate-art" />
+      {size === 'card' && name && (
+        <span className="bt-plate-text">
+          <span className="bt-plate-screen">{name}</span>
+          {screen && product && <span className="bt-plate-product">{product}</span>}
+        </span>
+      )}
     </span>
   );
 }
@@ -108,7 +117,7 @@ function body(spec: ThumbSpec, size: ThumbSize): ReactNode {
       );
     case 'screen':
       // One screen, not a before/after: an exploration is a new screen. Its top shows, where the page starts.
-      return spec.src ? <img className="bt-img bt-screen" src={spec.src} alt="" loading="lazy" decoding="async" /> : <ScreenSketch />;
+      return spec.src ? <img className="bt-img bt-screen" src={spec.src} alt="" loading="lazy" decoding="async" /> : <ScreenPlate product={spec.product} screen={spec.screen} size={size} />;
     case 'text':
       return <Halves before={<Lines />} after={<Lines />} />;
     case 'icon':

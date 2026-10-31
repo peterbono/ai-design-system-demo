@@ -597,11 +597,12 @@ export async function openExploration(n: number, push = true, product: string | 
     const pb = await import('./product-branch');
     const products = pb.siteProducts();
     const of = productRepoByKey(r.product)?.product ?? isProductBranch(pull.labels, products);
-    // While it runs (boards X1 and X2): not started or exploring, for a product or the library.
+    // While it runs (boards X1 and X2): not started or exploring, for a product or the library. After Done exploring
+    // (Waiting for code, Being built, Shipped): the same page in its hand-off state, for a product or the library.
     const xp = await import('./exploration-page');
     // After a write: read again, and the page it lands on says what happened.
     const reopen = (said?: string) => void openExploration(n, false, product, { fresh: true, ...(said ? { said } : {}) });
-    if (xp.runsHere(r)) {
+    if (xp.runsHere(r) || xp.handedOffHere(r)) {
       pb.closeProductBranch();
       return xp.openExplorationPage(d, r, pull, of ?? defaultProduct(products), products, reopen, after.said);
     }

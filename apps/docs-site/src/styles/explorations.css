@@ -242,3 +242,10 @@
 .ex-done-pieces {
   margin-top: var(--space-2);
 }
+
+/* Done exploring, while Bridge checks the exploration against the library. */
+.ex-done-checking {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

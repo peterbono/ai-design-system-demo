@@ -15,6 +15,7 @@ import { humanTitle } from './pr-title';
 import { studioHref } from './team-path';
 import type { Person } from './home-model';
 import type { ThumbSpec } from './branch-thumb';
+import { changedScreenOf, explorationTag, type TagTone } from './exploration-page';
 
 /** The fields of an open (or closed) pull request the home reads. */
 export interface ExplorationPull {
@@ -49,6 +50,10 @@ export interface ExplorationCard {
   stage: ExplorationStage;
   /** The stage in designer words: "Exploring", "2 new pieces found", "In review", "Kept in the library". */
   state: string;
+  /** The DS tag of the state: the same tone as the exploration page's title row. */
+  tone?: TagTone;
+  /** A dot before the word (a state that moves: Exploring, Being built). */
+  dot?: boolean;
   updated: string;
   /** The explored screen ({ kind: 'screen' }), or its sketch while no capture exists. */
   preview: ThumbSpec;
@@ -140,8 +145,20 @@ export function isOwnExploration(p: Pick<ExplorationPull, 'user' | 'body'>, view
   return same(p.user?.login, viewer) || same(requesterOf(p.body)?.login, viewer) || same(parseExplorationBody(p.body)?.author, viewer);
 }
 
-/** The sketch of a screen, while no capture of it exists. */
+/** The plate of a screen, while no capture of it exists. */
 export const SCREEN_SKETCH: ThumbSpec = { kind: 'screen', src: null };
+
+/** The tag of a card's state: the exploration page's words and tones (lib/exploration-page explorationTag). */
+export function cardTag(stage: ExplorationStage, state: string): { tone: TagTone; dot: boolean } {
+  const byWord: Record<string, string> = { 'Not started': 'active', Exploring: 'active', 'Waiting for code': 'ready', 'Being built': 'building', Shipped: 'shipped', 'In review': 'promoted', 'Kept in the library': 'kept' };
+  const status = byWord[state];
+  if (status) {
+    const t = explorationTag(status, { notStarted: state === 'Not started' });
+    return { tone: t.tone, dot: t.dot };
+  }
+  // "2 new pieces found": still exploring, with news.
+  return { tone: 'info', dot: stage === 'found' };
+}
 
 const ORDER: Record<ExplorationStage, number> = { exploring: 0, found: 0, 'with-devs': 1, 'in-review': 1, kept: 2 };
 
@@ -182,17 +199,22 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
     .map((p): ExplorationCard => {
       const files = opts.files;
       const { stage, state } = explorationStage(p, files ? () => files(p) : undefined);
+      const product = explorationProduct(p, opts.products);
+      const tag = cardTag(stage, state);
       return {
         number: p.number,
         key: keyOf(p),
         title: explorationTitle(p),
         href: explorationHref(p),
-        product: explorationProduct(p, opts.products),
+        product,
         author: opts.author(p),
         stage,
         state,
+        tone: tag.tone,
+        dot: tag.dot,
         updated: p.updated_at,
-        preview: opts.preview?.(p) ?? SCREEN_SKETCH,
+        // No capture: a plate with the changed screen's name (from its files, once read) and the product.
+        preview: opts.preview?.(p) ?? { kind: 'screen', src: null, product: product ?? 'Library', screen: changedScreenOf(files?.(p)) },
         own: isOwnExploration(p, opts.viewer),
       };
     })

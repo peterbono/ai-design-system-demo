@@ -49,3 +49,14 @@ export async function listFixSessions(repo: string): Promise<unknown[]> {
   const r = await call<{ sessions?: unknown[] }>('GET', `?view=sessions&repo=${encodeURIComponent(repo)}`);
   return Array.isArray(r.sessions) ? r.sessions : [];
 }
+
+/**
+ * Bridge's library check of an exploration (the adoption audit on its changes, recorded on it), run by the server with
+ * the viewer's GitHub sign-in. `ref`: "12", or "shop#12" in a product's own repository. Throws ConnectorUnavailable
+ * when the site cannot run it (a local `astro dev`, a fork), else an Error with a sentence for designers.
+ */
+export async function checkPieces(repo: string, ref: string): Promise<{ checked: boolean; pieces: number }> {
+  if (!signedInWithGitHub()) throw new ConnectorUnavailable();
+  const r = await call<{ checked?: boolean; pieces?: number }>('POST', '?view=pieces', { repo, pr: ref });
+  return { checked: r.checked === true, pieces: typeof r.pieces === 'number' ? r.pieces : 0 };
+}

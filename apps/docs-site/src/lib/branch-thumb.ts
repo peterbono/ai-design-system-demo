@@ -15,8 +15,11 @@ export type ThumbSpec =
   | { kind: 'type'; token: string; before: number | null; after: number | null }
   /** A component change the visual impact run captured: the before and after crops (absolute URLs). */
   | { kind: 'image'; before: string; after: string; label: string }
-  /** An explored screen (home-explorations): its capture, or a sketch of a screen while there is none (src null). */
-  | { kind: 'screen'; src: string | null }
+  /**
+   * An explored screen (home-explorations): its capture, or, while there is none (src null), a plate naming the
+   * changed screen and the product with a Field Guide drawing: honest, never a fake wireframe.
+   */
+  | { kind: 'screen'; src: string | null; product?: string | null; screen?: string | null }
   /** Usage guidance: lines of text. */
   | { kind: 'text' }
   /** Nothing to draw before/after: an icon, with what it stands for when known (a build request's component). */

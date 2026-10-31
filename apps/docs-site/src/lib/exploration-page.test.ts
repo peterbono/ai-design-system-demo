@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import type { BranchCommitLike } from '@bridge-ds/core';
-import { activityRows, avatarOf, doneActionFor, faceOf, gitNamesOf, headlineOf, libraryPreviewApp, pageLines, startedTail } from './exploration-page';
+import {
+  activityRows,
+  avatarOf,
+  buildersOf,
+  changedScreenOf,
+  checkInClaudeLine,
+  doneActionFor,
+  doneByOf,
+  explorationTag,
+  faceOf,
+  gitNamesOf,
+  handoffActivity,
+  handoffSteps,
+  headlineOf,
+  isHandoffStatus,
+  libraryPreviewApp,
+  pageLines,
+  requestPieces,
+  startedTail,
+} from './exploration-page';
 
 const NOW = new Date('2026-10-30T14:00:00Z');
 const c = (sha: string, message: string, date: string, login = 'florian'): BranchCommitLike => ({ sha, commit: { message, author: { name: login, date } }, author: { login } });
@@ -80,5 +99,66 @@ describe('exploration page model', () => {
     expect(libraryPreviewApp(['packages/react/src/components/Button/Button.tsx'], apps)).toBe('storybook');
     expect(libraryPreviewApp(['packages/core/src/x.ts'], apps)).toBe('docs');
     expect(libraryPreviewApp(null, {})).toBeNull();
+  });
+});
+
+describe('after Done exploring (Waiting for code, Being built, Shipped)', () => {
+  const done = c('n', 'chore(explore): done exploring, remove the exploration note', '2026-10-30T12:30:00Z', 'ann');
+  const dev = c('x', 'feat(orders): wire the bulk actions to the API', '2026-10-30T13:00:00Z', 'sam');
+  const florian = faceOf('florian', false, { florian: 'Florian' });
+  const sam = faceOf('sam', false, { sam: 'Sam' });
+
+  it('shows the hand-off states on this page, the same tags as the lists', () => {
+    expect(['ready', 'building', 'shipped'].every(isHandoffStatus)).toBe(true);
+    expect(['active', 'promoted', 'closed'].some(isHandoffStatus)).toBe(false);
+    expect(explorationTag('active')).toEqual({ label: 'Exploring', tone: 'info', dot: true });
+    expect(explorationTag('active', { notStarted: true })).toMatchObject({ label: 'Not started', tone: 'neutral' });
+    expect(explorationTag('ready')).toEqual({ label: 'Waiting for code', tone: 'warning', dot: false });
+    expect(explorationTag('building')).toMatchObject({ label: 'Being built', tone: 'info' });
+    expect(explorationTag('shipped')).toMatchObject({ label: 'Shipped', tone: 'success' });
+  });
+
+  it('knows who said done from Bridge\'s commit at that moment', () => {
+    expect(doneByOf([...commits, done])).toBe('ann');
+    expect(doneByOf(commits)).toBeNull();
+  });
+
+  it('names the developers: assigned first, then who pushed after Done exploring (never the explorer, Claude or the note commit)', () => {
+    expect(buildersOf({ commits: [...commits, done, dev], doneAt: '2026-10-30T12:20:00Z', author: 'florian' })).toEqual(['sam']);
+    expect(buildersOf({ assignees: [{ login: 'lee' }, { login: 'florian' }], commits: [...commits, dev], doneAt: '2026-10-30T12:20:00Z', author: 'florian' })).toEqual(['lee', 'sam']);
+    expect(buildersOf({ commits: [...commits, dev], doneAt: null, author: 'florian' })).toEqual([]);
+  });
+
+  it('says the hand-off in three steps, in designer words', () => {
+    const waiting = handoffSteps({ status: 'ready', doneBy: florian, doneAt: '2026-10-30T12:20:00Z', builders: [], product: 'Admin demo', now: NOW });
+    expect(waiting.map((s) => [s.status, s.title, s.detail, Boolean(s.current)])).toEqual([
+      ['done', 'Done exploring', 'Florian, today', false],
+      ['waiting', 'Developers build it', 'Waiting for a developer', true],
+      ['waiting', 'Shipped', 'Then live in Admin demo', false],
+    ]);
+    expect(handoffSteps({ status: 'ready', doneBy: florian, doneAt: null, builders: [sam], product: 'Admin demo', now: NOW })[1]!.detail).toBe('Waiting for Sam');
+    expect(handoffSteps({ status: 'building', doneBy: florian, doneAt: null, builders: [sam], product: 'Admin demo', now: NOW })[1]!.detail).toBe('Sam is building it');
+    const shipped = handoffSteps({ status: 'shipped', doneBy: florian, doneAt: '2026-10-29T12:00:00Z', builders: [], shippedAt: '2026-10-30T09:00:00Z', product: 'Admin demo', now: NOW });
+    expect(shipped.map((s) => s.status)).toEqual(['done', 'done', 'done']);
+    expect(shipped[2]).toMatchObject({ title: 'Shipped', detail: 'In Admin demo, today', current: true });
+    expect(JSON.stringify([waiting, shipped])).not.toMatch(/merge|pull request|branch|commit|\u2014/i);
+  });
+
+  it('puts "said done exploring" in the activity, without Bridge\'s own commit', () => {
+    const rows = handoffActivity({ commits: [...commits, done, dev], author: 'florian', doneBy: 'ann', doneAt: '2026-10-30T12:20:00Z', names: { ann: 'Ann', sam: 'Sam' }, now: NOW });
+    expect(rows.map((r) => `${r.who.name} ${r.text}`)).toEqual(['Sam wired the bulk actions to the API', 'Ann said done exploring', 'florian with Claude added a Bulk actions bar: Mark shipped, Export, Cancel']);
+  });
+
+  it('lists the requests a library exploration already sent, with their status', () => {
+    expect(requestPieces([{ number: 81, title: 'Select: native', component: 'Select', statusLabel: 'In progress', open: true }])).toEqual([
+      { id: 'request-81', title: 'Select', href: '?request=81', line: 'In progress', tone: 'info', opens: 'request', number: 81 },
+    ]);
+  });
+
+  it('names the changed screen for the preview plate, and the line to check in Claude', () => {
+    expect(changedScreenOf(['src/resources/dashboard/Dashboard.tsx'])).toBe('Dashboard');
+    expect(changedScreenOf(['.bridge/exploration.md'])).toBeNull();
+    expect(changedScreenOf(null)).toBeNull();
+    expect(checkInClaudeLine('Dashboard', '#admin-app#2')).toBe('Check what the exploration "Dashboard" (#admin-app#2) adds that the library does not have, and record it in Bridge.');
   });
 });
