@@ -26,14 +26,19 @@ export interface MaintainerState {
 
 const keyOf = (token: string) => token.slice(-6);
 
-function read(token: string | null): MaintainerState | null {
-  if (!token) return null;
+/** The last check, whatever token it was made with (a renewed sign-in changes the token, rarely the person). */
+function readAny(): MaintainerState | null {
   try {
-    const m = JSON.parse(localStorage.getItem(KEY) ?? 'null') as MaintainerState | null;
-    return m && m.key === keyOf(token) ? m : null;
+    return JSON.parse(localStorage.getItem(KEY) ?? 'null') as MaintainerState | null;
   } catch {
     return null;
   }
+}
+
+function read(token: string | null): MaintainerState | null {
+  if (!token) return null;
+  const m = readAny();
+  return m && m.key === keyOf(token) ? m : null;
 }
 
 function write(m: MaintainerState | null) {
@@ -62,11 +67,16 @@ async function check(token: string): Promise<MaintainerState | null> {
   const headers = { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}` };
   const user = await fetch(`${API}/user`, { headers });
   // GitHub refused the token (revoked, regenerated or expired): the Studio says so in its account block.
-  if (user.status === 401) markTokenRejected();
-  if (!user.ok) return null;
+  if (user.status === 401) {
+    markTokenRejected();
+    return null;
+  }
+  // Rate limited or GitHub down: not an answer about the person, keep the last known state (refresh catches it).
+  if (!user.ok) throw new Error(`GitHub answered ${user.status}`);
   const u = (await user.json()) as { login: string; avatar_url: string };
   const r = readRepo();
   const repo = await fetch(`${API}/repos/${r.owner}/${r.repo}`, { headers });
+  if (!repo.ok && repo.status !== 404) throw new Error(`GitHub answered ${repo.status}`);
   const p = repo.ok ? ((await repo.json()) as { permissions?: { admin?: boolean; maintain?: boolean; push?: boolean } }).permissions : undefined;
   return { key: keyOf(token), login: u.login, avatar: u.avatar_url, write: Boolean(p && (p.admin || p.maintain || p.push)), at: Date.now() };
 }
@@ -78,8 +88,13 @@ async function refresh(force = false) {
     return paint(null);
   }
   const cached = read(token);
-  paint(cached);
-  if (!token) return write(null);
+  if (!token) {
+    paint(null);
+    return write(null);
+  }
+  // A renewed token (Studio renews sign-ins, often in another tab) has no check of its own yet: keep showing the last
+  // known state until the new check answers, so the maintainer tools never blink off and on.
+  paint(cached ?? readAny());
   if (!force && cached && Date.now() - cached.at < FRESH_MS) return;
   try {
     const next = await check(token);
