@@ -399,7 +399,8 @@ async function onView(view: string, req: Request, env: ConnectorEnv, deps: Conne
     const who = await teamCaller(req, { ...t, need: 'edit' }, env, callerDeps);
     const g = typeof body.id === 'string' ? await getGrant(svc.redis, body.id) : null;
     if (!g || g.repo !== t.full) return fail(404, 'not_found', 'This connection is already gone.');
-    if (!who.admin && (!who.login || who.login.toLowerCase() !== g.login.toLowerCase())) return fail(403, 'forbidden', 'Only the person who connected it, or an admin of this team, can remove it.');
+    const theirs = (who.login && who.login.toLowerCase() === g.login.toLowerCase()) || (who.account && g.account === who.account);
+    if (!who.admin && !theirs) return fail(403, 'forbidden', 'Only the person who connected it, or an admin of this team, can remove it.');
     await revokeGrant(svc.redis, g);
     return json(200, { removed: true });
   }
@@ -434,7 +435,7 @@ async function onView(view: string, req: Request, env: ConnectorEnv, deps: Conne
   if (view === 'connections') {
     const grants = await listGrants(svc.redis, t.full);
     return json(200, {
-      connections: grants.map((g) => ({ id: g.id, client: g.clientName, by: g.name, createdAt: g.createdAt, lastUsedAt: g.lastUsedAt, mine: Boolean(who.login && who.login.toLowerCase() === g.login.toLowerCase()) })),
+      connections: grants.map((g) => ({ id: g.id, client: g.clientName, by: g.name, createdAt: g.createdAt, lastUsedAt: g.lastUsedAt, mine: Boolean((who.login && who.login.toLowerCase() === g.login.toLowerCase()) || (who.account && g.account === who.account)) })),
       canManage: who.admin,
     });
   }

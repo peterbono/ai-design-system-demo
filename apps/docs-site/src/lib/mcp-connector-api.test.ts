@@ -22,7 +22,7 @@ const b64url = (b: Buffer) => b.toString('base64').replace(/=+$/, '').replace(/\
 const VERIFIER = 'v'.repeat(64);
 const CHALLENGE = b64url(createHash('sha256').update(VERIFIER).digest());
 
-function world(o: { push?: boolean; refreshFails?: boolean; realMcp?: boolean; checkFails?: boolean } = {}) {
+function world(o: { push?: boolean; refreshFails?: boolean; realMcp?: boolean; checkFails?: boolean; app?: boolean } = {}) {
   let t = Date.parse('2026-10-25T10:00:00Z');
   const calls: { url: string; method: string; body?: string }[] = [];
   let issued = 0;
@@ -63,7 +63,7 @@ function world(o: { push?: boolean; refreshFails?: boolean; realMcp?: boolean; c
     checked.push({ repo: (ctx as unknown as { repo: string }).repo, pr });
     return { pieces: [{ id: 'badge-overdue' }, { id: 'color-c2410c' }], recorded: true };
   };
-  const deps = { fetch: f, now: () => t, redis, ...fakes, checkPieces };
+  const deps = { fetch: f, now: () => t, redis, ...fakes, checkPieces, ...(o.app ? { app: { installationToken: async () => 'ghs_app_token' } } : {}) };
   const call = (path: string, init: { method?: string; headers?: Record<string, string>; body?: string } = {}) =>
     handleConnector(new Request(`${SITE}${path}`, { method: init.method ?? 'GET', headers: { host: HOST, ...(init.headers ?? {}) }, ...(init.body !== undefined ? { body: init.body } : {}) }), env, deps);
   const sessionsCall = (path: string, headers: Record<string, string>) => handleFixSessions(new Request(`${SITE}${path}`, { headers: { host: HOST, ...headers } }), env, deps);
@@ -342,6 +342,21 @@ describe('Studio: who connected Bridge in Claude, and revoking', () => {
     const rm = await w.call('/api/mcp?view=disconnect', { method: 'POST', headers: { ...studio, 'content-type': 'application/json' }, body: JSON.stringify({ repo: 'acme/design', id }) });
     expect(rm.status).toBe(200);
     expect((await mcpPost(w, access_token, '{}')).status).toBe(401);
+  });
+
+  it('an email member signed in to Studio reads their own connection as theirs (the exploration page gate)', async () => {
+    const w = world({ app: true });
+    await signIn(w);
+    const account = `${ACCOUNT_COOKIE}=${signAccountSession({ email: 'dana@acme.design', v: 1, exp: w.now() + 60_000 }, SECRET)}`;
+    const member = { cookie: account, 'x-bridge-contribute': '1', origin: SITE };
+    const list = await (await w.call('/api/mcp?view=connections&repo=acme/design', { headers: member })).json();
+    expect(list.connections).toHaveLength(1);
+    expect(list.connections[0]).toMatchObject({ client: 'Claude', mine: true });
+    await putAccount(w.redis, { id: 'a2', email: 'lee@acme.design', name: 'Lee', github: null, createdAt: '2026-10-01T00:00:00Z', version: 1 });
+    await memberStore(w.redis).put('acme/design', { email: 'lee@acme.design', name: 'Lee', role: 'edit', version: 1, addedBy: 'x', at: '2026-10-01T00:00:00Z' });
+    const lee = { cookie: `${ACCOUNT_COOKIE}=${signAccountSession({ email: 'lee@acme.design', v: 1, exp: w.now() + 60_000 }, SECRET)}`, 'x-bridge-contribute': '1', origin: SITE };
+    const theirs = await (await w.call('/api/mcp?view=connections&repo=acme/design', { headers: lee })).json();
+    expect(theirs.connections[0]).toMatchObject({ mine: false });
   });
 
   it('ends the connection when GitHub no longer renews the person token', async () => {

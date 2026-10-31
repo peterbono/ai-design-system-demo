@@ -50,6 +50,27 @@ export function connectionSentence(list: readonly Connection[]): string {
   return `Connected in Claude by ${andList(names)}, last used ${shortDay(last)}.`;
 }
 
+/**
+ * The viewer's own Claude has Bridge: one of the team's connections is theirs and comes from Claude (Claude, Claude
+ * Desktop, Claude Code). Before "Continue in Claude" opens claude.ai, the exploration page asks this (one read, cached
+ * for the session): without it, the line would reach a Claude that cannot see the library.
+ */
+export const connectedInOwnClaude = (list: readonly Pick<Connection, 'client' | 'mine'>[]): boolean => list.some((c) => c.mine && /claude/i.test(c.client));
+
+/** The dialog "Continue in Claude" opens while the viewer's Claude has no Bridge yet (the steps: CONNECTOR_WORDS). */
+export const CONNECT_FIRST = {
+  title: 'Connect Bridge to your Claude first',
+  intro: 'Claude uses your library through Bridge. Connect it once, then continue.',
+  open: 'Open Claude connectors',
+  connectorsUrl: 'https://claude.ai/settings/connectors',
+  continue: "I've connected it, continue",
+  later: 'Not now',
+} as const;
+
+/** Under the Terminal line of a product exploration: Claude Code finds Bridge in the product's folder after this, once. */
+export const terminalSetup = (designSystem: string) => `npx @bridge-ds/cli connect --ds ${designSystem}`;
+export const TERMINAL_SETUP_LINE = "Once, in the product's folder:";
+
 /** The connector address of this site: <origin>/mcp. */
 export const connectorUrl = (origin: string) => `${origin.replace(/\/+$/, '')}/mcp`;
 

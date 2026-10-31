@@ -32,6 +32,8 @@ import {
 } from '../lib/exploration-page';
 import { pieceRows, type PieceRowView } from '../lib/product-branch';
 import { checkPieces } from './connector-api';
+import { forgetClaudeLink, knownClaudeLink, viewerClaudeLink } from './claude-link';
+import { connectorUrl, terminalSetup } from '../lib/claude-connector';
 import { ARCHIVED_LINE, explorationKey, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { developerLines, productCrumbs, productProduction, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -226,9 +228,18 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       take: takeItLines(r.branch),
       githubUrl: safeUrl(r.url, '#'),
       ...(said ? { said } : {}),
+      // Continue in Claude: the steps first while the viewer's own Claude has no Bridge (read once per session).
+      claudeLink: knownClaudeLink(),
+      connectorAddress: connectorUrl(location.origin),
+      onClaudeConnected: () => {
+        forgetClaudeLink();
+        repaint(d, key, { claudeLink: 'unknown' });
+      },
+      terminalSetup: own ? terminalSetup(`${CFG.owner}/${CFG.repo}`) : null,
     },
   };
   mod.paintExplorationPage(d, current.props);
+  if (current.props.claudeLink === 'unknown') void viewerClaudeLink().then((v) => v !== 'unknown' && repaint(d, key, { claudeLink: v }));
 
   // The preview capture (one raw file for every exploration, no API call) arrives with the reads it waits beside, so
   // the frame paints once: the capture, or the plate.

@@ -78,6 +78,82 @@ describe('ExplorationPage, not started (X1)', () => {
   });
 });
 
+describe("Continue in Claude, gated on the viewer's own Claude connection", () => {
+  const claudeUrl = `https://claude.ai/new?q=${encodeURIComponent(base.lines.app)}`;
+
+  it('connected: opens Claude directly with the line', () => {
+    paint({ claudeLink: 'yes' });
+    expect(screen.getByRole('link', { name: /Continue in Claude/ }).getAttribute('href')).toBe(claudeUrl);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('the read failed or did not run (unknown): opens Claude directly, as before', () => {
+    paint({ claudeLink: 'unknown' });
+    expect(screen.getByRole('link', { name: /Continue in Claude/ }).getAttribute('href')).toBe(claudeUrl);
+  });
+
+  it('not connected: shows the two steps first, then continues to Claude with the line', async () => {
+    const onCopy = vi.fn(async () => {});
+    const onClaudeConnected = vi.fn();
+    paint({ claudeLink: 'no', connectorAddress: 'https://bridge.example.com/mcp', onCopy, onClaudeConnected });
+    expect(screen.queryByRole('link', { name: /Continue in Claude/ })).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Continue in Claude/ }));
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Connect Bridge to your Claude first' });
+    expect(within(dialog).getByText(/Add custom connector, name it Bridge/)).toBeTruthy();
+    expect(within(dialog).getByText('Sign in with Bridge when Claude asks.')).toBeTruthy();
+    expect(within(dialog).getByText('https://bridge.example.com/mcp')).toBeTruthy();
+    const connectors = within(dialog).getByRole('link', { name: /Open Claude connectors/ });
+    expect(connectors.getAttribute('href')).toBe('https://claude.ai/settings/connectors');
+    expect(connectors.getAttribute('target')).toBe('_blank');
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Copy address' }));
+    });
+    expect(onCopy).toHaveBeenLastCalledWith('https://bridge.example.com/mcp');
+    expect(within(dialog).getByRole('button', { name: 'Address copied' })).toBeTruthy();
+    await expectNoAxeViolations(dialog);
+    const go = within(dialog).getByRole('link', { name: "I've connected it, continue" });
+    expect(go.getAttribute('href')).toBe(claudeUrl);
+    expect(go.getAttribute('target')).toBe('_blank');
+    await act(async () => {
+      fireEvent.click(go);
+    });
+    expect(onClaudeConnected).toHaveBeenCalledTimes(1);
+    expect(onCopy).toHaveBeenLastCalledWith(base.lines.app);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Opened in Claude with the line ready. Press Enter to start.')).toBeTruthy();
+  });
+
+  it('the Terminal tab still copies, and names the one command a product folder needs', async () => {
+    const onCopy = vi.fn(async () => {});
+    paint({ claudeLink: 'no', onCopy, terminalSetup: 'npx @bridge-ds/cli connect --ds acme/design' });
+    expect(screen.queryByText('npx @bridge-ds/cli connect --ds acme/design')).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('radio', { name: 'Terminal' }));
+    });
+    expect(screen.getByText("Once, in the product's folder:")).toBeTruthy();
+    expect(screen.getByText('npx @bridge-ds/cli connect --ds acme/design')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Continue in Claude/ }));
+    expect(onCopy).toHaveBeenLastCalledWith(base.lines.terminal);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('Check in Claude has the same gate', async () => {
+    paint({
+      claudeLink: 'no',
+      stage: 'handed-off',
+      done: null,
+      handoff: { status: 'ready', doneBy: florian, doneWhen: 'today', steps: [], pieces: { state: 'unchecked', claude: 'Check what the exploration adds.' } },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Check in Claude/ }));
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Connect Bridge to your Claude first' });
+    expect(within(dialog).getByRole('link', { name: "I've connected it, continue" }).getAttribute('href')).toBe(`https://claude.ai/new?q=${encodeURIComponent('Check what the exploration adds.')}`);
+  });
+});
+
 describe('ExplorationPage, exploring (X2)', () => {
   const exploring: Partial<ExplorationPageProps> = {
     stage: 'exploring',

@@ -200,6 +200,84 @@
   margin-inline-end: var(--space-1-5);
 }
 
+/* The Terminal tab of a product exploration: the one command it needs once, under the line. */
+.xp-paste-setup {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.xp-paste-setup code {
+  display: block;
+  margin-block-start: var(--space-1);
+  padding: 0;
+  background: none;
+  user-select: all;
+}
+
+/* "Connect Bridge to your Claude first" (ConnectClaudeDialog, in a portal): two numbered steps, the address with its
+   Copy button on one row, the link to Claude's connectors under it, then one quiet line. */
+.xp-cc-steps {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.xp-cc-steps li {
+  padding-inline-start: var(--space-1);
+}
+
+/* A list item keeps its number: spacing by margins, not a grid. */
+.xp-cc-steps li > * + * {
+  margin-block-start: var(--space-3);
+}
+
+.xp-cc-steps li::marker {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.xp-cc-steps p {
+  margin: 0;
+}
+
+.xp-cc-address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: var(--border-width-1) solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+}
+
+/* The address on one line when it fits; on a phone it takes the row and Copy address goes under it. */
+.xp-cc-url {
+  flex: 1 1 var(--size-64);
+  min-width: 0;
+  padding: 0;
+  background: none;
+  font-family: var(--font-family-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.xp-cc-address > button {
+  flex: none;
+}
+
+.xp-cc-quiet {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+}
+
+.xp-cc-steps .xp-cc-quiet {
+  margin: 0;
+}
+
 /* "Exploring" in Harbor, as on the validated board: the selected surface and the link text, its dot the same. */
 .xp .xp-head .xp-exploring {
   --_bg: var(--color-surface-selected);
