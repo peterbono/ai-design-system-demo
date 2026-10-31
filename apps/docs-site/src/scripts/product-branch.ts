@@ -110,12 +110,15 @@ export async function previewSources(r: ExplorationRow): Promise<BranchPreviewSo
 
 /**
  * The product's preview of the branch, as GitHub reported it (null while unread). `app`: which of the design system
- * repository's previews (the product's key, admin by default).
+ * repository's previews (the product's key, admin by default). `product`: the design system repository's product it
+ * was started for; its own preview template stands in when the page has none for `app` (a team page embeds no apps).
  */
-export function productPreviewOf(r: ExplorationRow, sources: BranchPreviewSources | null, app: keyof PreviewApps = 'admin'): BranchPreview | null {
+export function productPreviewOf(r: ExplorationRow, sources: BranchPreviewSources | null, app: keyof PreviewApps = 'admin', product?: ProductConfig | null): BranchPreview | null {
   if (!sources) return null;
   const own = productRepoByKey(r.product);
-  return (own ? productPreviews(r, own.product, sources)[0] : explorationPreviews(r, CFG.apps, sources).find((p) => p.app === app)) ?? null;
+  if (own) return productPreviews(r, own.product, sources)[0] ?? null;
+  if (!CFG.apps[app] && product?.preview) return productPreviews(r, product, sources)[0] ?? null;
+  return explorationPreviews(r, CFG.apps, sources).find((p) => p.app === app) ?? null;
 }
 
 /** The preview opened with the Bridge toolbar. The URL comes from a comment or a status: React 18 renders a javascript: href as is. */
@@ -125,8 +128,8 @@ export const withToolbar = (r: ExplorationRow) => (url: string) => safeUrl(tryIn
  * The branch's own build, opened with the Bridge toolbar: only a reported URL, never a template, never a build that
  * failed or that Vercel skipped (its link opens a canceled deployment).
  */
-export function tryUrlOf(r: ExplorationRow, sources: BranchPreviewSources | null): string | null {
-  const v = tryInProductView(productPreviewOf(r, sources), { tryUrl: withToolbar(r), todayUrl: null });
+export function tryUrlOf(r: ExplorationRow, sources: BranchPreviewSources | null, product?: ProductConfig | null): string | null {
+  const v = tryInProductView(productPreviewOf(r, sources, 'admin', product), { tryUrl: withToolbar(r), todayUrl: null });
   return v.state === 'branch' ? v.url : null;
 }
 
@@ -264,7 +267,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
     askDoneExploring(r, pull.body, {
       client: () => gh,
       ...(own ? { library: () => lib } : {}),
-      previewUrl: tryUrlOf(r, reported),
+      previewUrl: tryUrlOf(r, reported, product),
       products,
       focus,
       after: (line) => {
@@ -324,7 +327,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
   void Promise.all([previewSources(r), changedFiles(r)]).then(([s, files]) => {
     reported = s;
     if (current?.n !== key) return;
-    const preview = productPreviewOf(r, s);
+    const preview = productPreviewOf(r, s, 'admin', product);
     const v = tryInProductView(preview, { tryUrl: withToolbar(r), todayUrl: today ? safeUrl(today) || null : null, files });
     devPreview = v.state === 'failed' && preview ? [failedPreviewLine(preview)] : [];
     repaint(d, { tryUrl: v.url, tryNote: v.note, ...(devPreview.length ? { developer: [...current.props.developer, ...devPreview] } : {}) });

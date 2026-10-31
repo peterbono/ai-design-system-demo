@@ -278,7 +278,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const known = knownNamesOf(logins);
   const names = { ...gitNamesOf(commits), ...known, ...Object.fromEntries(Object.entries(looked).filter(([l, n]) => n && n !== l)) };
   if (current?.key !== key) return;
-  const preview = productPreviewOf(r, reported, app);
+  const preview = productPreviewOf(r, reported, app, isLibrary ? null : product);
   // The branch's own build. Open the preview opens it with the Bridge toolbar (tryUrl) for a product
   // whose production Bridge knows (Live product, the Before side); never for the library's apps.
   const v = tryInProductView(preview, { tryUrl: (u) => safeUrl(u) || null, todayUrl, files });
