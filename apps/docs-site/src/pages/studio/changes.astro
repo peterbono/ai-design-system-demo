@@ -2,8 +2,9 @@
 // Studio Branches: all the work, not a second triage page (triage lives on Home and the review queue). The header
 // holds the title, a "History" link and "Create branch" (the same menu as Home). The list (components/ds/studio/
 // BranchesList, read by scripts/reviews.ts loadList) shows every open branch, running explorations included under
-// their own status, grouped by product, with one segmented control (Mine, Waiting on me, All), a checkbox on token
-// branches to preview them together (the floating bar) and the merged ones behind one muted line. Views that stay
+// their own status, grouped by product, with state tabs (All, Waiting on me, each state, Archived), a kind and a people
+// filter (Everyone, You, each designer), a checkbox on token branches to preview them together (the floating bar)
+// and the merged ones behind one muted line. Views that stay
 // reachable by address, each with the same header: History (?view=history, merged token changes by release, with
 // undo), a branch in place (?pr=N), a suggestion in place (?suggestion=N: a change filed as a GitHub issue that a
 // developer applies once owners approve it, components/ds/studio/SuggestionReview in #sg-detail, declined with
