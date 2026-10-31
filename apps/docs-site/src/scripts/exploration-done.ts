@@ -51,8 +51,11 @@ export function askDoneExploring(
           const c = opts.check!;
           const r = await checkPieces(c.repo, c.ref).catch(() => null);
           if (!r) return null;
-          const after = donePieces(await c.body());
-          return after.checked ? after : null;
+          const after = donePieces(await c.body().catch(() => null));
+          if (after.checked) return after;
+          // Checked, nothing missing: the server's answer is enough, even when GitHub still serves the description
+          // from before the check.
+          return r.checked && r.pieces === 0 ? { checked: true, pieces: [], sent: 0 } : null;
         }
       : null,
   };
