@@ -9,6 +9,32 @@ import { ToastProvider } from '../packages/react/src/components/Toast';
 import { TooltipProvider } from '../packages/react/src/components/Tooltip';
 import { type Brand, type Density, type Theme, brands, defaults } from '@bridge-ds/tokens';
 
+// Embedded in a Bridge Studio drawer (iframe.html?...&embed=bridge, apps/docs-site/src/lib/story-frame.ts): the
+// canvas sizes to the story instead of the viewport, the story is centered, and the document height is posted to the
+// parent so the drawer frame fits it with no inner scrollbar. The full Storybook and the measure pipeline never pass
+// the parameter, so their canvas is unchanged.
+if (typeof window !== 'undefined' && window.parent !== window && new URLSearchParams(window.location.search).get('embed') === 'bridge') {
+  document.documentElement.classList.add('sb-embed');
+  let last = 0;
+  // The story's own height plus the canvas padding: never the viewport, so a taller frame does not grow the report.
+  const post = () => {
+    const story = document.getElementById('storybook-root');
+    if (!story) return;
+    const pad = getComputedStyle(document.body);
+    const height = Math.ceil(story.getBoundingClientRect().height + parseFloat(pad.paddingTop) + parseFloat(pad.paddingBottom));
+    if (height === last) return;
+    last = height;
+    window.parent.postMessage({ type: 'bridge:story-height', height }, '*');
+  };
+  const watch = () => {
+    const story = document.getElementById('storybook-root');
+    if (story) new ResizeObserver(post).observe(story);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch, { once: true });
+  else watch();
+  window.addEventListener('load', post);
+}
+
 // Brands come from bridge.config.json through the token build, so a merged brand shows up in the toolbar.
 const brandTitle = (b: string) => b.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 

@@ -4,6 +4,7 @@ import { figmaCell, storybookIframeUrl, storybookManagerUrl, type RepoModel, typ
 import type { ComponentListRow } from '../components/ds/studio/ComponentsList';
 import { productUsage, type ProductAudit } from './components-studio';
 import { safeUrl } from './html';
+import { embedStoryUrl } from './story-frame';
 
 export type TeamGuidance = 'ok' | 'review' | 'missing';
 
@@ -97,12 +98,12 @@ export function httpsStorybook(url: string | null | undefined): string | undefin
 /** The team's Storybook: bridge.config.json first, else the one added in this browser (quick start). */
 export const pickStorybook = (fromConfig: string | undefined, fromBrowser: string | undefined): string | undefined => httpsStorybook(fromConfig) ?? httpsStorybook(fromBrowser);
 
-/** The drawer preview of a row: its first story in an iframe, and the same story in the full Storybook. */
+/** The drawer preview of a row: its first story in an iframe (embedded: sized to the story), and the same story in the full Storybook. */
 export function storyPreview(base: string | undefined, row: Pick<TeamComponentRow, 'stories'>): { base: string; id: string; src: string; manager: string; story: string } | null {
   const sb = httpsStorybook(base);
   const first = row.stories[0];
   if (!sb || !first) return null;
-  return { base: sb, id: first.id, src: storybookIframeUrl(sb, first.id), manager: storybookManagerUrl(sb, first.id), story: first.name };
+  return { base: sb, id: first.id, src: embedStoryUrl(storybookIframeUrl(sb, first.id)), manager: storybookManagerUrl(sb, first.id), story: first.name };
 }
 
 /**

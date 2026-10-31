@@ -14,3 +14,16 @@ body {
   font-size: var(--font-size-200);
   line-height: var(--font-line-height-normal);
 }
+
+/* Embedded in a Bridge Studio drawer (embed=bridge, see preview.tsx): the story at its own height, centered in a
+   frame taller than it, never overflowing the frame. */
+.sb-embed body {
+  display: grid;
+  box-sizing: border-box;
+  min-height: 100vh;
+  align-content: center;
+}
+
+.sb-embed .sb-theme-root {
+  min-height: 0;
+}

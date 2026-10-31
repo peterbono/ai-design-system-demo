@@ -91,9 +91,14 @@
   margin: 0;
 }
 
+/* As tall as the story it shows (--tcm-story-h, posted by an embedded Storybook story, lib/story-frame.ts), kept
+   between a resting height near the row thumbnail's proportion and a max past which the story scrolls inside. */
 .tcm-d-frame iframe {
+  display: block;
   width: 100%;
-  height: var(--size-300);
+  height: var(--tcm-story-h, var(--size-60));
+  min-height: var(--size-60);
+  max-height: var(--size-140);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-container);
   background: var(--color-surface-default);
