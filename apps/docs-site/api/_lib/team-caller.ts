@@ -8,6 +8,7 @@ import type { AppTokens } from './github-app.js';
 import { GITHUB_DOWN, HttpError, sameOriginWhenPresent, type FetchLike } from './http.js';
 import { localAdminsOn } from './local-admin.js';
 import type { MemberStore } from './members.js';
+import { accountRef } from './oauth.js';
 import type { Redis } from './redis.js';
 
 export interface TeamCaller {
@@ -16,6 +17,8 @@ export interface TeamCaller {
   name: string;
   /** The GitHub login, for a GitHub token. */
   login: string | null;
+  /** An email member's Bridge account, as a grant names it (accountRef: a hash, never the email). */
+  account: string | null;
   admin: boolean;
   /** Can edit the library (GitHub push, or an email member). */
   canEdit: boolean;
@@ -68,10 +71,10 @@ export async function teamCaller(req: Request, x: { owner: string; repo: string;
     const canEdit = Boolean(p?.push || p?.admin);
     if (!p || !(canEdit || (x.need === 'read' && p.pull))) throw new HttpError(403, 'forbidden', CALLER_WORDS.notOnTeam);
     const profile = typeof me.data.name === 'string' && me.data.name.trim() ? me.data.name.trim() : me.data.login;
-    return { kind: 'github', name: profile, login: me.data.login, admin: p.admin === true, canEdit };
+    return { kind: 'github', name: profile, login: me.data.login, account: null, admin: p.admin === true, canEdit };
   }
   if (req.headers.get('x-bridge-contribute') !== '1' || !sameOriginWhenPresent(req)) throw new HttpError(401, 'signin', CALLER_WORDS.signin);
   const m = await contributorOf(req, x.full, env, { fetch: deps.fetch, ...(deps.now ? { now: deps.now } : {}), ...(deps.redis ? { redis: deps.redis } : {}), ...(deps.members ? { members: deps.members } : {}), ...(deps.app ? { app: deps.app } : {}) });
   if (!m) throw new HttpError(401, 'signin', CALLER_WORDS.signin);
-  return { kind: 'member', name: m.name, login: null, admin: m.role === 'admin', canEdit: true };
+  return { kind: 'member', name: m.name, login: null, account: accountRef(m.email), admin: m.role === 'admin', canEdit: true };
 }

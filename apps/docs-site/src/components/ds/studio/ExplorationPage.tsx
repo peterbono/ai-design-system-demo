@@ -1,6 +1,8 @@
 // The exploration page while it runs, the validated boards X1 and X2 (Changes > <product> > <exploration>):
 // - X1, not started (nothing on the branch beyond the Bridge note): "Not started", who started it, the "Nothing built
-//   yet" panel with the line to paste in Claude (Claude app or Terminal), "Continue in Claude" (opens a new Claude conversation with the line in it; copies it for the Terminal),
+//   yet" panel with the line to paste in Claude (Claude app or Terminal), "Continue in Claude" (opens a new Claude
+//   conversation with the line in it, after the connect steps while the viewer's own Claude has no Bridge yet:
+//   ConnectClaudeDialog; copies it for the Terminal),
 //   "See the product today", and an empty "Your preview" frame.
 // - X2, exploring: "Exploring", who changed what and when, the preview (a captured image when Bridge has one, else a
 //   neutral frame) with one group of actions: "Open the preview" (with the Bridge toolbar, Before and After, when the
@@ -49,6 +51,8 @@ import { explorationTag, type ActivityRow, type DoneAction, type HandoffStatus, 
 import { studioHref } from '../../../lib/team-path';
 import { plateDrawing } from '../../../lib/branch-thumb';
 import { capturedLine } from '../../../lib/preview-shots';
+import { TERMINAL_SETUP_LINE } from '../../../lib/claude-connector';
+import { ConnectClaudeDialog } from './ConnectClaudeDialog';
 
 export type ExplorationStage = 'loading' | 'not-started' | 'exploring' | 'handed-off';
 
@@ -117,6 +121,18 @@ export interface ExplorationPageProps {
    * (the exploration's key) picks the same drawing as its card on the Studio home.
    */
   plate?: { product: string; screen: string | null; seed?: string | null } | null;
+  /**
+   * Has the viewer connected Bridge in their own Claude (scripts/claude-link.ts)? 'no': "Continue in Claude" and
+   * "Check in Claude" show the connect steps first (ConnectClaudeDialog). 'yes', 'unknown' or unset (signed out, the
+   * sample team, still reading, a failed read): they open Claude directly.
+   */
+  claudeLink?: 'yes' | 'no' | 'unknown';
+  /** The connector address the steps show (<origin>/mcp). */
+  connectorAddress?: string;
+  /** "I've connected it, continue": the page forgets the answer and reads it again next time. */
+  onClaudeConnected?: () => void;
+  /** A product exploration: the command the Terminal needs once in the product's folder (bridge connect). */
+  terminalSetup?: string | null;
 }
 
 const COPIED = 'Copied. Paste it in Claude.';
@@ -157,16 +173,44 @@ function ContinuePanel({ p, where, setWhere, say }: { p: ExplorationPageProps; w
           <IconButton icon={CopyIcon} label="Copy the line" variant="secondary" size="sm" onClick={() => void copy()} />
         </Tooltip>
       </div>
+      {where === 'terminal' && p.terminalSetup && (
+        <p className="xp-paste-setup">
+          <span className="xp-muted">{TERMINAL_SETUP_LINE}</span> <code className="xp-mono">{p.terminalSetup}</code>
+        </p>
+      )}
     </div>
   );
 }
 
 /**
  * "Continue in Claude": for the Claude app, opens a new Claude conversation with the line in the message box (and
- * copies it too, in case the viewer uses another Claude); for the Terminal, copies the line to paste.
+ * copies it too, in case the viewer uses another Claude); for the Terminal, copies the line to paste. While the
+ * viewer's own Claude has no Bridge (claudeLink 'no'), the Claude app path shows the connect steps first.
  */
 function ContinueButton({ p, line, say, variant, open = true, children = 'Continue in Claude', size = 'lg' }: { p: ExplorationPageProps; line: string; say: (s: string) => void; variant: 'primary' | 'secondary'; open?: boolean; children?: string; size?: 'md' | 'lg' }) {
+  const [asking, setAsking] = useState(false);
   const copy = () => p.onCopy(line).then(() => !open && say(COPIED), () => !open && say('Select the line and copy it.'));
+  if (open && p.claudeLink === 'no')
+    return (
+      <>
+        <Button variant={variant} size={size} className="xp-continue" aria-haspopup="dialog" onClick={() => setAsking(true)}>
+          <ClaudeGlyph />
+          {children}
+        </Button>
+        <ConnectClaudeDialog
+          open={asking}
+          onOpenChange={setAsking}
+          address={p.connectorAddress ?? '/mcp'}
+          continueHref={claudeNewUrl(line)}
+          onCopy={p.onCopy}
+          onContinue={() => {
+            void copy();
+            say(OPENED);
+            p.onClaudeConnected?.();
+          }}
+        />
+      </>
+    );
   if (!open)
     return (
       <Button variant={variant} size={size} className="xp-continue" onClick={() => void copy()}>
