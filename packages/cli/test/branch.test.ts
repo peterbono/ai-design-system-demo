@@ -115,7 +115,9 @@ describe('bridge branch', () => {
     const p = io(gh, {});
     await runStudioRead('products', args('products'), dir, p.io);
     expect(p.out()).toContain('* library      Library (default)');
-    expect(p.out()).toContain('  admin        Admin demo  apps/admin');
+    // One product besides the library: Product admin, in its own repository (Admin demo is no product any more).
+    expect(p.out()).toMatch(/admin-app +Product admin/);
+    expect(p.out()).not.toContain('Admin demo');
     const s = io(gh, {});
     await runStudioRead('settings', args('settings'), dir, s.io);
     expect(s.out()).toContain('Owner override: @peterbono.');

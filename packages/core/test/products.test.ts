@@ -62,14 +62,17 @@ test('productOfBranch reproduces the old rule for the defaults', () => {
   assert.equal(productOfBranch(DEFAULT_PRODUCTS, {}).key, 'library');
 });
 
-test('the repo config keeps the same grouping although the library has a path', () => {
+test('the repo config: one product in its own repository, apps/admin is library work (the migration demo)', () => {
   const products = realConfig().products;
   assert.deepEqual(
     products.map((p) => p.key),
-    ['admin', 'admin-app', 'library'],
+    ['admin-app', 'library'],
   );
-  const of = (files: string[] | null) => productOfBranch(products, { files }).key;
-  assert.equal(of(['packages/react/src/Badge.tsx', 'apps/admin/src/App.tsx']), 'admin');
+  const of = (files: string[] | null, labels?: string[]) => productOfBranch(products, { files, labels }).key;
+  assert.equal(of(['packages/react/src/Badge.tsx', 'apps/admin/src/App.tsx']), 'library');
+  // An old exploration labeled for the retired Admin demo product lands on the library, nothing breaks.
+  assert.equal(of(['apps/admin/src/App.tsx'], ['exploration', 'product: admin']), 'library');
+  assert.equal(of([], ['product: admin-app']), 'admin-app');
   assert.equal(of(['docs/GOVERNANCE.md']), 'library');
   assert.equal(of(null), 'library');
 });
@@ -146,7 +149,7 @@ test('config: products default, custom list, errors and toConfigJson', () => {
   assert.throws(() => loadConfig({ products: 'admin' }), ConfigError);
 
   // The repo config lists its products explicitly (with previews, a library path and the product repos), so it is written out.
-  assert.equal((toConfigJson(realConfig()).products as ProductConfig[]).length, 3);
+  assert.equal((toConfigJson(realConfig()).products as ProductConfig[]).length, 2);
 });
 
 test('productMarks: a label and a body line for a non-default product, nothing for the default', () => {

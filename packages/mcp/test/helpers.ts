@@ -69,6 +69,20 @@ export function withoutSoloOwner(files: Record<string, string>): Record<string, 
   return { ...files, 'bridge.config.json': `${JSON.stringify(json, null, 2)}\n` };
 }
 
+/**
+ * The repo's config with a product kept in a folder of the design system repository (apps/admin, previewed by
+ * previews.apps.admin), listed first. Bridge's own config has none since "Product admin" moved to its own repository;
+ * other teams do, so the folder-product paths stay covered.
+ */
+export function withFolderProduct(files: Record<string, string>): Record<string, string> {
+  const cfg = files['bridge.config.json'];
+  if (cfg === undefined) return files;
+  const json = JSON.parse(cfg) as { products?: Record<string, unknown>[]; previews?: { apps?: Record<string, string> } };
+  const folder = { key: 'admin', name: 'Admin demo', path: 'apps/admin', preview: json.previews?.apps?.admin, framework: 'react' };
+  json.products = [folder, ...(json.products ?? []).filter((p) => p.key !== 'admin')];
+  return { ...files, 'bridge.config.json': `${JSON.stringify(json, null, 2)}\n` };
+}
+
 /** Paths of the real repo a token-only copy needs. */
 export const REAL_PATHS = ['bridge.config.json', 'packages/tokens/src', 'AGENTS.md', 'docs/DESIGN-LANGUAGE.md', 'docs/GOVERNANCE.md', '.changeset/config.json', 'packages/react/src/components/Button', 'packages/react/src/components/Switch'];
 

@@ -1264,7 +1264,9 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     },
     visual: x.visual ? { state: 'loading', shots: [] } : null,
     visualSetUp: x.visualSetUp,
-    product: PRODUCTS.find((p) => p.key === 'admin')!.label,
+    // The screens of the visual check come from the admin demo app (apps/admin, previews.apps.admin), a preview of
+    // this repository, not a product: its name stays even when bridge.config.json lists no such product.
+    product: PRODUCTS.find((p) => p.key === 'admin')?.label ?? 'Admin demo',
     tryUrl: null,
     people: peopleMap,
     conversation: conv,

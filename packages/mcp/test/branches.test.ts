@@ -6,12 +6,13 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, branches, ops, studio } from '../dist/lib.js';
 import { previewComment, tier1PublishReviewBody } from '@bridge-ds/core';
-import { addCodeTo, fakeGitHub, pinStart, pinValue, readTree, REAL_PATHS, REPO, withoutSoloOwner } from './helpers.js';
+import { addCodeTo, fakeGitHub, pinStart, pinValue, readTree, REAL_PATHS, REPO, withFolderProduct, withoutSoloOwner } from './helpers.js';
 
 const LIGHT = 'packages/tokens/src/semantic/light.tokens.json';
 const MUTED = ['color', 'text', 'muted'];
 const repoFiles = () => pinStart(readTree(REPO, [...REAL_PATHS, 'packages/react/component-specs.json']));
-const files = () => withoutSoloOwner(repoFiles());
+// A folder product (apps/admin) beside the repo's own products, so the folder-product paths stay covered.
+const files = () => withFolderProduct(withoutSoloOwner(repoFiles()));
 const edit = (value = '{palette.neutral.700}') => ({ op: 'set' as const, path: 'color.text.muted', value, mode: { theme: 'light' } });
 
 function setup(tree = files()) {
@@ -40,6 +41,12 @@ describe('products', () => {
     expect(r.current).toMatchObject({ key: 'library', how: 'default' });
     expect((await branches.resolveProduct(ctx, 'Admin demo')).key).toBe('admin');
     await expect(branches.resolveProduct(ctx, 'checkout')).rejects.toThrow(/Unknown product "checkout"\. Pick one of: admin \(Admin demo\), admin-app \(Product admin\), library \(Library\)/);
+  });
+
+  it("Bridge's own config: Product admin in its own repository and the library, no Admin demo", async () => {
+    const { ro } = setup(withoutSoloOwner(repoFiles()));
+    const r = await branches.listProducts(await ro());
+    expect(r.products.map((p) => [p.key, p.name])).toEqual([['admin-app', 'Product admin'], ['library', 'Library']]);
   });
 
   it('starts work for a product with a Jira key: label, body line, key first in the branch and title', async () => {
