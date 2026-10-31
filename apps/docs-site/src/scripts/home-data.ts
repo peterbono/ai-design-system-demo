@@ -5,7 +5,7 @@
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
 // are pure in lib/home-model.ts and lib/branch-thumb.ts. Admins of a real team on the hosted site also get the people
 // asking to join it (board E7b, GET /api/entry?requests=), first in the list.
-import { isGuardedExploration, isHandedOff, productsOf, requesterOf, type ProductConfig } from '@bridge-ds/core';
+import { isGuardedExploration, isHandedOff, isToolingPull, productsOf, requesterOf, type ProductConfig, type ToolingConfig } from '@bridge-ds/core';
 import { siteConfig } from './repo-context';
 import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, limitLine, readRepo, RateLimitError, resolveAccess } from './github-session';
@@ -343,6 +343,11 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     const st = statuses.get(n);
     return st ? Boolean(st.autoShip) : undefined;
   };
+  // Bridge's own pull requests (bridge.config.json tooling) stay off the home, as on Changes: the title's scope, then
+  // the changed files once the before/after read them (the same read, no extra request).
+  const tooling = homeTooling();
+  const homeFiles = new Map<number, string[] | null>();
+  const designWork = (p: HomePull) => !isToolingPull({ title: p.title, headRef: p.head.ref, labels: p.labels ?? null, files: homeFiles.get(p.number) ?? null }, tooling);
   const timelines = new Map<number, TimelineEvent[] | null>();
   const resolved = new Map<number, ThumbSpec>();
   const persons = new Map<string, Person>();
@@ -379,7 +384,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     const needs: NeedRow[] = [...staticNeeds()];
     const asked = new Set<number>();
     for (const x of cls) {
-      if (!x.task) continue;
+      if (!x.task || !designWork(x.pull)) continue;
       const p = x.pull;
       const tl = timelines.get(p.number);
       const w = x.task.startsWith('own') ? null : waitingSince(tl, p, viewer);
@@ -421,7 +426,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       preview: (p) => shots.get(shotKeyOf(p)),
     });
     const branches: BranchCard[] = queue
-      .filter((p) => same(p.user.login, viewer) && !isHomeExploration(p, products))
+      .filter((p) => same(p.user.login, viewer) && !isHomeExploration(p, products) && designWork(p))
       .map((p) => {
         const st = statuses.get(p.number);
         const c = todoChange(p, st);
@@ -501,6 +506,8 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   const mine = all.filter((p) => firstShown.has(p.number) || isOwnExploration(p, viewer));
   await Promise.all([
     ...order.map(async (x) => {
+      // The files come from the read the before/after makes (one request per head commit, shared).
+      homeFiles.set(x.pull.number, await filesOf(x.pull.number, x.pull.head.sha));
       resolved.set(x.pull.number, await thumbOf(x.pull, x.guidance));
       later();
     }),
@@ -514,6 +521,15 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       later();
     }),
   ]);
+}
+
+/** bridge.config.json tooling: Bridge's own folders in this repository (none on a team's DS repository). */
+function homeTooling(): ToolingConfig | null {
+  try {
+    return (siteConfig() as { tooling?: ToolingConfig }).tooling ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** The products the team names (bridge.config.json "products"), for the exploration cards. */

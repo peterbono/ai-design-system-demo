@@ -1148,7 +1148,9 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       acct.toggleAttribute('data-contributor', Boolean(email));
       acct.querySelectorAll('[data-gh-login], [data-gh-login-full]').forEach((el) => {
         const short = el.hasAttribute('data-gh-login');
-        el.textContent = email ? (short ? (email.name ?? email.login) : email.login) : viewer ? (short ? viewer.login : login) : '';
+        // The row says who it is by name, as everywhere in Studio (the GitHub profile name, else the login); the menu
+        // keeps the @login on its own line.
+        el.textContent = email ? (short ? (email.name ?? email.login) : email.login) : viewer ? (short ? viewer.name?.trim() || viewer.login : login) : '';
       });
       // The side nav's account row: the second line is the team's name, or an email contributor's role in words. Their
       // menu says who they are (name, then the full email on its own line), never GitHub or the repository.

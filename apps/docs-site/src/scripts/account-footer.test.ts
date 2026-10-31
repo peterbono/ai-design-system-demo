@@ -112,6 +112,21 @@ describe('the side nav account row', () => {
     expect(acct().querySelector<HTMLElement>('[data-gh-menu-email]')!.textContent).toBe('florian@acme.design');
   });
 
+  it('shows a GitHub user by their profile name, the @login staying in the menu', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        String(url).startsWith('/api/contribute') ? json(200, { available: true, member: null }) : String(url).endsWith('/user') ? json(200, { login: 'peterbono', name: 'Florian Gouloubi', avatar_url: '' }) : json(404, {}),
+      ),
+    );
+    const session = await import('./github-session');
+    session.setToken('ghu_test');
+    session.initGitHubConnect();
+    await vi.waitFor(() => expect(acct().dataset.state).toBe('connected'));
+    expect(acct().querySelector('[data-gh-login]')!.textContent).toBe('Florian Gouloubi');
+    expect(acct().querySelector('[data-gh-login-full]')!.textContent).toBe('@peterbono');
+  });
+
   it('asks to sign in, with the read-only line, only when there is no session at all', async () => {
     await boot();
     await vi.waitFor(() => expect(acct().dataset.state).toBe('readonly'));

@@ -113,4 +113,26 @@ describe('BranchesList tabs and filters', () => {
     expect(screen.queryByText(/peterbono/)).toBeNull();
     expect(screen.getAllByText(/^Florian/).length).toBeGreaterThanOrEqual(2);
   });
+
+  it("leaves Bridge's own pull requests out of every tab and count (bridge.config.json tooling)", async () => {
+    const user = userEvent.setup();
+    const tooling = { paths: ['apps/docs-site/'], scopes: ['studio'] };
+    const merged = (n: number, rawTitle: string, title: string) => row(n, 'ann', { rawTitle, title, lifecycle: 'shipped', merged_at: '2026-10-30T10:00:00Z', head: { ref: `feat/${n}`, sha: `s${n}` } });
+    render(
+      createElement(
+        BranchesList,
+        props({
+          rows: [row(1, 'ann', { rawTitle: 'fix(studio): Being built filters as underline Tabs', title: 'Being built filters as underline Tabs', head: { ref: 'fix/tabs', sha: 's1' } }), row(2, 'dana', { title: 'New ocean brand' })],
+          closed: [merged(10, 'feat(studio): Start an exploration replaces Start a change', 'Start an exploration replaces Start a change'), merged(11, 'feat(button): A new size', 'A new size')],
+          tooling,
+        }),
+      ),
+    );
+    expect(screen.getByRole('tab', { name: /^All\s*1$/ })).toBeTruthy();
+    expect(screen.queryByText('Being built filters as underline Tabs')).toBeNull();
+    expect(screen.getByText('New ocean brand')).toBeTruthy();
+    await user.click(screen.getByRole('tab', { name: /^Shipped\s*1$/ }));
+    expect(screen.getByText('A new size')).toBeTruthy();
+    expect(screen.queryByText('Start an exploration replaces Start a change')).toBeNull();
+  });
 });

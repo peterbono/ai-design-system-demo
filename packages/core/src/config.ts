@@ -20,6 +20,7 @@ import { PREVIEW_APP_LABELS, type PreviewApps, type PreviewsConfig } from './pre
 import { normalizeRights, rightsProblems, visualImpactProblems, type Rights, type VisualImpactConfig } from './rights';
 import { ownerEntryProblems } from './teams';
 import { DEFAULT_PRODUCTS, productProblems, sameProducts, type ProductConfig } from './products';
+import { toolingProblems, type ToolingConfig } from './tooling';
 
 /** File name Bridge looks for at the repository root. */
 export const CONFIG_FILE = 'bridge.config.json';
@@ -218,6 +219,8 @@ export interface BridgeConfig {
   visualImpact?: VisualImpactConfig | undefined;
   /** Apps that consume the design system, the default one being the library (see products.ts). Default DEFAULT_PRODUCTS. */
   products: ProductConfig[];
+  /** Folders that are the tool around the design system, not the design system (see tooling.ts). Absent: none. */
+  tooling?: ToolingConfig | undefined;
   /** How changes reach the code: suggestions (default) or branches and pull requests. See changesMode(). */
   changes: ChangesMode;
   /** The Storybook set in the file. Read it through storybookUrl(), which falls back to previews.production.storybook. */
@@ -261,6 +264,7 @@ export interface BridgeConfigInput {
   integrations?: IntegrationsConfig;
   visualImpact?: Partial<VisualImpactConfig>;
   products?: ProductConfig[];
+  tooling?: ToolingConfig;
   changes?: ChangesMode;
   storybook?: { url: string };
   library?: LibraryConfig;
@@ -436,6 +440,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
       ...(g.leadsPublishTier1 === false ? { leadsPublishTier1: false } : {}),
     },
     products: input.products?.length ? input.products.map((p) => ({ ...p })) : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
+    ...(input.tooling ? { tooling: { paths: [...input.tooling.paths], ...(input.tooling.scopes?.length ? { scopes: [...input.tooling.scopes] } : {}) } } : {}),
     changes: input.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE,
     ...(input.storybook?.url ? { storybook: { url: input.storybook.url.trim().replace(/\/+$/, '') } } : {}),
     ...(input.library?.public === true ? { library: { public: true } } : {}),
@@ -599,6 +604,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     }
   }
   problems.push(...productProblems(d.products));
+  problems.push(...toolingProblems(d.tooling));
   const audit = d.audit;
   if (audit !== undefined) {
     if (!isObj(audit)) problems.push('"audit" must be an object');
@@ -681,5 +687,6 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     ...(config.library ? { library: config.library } : {}),
     ...(config.demo ? { demo: config.demo } : {}),
     ...(config.products && !sameProducts(config.products, DEFAULT_PRODUCTS) ? { products: config.products } : {}),
+    ...(config.tooling ? { tooling: config.tooling } : {}),
   };
 }
