@@ -12,6 +12,14 @@ describe('vercel-ignore shouldBuild', () => {
   it('skips an app when only another app changed', () => {
     expect(shouldBuild('admin', ['apps/docs-site/src/pages/index.astro', 'docs/GOVERNANCE.md'])).toBe(false);
     expect(shouldBuild('storybook', ['apps/admin/src/App.tsx'])).toBe(false);
+    // Bridge's own tools rebuild the docs site only, never the two previews.
+    expect(shouldBuild('storybook', ['packages/mcp/src/server.ts'])).toBe(false);
+    expect(shouldBuild('admin', ['packages/cli/src/index.ts'])).toBe(false);
+    expect(shouldBuild('storybook', ['packages/core/src/explorations.ts'])).toBe(false);
+    expect(shouldBuild('admin', ['packages/core/src/explorations.ts'])).toBe(true);
+    expect(shouldBuild('admin', ['packages/toolbar/src/index.ts'])).toBe(true);
+    expect(shouldBuild('storybook', ['packages/tokens/src/semantic/light/color.json'])).toBe(true);
+    expect(shouldBuild('docs', ['packages/mcp/src/server.ts'])).toBe(true);
     expect(shouldBuild('docs', ['apps/admin/src/App.tsx', 'deploy/storybook/vercel.json'])).toBe(false);
     expect(shouldBuild('docs', [])).toBe(false);
   });
