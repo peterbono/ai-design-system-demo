@@ -818,36 +818,26 @@ details[open] > summary .cg-sec-chev {
   gap: var(--space-4);
 }
 
-/* The toolbar: the state tabs lead (where the work stands), the kind and people selects follow at the end of the
-   same line, or on their own line once the tabs need the width. The tabs never widen the page: on a phone the
-   control scrolls sideways inside its row (SegmentedControl overflow). */
+/* The toolbar: DS Tabs (underline) say where the work stands, one per state with its count, on a rule that spans the
+   width; the kind and people selects sit at the end of the same line, above the rule, or on their own line once the
+   tabs need the width. On a phone the tab list scrolls sideways inside its row, never the page. */
 .bl-filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-3);
+  border-block-end: var(--border-width-default) solid var(--color-border-default);
 }
 
 .bl-tabs {
   min-inline-size: 0;
   max-inline-size: 100%;
+  margin-block-end: calc(-1 * var(--border-width-default));
 }
 
 .bl-filters > .bl-narrow {
   margin-inline-start: auto;
-}
-
-/* A tab: its state, then its count, quieter. */
-.bl-tab {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  white-space: nowrap;
-}
-
-.bl-tab-n {
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
+  padding-block-end: var(--space-2);
 }
 
 @media (max-width: 640px) {

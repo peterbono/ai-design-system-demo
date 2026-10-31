@@ -1,5 +1,5 @@
 // Branches (/studio/changes/): all the work, not a second triage page (triage lives on Home and the review queue).
-//   - One DS SegmentedControl says where the work stands: All (the default), Waiting on me, then each state in the words
+//   - DS Tabs (underline) say where the work stands: All (the default), Waiting on me, then each state in the words
 //     of its tag (Not started, Exploring, Draft, In review, Waiting for code) and Archived last, each with its count
 //     (lib/branches-page STATE_TABS, stateOf; ?state=). All and Waiting on me always show, the other tabs only while
 //     they hold something. On a phone the control scrolls sideways inside its row, never the page.
@@ -22,7 +22,7 @@
 // activity snapshot answers the before/after and the files, so a change looks the same here as on the demo home.
 import { createRoot, type Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Checkbox, Link, SegmentedControl, Select, Skeleton, Tooltip, VisuallyHidden } from '@bridge-ds/react';
+import { Badge, Button, Checkbox, Link, Select, Skeleton, Tab, Tabs, TabsList, Tooltip, VisuallyHidden } from '@bridge-ds/react';
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
@@ -458,12 +458,6 @@ export function BranchesList(p: BranchesListProps) {
     </>
   );
 
-  const tabLabel = (t: (typeof tabs)[number]) => (
-    <span className="bl-tab">
-      {t.label}
-      <span className="bl-tab-n">{t.count}</span>
-    </span>
-  );
   const clearLink = (
     <Button variant="link" onClick={() => pickFilters({ kind: 'all', by: null })}>
       Clear filters
@@ -473,7 +467,15 @@ export function BranchesList(p: BranchesListProps) {
   return (
     <div className={waitingView ? 'bl is-waiting' : 'bl'}>
       <div className="bl-filters">
-        <SegmentedControl className="bl-tabs" label={`Where the ${VOCAB.branches} stand`} value={tab} onValueChange={pickTab} items={tabs.map((t) => ({ value: t.value, label: tabLabel(t) }))} />
+        <Tabs className="bl-tabs" value={tab} onValueChange={(v) => v !== null && pickTab(String(v))}>
+          <TabsList aria-label={`Where the ${VOCAB.branches} stand`}>
+            {tabs.map((t) => (
+              <Tab key={t.value} value={t.value} count={t.count}>
+                {t.label}
+              </Tab>
+            ))}
+          </TabsList>
+        </Tabs>
         {/* The filters show once the tab holds something to narrow (or while one is picked). */}
         {!(p.loading && !p.rows.length) && (queue.length > 0 || filtered) && (
           <span className="bl-narrow">
