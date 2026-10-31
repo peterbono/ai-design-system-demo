@@ -483,12 +483,12 @@ export async function tryBranch(ctx: BridgeContext, a: { pr: number | string }) 
   const apps = config.previews?.apps ?? {};
   const products = productsOf(config).map((p) => {
     // A product whose preview pattern is a configured app takes the URL Vercel reported for that app (never the
-    // template: Vercel shortens long branch aliases), the admin demo with the Bridge toolbar on, as in Studio.
+    // template: Vercel shortens long branch aliases), the product's own app with the Bridge toolbar on, as in Studio.
     const app = (Object.entries(apps) as [string, string | undefined][]).find(([, t]) => t && t === p.preview)?.[0];
     const hit = app ? previews.find((x) => x.app === app && x.url && x.source !== 'template' && x.state !== 'failed') : undefined;
     const reported = hit?.url ?? null;
     const pattern = !app && p.preview ? previewUrl(p.preview, { branch: pr.headRef, pr: n, sha: pr.headSha }) : null;
-    const url = reported ? (app === 'admin' ? tryInProductUrl(reported, n, null) : reported) : pattern;
+    const url = reported ? (app === p.key ? tryInProductUrl(reported, n, null) : reported) : pattern;
     return { key: p.key, name: p.name, url, how: reported ? 'reported by Vercel' : pattern ? 'from the preview pattern in bridge.config.json (it may not exist yet)' : 'no preview reported yet' };
   });
   const lifecycle = lifecycleOf(pr.state, pr.draft);

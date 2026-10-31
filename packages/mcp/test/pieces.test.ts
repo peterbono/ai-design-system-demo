@@ -5,13 +5,16 @@ import { describe, expect, it } from 'vitest';
 import { BridgeContext, pieces } from '../dist/lib.js';
 import { parseNeededBy, parsePiecesRecord } from '@bridge-ds/core';
 import { runPieces } from '../../cli/src/pieces.js';
-import { fakeGitHub, readTree, REAL_PATHS, REPO } from './helpers.js';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fakeGitHub, readTree, REAL_PATHS, REPO, tempGitRepo, withFolderProduct } from './helpers.js';
 
 const TSX = "import { Badge } from '@bridge-ds/react';\nimport styles from './billing.module.css';\nexport function Row() {\n  return <Badge className={styles.overdue}>Overdue</Badge>;\n}\n";
 const CSS = '.overdue {\n  background: #fdecec;\n  color: #a3123a;\n}\n.total {\n  color: #c2410c;\n}\n';
 
 function setup(owner = 'acme', name = 'ds') {
-  const gh = fakeGitHub(owner, name, readTree(REPO, [...REAL_PATHS, 'packages/react/src/components/Badge']));
+  // A product kept in a folder of the design system repository (apps/admin): its branches carry the pieces.
+  const gh = fakeGitHub(owner, name, withFolderProduct(readTree(REPO, [...REAL_PATHS, 'packages/react/src/components/Badge'])));
   const ro = () => BridgeContext.create({ repo: `${owner}/${name}`, fetch: gh.fetch });
   const rw = () => BridgeContext.create({ repo: `${owner}/${name}`, token: 't', fetch: gh.fetch });
   /** A product branch started from Create branch: explore/<slug>, a draft labeled exploration and product: admin. */
@@ -166,10 +169,14 @@ describe('a library branch per piece, linked both ways', () => {
     await pieces.missingPiecesOp(await rw(), { pr: n, record: true });
     const lines: string[] = [];
     const io = { print: (s: string) => lines.push(s), error: (s: string) => lines.push(s), env: { GITHUB_TOKEN: 't' }, fetch: gh.fetch, ghToken: () => null, hasClaude: () => false, runClaude: async () => 0 } as any;
-    expect(await runPieces({ _: ['pieces', String(n)], flags: {} }, REPO, io)).toBe(0);
+    // A copy of this repository whose config keeps the apps/admin folder product, as the fake GitHub's does.
+    const dir = tempGitRepo(REPO, REAL_PATHS);
+    const cfg = join(dir, 'bridge.config.json');
+    writeFileSync(cfg, withFolderProduct({ 'bridge.config.json': readFileSync(cfg, 'utf8') })['bridge.config.json']!);
+    expect(await runPieces({ _: ['pieces', String(n)], flags: {} }, dir, io)).toBe(0);
     expect(lines.join('\n')).toMatch(/component-rating {2}New component: Rating: Rating comes from @mui\/material/);
     lines.length = 0;
-    expect(await runPieces({ _: ['pieces', 'open', String(n), 'component-rating'], flags: {} }, REPO, io)).toBe(0);
+    expect(await runPieces({ _: ['pieces', 'open', String(n), 'component-rating'], flags: {} }, dir, io)).toBe(0);
     expect(lines[0]).toBe('Opened a component request: New component: Rating, needed by Billing screen with overdue invoices (#1) in Admin demo.');
     const issue = gh.issues[0]!;
     expect(issue.labels.map((l: any) => l.name)).toEqual(expect.arrayContaining(['component-change', 'request: new-component', 'source: cli', 'needed-by-product']));
@@ -178,7 +185,7 @@ describe('a library branch per piece, linked both ways', () => {
     expect(record.links[0]).toMatchObject({ kind: 'request', number: issue.number });
     expect(record.links[0]!.agent).toBeUndefined();
     lines.length = 0;
-    expect(await runPieces({ _: ['pieces', 'status', String(n)], flags: {} }, REPO, io)).toBe(0);
+    expect(await runPieces({ _: ['pieces', 'status', String(n)], flags: {} }, dir, io)).toBe(0);
     expect(lines.join('\n')).toMatch(/Built with the library\. 1 piece was missing, and you opened a library change for it\./);
     expect(lines.join('\n')).toMatch(/Requested\. Nothing to preview yet/);
     await expect(pieces.useLibraryPreviewOp(await rw(), { pr: n, piece: 'component-rating' })).rejects.toThrow(/is a request: there is nothing to preview/);

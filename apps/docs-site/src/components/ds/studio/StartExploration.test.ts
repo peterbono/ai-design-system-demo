@@ -9,6 +9,7 @@ import { userEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import StartExploration, { startFromAddress } from './StartExploration';
+import bridgeConfig from '../../../../../../bridge.config.json';
 
 const components = [
   { name: 'Button', slug: 'button', family: 'Actions' },
@@ -31,6 +32,29 @@ describe('Start an exploration', () => {
     const lib = await screen.findByRole('option', { name: /The library/ });
     expect(lib.textContent).toContain('Tokens, variants, new components');
     await expectNoAxeViolations(document.body);
+  });
+
+  it("offers Product admin and the library only with Bridge's own config, never the Admin demo", async () => {
+    // The layout embeds the repository's settings (#bridge-repo): here, the products of this repository's config.
+    const embed = document.createElement('script');
+    embed.id = 'bridge-repo';
+    embed.type = 'application/json';
+    embed.textContent = JSON.stringify({ products: bridgeConfig.products });
+    document.body.append(embed);
+    try {
+      const user = userEvent.setup();
+      render(createElement(StartExploration, { components }));
+      await user.click(screen.getByRole('button', { name: 'Start an exploration' }));
+      await user.click(await screen.findByRole('combobox', { name: 'Where' }));
+      await screen.findByRole('option', { name: /The library/ });
+      const options = screen.getAllByRole('option').map((o) => o.textContent ?? '');
+      expect(options).toHaveLength(2);
+      expect(options[0]).toContain('Product admin');
+      expect(options[1]).toContain('The library');
+      expect(options.join(' ')).not.toContain('Admin demo');
+    } finally {
+      embed.remove();
+    }
   });
 
   it('keeps Something looks wrong as a quiet way out: the component, then its page on the report', async () => {
