@@ -1,28 +1,26 @@
 ---
 // Studio Quality: one page for the checks and the adoption of the system (it replaced Checks and Adoption, which
-// redirect here). Summary first: the title with Share (copy a summary, download the header as an image), then a Harbor
-// opener with the verdict, the one primary action and the three library health figures (lib/library-health.ts). Each
-// figure leads to its section below, in the same order: contrast and tokens, adoption (one row per product, the value
-// before the move to Bridge as a quiet label; the trend is on each report page), guidance. No developer fold: file
-// paths and commands live on GitHub and on the Library Agents page.
-import '../../../styles/adoption.css';
+// redirect here). One story first: the title with Share as a quiet action, then the verdict in the page's one Harbor
+// zone next to the lighthouse drawing whose weather follows it, with an action only when something needs the viewer.
+// Then the three pillars (accessibility, adoption, documentation) as one group of identical cards, and one section
+// each in the same order, tokens last as a calm note. The body is shared with the team page
+// (components/ds/studio/QualityView.tsx); the numbers come from lib/stats.ts, lib/audits.ts and lib/quality-view.ts.
 import '../../../styles/quality.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
-import { siteIcon } from '../../../brand/site-icons';
 import ButtonLink from '../../../components/ds/ButtonLink';
-import ContrastFailTable from '../../../components/ds/studio/ContrastFailTable';
-import { GROUP_TONE } from '../../../lib/changes';
+import { QualityView } from '../../../components/ds/studio/QualityView';
 import { docsEditHref, guidanceState, loadComponents } from '../../../lib/components';
 import { CONTRAST_FILE } from '../../../lib/contrast';
-import AdoptionMetric from '../../../components/AdoptionMetric.astro';
 import { groupByApp, loadAudits } from '../../../lib/audits';
-import { ADOPTION_MEANING, adoptionRows, beforeLabel, cleanupTitle, firstFindingTarget, qualityModel, type ComboResult } from '../../../lib/quality';
+import { APP_SHORT, auditHref, qualityModel, type ComboResult } from '../../../lib/quality';
+import { adoptionFigureInput, adoptionView, qualityPillars, qualityVerdict, type AdoptionRun } from '../../../lib/quality-view';
+import { guidanceLead } from '../../../lib/team-quality';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import { QUALITY_IN_CHECKS, QUALITY_IN_CHECKS_BODY, QUALITY_TOGETHER, QUALITY_TOGETHER_BODY } from '../../../lib/view-scope';
 import { QualityShare } from '../../../components/ds/studio/QualityShare';
-import { HEALTH_SECTION, healthFigures, healthSentence } from '../../../lib/library-health';
-import { Badge, Card, CardBody, EmptyState, Icon, Link } from '@bridge-ds/react';
+import { combinedAdoption, healthFigures, healthSentence } from '../../../lib/library-health';
+import { EmptyState } from '@bridge-ds/react';
 import { ShieldCheck } from 'lucide-react';
 import { dashboard } from '../../../lib/stats';
 import { BRAND_LABEL, TOKEN_SOURCE_FILES, type Brand } from '../../../lib/tokens';
@@ -32,37 +30,47 @@ const s = dashboard();
 const combos: ComboResult[] = s.contrast.byCombo.map((c) => ({ label: `${BRAND_LABEL[c.brand as Brand]} ${c.mode}`, pass: c.pass, total: c.total }));
 const contrast = { total: s.contrast.total, fail: s.contrast.fail, combos };
 const components = loadComponents().map((c) => ({ name: c.name, slug: c.slug, state: guidanceState(c), docsPath: c.files.docs }));
-const { findings, cleanup } = qualityModel({ contrast, components, issues: s.issues, editHref: docsEditHref });
-const primary = firstFindingTarget(findings);
-const appGroups = groupByApp(loadAudits()).apps;
-// The header: the verdict (how many findings are open, never the figures again) and the three library health
-// figures, from the same contrast gate, audit reports and guidance state as the sections below.
-const openFindings = findings.filter((f) => f.severity === 'fail' || f.severity === 'warn');
-const only = openFindings.length === 1 ? openFindings[0] : null;
-const sentence = healthSentence(contrast.fail, openFindings.length, only?.title);
-// With one open finding the button says what it does to it ("Review guidance"), not "Fix the first finding".
-const cta = only?.action && !contrast.fail ? { label: only.action.label === 'Review' ? 'Review guidance' : only.action.label, href: only.action.href } : primary;
+const { findings } = qualityModel({ contrast, components, issues: s.issues, editHref: docsEditHref });
+const guidance = {
+  total: components.length,
+  reviewed: components.filter((c) => c.state === 'ok').length,
+  drafted: components.filter((c) => c.state === 'review').length,
+  missing: components.filter((c) => c.state === 'missing').length,
+};
+// Adoption: every committed report as a run of its product (the app it belongs to); the latest run of each product
+// leads, the run before the move to Bridge waits under Earlier runs and gives the trend.
+const runs: AdoptionRun[] = groupByApp(loadAudits()).apps.flatMap((g) =>
+  g.reports.map((e) => ({
+    id: e.id,
+    label: e.report.label ?? e.file,
+    product: g.app.id,
+    productName: APP_SHORT[g.app.id] ?? g.app.title,
+    generatedAt: e.report.generatedAt,
+    token: e.report.metrics.tokenAdoption,
+    component: e.report.metrics.componentAdoption,
+    ds: e.report.metrics.dsComponentInstances,
+    ui: e.report.metrics.uiComponentInstances,
+    href: auditHref(e.id),
+    baseline: e === g.before && g.after !== undefined,
+  })),
+);
+const adoption = runs.length ? adoptionView(runs) : null;
 const figures = healthFigures({
   contrast: { total: s.contrast.total, fail: s.contrast.fail, brands: s.brands },
-  adoption: appGroups.filter((g) => g.after ?? g.before).map((g) => ({ now: (g.after ?? g.before)!.report.metrics, before: g.after ? g.before?.report.metrics : null })),
-  guidance: {
-    total: components.length,
-    reviewed: components.filter((c) => c.state === 'ok').length,
-    drafted: components.filter((c) => c.state === 'review').length,
-    missing: components.filter((c) => c.state === 'missing').length,
-  },
+  adoption: adoption ? adoptionFigureInput(adoption) : [],
+  guidance,
 });
+const verdict = qualityVerdict({ contrastFail: contrast.fail, findings });
+const pillars = qualityPillars({ figures, contrast, adoption: adoption ? (combinedAdoption(adoptionFigureInput(adoption))?.now ?? null) : null, guidance });
+// The shared summary (Share): the verdict line without the figures, then one sentence per figure.
+const openFindings = findings.filter((f) => f.severity === 'fail' || f.severity === 'warn');
+const sentence = healthSentence(contrast.fail, openFindings.length, openFindings.length === 1 ? openFindings[0]!.title : undefined);
 const gate = findings.find((f) => f.kind === 'contrast')!;
-const tokenFindings = findings.filter((f) => f.kind === 'validation');
-const guidanceFindings = findings.filter((f) => f.kind === 'guidance');
-// Adoption: one row per product, the current value big and the run before the move to Bridge as a quiet label. The
-// trend across runs lives on each report page.
-const adoption = adoptionRows(appGroups);
-// Clean up: the real number of unused tokens, not the number of groups.
+// The real number of unused tokens, not the number of groups.
 const unusedTotal = s.unusedSemantic.length + s.orphanPrimitives.length;
 const sources = [CONTRAST_FILE, ...TOKEN_SOURCE_FILES(), ...PAGE_SOURCES.components, ...PAGE_SOURCES.adoption];
 const updated = freshness(sources);
-// Failing pairs, one row per pair and brand/theme, shown inside the contrast line when the gate blocks.
+// Failing pairs, one row per pair and brand/theme, shown open in the accessibility section when the gate blocks.
 const failRows = s.contrast.failing.map(({ pair: p, brand, mode, result: r }) => ({
   id: `fail-${p.fg}-${p.bg}-${brand}-${mode}`.replace(/[^a-z0-9-]+/gi, '-'),
   fg: p.fg,
@@ -72,10 +80,9 @@ const failRows = s.contrast.failing.map(({ pair: p, brand, mode, result: r }) =>
   hexes: `${r.fgHex} / ${r.bgHex}`,
   needs: `${p.min}:1 (${p.usage === 'text' ? 'text' : 'UI'})`,
 }));
-const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
 ---
 
-<Layout title="Quality" description="The contrast gate, token validation, docs completeness and design system adoption, most severe first." sources={sources} updated={updated} wide>
+<Layout title="Quality" description="Is the library healthy, and does anything need you: accessibility, adoption in products and documentation." sources={sources} updated={updated} wide>
   <div class="ql">
     <StudioHeader title="Quality">
       <div slot="actions" data-latest-only>
@@ -97,156 +104,16 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
       </EmptyState>
     </section>
 
-    <section class="zone ql-open" aria-label="Library health" data-latest-only>
-      <div class="ql-open-head">
-        <p class="ql-open-sentence">{sentence}</p>
-        <ButtonLink variant="primary" href={cta.href} className="ql-cta">{cta.label}</ButtonLink>
-      </div>
-      <ul class="ql-figs">
-        {
-          figures.map((f) => (
-            <li>
-              <Card interactive padding="compact">
-                <CardBody className={f.tone === 'fail' ? 'ql-fig is-fail' : 'ql-fig'}>
-                  <p class="ql-fig-value">{f.value}</p>
-                  <p class="ql-fig-label">
-                    <Link href={f.href} variant="subtle" data-card-primary>
-                      {f.label}
-                    </Link>
-                  </p>
-                  <p class="ql-muted">{f.detail}</p>
-                </CardBody>
-              </Card>
-            </li>
-          ))
-        }
-      </ul>
-    </section>
-
-    <section aria-labelledby={HEALTH_SECTION.contrast} data-latest-only>
-      <h2 id={HEALTH_SECTION.contrast} class="ql-h">Contrast and tokens</h2>
-      <ul class="fg-card ql-list">
-        <li class={`ql-row-wrap is-${gate.severity}`}>
-          <details class="ql-more" open={gate.severity === 'fail'}>
-            <summary class="ql-row">
-              <span class="ql-main">
-                <span class="ql-title">Checks per brand and theme</span>
-                <span class="ql-detail">Text needs 4.5:1, UI edges and focus rings 3:1.</span>
-              </span>
-              <Badge tone={tone(gate.status.group)} className="ql-badge">{gate.status.label}</Badge>
-              <span class="ql-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
-            </summary>
-            <div class="ql-more-body">
-              <ul class="ql-combos" aria-label="Contrast checks per brand and theme">
-                {gate.combos!.map((c) => (
-                  <li>
-                    <span>{c.label}</span>
-                    <span class="num">{c.pass} of {c.total}</span>
-                    <Badge tone={c.pass === c.total ? 'success' : 'danger'} size="sm">{c.pass === c.total ? 'Pass' : 'Fail'}</Badge>
-                  </li>
-                ))}
-              </ul>
-              {failRows.length > 0 && <ContrastFailTable rows={failRows} />}
-              <p class="ql-muted">
-                <Link href={gate.action!.href}>{gate.action!.label}</Link>
-              </p>
-            </div>
-          </details>
-        </li>
-        {
-          tokenFindings.map((f) => (
-            <li class={`ql-row-wrap is-${f.severity}`}>
-              <div class="ql-row">
-                <span class="ql-main">
-                  <span class="ql-title">{f.title}</span>
-                  {f.detail && <span class="ql-detail">{f.detail}</span>}
-                </span>
-                <Badge tone={tone(f.status.group)} className="ql-badge">{f.status.label}</Badge>
-                {f.action ? (
-                  <Link variant="standalone" className="ql-act" href={f.action.href} aria-label={`${f.action.label}: ${f.title}`}>
-                    {f.action.label}
-                  </Link>
-                ) : (
-                  <span />
-                )}
-              </div>
-            </li>
-          ))
-        }
-        {
-          cleanup.length > 0 && (
-            <li class="ql-row-wrap is-note">
-              <details class="ql-more">
-                <summary class="ql-row">
-                  <span class="ql-main">
-                    <span class="ql-title">{cleanupTitle(unusedTotal)}</span>
-                    <span class="ql-detail">Nothing breaks: candidates for cleanup, or values waiting for a job.</span>
-                  </span>
-                  <Badge className="ql-badge">Note</Badge>
-                  <span class="ql-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
-                </summary>
-                <ul class="ql-more-body ql-cleanup">
-                  {cleanup.map((i) => (
-                    <li>
-                      <Link href={i.href}>{i.title}</Link>
-                      <span class="ql-detail">{i.detail}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            </li>
-          )
-        }
-      </ul>
-    </section>
-
-    {
-      adoption.length > 0 && (
-        <section aria-labelledby={HEALTH_SECTION.adoption} data-latest-only>
-          <h2 id={HEALTH_SECTION.adoption} class="ql-h">Adoption</h2>
-          <p class="ql-muted ql-lead">{ADOPTION_MEANING}</p>
-          <ul class="fg-card ql-list">
-            {adoption.map((a) => (
-              <li class="ql-row-wrap">
-                <div class="ql-row ql-ad-row">
-                  <span class="ql-title">{a.label}</span>
-                  <AdoptionMetric label="Tokens" value={a.token.to} note={beforeLabel(a.token.from)} />
-                  <AdoptionMetric label="Components" value={a.component.to} note={beforeLabel(a.component.from)} />
-                  <Link variant="standalone" className="ql-act" href={a.href} aria-label={`See what is left in ${a.label}`}>
-                    See what is left
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )
-    }
-
-    <section aria-labelledby={HEALTH_SECTION.guidance} data-latest-only>
-      <h2 id={HEALTH_SECTION.guidance} class="ql-h">Guidance</h2>
-      {
-        guidanceFindings.length ? (
-          <ul class="fg-card ql-list">
-            {guidanceFindings.map((f) => (
-              <li class={`ql-row-wrap is-${f.severity}`}>
-                <div class="ql-row">
-                  <span class="ql-main">
-                    <span class="ql-title">{f.title}</span>
-                    {f.detail && <span class="ql-detail">{f.detail}</span>}
-                  </span>
-                  <Badge tone={tone(f.status.group)} className="ql-badge">{f.status.label}</Badge>
-                  <Link variant="standalone" className="ql-act" href={f.action!.href} aria-label={`${f.action!.label}: ${f.title}`}>
-                    {f.action!.label}
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p class="ql-muted">Every component has reviewed usage guidance.</p>
-        )
-      }
-    </section>
+    <div data-latest-only>
+      <QualityView
+        client:load
+        verdict={verdict}
+        pillars={pillars}
+        contrast={{ hasChecks: true, gate, combos, failRows }}
+        adoption={adoption}
+        guidance={{ lead: guidanceLead(guidance), findings: findings.filter((f) => f.kind === 'guidance') }}
+        tokens={{ findings: findings.filter((f) => f.kind === 'validation'), unusedTotal, unusedHref: studioHref('tokens/?usage=unused') }}
+      />
+    </div>
   </div>
 </Layout>
