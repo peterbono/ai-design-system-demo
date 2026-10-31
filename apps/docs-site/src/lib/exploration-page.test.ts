@@ -13,6 +13,8 @@ import {
   gitNamesOf,
   handoffActivity,
   handoffSteps,
+  reviewersAsked,
+  reviewVerdictOf,
   headlineOf,
   isHandoffStatus,
   libraryPreviewApp,
@@ -129,19 +131,93 @@ describe('after Done exploring (Waiting for code, Being built, Shipped)', () => 
     expect(buildersOf({ commits: [...commits, dev], doneAt: null, author: 'florian' })).toEqual([]);
   });
 
-  it('says the hand-off in three steps, in designer words', () => {
+  it('says the hand-off in four steps, in designer words', () => {
     const waiting = handoffSteps({ status: 'ready', doneBy: florian, doneAt: '2026-10-30T12:20:00Z', builders: [], product: 'Admin demo', now: NOW });
     expect(waiting.map((s) => [s.status, s.title, s.detail, Boolean(s.current)])).toEqual([
       ['done', 'Done exploring', 'Florian, today', false],
       ['waiting', 'Developers build it', 'Waiting for a developer', true],
+      ['waiting', 'Review', 'After the developers', false],
       ['waiting', 'Shipped', 'Then live in Admin demo', false],
     ]);
     expect(handoffSteps({ status: 'ready', doneBy: florian, doneAt: null, builders: [sam], product: 'Admin demo', now: NOW })[1]!.detail).toBe('Waiting for Sam');
     expect(handoffSteps({ status: 'building', doneBy: florian, doneAt: null, builders: [sam], product: 'Admin demo', now: NOW })[1]!.detail).toBe('Sam is building it');
     const shipped = handoffSteps({ status: 'shipped', doneBy: florian, doneAt: '2026-10-29T12:00:00Z', builders: [], shippedAt: '2026-10-30T09:00:00Z', product: 'Admin demo', now: NOW });
-    expect(shipped.map((s) => s.status)).toEqual(['done', 'done', 'done']);
-    expect(shipped[2]).toMatchObject({ title: 'Shipped', detail: 'In Admin demo, today', current: true });
+    expect(shipped.map((s) => s.status)).toEqual(['done', 'done', 'done', 'done']);
+    expect(shipped[3]).toMatchObject({ title: 'Shipped', detail: 'In Admin demo, today', current: true });
     expect(JSON.stringify([waiting, shipped])).not.toMatch(/merge|pull request|branch|commit|\u2014/i);
+  });
+
+  describe('the review step', () => {
+    const dana = faceOf('dana', false, { dana: 'Dana' });
+    const lee = faceOf('lee', false, { lee: 'Lee' });
+    const base = { doneBy: florian, doneAt: null, builders: [sam], product: 'Admin demo', now: NOW };
+    const row = (steps: ReturnType<typeof handoffSteps>, i: number) => [steps[i]!.status, steps[i]!.title, steps[i]!.detail, Boolean(steps[i]!.current)];
+
+    it('nobody pushed yet: the review comes after the developers', () => {
+      const steps = handoffSteps({ ...base, status: 'ready', builders: [] });
+      expect(row(steps, 2)).toEqual(['waiting', 'Review', 'After the developers', false]);
+    });
+
+    it('still a draft: the developers build it, the review waits until they ask', () => {
+      const steps = handoffSteps({ ...base, status: 'building', review: { draft: true, asked: [dana], verdict: null } });
+      expect(row(steps, 1)).toEqual(['waiting', 'Developers build it', 'Sam is building it', true]);
+      expect(row(steps, 2)).toEqual(['waiting', 'Review', 'When the developers ask', false]);
+      // Nothing read yet reads the same.
+      expect(row(handoffSteps({ ...base, status: 'building' }), 2)).toEqual(['waiting', 'Review', 'When the developers ask', false]);
+    });
+
+    it('ready for review: built, and the review waits for who is asked', () => {
+      const steps = handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [dana, lee], verdict: null, viewer: 'florian', compareUrl: 'https://x.vercel.app' } });
+      expect(row(steps, 1)).toEqual(['done', 'Built', 'By Sam', false]);
+      expect(row(steps, 2)).toEqual(['waiting', 'Review', 'Waiting for Dana and Lee', true]);
+      expect(steps[2]!.link).toBeUndefined();
+      expect(row(handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [], verdict: null } }), 2)).toEqual(['waiting', 'Review', 'Waiting for a reviewer', true]);
+    });
+
+    it('the viewer is asked: "Your review", with the preview to compare when known', () => {
+      const steps = handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [dana], verdict: null, viewer: 'Dana', compareUrl: 'https://x.vercel.app' } });
+      expect(row(steps, 2)).toEqual(['waiting', 'Review', 'Your review', true]);
+      expect(steps[2]!.link).toEqual({ label: 'Compare with the exploration', href: 'https://x.vercel.app' });
+      const noPreview = handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [dana], verdict: null, viewer: 'dana', compareUrl: null } });
+      expect(noPreview[2]!.detail).toBe('Your review');
+      expect(noPreview[2]!.link).toBeUndefined();
+    });
+
+    it('changes requested: the review stays current and names who asked', () => {
+      const steps = handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [dana], verdict: { kind: 'changes', by: dana } } });
+      expect(row(steps, 1)).toEqual(['done', 'Built', 'By Sam', false]);
+      expect(row(steps, 2)).toEqual(['waiting', 'Review', 'Changes requested by Dana', true]);
+    });
+
+    it('approved: the review is done, shipping is next', () => {
+      const steps = handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [dana], verdict: { kind: 'approved', by: dana } } });
+      expect(row(steps, 2)).toEqual(['done', 'Reviewed', 'Approved by Dana', false]);
+      expect(row(steps, 3)).toEqual(['waiting', 'Shipped', 'Then live in Admin demo', true]);
+    });
+
+    it('shipped: every step done', () => {
+      const steps = handoffSteps({ ...base, status: 'shipped', review: { draft: false, asked: [], verdict: { kind: 'approved', by: dana } } });
+      expect(steps.map((s) => s.status)).toEqual(['done', 'done', 'done', 'done']);
+      expect(steps[2]!.detail).toBe('Approved by Dana');
+      expect(JSON.stringify(steps)).not.toMatch(/merge|pull request|branch|commit|draft|—/i);
+    });
+
+    it('reads the verdict from the reviews: last say per person, changes requested wins, a dismissal clears', () => {
+      expect(reviewVerdictOf([])).toBeNull();
+      expect(reviewVerdictOf([{ user: { login: 'dana' }, state: 'COMMENTED' }])).toBeNull();
+      expect(reviewVerdictOf([{ user: { login: 'dana' }, state: 'APPROVED' }])).toEqual({ kind: 'approved', login: 'dana' });
+      expect(reviewVerdictOf([{ user: { login: 'lee' }, state: 'CHANGES_REQUESTED' }, { user: { login: 'dana' }, state: 'APPROVED' }])).toEqual({ kind: 'changes', login: 'lee' });
+      expect(reviewVerdictOf([{ user: { login: 'lee' }, state: 'CHANGES_REQUESTED' }, { user: { login: 'lee' }, state: 'APPROVED' }])).toEqual({ kind: 'approved', login: 'lee' });
+      expect(reviewVerdictOf([{ user: { login: 'lee' }, state: 'CHANGES_REQUESTED' }, { user: { login: 'lee' }, state: 'COMMENTED' }])).toEqual({ kind: 'changes', login: 'lee' });
+      expect(reviewVerdictOf([{ user: { login: 'lee' }, state: 'APPROVED' }, { user: { login: 'lee' }, state: 'DISMISSED' }])).toBeNull();
+      expect(reviewVerdictOf([{ user: { login: 'bot[bot]' }, state: 'APPROVED' }])).toBeNull();
+    });
+
+    it('asks the requested reviewers, else the design approvers (not the developer, not an unexpanded team)', () => {
+      expect(reviewersAsked({ requested: [{ login: 'lee' }], approvers: ['dana'] })).toEqual(['lee']);
+      expect(reviewersAsked({ requested: [], approvers: ['dana', 'sam', 'acme/design', 'Dana'], builders: ['sam'] })).toEqual(['dana']);
+      expect(reviewersAsked({ approvers: [] })).toEqual([]);
+    });
   });
 
   it('puts "said done exploring" in the activity, without Bridge\'s own commit', () => {
