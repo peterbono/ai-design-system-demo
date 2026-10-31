@@ -18,9 +18,27 @@ export function ghButton(signIn: boolean): string {
   return signIn ? 'Sign in with GitHub' : 'Connect GitHub';
 }
 
-/** Anonymous reads ran out: what happened and the two ways out. */
-export function rateLimitedLine(signIn: boolean): string {
+/**
+ * GitHub's hourly read limit ran out. Signed out: anonymous reads and the two ways out. Signed in (`signedIn`): the
+ * limit of the viewer's own account, never "anonymous" nor "Sign in", with when it resets (accountLimitLine).
+ */
+export function rateLimitedLine(signIn: boolean, opts: { signedIn?: boolean; resetAt?: Date | null; now?: number } = {}): string {
+  if (opts.signedIn) return accountLimitLine(opts.resetAt ?? null, opts.now);
   return `GitHub limits anonymous reads to 60 an hour and this browser has used them. ${ghVerb(signIn)}, or try again later.`;
+}
+
+/** The time a limit resets, as the viewer's clock shows it ("14:32"). */
+export const resetClock = (at: Date): string => at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/**
+ * A signed-in viewer reached GitHub's hourly limit (every Bridge tab and tool on their account shares it): what
+ * happened and when it comes back, in plain words. `what`: what could not be shown ("Recent changes").
+ */
+export function accountLimitLine(resetAt: Date | null, now = Date.now(), what?: string): string {
+  const head = what ? `${what} cannot be shown right now: GitHub's hourly limit for your account is reached.` : "GitHub's hourly limit for your account is reached.";
+  if (!resetAt || !Number.isFinite(resetAt.getTime())) return `${head} It resets within the hour, then reload the page.`;
+  const min = Math.max(1, Math.ceil((resetAt.getTime() - now) / 60000));
+  return `${head} It resets at ${resetClock(resetAt)} (in ${min} min), then reload the page.`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

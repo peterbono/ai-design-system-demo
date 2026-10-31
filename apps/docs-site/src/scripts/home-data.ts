@@ -8,7 +8,7 @@
 import { isGuardedExploration, productsOf, requesterOf, type ProductConfig } from '@bridge-ds/core';
 import { siteConfig } from './repo-context';
 import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
-import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError, resolveAccess } from './github-session';
+import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, limitLine, readRepo, RateLimitError, resolveAccess } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
 import { loadOwnSuggestions, loadSuggestionNeeds } from './suggestions';
@@ -287,7 +287,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   try {
     pulls = (await ghGet<HomePull[]>(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`)).data;
   } catch (err) {
-    failed = err instanceof RateLimitError ? busyText(err.resetAt ? (err.resetAt.getTime() - Date.now()) / 1000 : null) : 'GitHub could not be reached. Reload the page to try again.';
+    failed = err instanceof RateLimitError ? (limitLine(err) ?? busyText(err.resetAt ? (err.resetAt.getTime() - Date.now()) / 1000 : null)) : 'GitHub could not be reached. Reload the page to try again.';
     repaint();
     return;
   }

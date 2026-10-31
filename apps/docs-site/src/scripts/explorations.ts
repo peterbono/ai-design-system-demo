@@ -44,7 +44,7 @@ import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { paintPeople, personHtml } from './people';
 import { sampleVisitor } from './demo-gate';
-import { currentAccess, currentContributor, currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
+import { currentAccess, currentContributor, currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, limitLine, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
 import { canKeepExploration, keepExplorationLine, productKeeperLine } from '../lib/write-route';
 import { viewerRole } from './needs-you';
 import { EXPLORATION_SUGGEST_LINE, ghAction, rateLimitedLine } from '../lib/gh-wording';
@@ -151,7 +151,7 @@ export function loadExplorations(openPulls?: () => Promise<ExplorationPullLike[]
       $('ex-table').hidden = true;
       $('ex-sentence').textContent =
         err instanceof RateLimitError
-          ? rateLimitedLine(prefersSignIn())
+          ? (limitLine(err, 'Explorations') ?? rateLimitedLine(prefersSignIn()))
           : `Could not load explorations: ${(err as Error).message}.`;
     } finally {
       list.removeAttribute('aria-busy');
@@ -539,7 +539,7 @@ async function paintVisual(r: ExplorationRow) {
     if (!isCurrent(r)) return;
     renderTopChange(slot, v, `?pr=${r.number}`);
   } catch (err) {
-    slot.innerHTML = `<p class="cg-line rv-what-quiet">${err instanceof RateLimitError ? `GitHub limits anonymous reads. ${ghAction('see the before and after', prefersSignIn())}.` : `Could not read the before and after: ${esc((err as Error).message)}`}</p>`;
+    slot.innerHTML = `<p class="cg-line rv-what-quiet">${err instanceof RateLimitError ? esc(limitLine(err, 'The before and after') ?? `GitHub limits anonymous reads. ${ghAction('see the before and after', prefersSignIn())}.`) : `Could not read the before and after: ${esc((err as Error).message)}`}</p>`;
   }
 }
 

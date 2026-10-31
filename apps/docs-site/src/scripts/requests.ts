@@ -26,7 +26,7 @@ import {
   type PullLike,
   type RequestRow,
 } from '../lib/requests-view';
-import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, studioClient } from './github-session';
+import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, limitLine, prefersSignIn, RateLimitError, readRepo, studioClient } from './github-session';
 import { rateLimitedLine } from '../lib/gh-wording';
 import { attrUrl, safeUrl } from '../lib/html';
 import { owners } from './pr-status';
@@ -201,7 +201,7 @@ export function loadRequests(openPulls?: Promise<PullLike[] | null>): Promise<Re
       $('rq-table').hidden = true;
       $('rq-sentence').textContent =
         err instanceof RateLimitError
-          ? rateLimitedLine(prefersSignIn())
+          ? (limitLine(err, 'Requests') ?? rateLimitedLine(prefersSignIn()))
           : `Could not load requests: ${(err as Error).message}.`;
     } finally {
       list.removeAttribute('aria-busy');

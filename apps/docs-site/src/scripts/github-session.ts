@@ -25,7 +25,7 @@ import {
 } from '../lib/token-session';
 import { closeDialog, isDialogOpen, openDialog as openDsDialog } from '@bridge-ds/react/dom';
 import { paintAvatar, paintDrawnAvatar } from './avatar';
-import { askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb } from '../lib/gh-wording';
+import { accountLimitLine, askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb } from '../lib/gh-wording';
 import { installUrl, SIGNED_OUT_ELSEWHERE_KEY } from '../lib/access-view';
 import { changesModeOnPage } from './changes-mode';
 import { bindDemoGate } from './demo-gate';
@@ -331,6 +331,9 @@ export function saveSignIn(r: TokenResponse, opts: { refresh?: boolean; clientId
   }
   const previous = opts.refresh ? currentCheck() : null;
   if (!opts.refresh) clearSwitched();
+  // Clients made before a refresh still hold the old token: their calls go out with the new one (liveAuth).
+  const old = opts.refresh ? githubToken() : null;
+  if (old && old !== r.access_token.trim()) replacedTokens.add(old);
   writeAppSession(sessionFrom(r, Date.now(), opts.clientId));
   // A refresh keeps the account: carry the last good check over to the new token (no extra call to GitHub). A new
   // sign-in may be another account: it is checked again.
@@ -339,6 +342,8 @@ export function saveSignIn(r: TokenResponse, opts: { refresh?: boolean; clientId
 }
 
 let refreshing: Promise<boolean> | null = null;
+/** Tokens a refresh replaced on this page (memory only): a call that still carries one goes out with the current token. */
+const replacedTokens = new Set<string>();
 
 /** Renews the sign-in with its refresh token. True when a fresh token is saved. One refresh at a time. */
 export function refreshSignIn(): Promise<boolean> {
@@ -631,14 +636,72 @@ export function markTokenRejected() {
   const token = getToken();
   // An email session that ended is handled by the proxy's fetch (contributeFetch): no GitHub token to mark.
   if (!token || isContribAuth(token) || tokenRejected()) return;
+  if (renewal) return;
   if (!refreshedAfter401 && canRefresh(readAppSession(), Date.now())) {
-    refreshedAfter401 = true;
-    void refreshSignIn().then((ok) => (ok ? onRefreshed?.() : markTokenRejected()));
+    void renewAfter401(`Bearer ${token}`);
     return;
   }
   writeCheck(rejectedCheck(token, Date.now()));
   onRejected?.();
   document.dispatchEvent(new CustomEvent('bridge:auth', { detail: { signedIn: false, rejected: true } }));
+}
+
+/** The one renewal a 401 starts: every call that got a 401 meanwhile waits for it. */
+let renewal: Promise<boolean> | null = null;
+
+/**
+ * A call that carried `sentAuth` got a 401. True when it can go out again with a working token: another call renewed
+ * the sign-in meanwhile, or this one renews it now (once per page). False when the sign-in is really refused: it is
+ * marked (the account block says "Sign in again"), and only then do reads go out anonymously.
+ */
+function renewAfter401(sentAuth: string | undefined): Promise<boolean> {
+  const token = githubToken();
+  if (!token || !sentAuth || isContribAuth(sentAuth)) return Promise.resolve(false);
+  if (sentAuth !== `Bearer ${token}`) return Promise.resolve(!tokenRejected());
+  if (tokenRejected()) return Promise.resolve(false);
+  if (renewal) return renewal;
+  if (!refreshedAfter401 && canRefresh(readAppSession(), Date.now())) {
+    refreshedAfter401 = true;
+    renewal = refreshSignIn()
+      .then((ok) => {
+        renewal = null;
+        if (ok) onRefreshed?.();
+        else markTokenRejected();
+        return ok;
+      })
+      .catch(() => {
+        renewal = null;
+        return false;
+      });
+    return renewal;
+  }
+  markTokenRejected();
+  return Promise.resolve(false);
+}
+
+/**
+ * A GitHub sign-in whose token expired, or expires within the refresh margin, is renewed before a call goes out
+ * (every caller waits for the one refresh): a signed-in viewer's call never leaves with a dead token, nor without one.
+ */
+async function freshToken(): Promise<void> {
+  if (renewal) await renewal;
+  if (needsRefresh(readAppSession(), Date.now())) await refreshSignIn();
+}
+
+/** A GitHub sign-in is being renewed or must be before its next call (freshToken). Sync: other calls start at once. */
+const mustRenew = (): boolean => Boolean(githubToken()) && !tokenRejected() && (renewal !== null || needsRefresh(readAppSession(), Date.now()));
+
+/**
+ * The Authorization a call goes out with: a GitHub token of this page (the current one, or one a refresh replaced, held
+ * by a client made earlier) becomes the current token, renewed first when it expires. Anything else is kept as is.
+ */
+async function liveAuth(auth: string | undefined): Promise<string | undefined> {
+  if (!auth || isContribAuth(auth)) return auth;
+  const sent = auth.replace(/^Bearer\s+/i, '');
+  if (sent !== githubToken() && !replacedTokens.has(sent)) return auth;
+  if (mustRenew()) await freshToken();
+  const now = githubToken();
+  return now && !tokenRejected() ? `Bearer ${now}` : auth;
 }
 
 /**
@@ -653,6 +716,11 @@ export const studioFetch: FetchLike = async (url, init0 = {}) => {
   let headers = init.headers ?? {};
   // An email contributor: every call to the team's repository goes through this site's proxy, the rest as a guest.
   if (isContribAuth(headers.Authorization)) return contributeFetch(pageRepo(), url, init as RequestInit, pageProductRepos());
+  // A signed-in call waits for a sign-in being renewed, and never leaves with a token a refresh replaced.
+  if (headers.Authorization && !isContribAuth(headers.Authorization)) {
+    const auth = await liveAuth(headers.Authorization);
+    if (auth !== headers.Authorization) headers = { ...headers, Authorization: auth as string };
+  }
   // A write with a token GitHub already refused cannot succeed: answer for it, so the action shows the one message.
   if (method !== 'GET' && tokenRejected() && headers.Authorization) {
     return new Response(JSON.stringify({ message: 'Bad credentials' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
@@ -678,7 +746,8 @@ export const studioFetch: FetchLike = async (url, init0 = {}) => {
   }
   const res = await fetch(url, { ...init, headers });
   if (res.status === 401 && headers.Authorization) {
-    markTokenRejected();
+    // Renewed (now or by another call): the same call again with the fresh token (a refused write changed nothing).
+    if (await renewAfter401(headers.Authorization)) return fetch(url, { ...init, headers: { ...headers, Authorization: `Bearer ${githubToken()}` } });
     if (method === 'GET') {
       const { Authorization: _drop, ...rest } = headers;
       return fetch(url, { ...init, headers: rest });
@@ -744,9 +813,27 @@ export function prLinksHtml(pr: { number: number; url: string }): string {
 }
 
 export class RateLimitError extends Error {
-  constructor(public resetAt: Date | null) {
+  /**
+   * `signedIn`: the refused read carried the viewer's token (GitHub's limit for their account, 5,000 an hour shared by
+   * every tool on it), not an anonymous one. Unset: whatever the session is now (hasWorkingToken).
+   */
+  constructor(
+    public resetAt: Date | null,
+    public signedIn?: boolean,
+  ) {
     super('GitHub rate limit reached');
   }
+}
+
+/**
+ * The sentence for a read GitHub refused for its hourly limit, when the viewer is signed in: their account's limit
+ * and when it resets (never "anonymous" nor "Sign in"), or the "Sign in again" sentence when the sign-in itself
+ * stopped working. Null for a signed-out visitor: the caller keeps its anonymous wording. `what`: what is missing.
+ */
+export function limitLine(err: unknown, what?: string): string | null {
+  if (!(err instanceof RateLimitError)) return null;
+  if (getToken() && tokenRejected()) return rejectedText(sessionMode(), prefersSignIn());
+  return (err.signedIn ?? hasWorkingToken()) ? accountLimitLine(err.resetAt, Date.now(), what) : null;
 }
 
 export interface Fetched<T> {
@@ -860,19 +947,25 @@ async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { ac
   try {
     // raw.githubusercontent.com: no custom headers, so no CORS preflight (and no API rate limit).
     const isApi = url.startsWith(API);
+    // Signed in: a sign-in being renewed (or expired) is renewed first, so the read never goes out without the token.
+    if (isApi && mustRenew()) await freshToken();
     const h = headers(opts.accept ? { Accept: opts.accept } : {});
     // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
     const cache = freshRead();
     let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '', pageProductRepos())) ?? fetch(url, { headers: h, cache })) : isApi ? await ghFetch(url, { headers: h, cache }) : await fetch(url, { cache });
-    // GitHub refused the token: mark it, then read anonymously (public repos keep working).
-    if (res.status === 401 && isApi && hasWorkingToken()) {
-      markTokenRejected();
-      res = await fetch(url, { headers: headers(opts.accept ? { Accept: opts.accept } : {}) });
+    // GitHub refused the token: renew the sign-in and read again with it. Only a sign-in that is really refused
+    // (marked, the account block says "Sign in again") reads anonymously (public repos keep working).
+    let sentAuth = h.Authorization;
+    if (res.status === 401 && isApi && sentAuth && !isContribAuth(sentAuth)) {
+      const renewed = await renewAfter401(sentAuth);
+      const h2 = headers(opts.accept ? { Accept: opts.accept } : {});
+      sentAuth = h2.Authorization;
+      res = renewed ? await ghFetch(url, { headers: h2, cache }) : await fetch(url, { headers: h2 });
     }
     if (res.status === 403 || res.status === 429) {
       const remaining = res.headers.get('x-ratelimit-remaining');
       const reset = res.headers.get('x-ratelimit-reset');
-      if (remaining === '0' || res.status === 429) throw new RateLimitError(reset ? new Date(Number(reset) * 1000) : null);
+      if (remaining === '0' || res.status === 429) throw new RateLimitError(reset ? new Date(Number(reset) * 1000) : null, Boolean(sentAuth));
     }
     if (!res.ok) throw new GitHubError(res.status, `GitHub answered ${res.status} for ${path}`);
     const data = (opts.raw ? await res.text() : await res.json()) as T;
@@ -880,7 +973,7 @@ async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { ac
     return { data, stale: false };
   } catch (caught) {
     // Bridge's own limit (a read through Bridge): the same as GitHub's for the callers.
-    const err = caught instanceof GitHubError && caught.status === 429 ? new RateLimitError(caught.resetsAt ?? null) : caught;
+    const err = caught instanceof GitHubError && caught.status === 429 ? new RateLimitError(caught.resetsAt ?? null, hasWorkingToken()) : caught;
     const cached = cacheGet<T>(key);
     if (cached && (err instanceof RateLimitError || err instanceof TypeError)) {
       return { data: cached.data, stale: true, cachedAt: cached.at, resetAt: err instanceof RateLimitError ? err.resetAt : null };
@@ -902,12 +995,15 @@ export async function ghWrite<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', pa
   const contributor = isContribAuth(headers.Authorization);
   const direct = !contributor && needsDirectApp(method, `${API}${path}`) ? await directTokenForWrite() : null;
   if (direct) headers.Authorization = `Bearer ${direct}`;
-  const res = await ghFetch(`${API}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  else if (!contributor) headers.Authorization = (await liveAuth(headers.Authorization)) as string;
+  const send = () => ghFetch(`${API}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  let res = await send();
   if (direct && res.status === 401) throw directRefused();
+  // A sign-in renewed after the 401 (GitHub changed nothing): the write goes out once more with the fresh token.
+  if (res.status === 401 && !direct && !contributor && (await renewAfter401(headers.Authorization))) {
+    headers.Authorization = `Bearer ${githubToken()}`;
+    res = await send();
+  }
   if (!res.ok) {
     let message = `GitHub answered ${res.status}`;
     try {

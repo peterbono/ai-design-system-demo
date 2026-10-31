@@ -46,7 +46,7 @@ import { changeLifecycle, type Lifecycle } from '../lib/change-status';
 import { pullState } from '../lib/review-rules';
 import { isTokenChange } from '../lib/continue-change';
 import { ghVerb } from '../lib/gh-wording';
-import { API, getToken, ghGet, hasWorkingToken, prefersSignIn, RateLimitError, readRepo, studioFetch } from './github-session';
+import { API, getToken, ghGet, hasWorkingToken, limitLine, prefersSignIn, RateLimitError, readRepo, studioFetch } from './github-session';
 import { readCached, type PullForStatus, type PullStatus } from './pr-status';
 import { readTogetherSource } from './combine-read';
 import { CODE_LINE } from '../lib/combine-changes';
@@ -128,6 +128,8 @@ export function currentPulls(): Promise<OpenPull[]> | null {
 export function readFailure(err: unknown, title: string): string {
   const reset = err instanceof RateLimitError && err.resetAt ? err.resetAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
   if (err instanceof TogetherError) return err.message;
+  const signedInLimit = limitLine(err, title);
+  if (signedInLimit) return signedInLimit;
   const kind = err instanceof RateLimitError ? 'rate' : err instanceof GitHubError && err.status === 404 ? 'missing' : 'other';
   return readError(kind, title, ghVerb(prefersSignIn()), reset);
 }
@@ -188,7 +190,7 @@ async function apiGet(url: string, accept?: string): Promise<Response> {
   const res = (await studioFetch(url, { headers: { ...authHeaders(), ...(accept ? { Accept: accept } : {}) } })) as unknown as Response;
   if ((res.status === 403 || res.status === 429) && (res.headers.get('x-ratelimit-remaining') === '0' || res.status === 429)) {
     const reset = res.headers.get('x-ratelimit-reset');
-    throw new RateLimitError(reset ? new Date(Number(reset) * 1000) : null);
+    throw new RateLimitError(reset ? new Date(Number(reset) * 1000) : null, hasWorkingToken());
   }
   if (!res.ok) throw new GitHubError(res.status, `GitHub answered ${res.status}.`);
   return res;
