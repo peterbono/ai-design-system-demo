@@ -27,9 +27,12 @@ describe('productPreview', () => {
     expect(productPreview({ docs: apps.docs }, ctx, { comments: ok })).toBeNull();
   });
 
-  it('ignores a status that only points at the Vercel inspector', () => {
+  it('never opens the Vercel inspector a status points at: a finished build gives its branch alias instead', () => {
     const statuses = [{ context: 'Vercel – bridge-admin', state: 'success', target_url: 'https://vercel.com/peterbonos-projects/bridge-admin/6HB9' }];
-    expect(productPreview(apps, ctx, { statuses })).toBeNull();
+    // The same shortened alias the Vercel comment of #101 reported (core vercelBranchAlias).
+    expect(productPreview(apps, ctx, { statuses })).toBe(`https://${ADMIN}/`);
+    // Still building: no alias yet.
+    expect(productPreview(apps, ctx, { statuses: [{ ...statuses[0]!, state: 'pending' }] })).toBeNull();
   });
 });
 

@@ -2,6 +2,8 @@
 // by the PR comment workflow (.github/workflows/preview-packages.yml) and the docs site Branches page, so both
 // print the same links. See docs/PREVIEWS.md.
 
+import { sha256Hex } from './sha256';
+
 /** Apps deployed once per branch. Values are URL templates (see `previewUrl`). */
 export interface PreviewApps {
   docs?: string | undefined;
@@ -41,8 +43,8 @@ export function branchSlug(branch: string): string {
 /**
  * Fills a URL template. Placeholders: `{branch}` (slug), `{rawBranch}` (URL-encoded), `{pr}`, `{sha}`, `{sha7}`.
  * Returns null when the template needs a value the context lacks, when the result is not an http(s) URL, or when
- * a host label exceeds 63 characters (Vercel then shortens the alias with a hash nobody can predict: read the
- * URL from the Vercel bot comment on the PR instead).
+ * a host label exceeds 63 characters (Vercel then shortens the alias with a hash: the URL comes from what Vercel
+ * reports on the PR, its bot comment or a successful commit status, see `vercelBranchAlias`).
  */
 export function previewUrl(template: string | undefined, ctx: PreviewContext): string | null {
   if (!template) return null;
@@ -389,8 +391,9 @@ export interface BranchPreviewSources {
 
 /**
  * The preview of each configured app, real URL first: a GitHub deployment's environment URL, then a Vercel commit
- * status pointing at the deployment (not at the inspector), then the Vercel bot comment, and the config template only
- * when its host labels fit in 63 characters (else Vercel shortened it: url null until a real source reports it).
+ * status pointing at the deployment (not at the inspector), then the Vercel bot comment, then the branch alias of a
+ * build a Vercel status reports done (`vercelBranchAlias`), and the config template only when its host labels fit in
+ * 63 characters (else Vercel shortened it: url null until a real source reports it).
  * The state comes from the freshest signal: commit status, then deployment, then the comment.
  */
 export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, sources: BranchPreviewSources = {}): BranchPreview[] {
@@ -408,13 +411,21 @@ export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, so
 
   // 1. Commit statuses (Vercel – <project>): newest first, so the first one per context is current.
   const contexts = new Set<string>();
+  // A build Vercel reports done, with only its inspector link: the branch alias it serves (used when nothing else
+  // gives a URL, such as a pull request without the Vercel comment, or a comment that could not be read).
+  const aliases = new Map<keyof PreviewApps, string>();
   for (const st of sources.statuses ?? []) {
     if (contexts.has(st.context)) continue;
     contexts.add(st.context);
     const project = projectOfLabel(st.context);
     if (!project) continue;
+    const app = appForProject(project, apps);
     const url = httpsUrl(st.target_url);
-    offer(appForProject(project, apps), url && !isInspectorUrl(url) ? url : null, 'status', stateOf(st.state), 0, IGNORED_BUILD.test(st.description ?? ''));
+    const skipped = IGNORED_BUILD.test(st.description ?? '');
+    offer(app, url && !isInspectorUrl(url) ? url : null, 'status', stateOf(st.state), 0, skipped);
+    const scope = url && isInspectorUrl(url) ? inspectorScope(url, project) : null;
+    const alias = app && scope && !skipped && stateOf(st.state) === 'ready' ? vercelBranchAlias(project, ctx.branch, scope) : null;
+    if (app && alias) aliases.set(app, alias);
   }
   // 2. Deployments (Preview – <project>): their URL beats the status's.
   for (const d of sources.deployments ?? []) {
@@ -429,17 +440,50 @@ export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, so
   }
   // 3. The Vercel bot comment.
   for (const p of parseVercelComment(findVercelComment(sources.comments ?? [])?.body) ?? []) offer(appForProject(p.name, apps), p.previewUrl, 'vercel-comment', stateOf(p.status), 2, p.status ? p.status.toUpperCase() === 'IGNORED' : undefined);
+  // 4. The alias of a build a status reports done, when no source gave a URL.
+  for (const [app, alias] of aliases) offer(app, alias, 'status', 'unknown', 3);
 
   const out: BranchPreview[] = [];
   for (const app of Object.keys(PREVIEW_APP_LABELS) as (keyof PreviewApps)[]) {
     if (!apps[app]) continue;
     const s = seen.get(app) ?? {};
-    // 4. The template, only when Vercel would not have shortened it (previewUrl returns null over 63 characters).
+    // 5. The template, only when Vercel would not have shortened it (previewUrl returns null over 63 characters).
     const url = s.url ?? previewUrl(apps[app], ctx);
     const source: PreviewUrlSource | null = s.url ? s.urlSource! : url ? 'template' : null;
     out.push({ app, label: PREVIEW_APP_LABELS[app], url, state: s.state ?? 'unknown', source, ...(s.skipped ? { skipped: true as const } : {}) });
   }
   return out;
+}
+
+/** A DNS label's longest length: Vercel shortens a branch alias that would go over it. */
+const MAX_LABEL = 63;
+
+/**
+ * The branch alias Vercel gives a git deployment of `project` (a team's `scope`): `<project>-git-<branch slug>-<scope>`
+ * on vercel.app. Over 63 characters, Vercel cuts the slug to fit and adds the first 6 hex characters of
+ * sha256("git-" + branch + project) (checked against the real aliases of #64 and #611). Null when a name is missing.
+ */
+export function vercelBranchAlias(project: string, branch: string, scope: string): string | null {
+  const p = project.trim().toLowerCase();
+  const sc = scope.trim().toLowerCase();
+  const slug = branchSlug(branch);
+  if (!p || !sc || !slug || !/^[a-z0-9-]+$/.test(p) || !/^[a-z0-9-]+$/.test(sc)) return null;
+  let label = `${p}-git-${slug}-${sc}`;
+  if (label.length > MAX_LABEL) {
+    const hash = sha256Hex(`git-${branch}${project.trim()}`).slice(0, 6);
+    const room = MAX_LABEL - `${p}-git-`.length - `-${hash}-${sc}`.length;
+    if (room < 1) return null;
+    const cut = slug.slice(0, room).replace(/-+$/, '');
+    if (!cut) return null;
+    label = `${p}-git-${cut}-${hash}-${sc}`;
+  }
+  return `https://${label}.vercel.app/`;
+}
+
+/** The team scope of a Vercel inspector URL (https://vercel.com/<scope>/<project>/<deployment id>) for that project. */
+function inspectorScope(url: string, project: string): string | null {
+  const m = /^https:\/\/(?:www\.)?vercel\.com\/([a-z0-9-]+)\/([a-z0-9._-]+)\/[A-Za-z0-9]+\/?$/i.exec(url);
+  return m && m[2]!.toLowerCase() === project.trim().toLowerCase() ? m[1]! : null;
 }
 
 /** The previews that have a URL, as links (`{ app, label, url }`), in the stable app order. A skipped build has none. */

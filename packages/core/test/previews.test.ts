@@ -119,7 +119,7 @@ test('config: production URLs load and refuse placeholders', () => {
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { GitHubClient, type FetchLike } from '../src/github-client';
-import { appForProject, findVercelComment, isVercelComment, parseVercelComment, previewLinksOf, previewsSettled, projectOfLabel, resolveBranchPreviews } from '../src/previews';
+import { appForProject, findVercelComment, isVercelComment, parseVercelComment, previewLinksOf, previewsSettled, projectOfLabel, resolveBranchPreviews, vercelBranchAlias } from '../src/previews';
 import { branchPreviewUrls } from '../src/previews-github';
 import { productPreview } from '../src/try-in-product';
 
@@ -281,4 +281,60 @@ test('a build Vercel skipped (Ignored Build Step) is marked skipped and never of
   assert.equal(built.skipped, undefined);
   assert.equal(productPreview(realApps(), { ...ctx, sha: 'abc' }, { comments: [{ body: vercel }], statuses }), null);
   assert.equal(productPreview(realApps(), { ...ctx, sha: 'abc' }, { comments: [{ body: vercel }], statuses: builtStatuses }), 'https://bridge-admin-git-explore-explore-new-a658e0-peterbonos-projects.vercel.app/');
+});
+
+// Exploration #611 at 6afa2ee, as GitHub returned it (read-only): every app built, the Vercel comment names the
+// shortened aliases, the statuses only link the inspector.
+const PR611 = {
+  branch: 'explore/explore-new-design-pr-being-built',
+  vercel: fixture('pr611-vercel-comment.md'),
+  statuses: JSON.parse(fixture('pr611-statuses.json')) as { context: string; state: string; description: string; target_url: string }[],
+};
+const REAL611 = {
+  docs: 'https://bridge-docs-git-explore-explore-new-9e4690-peterbonos-projects.vercel.app/',
+  storybook: 'https://bridge-storybook-git-explore-explore-317305-peterbonos-projects.vercel.app/',
+  admin: 'https://bridge-admin-git-explore-explore-new-a658e0-peterbonos-projects.vercel.app/',
+};
+
+test('vercelBranchAlias gives the aliases Vercel really shortened (#64, #611)', () => {
+  const scope = 'peterbonos-projects';
+  assert.equal(vercelBranchAlias('bridge-admin', PR611.branch, scope), REAL611.admin);
+  assert.equal(vercelBranchAlias('bridge-docs', PR611.branch, scope), REAL611.docs);
+  assert.equal(vercelBranchAlias('bridge-storybook', PR611.branch, scope), REAL611.storybook);
+  assert.equal(vercelBranchAlias('bridge-admin', PR64.branch, scope), REAL.admin);
+  assert.equal(vercelBranchAlias('bridge-storybook', PR64.branch, scope), REAL.storybook);
+  // Short enough: the plain alias, the same as the template gives.
+  assert.equal(vercelBranchAlias('bridge-docs', PR64.branch, scope), REAL.docs);
+  assert.equal(vercelBranchAlias('bridge-admin', '', scope), null);
+  assert.equal(vercelBranchAlias('', PR64.branch, scope), null);
+});
+
+test('#611: the comment and statuses give the admin preview; the statuses alone give it too', () => {
+  const ctx = { branch: PR611.branch, pr: 611, sha: '6afa2ee450161294e459a10f9209c2842513423a' };
+  const both = resolveBranchPreviews(realApps(), ctx, { comments: [{ body: PR611.vercel }], statuses: PR611.statuses });
+  assert.deepEqual(
+    both.map((p) => [p.app, p.url, p.source, p.state, p.skipped]),
+    [
+      ['docs', REAL611.docs, 'vercel-comment', 'ready', undefined],
+      ['storybook', REAL611.storybook, 'vercel-comment', 'ready', undefined],
+      ['admin', REAL611.admin, 'vercel-comment', 'ready', undefined],
+    ],
+  );
+  // No Vercel comment (never posted, or the read failed): the built statuses name the project and its team, so the
+  // branch alias is known instead of nothing (the page said "Your preview appears a few minutes after each change").
+  const statusesOnly = resolveBranchPreviews(realApps(), ctx, { statuses: PR611.statuses });
+  assert.deepEqual(
+    statusesOnly.map((p) => [p.app, p.url, p.source, p.state]),
+    [
+      ['docs', REAL611.docs, 'status', 'ready'],
+      ['storybook', REAL611.storybook, 'status', 'ready'],
+      ['admin', REAL611.admin, 'status', 'ready'],
+    ],
+  );
+  assert.equal(productPreview(realApps(), ctx, { statuses: PR611.statuses }), REAL611.admin);
+  // Never for a build still running, failed, or skipped by the Ignored Build Step (its alias opens a canceled one).
+  for (const st of [{ state: 'pending', description: 'Vercel is deploying your app' }, { state: 'failure', description: 'Deployment has failed' }, { state: 'success', description: 'Canceled by Ignored Build Step' }]) {
+    const statuses = PR611.statuses.map((s) => ({ ...s, ...st }));
+    assert.equal(resolveBranchPreviews(realApps(), ctx, { statuses }).find((p) => p.app === 'admin')!.url, null, st.description);
+  }
 });
