@@ -40,7 +40,7 @@ describe('Being built', () => {
     data = sample();
     render(createElement(BeingBuilt));
     await screen.findByText('Tabs: put a count after the label');
-    await userEvent.click(screen.getByRole('radio', { name: /In progress/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /In progress/ }));
     expect(screen.queryByText('Tabs: put a count after the label')).toBeNull();
     await userEvent.click(screen.getByText('Badge: add an info tone'));
     expect(location.search).toBe('?request=33');
@@ -74,9 +74,9 @@ describe('Being built', () => {
     expect(container.querySelector('a[href="/studio/changes/?pr=598"]')).toBeTruthy();
     expect(container.innerHTML).not.toContain('github.com/peterbono');
     expect(container.querySelectorAll('.sh-row-item button')).toHaveLength(0);
-    await userEvent.click(screen.getByRole('radio', { name: /Shipped this week/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /Shipped this week/ }));
     expect(screen.getByText('Button')).toBeTruthy();
-    await userEvent.click(screen.getByRole('radio', { name: /Waiting to be picked up/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /Waiting to be picked up/ }));
     expect(screen.queryByText('Button')).toBeNull();
     await expectNoAxeViolations(container);
   });
@@ -105,14 +105,14 @@ describe('Being built', () => {
     expect(thumb.getAttribute('data-label')).toBe('Tag');
     expect([...thumb.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual(['https://example.com/tag-before.png', 'https://example.com/tag-after.png']);
     expect(row.querySelector('a')!.getAttribute('title')).toBe('Tag: test: rounder tag corners');
-    expect(screen.getByRole('radio', { name: /All/ }).textContent).toContain('7');
+    expect(screen.getByRole('tab', { name: /All/ }).textContent).toContain('7');
     unmount();
     data = withTag(8);
     const again = render(createElement(BeingBuilt));
     await screen.findByText('Tabs: put a count after the label');
     expect(screen.queryByText('Tag: test: rounder tag corners')).toBeNull();
     expect(again.container.querySelectorAll('.sh-row-item')).toHaveLength(6);
-    expect(screen.getByRole('radio', { name: /All/ }).textContent).toContain('6');
+    expect(screen.getByRole('tab', { name: /All/ }).textContent).toContain('6');
     expect(container.textContent).not.toContain('Tag: test');
   });
 

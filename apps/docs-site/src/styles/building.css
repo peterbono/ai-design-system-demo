@@ -27,6 +27,12 @@
   min-width: 0;
 }
 
+/* DS Tabs (underline), like Changes: the rule spans the width, the list scrolls inside its row on a phone. */
+.bb-bar > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .bb-skel {
   height: var(--size-16);
 }
