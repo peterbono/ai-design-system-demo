@@ -1,5 +1,75 @@
 # @bridge-ds/docs-site
 
+## 0.23.0
+
+### Minor Changes
+
+- b66bd3d: Studio Changes: History is gone from Changes. What shipped has its own tab, Shipped (before Archived): every change
+  and exploration that shipped, newest first, grouped by month, with its preview, product, person and "Shipped Oct 30".
+  It replaces the "added to the library this month" line. The next release and its Review and publish moved to the top
+  of Being built, shown only to whoever may publish it, and the token and guidance changes by release (with their
+  Filter) moved to the Library changelog, read only. Old History links land on Shipped, Being built or the changelog.
+- 46b2c20: Studio Changes: the tabs say where the work stands (All, Waiting on me, Not started, Exploring, Draft, In review,
+  Waiting for code, Archived, each with its count; empty state tabs hide). The people select is the only people
+  filter: Everyone, You, then each designer by display name. Old ?who=mine links open on You. Rows show one display
+  name per person, the login only when no name is known.
+- 2e286d2: Library docs in Confluence: every component and token page has Copy for Confluence in its header (clean HTML that
+  pastes as headings, tables, code blocks and color swatches, with a Markdown fallback and a footer naming Bridge as the
+  source), and the Library home has Export the docs (a zip of every page as Markdown with an index.md, built with the
+  site). One generator renders both. New docs page: Docs in Confluence.
+- 9985e11: Studio: "Start an exploration" replaces "Start a change" on the Changes header, with the same one-step flow as the
+  home. A change to the library is an exploration whose target is the library: the Where menu lists each product,
+  then The library (Tokens, variants, new components). The old two-step type dialog is gone. "Something looks wrong?
+  Report it" stays in the dialog footer; the token editor stays on Tokens and the home's Edit tokens. Old
+  ?view=explorations&start=new links open the new dialog with the library picked. The MCP Jira hint names the new button.
+
+### Patch Changes
+
+- ae61b82: Being built: the filters are DS Tabs (underline) with a count on each, like Changes.
+- 59c0cca: Studio Changes and the home leave out pull requests that only change Bridge itself. bridge.config.json takes an
+  optional `tooling` key: the folders that are the tool around the design system (`paths`, with `!` to keep a file as
+  design system) and the pull request title scopes that mean tooling (`scopes`, the guess until the changed files are
+  read). Core `isToolingPull` decides: the changed files once read, the title's scopes before; explorations, bridge/
+  branches and changes Bridge opened for someone are never left out. Without the key (a team's design system
+  repository) nothing changes. Bridge's own repository lists Studio, the core, the CLI, the MCP server and the toolbar,
+  so Shipped shows design system work only. The side nav's account row shows the GitHub profile name, the @login
+  staying in its menu.
+- 323c54c: Studio Changes: the state filter is DS Tabs (underline) instead of a segmented control, since it holds up to eight
+  states with counts. The kind and people selects sit at the end of the same line.
+- a024d84: Exploration page: Continue in Claude and Check in Claude first check that the viewer has connected Bridge in their own
+  Claude (one read of the team's connections per session). Not connected yet: a short dialog with the two connector
+  steps, the address to copy, a link to Claude's connectors and "I've connected it, continue". A failed read, a
+  signed-out visitor or the sample team open Claude directly as before. The Terminal tab of a product exploration names
+  the one `bridge connect` command its folder needs. An email member's own connection now reads as theirs.
+- 854a1db: Exploration page: Continue in Claude and Check in Claude open a new Claude conversation (claude.ai/new) with the
+  line already in the message box, and still copy it. With Terminal picked, the button copies the line.
+- 06b3a4c: Explorations show a real screenshot of their preview on their page, on the Studio home cards and in the Changes rows,
+  with "Captured 2 h ago" where it fits. A new workflow (Preview shots) captures the preview of every open exploration,
+  in this repository and in each public product repository, into the `bridge-shots` branch; Studio reads it without
+  GitHub API calls and keeps the plate when there is none. The plate now picks a different Field Guide drawing per
+  exploration, the home cards line up their tag, product and person, and the exploration page ends both columns on one
+  line (the activity moves under the preview after Done exploring).
+- b2a836d: After Done exploring, an exploration keeps the page it had while it ran: the status tag (Waiting for code, Being
+  built, Shipped), who said done and when, the preview, what happens next in three steps, what the library gets from
+  it, and the activity. Bridge checks a product exploration against the library by itself (on the page, and in the
+  Done exploring dialog) instead of sending the designer to Claude. A preview Bridge has no capture of shows a plate
+  naming the changed screen and the product, and the Studio home cards use the same status tags and people's names.
+- 1fda823: Studio, signed in: reads keep the token. An expired sign-in is renewed before a read, a 401 is renewed and read again
+  with the fresh token (never anonymously), and clients made before a refresh send the current token. When GitHub's
+  hourly limit for the account is reached, Studio says so and when it resets, never "anonymous reads" nor "Sign in".
+  The exploration page names its author with the display name this browser knows, the login only when none is known.
+- 61b4f83: Your AI tools: each person picks the AI tools they use (Claude app, Claude Code in a terminal, GitHub Copilot in VS
+  Code) once in onboarding, then in Settings; kept with their Bridge account (else in this browser), and an admin sets
+  the team default new members start from. The exploration page's Continue panel and Start an exploration show only
+  those tools: one tool, no tabs; several, tabs limited to them, the last one used open. Never answered: the Claude
+  app when the viewer's Claude has Bridge, else the team default, else Claude app and Terminal, with a quiet "Use
+  another AI tool?". The VS Code (Copilot) tab has the same line, "Copy for Copilot" and the one command the repository
+  needs; Start says "Start in Copilot" and copies the line. The connect gate stays on the Claude app path only.
+- Updated dependencies [59c0cca]
+- Updated dependencies [61b4f83]
+- Updated dependencies [faf78be]
+  - @bridge-ds/core@0.25.0
+
 ## 0.22.4
 
 ### Patch Changes
