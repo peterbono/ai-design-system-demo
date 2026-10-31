@@ -137,9 +137,9 @@ describe('product branch page and library review', () => {
 });
 
 describe('team shell address', () => {
-  it('opens a product repository exploration on the exploration page, a design system one as a branch', () => {
+  it('opens every exploration on the exploration page, in a product repository or the design system one', () => {
     expect(teamBranchesRoute('?exploration=12&product=shop')).toEqual({ view: 'exploration', n: 12, product: 'shop' });
-    expect(teamBranchesRoute('?exploration=12')).toEqual({ view: 'pr', n: 12 });
+    expect(teamBranchesRoute('?exploration=12')).toEqual({ view: 'exploration', n: 12, product: null });
   });
 });
 
