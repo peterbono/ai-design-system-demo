@@ -122,7 +122,7 @@ describe('docs proposal', () => {
   it('one branch per docs change, the origin in the body and the label, the Jira key first', async () => {
     const p = docsProposal([edit], { date: new Date('2026-10-20T10:00:00Z'), origin: DOCS_MCP_ORIGIN });
     expect(p.labels).toEqual(['docs', 'source: mcp', 'tier-1']);
-    expect(p.body).toContain('written with Claude through the Bridge MCP server');
+    expect(p.body).toContain('written with an AI tool through the Bridge MCP server');
     expect(p.files.at(-1)!.content).toMatch(/"@bridge-ds\/react": patch/);
     const { gh, calls } = client({
       'GET /git/ref/heads/main': { body: { object: { sha: 'main1' } } },

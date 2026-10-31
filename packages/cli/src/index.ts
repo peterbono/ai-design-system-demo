@@ -39,10 +39,11 @@ const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
 
 Usage:
   bridge init [--force]               write bridge.config.json (detected) and .mcp.json for Claude Code
-  bridge connect --ds <owner/name> [--product <key>] [--dry-run]
+  bridge connect --ds <owner/name> [--product <key>] [--tool claude|copilot|both] [--dry-run]
                                       in a product repository, once: connect it to the team's design system
-                                      (.mcp.json, .bridge/product.json, a Bridge section in CLAUDE.md), so
-                                      bridge explore and Claude work from there
+                                      (.mcp.json, .bridge/product.json, a Bridge section in CLAUDE.md; with
+                                      --tool copilot, .vscode/mcp.json and .github/copilot-instructions.md for
+                                      GitHub Copilot in VS Code), so bridge explore and the AI work from there
   bridge check [--json] [--strict] [--offline]
                                       validate tokens + contrast gate, and say whether the library is
                                       protected (reviewed pull requests only) and who is in the GitHub

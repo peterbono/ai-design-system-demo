@@ -36,14 +36,14 @@ export const DOCS_EDITOR_ORIGIN: DocsOrigin = {
 };
 
 export const DOCS_MCP_ORIGIN: DocsOrigin = {
-  where: 'with Claude through the Bridge MCP server',
-  footer: 'Proposed with the Bridge MCP server on behalf of a person. Docs Claude drafted say "draftedBy": "claude" until a reviewer accepts them.',
+  where: 'with an AI tool through the Bridge MCP server',
+  footer: 'Proposed with the Bridge MCP server on behalf of a person. Docs an AI drafted say "draftedBy": "claude" until a reviewer accepts them.',
   label: 'source: mcp',
 };
 
 export const DOCS_CLI_ORIGIN: DocsOrigin = {
   where: 'with the bridge CLI',
-  footer: 'Proposed with the bridge CLI on behalf of a person. Docs Claude drafted say "draftedBy": "claude" until a reviewer accepts them.',
+  footer: 'Proposed with the bridge CLI on behalf of a person. Docs an AI drafted say "draftedBy": "claude" until a reviewer accepts them.',
   label: 'source: cli',
 };
 

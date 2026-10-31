@@ -193,7 +193,7 @@ describe('a branch in review, from draft to merged', () => {
     expect(r).toMatchObject({ status: 'added', pr: 1, branch: 'bridge/darken-muted-text' });
     expect(gh.pulls).toHaveLength(1);
     expect(gh.fileAt('bridge/darken-muted-text', LIGHT)).toContain('{palette.neutral.800}');
-    expect(gh.comments.get(1)!.at(-1)).toMatch(/@agent added token edits from Claude through the Bridge MCP server/);
+    expect(gh.comments.get(1)!.at(-1)).toMatch(/@agent added token edits from an AI tool through the Bridge MCP server/);
     gh.viewer.login = 'someone';
     gh.viewer.login = 'agent';
     await expect(ops.proposeTokenChange(await rw(), { title: 'x', edits: [edit()], pr: 1, branch: 'explore/x' })).rejects.toThrow(/not both/);
