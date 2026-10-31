@@ -1,6 +1,6 @@
 // Studio Home on a team shell (multi-team PR 3b): the same home as /studio/ (components/ds/studio/StudioHome.tsx, the
 // GitHub rows of scripts/home-data.ts), with the repo facts the self-hosted page embeds at build time computed in the
-// browser from the team's repo model instead: contrast failures, the component list of Create branch, the guidance
+// browser from the team's repo model instead: contrast failures, the component list of Start an exploration (Report it), the guidance
 // drafts waiting for review. Adoption is not compared here: a team's audits are not paired before and after a move
 // the way the demo's are, so its figures live on Quality only. The setup steps are not shown here (they belong to the
 // onboarding of hosted teams, multi-team PR 3c).

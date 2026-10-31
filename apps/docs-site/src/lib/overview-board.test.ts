@@ -135,12 +135,11 @@ describe('release titles in designer words', () => {
   });
 });
 
-describe('start a change', () => {
+describe('ways to start', () => {
   it('leads each choice to the flow that does it', () => {
     expect(startChangeHref('look')).toBe('/studio/tokens/');
     expect(startChangeHref('variant', 'button')).toBe('/studio/components/?c=button&intent=variant');
     expect(startChangeHref('wrong', 'select')).toBe('/studio/components/?c=select&intent=wrong');
-    expect(startChangeHref('new')).toBe('/studio/changes/?view=explorations&start=new');
   });
 });
 

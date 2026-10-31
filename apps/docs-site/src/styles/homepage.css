@@ -606,7 +606,7 @@
   align-items: center;
 }
 
-/* Start 1: the create branch dialog. */
+/* Start 1: the Start an exploration dialog. */
 .hp-dlg {
   display: flex;
   flex-direction: column;

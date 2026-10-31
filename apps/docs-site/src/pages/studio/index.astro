@@ -66,7 +66,7 @@ const homeStatic = {
   // The launcher on the hosted site, hidden while a visitor explores the demo (components/ds/studio/DemoHome.tsx).
   launcher: hostedSite,
 };
-// Create branch > A feature in a product starts an exploration: its preview settings, as the Branches page embeds them.
+// Start an exploration in a product: its preview settings, as the Branches page embeds them.
 const repo = siteRepo();
 const branchesCfg: BranchesConfig = { owner: repo.owner, repo: repo.repo, defaultBranch: repo.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
 const json = jsonForScript(homeStatic);

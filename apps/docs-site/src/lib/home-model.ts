@@ -262,18 +262,18 @@ const CONTRIBUTOR_TOUR: Record<ContributorTourAt, { title: string; text: string 
   },
   start: {
     title: 'Start an exploration',
-    text: 'Pick a product and say what you want to try. Claude AI builds it with the library and tells you what the library does not have yet.',
+    text: 'Pick a product, or the library itself, and say what you want to try. Claude AI builds it with the library and tells you what the library does not have yet.',
   },
 };
 
 /** The home with nothing at all points at its ways to start instead: an exploration first, then the library changes. */
-const START_A_CHANGE = {
+const WHERE_TO_START = {
   title: 'Where to start',
-  text: 'Start an exploration to try a product screen with Claude AI, or pick what to change in the library. Nothing reaches the library until a reviewer approves it.',
+  text: 'Start an exploration to try a product screen or a library idea with Claude AI, or edit the library directly. Nothing reaches the library until a reviewer approves it.',
 };
 
-/** One step's words. `empty`: the home with nothing at all, whose start step points at the ways to start a change. */
-export const contributorTour = (at: ContributorTourAt, empty = false): { title: string; text: string } => (at === 'start' && empty ? START_A_CHANGE : CONTRIBUTOR_TOUR[at]);
+/** One step's words. `empty`: the home with nothing at all, whose start step points at the ways to start. */
+export const contributorTour = (at: ContributorTourAt, empty = false): { title: string; text: string } => (at === 'start' && empty ? WHERE_TO_START : CONTRIBUTOR_TOUR[at]);
 
 const RANK: Record<NeedKind, number> = { join: 0, review: 1, health: 2, own: 3, guidance: 4, setup: 5 };
 

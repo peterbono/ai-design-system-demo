@@ -392,7 +392,7 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* The first card opens Create branch: a dashed placeholder the size of a card. */
+/* The first card opens Start an exploration: a dashed placeholder the size of a card. */
 .sh-cards .sh-create-btn {
   height: 100%;
   min-height: var(--size-40);
@@ -535,18 +535,8 @@
   }
 }
 
-/* --- Create branch (components/ds/studio/StartChange.tsx): a DS Dialog, product first. The step line sits above
-   the question, the fields stack, the footer puts the quiet way out on the left and the one primary on the right. */
-
-.sc-step {
-  display: block;
-  margin-block-end: var(--space-2);
-  color: var(--color-text-muted);
-  font-family: var(--typography-ui-family);
-  font-size: var(--typography-ui-size);
-  font-weight: var(--typography-ui-weight);
-  line-height: var(--typography-ui-line-height);
-}
+/* --- Start an exploration (components/ds/studio/StartExploration.tsx): a DS Dialog, one question. The fields
+   stack, the footer puts the quiet way out (Report it, Back) on the left and the one primary on the right. */
 
 .sc-form {
   display: grid;

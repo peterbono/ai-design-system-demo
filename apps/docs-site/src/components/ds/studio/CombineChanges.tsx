@@ -13,7 +13,7 @@ import { combineSummary, MAX_TOGETHER, MIN_TOGETHER, namesOf, togetherGuardrail,
 import { barCopy, FULL_TIP } from '../../../lib/branches-page';
 import { reviewTokenChange } from '../../../lib/token-review';
 import { viewTitle, viewTogetherHref } from '../../../lib/view-scope';
-import { START_CHANGE_EVENT, type StartChangeLook } from './StartChange';
+import { START_CHANGE_EVENT, type StartChangeLook } from './StartExploration';
 import { LatestLibraryError, readLatestLibrary, readTogetherSource, type LatestLibrary, type TogetherSource } from '../../../scripts/combine-read';
 
 export interface ListedBranch {
@@ -47,7 +47,7 @@ export function SelectionBar({ selected, listed, admin, failure, onClear, onDrop
   const n = selected.length;
   const copy = barCopy(n);
 
-  // One primary per view: while something is checked, the bar's action is it and Create branch steps down to secondary.
+  // One primary per view: while something is checked, the bar's action is it and Start an exploration steps down to secondary.
   // Only a change of selection speaks: the page sets the button for its view (scripts/changes.ts).
   const had = useRef(false);
   useEffect(() => {

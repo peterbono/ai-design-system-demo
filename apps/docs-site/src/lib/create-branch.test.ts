@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, productMarks, productOfBranch, type ProductConfig } from '@bridge-ds/core';
-import { askAdmin, claudePrompt, featureHref, featureName, featurePurpose, featureProblems, featureProducts, featureRepo, firstStep, initialProduct, productParam, productRepoBlockedLine } from './create-branch';
+import { askAdmin, claudePrompt, featureHref, featureName, featurePurpose, featureProblems, featureProducts, featureRepo, initialTarget, LIBRARY_TARGET, productParam, productRepoBlockedLine, startTargets } from './create-branch';
 
 const THREE: ProductConfig[] = [
   { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
@@ -8,7 +8,7 @@ const THREE: ProductConfig[] = [
   { key: 'library', name: 'Library', path: 'packages', default: true },
 ];
 
-describe('create branch, product first', () => {
+describe('start an exploration, in a product or the library', () => {
   it('builds features in every product but the library', () => {
     expect(featureProducts(THREE).map((p) => p.key)).toEqual(['admin', 'shop']);
     expect(featureProducts(DEFAULT_PRODUCTS).map((p) => p.key)).toEqual(['admin']);
@@ -16,18 +16,28 @@ describe('create branch, product first', () => {
     expect(featureProducts([])).toEqual([]);
   });
 
-  it('skips the kind question when only the library exists', () => {
-    expect(firstStep(featureProducts(THREE))).toBe('kind');
-    expect(firstStep(featureProducts([{ key: 'library', name: 'Library' }]))).toBe('library');
+  it('starts in every product, then the library, one line under the library', () => {
+    const t = startTargets(THREE);
+    expect(t.map((x) => [x.value, x.label, x.library])).toEqual([
+      ['admin', 'Admin demo', false],
+      ['shop', 'Shop', false],
+      ['library', 'The library', true],
+    ]);
+    expect(t[2]!.description).toBe('Tokens, variants, new components');
+    expect(LIBRARY_TARGET.label).toBe('The library');
+    expect(startTargets([{ key: 'ds', name: 'Design system', default: true }]).map((x) => x.label)).toEqual(['The library']);
+    expect(startTargets([])).toEqual([]);
   });
 
-  it('preselects the product the page came from, else the only one, else none', () => {
-    const choices = featureProducts(THREE);
-    expect(initialProduct(choices, 'shop')).toBe('shop');
-    expect(initialProduct(choices, 'Admin demo')).toBe('admin');
-    expect(initialProduct(choices, 'library')).toBeNull();
-    expect(initialProduct(choices, null)).toBeNull();
-    expect(initialProduct(featureProducts(DEFAULT_PRODUCTS), null)).toBe('admin');
+  it('preselects the target the page came from, else the only product, else the library when there is no product', () => {
+    const t = startTargets(THREE);
+    expect(initialTarget(t, 'shop')).toBe('shop');
+    expect(initialTarget(t, 'Admin demo')).toBe('admin');
+    expect(initialTarget(t, 'library')).toBe('library');
+    expect(initialTarget(t, null)).toBeNull();
+    expect(initialTarget(startTargets(DEFAULT_PRODUCTS), null)).toBe('admin');
+    expect(initialTarget(startTargets([{ key: 'ds', name: 'Design system', default: true }]), null)).toBe('ds');
+    expect(initialTarget(startTargets([{ key: 'ds', name: 'Design system', default: true }]), 'library')).toBe('ds');
     expect(productParam('?product=shop&x=1')).toBe('shop');
     expect(productParam('?product=')).toBeNull();
     expect(productParam('')).toBeNull();
@@ -50,14 +60,15 @@ describe('create branch, product first', () => {
   });
 
   it('says how to fix each field', () => {
-    const choices = featureProducts(THREE);
+    const choices = startTargets(THREE);
     expect(featureProblems({ product: 'admin', sentence: 'Billing screen', jira: '' }, choices)).toEqual({});
     expect(featureProblems({ product: 'admin', sentence: 'Billing screen', jira: 'ds-42' }, choices)).toEqual({});
     const p = featureProblems({ product: null, sentence: '  ', jira: 'nope' }, choices);
-    expect(p.product).toMatch(/Pick the product/);
-    expect(p.sentence).toMatch(/Say what you are building/);
+    expect(p.product).toBe('Pick a product or the library.');
+    expect(p.sentence).toMatch(/Say what you want to explore/);
     expect(p.jira).toMatch(/like DS-42/);
-    expect(featureProblems({ product: 'library', sentence: 'x', jira: '' }, choices).product).toBeDefined();
+    expect(featureProblems({ product: 'library', sentence: 'Pill buttons', jira: '' }, choices)).toEqual({});
+    expect(featureProblems({ product: 'nope', sentence: 'x', jira: '' }, choices).product).toBeDefined();
     expect(featureProblems({ product: 'admin', sentence: '### --', jira: '' }, choices).sentence).toMatch(/letters or digits/);
   });
 
@@ -67,6 +78,7 @@ describe('create branch, product first', () => {
     expect(line).not.toMatch(/missing|Build|\u2014/);
     expect(claudePrompt({ sentence: 'Cart', product: THREE[1]!, number: 3 })).toContain('"Cart" in Shop (acme/shop) and use');
     expect(claudePrompt({ sentence: 'x', product: { key: 'k', name: 'K' }, number: 1 })).toContain('"x" in K and use');
+    expect(claudePrompt({ sentence: 'Pill buttons', product: THREE[2]!, number: 7, library: true })).toBe('Open Bridge exploration #7 "Pill buttons" in the Bridge library. I\'ll tell you what to explore.');
     expect(featureHref(160)).toBe('/studio/changes/?exploration=160');
   });
 

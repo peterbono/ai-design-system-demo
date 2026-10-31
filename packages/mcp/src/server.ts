@@ -277,7 +277,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
         dryRun: z.boolean().optional().describe('Return the diff, tier, files and PR body without writing.'),
         branch: z.string().optional().describe('Exploration branch (explore/<slug>) to commit the edits to instead of opening a new pull request. GitHub: one commit on that branch. Local: written to the working tree, which must have that branch checked out. Never main.'),
         pr: z.union([z.number().int().positive(), z.string().min(1)]).optional().describe('A branch already in review (12 or "#12") to add the edits to, as "Edit tokens in this branch" in Studio: one commit there and a comment for the reviewers. Its author or someone with write access; needs GITHUB_TOKEN.'),
-        jira: z.string().optional().describe('Jira key like DS-42, as in Studio\'s Start a change: first in the branch name and title so Jira links them.'),
+        jira: z.string().optional().describe('Jira key like DS-42, as in Studio\'s Start an exploration: first in the branch name and title so Jira links them.'),
         product: z.string().optional().describe('Product key or name (bridge_list_products) the change is for. Default: the product of the current folder or repo. Ask the person when it is not obvious.'),
         changes: ChangesArg,
       },

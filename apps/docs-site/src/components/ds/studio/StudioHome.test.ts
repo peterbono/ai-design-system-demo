@@ -166,14 +166,15 @@ describe('StudioHome, explorations only', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('starts an exploration on its product step: no question about the library first', async () => {
+  it('starts an exploration in one step: where (a product or the library) and what, no type question first', async () => {
     const user = userEvent.setup();
     render(createElement(StudioHome, props()));
     await user.click(screen.getByRole('button', { name: 'Start an exploration' }));
     const dialog = await screen.findByRole('dialog');
     expect(dialog.textContent).toContain('What do you want to explore?');
-    expect(dialog.textContent).toContain('In which product');
+    expect(dialog.textContent).toContain('Where');
     expect(dialog.textContent).not.toContain('What are you working on?');
+    expect(screen.getByRole('button', { name: 'Something looks wrong? Report it' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Start with Claude AI' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });

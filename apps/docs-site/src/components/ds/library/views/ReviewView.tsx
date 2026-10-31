@@ -16,8 +16,8 @@ export const REVIEW_PAGE = { title: 'How review works', art: 'guide', studio: 's
 const JOURNEY: { title: string; text: string }[] = [
   { title: 'Explore in Figma', text: 'A designer tries the change on real screens. Nothing in Figma reaches the product by itself.' },
   {
-    title: 'Start a change and send it for review',
-    text: 'In Studio or the DS Bridge Figma plugin, a designer starts a change to the library and sends it for review. For developers: on GitHub that change is a branch off main and a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.',
+    title: 'Start an exploration and send it for review',
+    text: 'In Studio (Start an exploration, with the library as where) or the DS Bridge Figma plugin, a designer starts a change to the library and sends it for review. For developers: on GitHub that change is a branch off main and a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.',
   },
   {
     title: 'Pull request',

@@ -1,5 +1,5 @@
 // Studio Branches page controller: the list (every branch, explorations included), the views the header and old
-// addresses reach (History ?view=history, the exploration start form ?view=explorations&start=new or &for=N, Requests
+// addresses reach (History ?view=history, the exploration start form from a request ?view=explorations&for=N (an old &start=new opens the Start an exploration dialog), Requests
 // ?view=requests when request triage is on in Studio, lib/studio-flags), a branch opened in place (?pr=N), a component
 // change request opened in place (?request=N), a suggestion opened in place (?suggestion=N, scripts/suggestions.ts),
 // the local draft strip, and the routes old pages redirect to
@@ -49,8 +49,8 @@ function selectTab(view: View) {
   if (title) title.textContent = VIEW_TITLE[view];
   $('cg-history-link').hidden = view !== 'review';
   $('cg-back-link').hidden = view === 'review';
-  // One primary per view: History and the start form have their own, so Create branch steps down to secondary there
-  // (components/ds/studio/StartChange START_CHANGE_EVENT; on the list the selection bar decides).
+  // One primary per view: History and the start form have their own, so Start an exploration steps down to secondary
+  // there (components/ds/studio/StartExploration START_CHANGE_EVENT; on the list the selection bar decides).
   // The island reads data-start-variant when it mounts after this, and the event when it is already there.
   const variant = view !== 'review' || document.querySelector('.cg-bar') ? 'secondary' : 'primary';
   const slot = document.querySelector<HTMLElement>('[data-greet]');
@@ -165,18 +165,15 @@ function route() {
   }
   const v = params.get('view');
   // Request triage off (teams triage in Jira): ?view=requests opens All branches. Explorations are rows of the list:
-  // ?view=explorations opens its own view only to start one (Create branch > New component, or from a request).
-  const starting = Boolean(Number(params.get('for'))) || params.get('start') === 'new';
+  // ?view=explorations opens its own view only to start one from a request (&for=N). An old ?start= address
+  // (?view=explorations&start=new, the old "New component") opens the header's Start an exploration dialog instead
+  // (components/ds/studio/StartExploration startFromAddress), over the list.
+  const starting = Boolean(Number(params.get('for')));
   const view: View = v === 'history' || (v === 'explorations' && starting) || (v === 'requests' && REQUEST_TRIAGE_IN_STUDIO) ? v : 'review';
   showView(view);
   // Start an exploration from a request: the form, filled from it.
   const forRequest = Number(params.get('for'));
   if (view === 'explorations' && forRequest) void startForRequest(forRequest);
-  // From the Overview "Start a change", New component: the start form, open and empty.
-  else if (view === 'explorations' && params.get('start') === 'new') {
-    const opener = document.getElementById('ex-start-open');
-    if (opener?.getAttribute('aria-expanded') !== 'true') opener?.click();
-  }
   // Branch scope from the Studio header: open the pull request of that branch, if it has one.
   const branch = params.get('branch');
   if (view === 'review' && branch && listLoaded)

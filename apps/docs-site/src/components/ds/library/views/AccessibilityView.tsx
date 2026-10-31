@@ -202,7 +202,7 @@ export default function AccessibilityView({ data }: { data: LibraryData }) {
           <h3>When a pair fails</h3>
           <ul>
             <li>Fix it with a token change, never locally in a screen or a component. A local fix hides the problem and the next team hits it again.</li>
-            <li>Open an issue, or start a change in Studio and send it for review, with the pair, the ratio and where it shows up. A new token value needs the design owner's approval, then ships once the automatic checks pass.</li>
+            <li>Open an issue, or start an exploration in Studio and send it for review, with the pair, the ratio and where it shows up. A new token value needs the design owner's approval, then ships once the automatic checks pass.</li>
             <li>Until the fix is in the library, avoid that pair in new places.</li>
           </ul>
           {data.extras.canEdit !== false && (
