@@ -96,9 +96,12 @@ describe('StudioHome, contributor with nothing yet', () => {
     expect(await screen.findByText('Where to start')).toBeTruthy();
     expect(screen.queryByText(/of 1$/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
-    // "Start an exploration" is the first way to start, before the library changes; no second section repeats it.
-    const choices = [...container.querySelectorAll('.sh-choices > li')].map((li) => li.querySelector('.sh-choice-title')?.textContent);
-    expect(choices).toEqual(['Start an exploration', 'Edit tokens', 'Ask for a component change', 'Write usage guidance']);
+    // "Start an exploration" is the one way to start on the Home: the library changes stay on their own pages.
+    const choices = [...container.querySelectorAll('.sh-choice')].map((c) => c.querySelector('.sh-choice-title')?.textContent);
+    expect(choices).toEqual(['Start an exploration']);
+    expect(screen.queryByText('Edit tokens')).toBeNull();
+    expect(screen.queryByText('Ask for a component change')).toBeNull();
+    expect(screen.queryByText('Write usage guidance')).toBeNull();
     expect(screen.getAllByRole('button', { name: 'Start an exploration' })).toHaveLength(1);
     expect(screen.queryByRole('heading', { level: 2, name: /explorations/i })).toBeNull();
     expect(container.querySelector('.sh-cards')).toBeNull();
@@ -404,12 +407,12 @@ describe('StudioHome, quiet team Home (recent)', () => {
   const quiet = (over: Partial<StudioHomeProps> = {}) =>
     props({ state: 'empty', contributor: false, lead: true, recent: true, branches: [], greeting: 'Good evening, Florian.', products, ...over });
 
-  it('keeps the ways to start on top, then Recent explorations and the product folders, and tells the truth in the greeting', async () => {
+  it('keeps Start an exploration on top, then Recent explorations and the product folders, and tells the truth in the greeting', async () => {
     localStorage.setItem('bridge.home.lead-tour', 'done');
     const waiting = exploration(7, { title: 'Dashboard: orders waiting to ship', productKey: 'admin-app', product: 'Art print shop', stage: 'with-devs', state: 'Waiting for code', preview: { kind: 'screen', src: null } });
     const { container } = render(createElement(StudioHome, quiet({ explorations: [waiting] })));
-    expect(screen.getByRole('heading', { level: 1, name: 'What do you want to change?' })).toBeTruthy();
-    expect(screen.getByRole('list', { name: 'Ways to start' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'What do you want to explore?' })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Start an exploration' })).toHaveLength(1);
     expect(container.querySelector('.sh-zone')!.textContent).toContain('Good evening, Florian. Nothing needs you. 1 waiting for code.');
     expect(container.textContent).not.toContain('you have nothing in progress');
     const recent = container.querySelector('[aria-labelledby="sh-explorations"]')!;
