@@ -338,3 +338,16 @@ test('#611: the comment and statuses give the admin preview; the statuses alone 
     assert.equal(resolveBranchPreviews(realApps(), ctx, { statuses }).find((p) => p.app === 'admin')!.url, null, st.description);
   }
 });
+
+test('resolveBranchPreviews: a repository with one Vercel project reports plain "Vercel", the project comes from the inspector URL', () => {
+  // The Art print shop design copy, 2026-11-01: context "Vercel", no comment, a branch alias Vercel shortened.
+  const apps = { admin: 'https://art-print-shop-design-git-{branch}-peterbonos-projects.vercel.app' };
+  const ctx = { branch: 'explore/dashboard-orders-waiting-to-ship', pr: 1 };
+  const statuses = [{ context: 'Vercel', state: 'success', target_url: 'https://vercel.com/peterbonos-projects/art-print-shop-design/Ab2C7mytWCNDFWoenZ7kBodVLG2n', description: 'Deployment has completed' }];
+  const admin = resolveBranchPreviews(apps, ctx, { statuses }).find((p) => p.app === 'admin')!;
+  assert.equal(admin.url, 'https://art-print-shop-design-git-explore-da-6e68e5-peterbonos-projects.vercel.app/');
+  assert.equal(admin.state, 'ready');
+  // Another project's plain status names no app of this template.
+  const other = [{ ...statuses[0]!, target_url: 'https://vercel.com/peterbonos-projects/someone-else/Ab2C7mytWCNDFWoenZ7kBodVLG2n' }];
+  assert.equal(resolveBranchPreviews(apps, ctx, { statuses: other }).find((p) => p.app === 'admin')!.url, null);
+});
