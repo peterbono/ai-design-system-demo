@@ -1,5 +1,13 @@
 # @bridge-ds/docs-site
 
+## 0.26.3
+
+### Patch Changes
+
+- 7fe13e3: Email designers explore with Claude: the Bridge connector signs them in with their Bridge account (no GitHub) and acts through the email contributors' proxy; on their own exploration branches in the design team's copy they may save prototype code (never CI, hosting settings or node_modules); the exploration page and the start dialog show them the Claude app only.
+- e1a5bc7: People who joined with their email explore products too: Bridge opens, moves and hands off their explorations in the design team's copy (and files the developers' task) on their behalf, under a narrow deny-by-default policy. The start dialog says upfront when a product is out of their reach, without sending a designer to the library.
+- f144824: Library page for a designer of the team: two cards, Ask for a component change (Components) and Suggest a token change (Tokens), instead of a line with no action.
+
 ## 0.26.2
 
 ### Patch Changes
