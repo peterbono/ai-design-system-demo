@@ -20,7 +20,7 @@ import {
   waitForDesignCopy,
 } from '../src/design-copy-github';
 import { designCopyTakeCommands, doneExploringPlan, explorationNote, explorationNotePath, explorationPrBody, parseExplorationBody, withDoneExploring, type Exploration } from '../src/explorations';
-import { doneExploringOnGitHub } from '../src/exploration-done-github';
+import { designTaskRef, doneExploringOnGitHub, DESIGN_TASK_BACK_COMMENT, reopenExplorationOnGitHub } from '../src/exploration-done-github';
 import { GitHubClient } from '../src/github-client';
 import { fakeGitHub } from './fake-github';
 import { realConfig } from './helpers';
@@ -241,3 +241,67 @@ test('Done exploring from a copy opens a from-design task in the product reposit
   assert.ok(explorationNote(e).length > 0);
 });
 
+
+test('Back to exploring closes the developers\' task; Done exploring again reopens that same task', async () => {
+  const e: Exploration = { name: 'Orders', purpose: 'Pack first', slug: 'orders' };
+  const body = explorationPrBody(e, { owner: 'acme', repo: 'shop-design', packages: [], apps: {}, inProduct: { name: 'Art print shop', library: DS, copyOf: 'acme/shop' } });
+  const done = withDoneExploring(body, { branch: 'explore/orders', doneAt: '2026-11-01T10:00:00Z', copy: 'acme/shop-design', task: 'https://github.com/acme/shop/issues/7' });
+  const pull = { number: 4, node_id: 'PR_4', html_url: 'https://github.com/acme/shop-design/pull/4', title: 'Exploration: Orders', state: 'open', draft: true, body: done, labels: [{ name: 'ready-for-devs' }], head: { ref: 'explore/orders', sha: 'h1' }, base: { ref: 'main' }, user: { login: 'ann' }, updated_at: '2026-11-01T09:00:00Z' };
+  const issue = { number: 7, title: 'Design: Orders', body: 'x', html_url: 'https://github.com/acme/shop/issues/7', state: 'open', labels: [{ name: FROM_DESIGN_LABEL }], user: { login: 'ann' }, created_at: '', updated_at: '' };
+  const writes: { method: string; path: string; body?: any }[] = [];
+  const res = (status: number, b: unknown) => ({ ok: status < 300, status, headers: { get: () => null }, json: async () => b, text: async () => JSON.stringify(b) });
+  const f = (async (url: string, init?: { method?: string; body?: string }) => {
+    const method = init?.method ?? 'GET';
+    const path = url.replace('https://api.github.com', '');
+    const b = init?.body ? JSON.parse(init.body) : undefined;
+    if (method !== 'GET') writes.push({ method, path, body: b });
+    if (path === '/repos/acme/shop-design/pulls/4') {
+      if (method === 'PATCH') Object.assign(pull, b);
+      return res(200, pull);
+    }
+    if (path.startsWith('/repos/acme/shop-design/pulls/4/files')) return res(200, [{ filename: 'src/pages/Orders.tsx', status: 'modified' }]);
+    if (path.startsWith('/repos/acme/shop-design/issues/4/labels')) {
+      if (method === 'POST') pull.labels = [{ name: 'exploration' }];
+      if (method === 'DELETE') pull.labels = pull.labels.filter((l) => !path.endsWith(l.name));
+      return res(200, []);
+    }
+    if (path === '/repos/acme/shop/labels') return res(201, {});
+    if (path === '/repos/acme/shop/issues/7/comments') return res(201, { id: 1, html_url: 'https://github.com/acme/shop/issues/7#c1' });
+    if (path === '/repos/acme/shop/issues/7') {
+      if (method === 'PATCH') Object.assign(issue, b);
+      return res(200, issue);
+    }
+    if (path === '/repos/acme/shop/issues') return res(201, { ...issue, number: 8 });
+    if (path.startsWith('/repos/acme/shop-design/commits/')) return res(200, { check_runs: [], statuses: [], state: 'success' });
+    return res(404, { message: `no route ${method} ${path}` });
+  }) as unknown as ConstructorParameters<typeof GitHubClient>[2];
+  const gh = new GitHubClient('acme/shop-design', 't', f, NO_RETRY, { etags: false, protectedBranches: ['main'], branchPrefix: 'explore/' });
+
+  const back = await reopenExplorationOnGitHub(gh, 4, { date: new Date('2026-11-01T11:00:00Z') });
+  assert.deepEqual(back.warnings, []);
+  assert.deepEqual(
+    writes.filter((w) => w.path.startsWith('/repos/acme/shop/')).map((w) => `${w.method} ${w.path} ${w.body?.state_reason ?? ''}`.trim()),
+    ['POST /repos/acme/shop/issues/7/comments', 'PATCH /repos/acme/shop/issues/7 not_planned'],
+  );
+  assert.equal(writes.find((w) => w.path === '/repos/acme/shop/issues/7/comments')!.body.body, DESIGN_TASK_BACK_COMMENT);
+  assert.equal(issue.state, 'closed');
+  // The task stays recorded, so Done exploring said again finds it.
+  assert.equal(parseExplorationBody(pull.body)?.task, 'https://github.com/acme/shop/issues/7');
+
+  writes.length = 0;
+  const again = await doneExploringOnGitHub(gh, 4, { products: PRODUCTS, openedBy: 'ann' });
+  assert.deepEqual(again.task, { number: 7, url: 'https://github.com/acme/shop/issues/7', repo: 'acme/shop' });
+  assert.ok(!writes.some((w) => w.method === 'POST' && w.path === '/repos/acme/shop/issues'), 'no second task');
+  const reopen = writes.find((w) => w.method === 'PATCH' && w.path === '/repos/acme/shop/issues/7')!;
+  assert.equal(reopen.body.state, 'open');
+  assert.equal(reopen.body.state_reason, 'reopened');
+  assert.equal(issue.state, 'open');
+});
+
+test('designTaskRef reads a task URL, only in the expected repository', () => {
+  assert.deepEqual(designTaskRef('https://github.com/acme/shop/issues/7', 'acme/shop'), { repo: 'acme/shop', number: 7, url: 'https://github.com/acme/shop/issues/7' });
+  assert.deepEqual(designTaskRef('https://github.com/acme/shop/issues/7', null)?.number, 7);
+  assert.equal(designTaskRef('https://github.com/acme/other/issues/7', 'acme/shop'), null);
+  assert.equal(designTaskRef('https://github.com/acme/shop/pull/7', null), null);
+  assert.equal(designTaskRef(undefined, null), null);
+});

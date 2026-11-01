@@ -3,7 +3,7 @@
 // empty "Your preview" frame. Exploring: the preview, the last activity in words, Done exploring, the last 3 events.
 // Later states keep their own pages. No DOM, no fetch: tested in exploration-page.test.ts.
 import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
-import { changedThings, continueLines, explorationActivity, humanAuthorOf, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
+import { changedThings, continueLines, explorationActivity, humanAuthorOf, parseExplorationBody, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
 
 /** A person or Claude on the page: the login (for the face), the name to show, and whether it is Claude. */
 export interface PageFace {
@@ -48,14 +48,20 @@ export interface ActivityRow {
 }
 
 /** The last 3 events: Claude's and people's changes, then "started the exploration" when it fits. */
-export function activityRows(input: { commits: readonly BranchCommitLike[]; author: string; startedAt?: string | null | undefined; names?: Record<string, string>; now?: Date }): ActivityRow[] {
-  return explorationActivity({ commits: input.commits, author: input.author, startedAt: input.startedAt, limit: 3 }).map((e) => ({ who: faceOf(e.who, e.claude, input.names, e.withClaude), text: e.text, when: shortAgo(e.at, input.now) }));
+export function activityRows(input: { commits: readonly BranchCommitLike[]; author: string; startedAt?: string | null | undefined; reopened?: { at: string; by?: string | null | undefined } | null; names?: Record<string, string>; now?: Date }): ActivityRow[] {
+  return explorationActivity({ commits: input.commits, author: input.author, startedAt: input.startedAt, reopened: input.reopened, limit: 3 }).map((e) => ({ who: faceOf(e.who, e.claude, input.names, e.withClaude), text: e.text, when: shortAgo(e.at, input.now) }));
 }
 
 /** "Claude changed Orders table and Bulk actions bar, 2 h ago": the line under the title once something changed. */
 export function headlineOf(input: { commits: readonly BranchCommitLike[]; files: readonly string[] | null; author: string; names?: Record<string, string>; now?: Date }): ActivityRow | null {
   const last = lastActivity({ commits: input.commits, files: input.files, author: input.author });
   return last ? { who: faceOf(last.who, last.claude, input.names, last.withClaude), text: last.text, when: shortAgo(last.at, input.now) } : null;
+}
+
+/** Back to exploring, from the exploration block: when, and who said it when known. */
+export function reopenedOf(body: string | null | undefined): { at: string; by: string | null } | null {
+  const e = parseExplorationBody(body);
+  return e?.reopenedAt && !e.doneAt ? { at: e.reopenedAt, by: e.reopenedBy ?? null } : null;
 }
 
 /** The two lines of the Continue in Claude panel. */

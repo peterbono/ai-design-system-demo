@@ -6,8 +6,8 @@
 // someone), then one row of actions with a single primary (the guidance while it is missing or in review, else
 // "Change this component"). The designer drives a change: the drawer asks what she wants to change, in place, and
 // leads to her component's tokens, to an exploration a developer builds with Claude from her Figma frame, or to a mismatch report
-// (scripts/request-form.ts, lib/change-intent.ts). No developer fold: the code is one "Open on GitHub" link on the
-// summary line, next to "Open in the Library".
+// (scripts/request-form.ts, lib/change-intent.ts). No developer fold: the code is one "Open on GitHub" link under the
+// summary, after "Open in the Library" (hidden for an email member).
 import { jsonForScript } from '../../../lib/html';
 import '../../../styles/studio.css';
 import '../../../styles/components-studio.css';
@@ -146,10 +146,15 @@ const signIn = Boolean(signInConfig());
           );
         return (
           <section class="cm-d-panel" data-cm-panel={c.slug} data-name={c.name} data-family={c.category} data-tokens-href={tokensHref ?? ''} hidden>
-            <p class="cm-d-summary">
-              {c.docs?.summary ?? c.description ?? 'No summary yet.'}{' '}
-              <Link href={`/components/${c.slug}/`}>Open in the Library</Link>{' '}
-              <Link href={sourceUrl(c.files.tsx)} external>{VOCAB.openOnGitHub}</Link>
+            <p class="cm-d-summary">{c.docs?.summary ?? c.description ?? 'No summary yet.'}</p>
+            {/* Two links on their own line, apart. The GitHub one is for people with GitHub: an email member (a designer
+                signed in by email) never sees it (scripts/components-studio.ts). */}
+            <p class="cm-d-links">
+              <Link href={`/components/${c.slug}/`}>Open in the Library</Link>
+              <span class="cm-d-gh" data-cm-gh>
+                <span aria-hidden="true">·</span>
+                <Link href={sourceUrl(c.files.tsx)} external>{VOCAB.openOnGitHub}</Link>
+              </span>
             </p>
             {c.docs?.preview ? (
               <figure class="cm-d-preview" aria-label={`${c.name}, live`}>

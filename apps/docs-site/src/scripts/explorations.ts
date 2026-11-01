@@ -607,7 +607,10 @@ export async function openExploration(n: number, push = true, product: string | 
       return xp.openExplorationPage(d, r, pull, of ?? defaultProduct(products), products, reopen, after.said);
     }
     xp.closeExplorationPage();
-    if (of) return pb.openProductBranch(d, r, pull, of, products, reopen, after.said);
+    // Archived: the detail below says so and offers Unarchive. The product branch page has no archived state (it
+    // painted nothing, a blank page right after Archive).
+    if (of && !r.archived) return pb.openProductBranch(d, r, pull, of, products, reopen, after.said);
+    pb.closeProductBranch();
   }
   const at = product ? productRepoByKey(product) : null;
   // Designer words: the product's name or the library, never a repository or a GitHub link (devs fix it in GitHub).

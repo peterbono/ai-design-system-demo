@@ -204,6 +204,13 @@ export function isClaudeCommit(c: BranchCommitLike): boolean {
 /** True for the commit Bridge writes when it starts an exploration (only the note file). */
 export const isStartCommit = (c: BranchCommitLike): boolean => /^chore\(explore\): start /.test(c.commit.message);
 
+/** True for the commit Bridge writes on Done exploring (the exploration note leaves the branch). */
+export const isDoneExploringCommit = (c: BranchCommitLike): boolean => /^chore\(explore\): done exploring/.test(c.commit.message);
+
+/** The activity words for Done exploring and Back to exploring, never Bridge's own commit subjects. */
+export const DONE_EXPLORING_WORDS = 'said done exploring';
+export const BACK_TO_EXPLORING_WORDS = 'took it back to exploring';
+
 /** Git's own subject for a merge ("Merge branch 'main' into explore/x", "Merge pull request #3 from ..."). */
 export const isMergeSubject = (subject: string): boolean => /^(Merge (branch|remote-tracking branch|pull request|commit)|Get the latest)\b/.test(subject.trim());
 
@@ -236,16 +243,25 @@ const dateOf = (c: BranchCommitLike) => c.commit.author?.date ?? c.commit.commit
  * The branch's activity, newest first: one event per commit (Bridge's start commit left out), then "started the
  * exploration". `limit` keeps the newest ones, the start event included when it fits.
  */
-export function explorationActivity(input: { commits: readonly BranchCommitLike[]; author: string; startedAt?: string | null | undefined; limit?: number }): ActivityEvent[] {
+export function explorationActivity(input: {
+  commits: readonly BranchCommitLike[];
+  author: string;
+  startedAt?: string | null | undefined;
+  /** Back to exploring (the exploration block's reopenedAt, and who said it when known). */
+  reopened?: { at: string; by?: string | null | undefined } | null | undefined;
+  limit?: number;
+}): ActivityEvent[] {
   const commits = input.commits.filter((c) => !isStartCommit(c));
-  const events: ActivityEvent[] = commits
-    .map((c) => {
-      const claude = isClaudeCommit(c);
-      const withClaude = !claude && isClaudeAssisted(c);
-      const who = claude ? 'claude' : (humanAuthorOf(c) ?? input.author);
-      return { who, claude, ...(withClaude ? { withClaude } : {}), text: subjectWords(c.commit.message.split('\n')[0]!), at: dateOf(c), sha: c.sha };
-    })
-    .sort((a, b) => b.at.localeCompare(a.at));
+  const events: ActivityEvent[] = commits.map((c) => {
+    // Bridge's own Done exploring commit reads as what the person said, never its subject.
+    if (isDoneExploringCommit(c)) return { who: humanAuthorOf(c) ?? input.author, claude: false, text: DONE_EXPLORING_WORDS, at: dateOf(c), sha: c.sha };
+    const claude = isClaudeCommit(c);
+    const withClaude = !claude && isClaudeAssisted(c);
+    const who = claude ? 'claude' : (humanAuthorOf(c) ?? input.author);
+    return { who, claude, ...(withClaude ? { withClaude } : {}), text: subjectWords(c.commit.message.split('\n')[0]!), at: dateOf(c), sha: c.sha };
+  });
+  if (input.reopened?.at) events.push({ who: input.reopened.by || input.author, claude: false, text: BACK_TO_EXPLORING_WORDS, at: input.reopened.at });
+  events.sort((a, b) => b.at.localeCompare(a.at));
   const start = input.commits.find(isStartCommit);
   const startedAt = input.startedAt ?? (start ? dateOf(start) : null);
   if (startedAt) events.push({ who: input.author, claude: false, text: 'started the exploration', at: startedAt });
@@ -258,7 +274,7 @@ export function explorationActivity(input: { commits: readonly BranchCommitLike[
  */
 export function lastActivity(input: { commits: readonly BranchCommitLike[]; files: readonly string[] | null | undefined; author: string }): { who: string; claude: boolean; withClaude?: boolean; text: string; at: string } | null {
   // A merge brought in other people's work: the line says what changed on the branch itself.
-  const latest = explorationActivity({ commits: input.commits, author: input.author }).find((e) => e.text !== 'started the exploration' && e.text !== MERGE_WORDS);
+  const latest = explorationActivity({ commits: input.commits, author: input.author }).find((e) => e.text !== 'started the exploration' && e.text !== MERGE_WORDS && e.text !== DONE_EXPLORING_WORDS);
   if (!latest) return null;
   const things = changedThings(input.files ?? []);
   return { who: latest.who, claude: latest.claude, ...(latest.withClaude ? { withClaude: true } : {}), text: things.length ? `changed ${listThings(things)}` : latest.text, at: latest.at };

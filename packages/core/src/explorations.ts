@@ -103,6 +103,8 @@ export interface Exploration {
    * `ready-for-devs` label could not be removed. A later "Done exploring" (doneAt) wins.
    */
   reopenedAt?: string | undefined;
+  /** GitHub login of who said "Back to exploring", when known (the activity names them). */
+  reopenedBy?: string | undefined;
 }
 
 const MARK = 'bridge-exploration';
@@ -333,6 +335,7 @@ function explorationBlock(e: Exploration): string {
     ...(e.doneSha ? { doneSha: e.doneSha } : {}),
     ...(e.task ? { task: e.task } : {}),
     ...(e.reopenedAt ? { reopenedAt: e.reopenedAt } : {}),
+    ...(e.reopenedAt && e.reopenedBy ? { reopenedBy: e.reopenedBy } : {}),
   };
   return `<!-- ${MARK} ${JSON.stringify(data).replace(/-->/g, '--\\u003e')} -->`;
 }
@@ -611,14 +614,14 @@ export function withDoneExploring(
  * loses its done marker (doneAt, doneSha) and records when it runs again (reopenedAt), so the body alone says it is
  * running even when a label write was refused. Pieces already sent stay recorded.
  */
-export function withoutDoneExploring(body: string | null | undefined, reopenedAt: string): string {
+export function withoutDoneExploring(body: string | null | undefined, reopenedAt: string, reopenedBy?: string | null): string {
   const e = parseExplorationBody(body);
   const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
   const kept = (body ?? '').replace(/### For developers[\s\S]*?(?=### |<!-- |$)/, '');
   if (!e || !block.test(kept)) return kept.trim();
-  const { doneAt: _doneAt, doneSha: _doneSha, ...rest } = e;
+  const { doneAt: _doneAt, doneSha: _doneSha, reopenedBy: _by, ...rest } = e;
   const at = kept.search(block);
-  const after = kept.slice(at).replace(block, () => explorationBlock({ ...rest, reopenedAt }));
+  const after = kept.slice(at).replace(block, () => explorationBlock({ ...rest, reopenedAt, ...(reopenedBy ? { reopenedBy } : {}) }));
   return `${kept.slice(0, at).trim()}\n\n${after.trim()}`.trim();
 }
 

@@ -8,7 +8,7 @@
 import { REQUEST_LABEL } from '@bridge-ds/core';
 import { openRequestCounts, requestFact } from '../lib/components-studio';
 import { VOCAB } from '../lib/vocabulary';
-import { readRepo } from './github-session';
+import { currentContributor, onAccess, readRepo } from './github-session';
 import { isChangeIntent } from '../lib/change-intent';
 import { clearChangeDone, initChangeFlow, pickChangeIntent, resetChangeFlow } from './request-form';
 import { fitFrames } from './explorer/preview-frames';
@@ -212,6 +212,10 @@ export function initComponentsStudio() {
     }
   });
   initChangeFlow(drawer);
+  // "Open on GitHub" is for people with GitHub: an email member (a designer signed in by email) never sees it.
+  const paintGitHubLinks = () => drawer.querySelectorAll<HTMLElement>('[data-cm-gh]').forEach((el) => (el.hidden = Boolean(currentContributor())));
+  paintGitHubLinks();
+  onAccess(paintGitHubLinks);
   scrim.addEventListener('click', close);
   document.addEventListener('keydown', (e) => {
     // Escape inside Change this component closes that step first, not the drawer.

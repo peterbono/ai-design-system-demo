@@ -12,6 +12,7 @@
 import { archiveExplorationOnGitHub, explorationStage, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
+  reopenedOf,
   buildersOf,
   changedScreenOf,
   checkInClaudeLine,
@@ -266,7 +267,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
         : null,
       onReopen: menu.reopen
         ? async () => {
-            const back = await reopenExplorationOnGitHub(gh, r.number);
+            const back = await reopenExplorationOnGitHub(gh, r.number, { by: currentViewer()?.login ?? null });
             // A token without the right to edit labels: the body says it runs again, designers never read why.
             if (back.warnings.length) console.warn('Back to exploring:', back.warnings.join(' '));
             reopen(BACK_TO_EXPLORING_LINE);
@@ -331,7 +332,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     startedTail: startedTail(product.name, pull.created_at ?? commits[0]?.commit.author?.date ?? null),
     todayUrl,
     headline: headlineOf({ commits, files, author: r.author, names }),
-    activity: activityRows({ commits, author: r.author, startedAt: pull.created_at ?? null, names }),
+    activity: activityRows({ commits, author: r.author, startedAt: pull.created_at ?? null, reopened: reopenedOf(pull.body), names }),
     previewUrl,
     tryUrl,
     previewNote,

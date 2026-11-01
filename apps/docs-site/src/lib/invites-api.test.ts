@@ -347,7 +347,7 @@ describe('invite token lifecycle', () => {
   it('a reviewer who accepts gets push and a pull request listing them as owner', async () => {
     const { deps, sent, w } = setup();
     await handleInvites(post({ action: 'invite', repo: REPO, role: 'reviewer', reviewAs: 'design', people: [{ email: 'priya@acme.design' }] }), {}, deps);
-    expect(sent[0]!.text).toContain('Your role: Reviewer: design. Also approves changes before they ship.');
+    expect(sent[0]!.text).toContain('Your role: Reviewer: design. Also changes the library and approves changes before they ship.');
     const a = await accept(deps, tokenOf(sent[0]!));
     expect(a).toMatchObject({ status: 'joined', role: 'reviewer', reviewAs: 'design', ownersPr: { number: 12 } });
     const file = w.calls.find((c) => c.method === 'PUT' && c.path.endsWith('/contents/bridge.config.json'))!;

@@ -895,7 +895,8 @@ export async function openPr(n: number, push = true) {
     // Guidance alone never changes a screen: the before and after is for tokens and components.
     // Only on a repo that has the workflow: no label to add and nothing that "runs again" otherwise.
     const offer = visualOffer({ touchesVisuals: touchesVisuals(files.map((f) => f.filename).filter((f) => !isDocsFile(f))), workflow: visualWorkflow });
-    const visual = offer === 'run';
+    // A change closed without merging: nothing reaches the library, so no before and after (it stayed on "Reading").
+    const visual = offer === 'run' && !(pull.state === 'closed' && !pull.merged_at);
     const [review, failedFacts, docs] = await Promise.all([
       tokenFiles.length
         ? analyzeTokenFiles({ owner: repo.owner, repo: repo.repo, baseSha: pull.base.sha, headSha: pull.head.sha, files: tokenFiles }).catch((err) => err as Error)
