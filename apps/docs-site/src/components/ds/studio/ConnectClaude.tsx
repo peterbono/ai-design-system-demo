@@ -7,13 +7,15 @@
 //   one team     it is preselected; several: a picker
 //   then         what Claude gets (read the design system, open changes for review in your name), Allow and Cancel.
 // Allow goes to GitHub (it confirms who they are), then back to Claude; Cancel goes back to Claude with access_denied.
+// Someone on the team by their email with no GitHub sign-in here allows with their Bridge sign-in alone (no GitHub
+// leg); the other path stays one quiet link away (connectPath).
 // No token is ever shown. Steps and words: lib/connect-claude.ts.
 import { useEffect, useState } from 'react';
 import { Alert, Button, Icon, Radio, RadioGroup, Spinner } from '@bridge-ds/react';
 import { Check } from 'lucide-react';
 import { signInHref } from '../../../lib/account';
 import { CREATE_TEAM_HREF } from '../../../lib/entry';
-import { appName, CLAUDE_CONNECT_WORDS as W, connectClaudeStep, parseRequestInfo, readQuery, type ClaudeConnectStep, type RequestInfo } from '../../../lib/connect-claude';
+import { appName, CLAUDE_CONNECT_WORDS as W, connectClaudeStep, connectPath, parseRequestInfo, readQuery, type ClaudeConnectStep, type RequestInfo } from '../../../lib/connect-claude';
 
 const here = () => location.pathname + location.search;
 
@@ -27,6 +29,8 @@ export default function ConnectClaude() {
   const [step, setStep] = useState<ClaudeConnectStep | null>(null);
   const [team, setTeam] = useState('');
   const [busy, setBusy] = useState<'allow' | 'cancel' | null>(null);
+  const [hasGitHub, setHasGitHub] = useState(false);
+  const [switched, setSwitched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const q = typeof location === 'undefined' ? { request: null, error: null } : readQuery(location.search);
 
@@ -39,8 +43,10 @@ export default function ConnectClaude() {
       if (info?.signedIn) {
         const [{ loadPickableTeams }, { workingGitHubToken }] = await Promise.all([import('../../../scripts/pickable-teams'), import('../../../scripts/account-session')]);
         const token = await workingGitHubToken().catch(() => null);
+        if (live) setHasGitHub(Boolean(token));
+        const byEmail = new Set(info.teams.filter((t) => t.email).map((t) => t.repo.toLowerCase()));
         const teams = await loadPickableTeams({ teams: info.teams.map((t) => ({ ...t, role: 'edit', via: 'email' })) }, token).catch(() => info!.teams);
-        info = { ...info, teams: teams.map((t) => ({ repo: t.repo, name: t.name })) };
+        info = { ...info, teams: teams.map((t) => ({ repo: t.repo, name: t.name, ...(byEmail.has(t.repo.toLowerCase()) ? { email: true } : {}) })) };
       }
       if (!live) return;
       const s = connectClaudeStep(q, info);
@@ -54,7 +60,7 @@ export default function ConnectClaude() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function answer(allow: boolean) {
+  async function answer(allow: boolean, via: 'email' | 'github' = 'github') {
     if (!q.request) return;
     setBusy(allow ? 'allow' : 'cancel');
     setError(null);
@@ -63,7 +69,7 @@ export default function ConnectClaude() {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request: q.request, allow, ...(allow ? { repo: team } : {}) }),
+        body: JSON.stringify({ request: q.request, allow, ...(allow ? { repo: team, ...(via === 'email' ? { via } : {}) } : {}) }),
       });
       const body = (await res.json().catch(() => ({}))) as { redirect?: string; message?: string };
       if (!res.ok || !body.redirect) {
@@ -132,7 +138,10 @@ export default function ConnectClaude() {
           </div>
         </div>
       );
-    case 'pick':
+    case 'pick': {
+      const picked = step.teams.find((t) => t.repo === team);
+      const { path: first, other } = connectPath(picked, hasGitHub);
+      const path = switched && other ? other : first;
       return (
         <div className="cc-step">
           <p className="cc-lede">{W.lede(appName(step.info))}</p>
@@ -159,7 +168,17 @@ export default function ConnectClaude() {
             </ul>
             <p className="t-ui t-muted">{W.approval}</p>
           </div>
-          <p className="t-ui t-muted">{W.back(step.info.redirectHost)}</p>
+          <p className="t-ui t-muted">
+            {path === 'email' ? W.backEmail(step.info.redirectHost) : W.back(step.info.redirectHost)}
+            {other && (
+              <>
+                {' '}
+                <Button variant="link" onClick={() => setSwitched((v) => !v)}>
+                  {path === 'email' ? W.useGitHub : W.useEmail}
+                </Button>
+              </>
+            )}
+          </p>
           {step.info.name && (
             <p className="t-ui t-muted">
               {W.signedInAs(step.info.name)}{' '}
@@ -170,12 +189,13 @@ export default function ConnectClaude() {
           )}
           {error && <Alert tone="danger">{error}</Alert>}
           <div className="cc-actions">
-            <Button variant="primary" onClick={() => void answer(true)} disabled={busy !== null}>
-              {busy === 'allow' ? W.allowing : W.allow}
+            <Button variant="primary" onClick={() => void answer(true, path)} disabled={busy !== null}>
+              {busy === 'allow' ? (path === 'email' ? W.allowingEmail : W.allowing) : W.allow}
             </Button>
             {cancel}
           </div>
         </div>
       );
+    }
   }
 }

@@ -64,14 +64,16 @@
 // settings, another repository, GraphQL.
 // In the team's products (bridge.config.json products[] with a design.repo, planProductCall), an email designer
 // explores like everyone: in the design team's copy their explore/* branches (started from the default branch with
-// design files only, then moved forward by design files only, while the branch may hold prototype code), their draft
+// design files only, then moved forward with any file but CI, hosting settings and node_modules: prototype code is
+// theirs to write there, isSandboxPath), their draft
 // pull request to the default branch, its exploration labels and comments, Sync fork of the default branch and the
 // default branch merged into their exploration; in the developers' repository the from-design label and one task per
 // exploration of theirs, which they may comment on, close as not planned and reopen. A product without a copy: reads only.
-// Design files only: writes land in the folders bridge.config.json declares for tokens, component docs and specs,
-// changesets and Bridge's own files (designPaths), never code, CI, package files or guardrails, because CI runs what
-// a pull request contains. On a public repository the member's email is never published: commits carry
-// <hash>@contributors.bridge.invalid and the "Requested by" line names them without the email.
+// Design files only, everywhere but their own explorations in a copy: writes land in the folders bridge.config.json
+// declares for tokens, component docs and specs, changesets and Bridge's own files (designPaths), never code, CI,
+// package files or guardrails, because CI runs what a pull request contains. On a public repository the member's email
+// is never published: commits carry <hash>@contributors.bridge.invalid and the "Requested by" line names them without
+// the email.
 // Every call other than GET counts against a daily cap per member (CONTRIB_MAX_WRITES, 300 by default): over it,
 // 429 { error: 'limit' }.
 //
@@ -653,6 +655,22 @@ export function isDesignPath(path: string, allowed: DesignPaths): boolean {
   });
 }
 
+export const SANDBOX_ONLY = 'Bridge leaves the build and hosting settings of the design team\'s copy to the developers. Ask one to change this file.';
+
+/**
+ * Whether `path` may be written on an email member's own exploration branch in the design team's copy (the designers'
+ * sandbox, never the developers' repository): any file, prototype code included, except CI (.github), the hosting
+ * settings (vercel.json, .vercel) and installed dependencies (node_modules). Same path checks as isDesignPath.
+ */
+export function isSandboxPath(path: string): boolean {
+  const segs = path.split('/');
+  if (!path || path.startsWith('/') || segs.some((s) => !s || s === '.' || s === '..' || /[\\\u0000-\u001f\u007f]/.test(s))) return false;
+  const lower = path.toLowerCase();
+  if (lower === '.github' || lower.startsWith('.github/')) return false;
+  // Hosting settings wherever the project root sits (a monorepo app folder too).
+  return !segs.some((s) => ['node_modules', '.vercel', 'vercel.json'].includes(s.toLowerCase()));
+}
+
 /** bridge.config.json of the default branch, cached 5 minutes per warm function (memory only). */
 const configCache = new Map<string, { at: number; paths: DesignPaths }>();
 
@@ -942,7 +960,8 @@ interface PlanHelpers {
 
 /**
  * The policy in a product repository, deny by default. In the design team's copy: only their own explore/* branches
- * (new from the default branch with design files only, then moved forward by design files only), their draft pull
+ * (new from the default branch with design files only, then moved forward with sandbox paths: prototype code yes,
+ * CI, hosting settings and node_modules never), their draft pull
  * request to the default branch with its labels and comments, "Get the latest" (GitHub's Sync fork of the default
  * branch) and "Bring it in" (the default branch merged into their own exploration). In the developers' repository:
  * the from-design label, one task per exploration of theirs (an issue labeled from-design that links their pull
@@ -957,7 +976,11 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
     typeof b === 'string' && validBranch(b) && b.startsWith(EXPLORATION_PREFIX) && !(await h.isDefault(b)) && (await ctx.svc.redis.cmd('GET', branchKey(c.full, b))) === c.member.email;
 
   if (scope.kind === 'copy') {
-    /** A move of their branch: a fast-forward whose own changes are design files only (the branch may hold code). */
+    /** Every path a sandbox path (isSandboxPath): their own exploration may hold prototype code, never CI or hosting. */
+    const checkSandbox = (paths: string[]) => {
+      if (!paths.length || paths.some((p) => !isSandboxPath(p))) throw new HttpError(403, 'not-allowed', SANDBOX_ONLY);
+    };
+    /** A move of their branch: a fast-forward whose own changes are sandbox paths only. */
     const checkForward = async (b: string, sha: unknown) => {
       if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/i.test(sha)) throw notAllowed();
       const ref = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/git/ref/heads/${encodeRef(b)}`);
@@ -966,9 +989,10 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
       const cmp = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/compare/${from}...${sha}`);
       const files = cmp.data?.files;
       if (cmp.status !== 200 || cmp.data?.status !== 'ahead' || !Array.isArray(files)) throw notAllowed();
-      if (files.length >= 300) throw new HttpError(403, 'not-allowed', DESIGN_ONLY);
+      // GitHub lists at most 300 files: past that, the move cannot be checked.
+      if (files.length >= 300) throw new HttpError(403, 'not-allowed', SANDBOX_ONLY);
       const paths = (files as { filename?: unknown; previous_filename?: unknown }[]).flatMap((f) => [f.filename, f.previous_filename].filter((x): x is string => typeof x === 'string'));
-      if (paths.length) await h.checkPaths(paths);
+      checkSandbox(paths);
     };
     switch (c.method) {
       case 'POST': {
@@ -977,8 +1001,9 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
           const tree = body.tree;
           if (!Array.isArray(tree) || !tree.length) throw notAllowed();
           const entries = tree as Record<string, unknown>[];
-          if (entries.some((e) => !e || typeof e !== 'object' || typeof e.path !== 'string' || (e.mode !== undefined && e.mode !== '100644' && e.mode !== '040000') || e.type === 'commit')) throw new HttpError(403, 'not-allowed', DESIGN_ONLY);
-          await h.checkPaths(entries.map((e) => e.path as string));
+          // Files and folders, executable files for prototype scripts; never a submodule (160000) or a symlink (120000).
+          if (entries.some((e) => !e || typeof e !== 'object' || typeof e.path !== 'string' || (e.mode !== undefined && e.mode !== '100644' && e.mode !== '100755' && e.mode !== '040000') || e.type === 'commit')) throw new HttpError(403, 'not-allowed', SANDBOX_ONLY);
+          checkSandbox(entries.map((e) => e.path as string));
           return { body: pick(body, ['base_tree', 'tree']) };
         }
         if (at('git', 'commits')) {
@@ -1047,7 +1072,7 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
       case 'DELETE': {
         if (r.length >= 2 && r[0] === 'contents') {
           if (!(await ownedExplore(body.branch))) throw notAllowed();
-          await h.checkPaths([r.slice(1).join('/')]);
+          checkSandbox([r.slice(1).join('/')]);
           const keys = c.method === 'PUT' ? ['message', 'content', 'sha', 'branch'] : ['message', 'sha', 'branch'];
           return { body: { ...pick(body, keys), author: await h.author() } };
         }

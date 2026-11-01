@@ -63,7 +63,7 @@ export function ClaudeGlyph({ size = 'xs' }: { size?: 'xs' | 'sm' }) {
  * The tools this viewer sees and the open tab. Paints from this browser first (no flash of the wrong tabs), then
  * from the server; follows a change made anywhere on the page (`bridge:ai-tools`).
  */
-export function useAiTools(claudeLink?: ClaudeLink) {
+export function useAiTools(claudeLink?: ClaudeLink, email?: boolean) {
   const [state, setState] = useState<{ mine: AiTool[] | null; teamDefault: AiTool[] | null }>({ mine: null, teamDefault: null });
   const [last, setLast] = useState<string | null>(null);
   useEffect(() => {
@@ -81,7 +81,7 @@ export function useAiTools(claudeLink?: ClaudeLink) {
       document.removeEventListener(AI_TOOLS_EVENT, on);
     };
   }, []);
-  const view: ToolsView = toolsFor({ ...state, claudeLink });
+  const view: ToolsView = toolsFor({ ...state, claudeLink, email });
   const tab = tabFor(view.tools, last);
   const setTab = (t: AiTool) => {
     setLast(t);

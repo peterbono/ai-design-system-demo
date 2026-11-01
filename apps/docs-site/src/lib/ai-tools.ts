@@ -81,7 +81,9 @@ export interface ToolsView {
  * The tools a person sees. Their own choice first; never answered: a Bridge connection in their own Claude means the
  * Claude app, else the team default, else today's Claude app and Terminal.
  */
-export function toolsFor(x: { mine: AiTool[] | null | undefined; teamDefault?: AiTool[] | null | undefined; claudeLink?: 'yes' | 'no' | 'unknown' | undefined }): ToolsView {
+export function toolsFor(x: { mine: AiTool[] | null | undefined; teamDefault?: AiTool[] | null | undefined; claudeLink?: 'yes' | 'no' | 'unknown' | undefined; email?: boolean | undefined }): ToolsView {
+  // Someone who joined with their email has no GitHub for a terminal or VS Code: the Claude app with Bridge is theirs.
+  if (x.email) return { tools: ['claude-app'], chosen: true };
   if (x.mine?.length) return { tools: [...x.mine], chosen: true };
   if (x.claudeLink === 'yes') return { tools: ['claude-app'], chosen: false };
   if (x.teamDefault?.length) return { tools: [...x.teamDefault], chosen: false };

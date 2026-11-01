@@ -308,6 +308,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       ...(said ? { said } : {}),
       // Continue in Claude: the steps first while the viewer's own Claude has no Bridge (read once per session).
       claudeLink: knownClaudeLink(),
+      ...(member ? { emailMember: true } : {}),
       connectorAddress: connectorUrl(location.origin),
       onClaudeConnected: () => {
         forgetClaudeLink();

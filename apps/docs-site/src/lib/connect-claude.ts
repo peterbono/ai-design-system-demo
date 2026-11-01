@@ -25,6 +25,8 @@ export function readQuery(search: string): ConnectQuery {
 export interface ClaudeTeam {
   repo: string;
   name: string;
+  /** The account is on this team by its email: Claude can connect with the Bridge sign-in alone, no GitHub. */
+  email?: boolean;
 }
 
 /** What GET /oauth/request answers. */
@@ -43,7 +45,7 @@ export function parseRequestInfo(d: unknown): RequestInfo | null {
   const teams = Array.isArray(o.teams)
     ? o.teams.flatMap((t): ClaudeTeam[] => {
         const x = t as Record<string, unknown>;
-        return x && typeof x.repo === 'string' ? [{ repo: x.repo, name: typeof x.name === 'string' && x.name.trim() ? x.name.trim() : x.repo.split('/')[1] ?? x.repo }] : [];
+        return x && typeof x.repo === 'string' ? [{ repo: x.repo, name: typeof x.name === 'string' && x.name.trim() ? x.name.trim() : x.repo.split('/')[1] ?? x.repo, ...(x.email === true ? { email: true } : {}) }] : [];
       })
     : [];
   return { client: o.client, redirectHost: o.redirectHost, sameBrowser: o.sameBrowser === true, signedIn: o.signedIn === true, name: typeof o.name === 'string' ? o.name : null, teams };
@@ -69,6 +71,16 @@ export function connectClaudeStep(q: ConnectQuery, info: RequestInfo | null): Cl
   return teams.length ? { kind: 'pick', info, teams } : { kind: 'no-teams', info };
 }
 
+/**
+ * How Claude connects for the picked team: 'email' (the Bridge sign-in alone, for someone on the team by their email
+ * with no GitHub sign-in in this browser), else 'github' (GitHub confirms who they are). `other` is the quiet way to
+ * the other path, when there is one.
+ */
+export function connectPath(team: ClaudeTeam | undefined, hasGitHub: boolean): { path: 'email' | 'github'; other: 'email' | 'github' | null } {
+  if (!team?.email) return { path: 'github', other: null };
+  return hasGitHub ? { path: 'github', other: 'email' } : { path: 'email', other: 'github' };
+}
+
 /** "Claude" for the hosted apps, the app's own name otherwise. */
 export const appName = (info: Pick<RequestInfo, 'client'>) => info.client.trim() || 'An app';
 
@@ -80,9 +92,13 @@ export const CLAUDE_CONNECT_WORDS = {
   canPropose: 'Open changes for review in your name',
   approval: 'Nothing reaches the library until someone on your team approves it.',
   back: (host: string) => `GitHub confirms it is you, then you go back to ${host}.`,
+  backEmail: (host: string) => `Your Bridge sign-in confirms it is you, then you go back to ${host}.`,
+  useEmail: 'No GitHub account? Continue with your Bridge sign-in',
+  useGitHub: 'Use GitHub instead',
   teamLabel: 'Team',
   allow: 'Allow',
   allowing: 'Going to GitHub',
+  allowingEmail: 'Connecting',
   cancel: 'Cancel',
   cancelling: 'Going back to Claude',
   signin: 'Sign in to Bridge to connect Claude. Bridge brings you back to this step afterwards.',

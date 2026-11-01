@@ -51,3 +51,11 @@ describe('Copilot set-up and the Start dialog', () => {
     expect(lines['claude-code']).toBe(`claude 'Open Bridge exploration #3 "Bob'\\''s list" in Shop.'`);
   });
 });
+
+describe('someone who joined with their email', () => {
+  it('sees the Claude app only: a terminal and VS Code need GitHub', () => {
+    expect(toolsFor({ mine: ['claude-code', 'copilot'], claudeLink: 'no', email: true })).toEqual({ tools: ['claude-app'], chosen: true });
+    expect(toolsFor({ mine: null, teamDefault: ['copilot'], email: true }).tools).toEqual(['claude-app']);
+    expect(toolsFor({ mine: ['copilot'], email: false }).tools).toEqual(['copilot']);
+  });
+});

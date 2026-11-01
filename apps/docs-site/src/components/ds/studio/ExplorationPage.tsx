@@ -165,6 +165,8 @@ export interface ExplorationPageProps {
    * sample team, still reading, a failed read): they open Claude directly.
    */
   claudeLink?: 'yes' | 'no' | 'unknown';
+  /** The viewer joined with their email (no GitHub): the Claude app with Bridge is their one tool. */
+  emailMember?: boolean;
   /** The connector address the steps show (<origin>/mcp). */
   connectorAddress?: string;
   /** "I've connected it, continue": the page forgets the answer and reads it again next time. */
@@ -535,7 +537,7 @@ export function ExplorationPage(p: ExplorationPageProps) {
 }
 
 function ExplorationBody(p: ExplorationPageProps) {
-  const { view, tab, setTab } = useAiTools(p.claudeLink);
+  const { view, tab, setTab } = useAiTools(p.claudeLink, p.emailMember);
   const [said, setSaid] = useState('');
   const lines = linesOf(p);
   const line = lines[tab];
