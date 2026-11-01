@@ -78,7 +78,7 @@ export const INVITE_STEP_BODY = 'They get an email and land in your team with th
  * Step "Products", when a product has a design team copy (products[].design): designers explore there, never in the
  * developers' code. "Make my copy" is on the product's page until the copy exists.
  */
-export const PRODUCTS_COPY_LINE = "Designers explore in the design team's copy of a product, never in the developers' code. Open a product to make its copy.";
+export const PRODUCTS_COPY_LINE = "Designers explore in the design team's copy of a product, never in the developers' code. A product's page makes its copy when it has none yet.";
 
 /** Step "Your AI tools", same condition: an exploration in a design copy opens in Claude Code on the web. */
 export const AI_TOOLS_COPY_LINE = 'Explorations in a design copy also open in Claude Code on the web, with nothing to install.';

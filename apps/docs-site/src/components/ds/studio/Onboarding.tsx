@@ -899,7 +899,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
   const progress = (
     <div className="onb-progress">
       <p className="onb-progress-text">
-        <b className="onb-strong">{progressLabel(steps)}</b> <span className="onb-quiet">{ctx.account ? ENTRY_WORDS.firstOnly : 'Every step after sign-in can wait.'}</span>
+        <b className="onb-strong">{progressLabel(steps)}</b> {doneCount(steps) < steps.length && <span className="onb-quiet">{ctx.account ? ENTRY_WORDS.firstOnly : 'Every step after sign-in can wait.'}</span>}
       </p>
       <Progress value={doneCount(steps)} max={total} size="sm" aria-label={progressLabel(steps)} />
     </div>
