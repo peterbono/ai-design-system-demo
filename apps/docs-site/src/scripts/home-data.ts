@@ -7,6 +7,8 @@
 // asking to join it (board E7b, GET /api/entry?requests=), first in the list.
 import { isGuardedExploration, isHandedOff, isToolingPull, productsOf, requesterOf, type ProductConfig, type ToolingConfig } from '@bridge-ds/core';
 import { siteConfig } from './repo-context';
+import { designTaskStages, taskUrlOf } from './design-task';
+import type { LifecycleStage } from '../lib/review-state';
 import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, limitLine, readRepo, RateLimitError, resolveAccess } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
@@ -295,6 +297,10 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     .then((m) => m.productPulls())
     .then((list) => (productOpen = list.map((p) => ({ ...p, user: p.user ?? { login: 'unknown' }, created_at: p.updated_at, base: { ref: p.base?.ref ?? '', sha: '' }, labels: p.labels.map((l) => ({ name: typeof l === 'string' ? l : (l.name ?? '') })) }) as unknown as HomePull)))
     .catch(() => (productOpen = []));
+  // A design copy exploration handed to the developers: its card says what its task says (Being built's words). Read
+  // once the products' explorations are in; the cards paint again when it lands.
+  let taskStages = new Map<string, LifecycleStage>();
+  const taskRead = productRead.then(() => designTaskStages(productOpen)).then((m) => (taskStages = m)).catch(() => undefined);
   let pulls: HomePull[];
   try {
     pulls = (await openRead).data;
@@ -446,6 +452,10 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     readXpFiles([...pulls, ...productOpen, ...closed]);
     const explorations = homeExplorations([...pulls, ...productOpen, ...closed], {
       products,
+      taskStage: (p) => {
+        const u = taskUrlOf(p.body);
+        return u ? taskStages.get(u) : null;
+      },
       viewer,
       files: (p) => (xpFiles.has(xpKey(p)) ? xpFiles.get(xpKey(p)) : undefined),
       author: (p) => {
@@ -529,6 +539,8 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   };
   await closedRead;
   paint();
+  // The tasks of handed-off copy explorations: their cards take the task's words once read.
+  void taskRead.then(() => taskStages.size && paint());
   // The explored screens of the first cards a lead sees, and of every one of the viewer's own: each costs reads.
   const all = [...pulls, ...closed].filter((p) => isHomeExploration(p, products));
   const firstShown = new Set(homeExplorations(all, { products, author: () => CLAUDE }).slice(0, 6).map((c) => c.number));

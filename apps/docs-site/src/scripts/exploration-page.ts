@@ -35,7 +35,10 @@ import {
   type LibraryPieces,
   type PullReviewLike,
   type SentPiece,
+  libraryTodayRoute,
+  todayLinkLabel,
 } from '../lib/exploration-page';
+import { libraryHref } from '../lib/library-shells';
 import { pieceRows, type PieceRowView } from '../lib/product-branch';
 import { checkPieces } from './connector-api';
 import { forgetClaudeLink, knownClaudeLink, viewerClaudeLink } from './claude-link';
@@ -51,8 +54,8 @@ import { askDoneExploring } from './exploration-done';
 import { explorationsConfig } from './exploration-start';
 import { changedFiles, namesOf, pieceActions, pieceActor, previewSources, productPreviewOf, readView, withToolbar } from './product-branch';
 import { productClient, productRepoByKey } from './product-repos';
-import { copyRepos } from './design-copy';
-import { claudeCodeUrl } from '../lib/design-copy';
+import { bringLatestIntoExploration, copyRepos, explorationBehind } from './design-copy';
+import { claudeCodeUrl, COPY_WORDS } from '../lib/design-copy';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, studioClient } from './github-session';
 import { changesModeOnPage } from './changes-mode';
 import { sendModeFor } from '../lib/write-route';
@@ -67,7 +70,7 @@ import { siteApprovers } from './teams';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
-import { explorationLifecycle, reviewStateOf, taskStage, taskStatus, type DesignAnswer } from '../lib/review-state';
+import { explorationLifecycle, reviewStateOf, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
 import { answerDevPull, readDesignTask, readDevPull, taskRef } from './design-task';
 
 const CFG = explorationsConfig();
@@ -322,7 +325,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // Archived: the page of the state it was archived in (not started or exploring), with the Archived tag.
   const stage = explorationStage({ status: r.archived ? 'active' : r.status, files });
   const app = own ? undefined : isLibrary ? (libraryPreviewApp(files, CFG.apps) ?? 'docs') : (product.key as 'admin');
-  const todayRaw = isLibrary ? (app ? (CFG.production?.[app] ?? null) : null) : productTodayUrl(product, { production: own ? null : CFG.production, defaultBranch: own ? (pull.base?.ref ?? 'main') : CFG.defaultBranch });
+  // A library exploration: the Library as it is today (its component's page when it asks about one), never the site's home.
+  const todayRaw = isLibrary ? libraryHref(CFG.owner, CFG.repo, libraryTodayRoute(r.requests[0]?.component)) : productTodayUrl(product, { production: own ? null : CFG.production, defaultBranch: own ? (pull.base?.ref ?? 'main') : CFG.defaultBranch });
   const todayUrl = todayRaw ? safeUrl(todayRaw) || null : null;
   const logins = [...new Set([r.author, ...commits.map((c) => c.author?.login ?? '').filter(Boolean)])];
   // Signed in: the GitHub profile names. Signed out: the git names on the commits, then the author's public profile.
@@ -344,6 +348,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     author: faceOf(r.author, false, names),
     startedTail: startedTail(product.name, pull.created_at ?? commits[0]?.commit.author?.date ?? null),
     todayUrl,
+    todayLabel: todayLinkLabel(isLibrary),
     headline: headlineOf({ commits, files, author: r.author, names }),
     activity: activityRows({ commits, author: r.author, startedAt: pull.created_at ?? null, reopened: reopenedOf(pull.body), names }),
     previewUrl,
@@ -356,6 +361,25 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const shotProps = shot ? { thumb: shot.src, thumbCapturedAt: shot.capturedAt } : {};
   if (!handedOff) {
     repaint(d, key, { plate, ...shotProps });
+    // In the design team's copy: the product moved since it started? A quiet "Bring it in" (its main into the branch).
+    if (inCopy && writable && !r.archived) {
+      void explorationBehind(inCopy.copy, r.branch).then((behind) => {
+        if (!behind || current?.key !== key) return;
+        repaint(d, key, {
+          latest: {
+            line: COPY_WORDS.explorationBehind(product.name),
+            onBring: async () => {
+              const res = await bringLatestIntoExploration(inCopy.copy, r.branch);
+              if (res === 'ok') {
+                reopen(COPY_WORDS.broughtIn);
+                return COPY_WORDS.broughtIn;
+              }
+              return res === 'conflict' ? COPY_WORDS.bringConflict : COPY_WORDS.bringFailed;
+            },
+          },
+        });
+      });
+    }
     if (stage === 'exploring' && !shot) {
       const thumb = await capturedImage(r, files);
       if (thumb) repaint(d, key, { thumb, thumbCapturedAt: null });
@@ -403,7 +427,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     compareUrl: v.state === 'branch' ? v.url : null,
     dev: devRead
       ? {
-          url: devRead.pull.headRef ? branchPreviewUrl(product.preview, devRead.pull.headRef) : null,
+          // The product's own preview pattern: the developers' version deploys from their repository, not the copy.
+          url: devVersionUrl(devRead.pull, (products.find((p) => p.key === product.key) ?? product).preview, branchPreviewUrl),
           answer: answer?.login ? { kind: answer.kind, by: faceOf(answer.login, false, allNames) } : null,
         }
       : null,
@@ -452,7 +477,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
         devRead && devRepo && connected() && !emailOnProduct && !review.draft
           ? async (a: DesignAnswer) => {
               await answerDevPull(devRepo, devRead.pull.number, a);
-              const said = a.kind === 'looks-right' ? 'Sent to the developers: it looks right.' : 'Sent to the developers: your changes.';
+              const said = a.kind === 'looks-right' ? 'Sent to the developers: it looks right.' : 'Sent to the developers.';
               reopen(said);
               return said;
             }

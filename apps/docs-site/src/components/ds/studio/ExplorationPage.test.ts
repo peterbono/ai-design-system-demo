@@ -226,6 +226,15 @@ describe('ExplorationPage, exploring (X2)', () => {
     expect(screen.queryByRole('heading', { name: 'Nothing built yet' })).toBeNull();
   });
 
+  it('the product moved since it started: a quiet line, and Bring it in says what happened', async () => {
+    const onBring = vi.fn(async () => 'The latest is in. Your preview updates in a few minutes.');
+    paint({ ...exploring, latest: { line: 'Art print shop changed since this exploration started.', onBring } });
+    expect(screen.getByText('Art print shop changed since this exploration started.', { exact: false })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Bring it in' }));
+    await waitFor(() => expect(onBring).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByText('The latest is in. Your preview updates in a few minutes.')).toBeTruthy());
+  });
+
   it('Open the preview opens the product with the Bridge toolbar when it has one; no second preview button', () => {
     paint({ ...exploring, tryUrl: 'https://bridge-admin-git-explore.example.com/?bridge=611' });
     expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://bridge-admin-git-explore.example.com/?bridge=611');
@@ -399,7 +408,7 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
     expect([...grid.children].map((c) => c.className.split(' ')[0])).toEqual(['xp-preview', 'xp-side', 'xp-activity']);
   });
 
-  it('the viewer asked to review: the review row says so, with the link to compare with the exploration', () => {
+  it('the viewer asked to review: the review row says so, with the link to compare under the steps', () => {
     handed({
       status: 'building',
       steps: [
@@ -412,7 +421,9 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
     const next = screen.getByRole('region', { name: 'What happens next' });
     const row = within(next).getByText('Your review').closest('li')!;
     expect(row.getAttribute('aria-current')).toBe('step');
-    expect(within(row).getByRole('link', { name: 'Compare with the exploration' }).getAttribute('href')).toBe('https://orders-git-explore.vercel.app');
+    // Under the steps, never inside the row: a row action squeezed every detail to one word a line.
+    expect(within(row).queryByRole('link')).toBeNull();
+    expect(within(next).getByRole('link', { name: 'Compare with the exploration' }).getAttribute('href')).toBe('https://orders-git-explore.vercel.app');
     expect(within(next).getAllByRole('link', { name: 'Compare with the exploration' })).toHaveLength(1);
   });
 

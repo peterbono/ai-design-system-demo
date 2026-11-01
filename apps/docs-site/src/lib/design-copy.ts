@@ -17,6 +17,12 @@ export const COPY_WORDS = {
   getLatest: 'Get the latest',
   upToDate: 'Your copy is up to date.',
   conflict: 'Bridge could not bring the latest in on its own. Ask a developer to update your copy.',
+  /** A running exploration of the copy that misses changes the product made since it started. */
+  explorationBehind: (product: string) => `${product} changed since this exploration started.`,
+  bringIn: 'Bring it in',
+  broughtIn: 'The latest is in. Your preview updates in a few minutes.',
+  bringConflict: 'Bridge could not bring it in on its own. Ask a developer.',
+  bringFailed: 'Bridge could not bring it in. Try again in a minute.',
   failed: 'Bridge could not reach GitHub. Try again in a moment.',
   noCopyStart: (product: string) => `There is no copy of ${product} to explore in yet. Make one first: the developers' code stays untouched.`,
 } as const;

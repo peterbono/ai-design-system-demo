@@ -16,7 +16,7 @@ import { studioHref } from './team-path';
 import type { Person } from './home-model';
 import type { ThumbSpec } from './branch-thumb';
 import { changedScreenOf, explorationTag, type TagTone } from './exploration-page';
-import { LIFECYCLE_LABEL } from './review-state';
+import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
 import { changesSummary } from './page-summary';
 
 /** The fields of an open (or closed) pull request the home reads. */
@@ -201,6 +201,17 @@ export interface HomeExplorationsOptions<P extends ExplorationPull = Exploration
   files?: (p: P) => readonly string[] | null | undefined;
   /** Archived explorations: left out (the default), or the only ones kept (a product page's Archived fold). */
   archived?: 'exclude' | 'only';
+  /**
+   * Where a design copy exploration stands from its task in the developers' repository (taskStage), when read: its
+   * card then says what Being built and its page say (Waiting to be picked up, Being built, In review, Shipped).
+   */
+  taskStage?: (p: P) => LifecycleStage | null | undefined;
+}
+
+/** A handed-off card's words from its task's stage: the same as Being built. Closed (taken back) keeps its own read. */
+export function withTaskStage(read: { stage: ExplorationStage; state: string }, task: LifecycleStage | null | undefined): { stage: ExplorationStage; state: string } {
+  if (read.stage !== 'with-devs' || !task || task === 'closed' || task === 'archived') return read;
+  return { stage: read.stage, state: LIFECYCLE_LABEL[task] };
 }
 
 /**
@@ -233,7 +244,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
     })
     .map((p): ExplorationCard => {
       const files = opts.files;
-      const read = explorationStage(p, files ? () => files(p) : undefined);
+      const read = withTaskStage(explorationStage(p, files ? () => files(p) : undefined), opts.taskStage?.(p));
       // Archived: out of the lists, never "Exploring". Its tag says what it is (the Archived tab of Changes).
       const archived = isArchivedExploration(p.labels) && read.stage !== 'kept';
       const { stage, state } = archived ? { stage: read.stage, state: LIFECYCLE_LABEL.archived } : read;

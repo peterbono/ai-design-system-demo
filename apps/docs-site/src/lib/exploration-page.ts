@@ -330,3 +330,15 @@ export const checkInClaudeLine = (name: string, ref: string) => `Check what the 
 
 /** The screen a fallback preview names: the first changed screen or component, else null. */
 export const changedScreenOf = (files: readonly string[] | null | undefined): string | null => changedThings(files ?? [])[0] ?? null;
+
+/**
+ * The Library route a library exploration's "See the library today" opens: the component it asks about (its first
+ * request), else the Library home. libraryHref turns it into the team's address.
+ */
+export function libraryTodayRoute(component: string | null | undefined): string {
+  const slug = (component ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return slug ? `components/${slug}/` : '';
+}
+
+/** The link beside an empty preview: the product as it is today, or the library for a library exploration. */
+export const todayLinkLabel = (library: boolean): string => (library ? 'See the library today' : 'See the product today');
