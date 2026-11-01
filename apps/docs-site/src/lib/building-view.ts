@@ -30,7 +30,7 @@ import { daysSince, type PillTone } from './home-model';
 import { safeUrl } from './html';
 import { isProductBranch } from './product-branch';
 import { explorationHref } from './explorations-view';
-import { LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, type LifecycleStage, type PullReviewLike } from './review-state';
+import { explorationLifecycle, LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, taskStatus, type DesignTaskRead, type LifecycleStage, type PullReviewLike } from './review-state';
 
 /** The fields of a GitHub issue the page reads (GET /repos/{o}/{r}/issues). */
 export interface RestIssue {
@@ -430,6 +430,8 @@ export interface ExplorationRowsContext {
   nextRelease?: (p: RestPull) => boolean;
   /** The signed-in viewer: "Waiting for your review". */
   viewer?: string | null;
+  /** The developers' task of a design copy exploration (its URL in the Bridge block), when it was read. */
+  task?: (url: string) => DesignTaskRead | null | undefined;
 }
 
 /**
@@ -450,10 +452,17 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
     if (!isExplorationPull(core) || isArchivedExploration(core.labels)) return [];
     const merged = Boolean(p.merged_at);
     const nextRelease = merged && !p.product && Boolean(ctx.nextRelease?.(p));
-    const { stage, review } = pullLifecycle(p, { approvers: ctx.approvers ?? [], reviews: ctx.reviews?.(key) ?? null, nextRelease });
+    const lifecycle = pullLifecycle(p, { approvers: ctx.approvers ?? [], reviews: ctx.reviews?.(key) ?? null, nextRelease });
+    const { review } = lifecycle;
+    // From the design team's copy, the developers build from their task: its state, when read, says where it stands.
+    const taskUrl = parseExplorationBody(p.body)?.task;
+    const task = taskUrl && !merged ? (ctx.task?.(taskUrl) ?? null) : null;
+    const fromTask = task ? taskStatus(task) : null;
+    if (fromTask === 'closed') return [];
+    const stage: LifecycleStage = fromTask ? explorationLifecycle({ status: fromTask }) : lifecycle.stage;
     const status = STAGE_BUILD_STATUS[stage];
     if (!status) return [];
-    const shippedAt = status === 'shipped' ? (p.merged_at ?? null) : null;
+    const shippedAt = status === 'shipped' ? (task?.closedAt ?? p.merged_at ?? null) : null;
     if (status === 'shipped' && !nextRelease && !(shippedAt && ctx.now - Date.parse(shippedAt) <= 7 * DAY)) return [];
     const block = parseExplorationBody(p.body);
     const raw = block?.name?.trim() || (p.title ?? '').replace(/^Exploration:\s*/i, '').trim() || `Exploration #${p.number}`;
@@ -500,7 +509,7 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
         status,
         label: LIFECYCLE_LABEL[stage],
         sentence: sentence[status],
-        builders: status === 'in-progress' || status === 'in-review' ? (p.assignees ?? []).map((a) => a.login) : [],
+        builders: status === 'in-progress' || status === 'in-review' ? (task ? task.assignees : (p.assignees ?? [])).map((a) => a.login) : [],
         requestedBy: doneBy ?? block?.author ?? p.user?.login ?? null,
         createdAt,
         ageDays,

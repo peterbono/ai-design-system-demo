@@ -32,6 +32,11 @@ const NUMBER_WORD: Record<number, string> = { 1: 'one', 2: 'two', 3: 'three' };
 /** "Design owner **and** tech owner, mandatory" -> "design owner + tech owner"; "1 code owner" -> "one owner". */
 export function plainApprovals(markdown: string): string {
   const text = markdown
+    // Links keep their words; pointers to other docs and decision numbers ("see BUILD-REQUESTS.md (TV-1)") go.
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\s*\(see [^)]*\)/gi, '')
+    .replace(/,?\s*see\s+[\w./-]+\.md\b/gi, '')
+    .replace(/\s*\((?:decision\s+)?[A-Z]{2,}-\d+\)/g, '')
     .replace(/\*\*|__|`/g, '')
     .replace(/,\s*mandatory\b/i, '')
     .replace(/\s+(?:and|\+)\s+/gi, ' + ')

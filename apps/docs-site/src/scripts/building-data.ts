@@ -15,6 +15,7 @@ import { isSampleTeam } from '../lib/demo';
 import { BUILD_CACHE_MS, buildCacheKey, explorationBuildRows, slimIssue, slimPull, toBuildIssue, toBuildPull, withLifecycle, type ExplorationBuildRow, type LifecycleExtra, type RestIssue, type RestPull } from '../lib/building-view';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
 import { needsReviewRead } from '../lib/review-state';
+import { readDesignTask } from './design-task';
 import { libraryScope } from './next-release';
 import { readReviews } from './review-reads';
 import { siteApprovers } from './teams';
@@ -165,13 +166,20 @@ async function read(): Promise<BuildData> {
     const own = (p as RestPull & { repo?: string }).repo;
     return { key: p.product ? `${p.product}#${p.number}` : String(p.number), repo: p.product && own ? own : repo, number: Number(p.number), version: p.updated_at ?? p.head?.sha ?? null };
   });
-  const [names, reviews] = await Promise.all([lookUpNames([...new Set(logins)]).catch(() => knownNames()), readReviews(toRead.filter((x, i, all) => all.findIndex((y) => y.key === x.key) === i))]);
+  // The developers' tasks of the design copy's explorations handed to them (one read each, a few at most).
+  const taskUrls = [...new Set(explored.filter((p) => p.state === 'open').map((p) => parseExplorationBody(p.body)?.task).filter((u): u is string => Boolean(u)))];
+  const [names, reviews, tasks] = await Promise.all([
+    lookUpNames([...new Set(logins)]).catch(() => knownNames()),
+    readReviews(toRead.filter((x, i, all) => all.findIndex((y) => y.key === x.key) === i)),
+    Promise.all(taskUrls.map(async (u) => [u, await readDesignTask(u)] as const)).then((all) => new Map(all)),
+  ]);
   const nameOf = (l: string) => personName(l, names);
   const releaseBody = pulls.data.find((p) => p.state === 'open' && /^changeset-release\//.test(p.head?.ref ?? ''))?.body ?? null;
   const ids = releaseBody ? libraryRelease(parseReleaseBody(releaseBody), libraryScope()).ids : new Set<string>();
   const nextRelease = (p: RestPull) => inNextRelease(p.merge_commit_sha, ids);
   const viewer = currentViewer()?.login ?? null;
   const lifecycle = { reviews: (k: string) => reviews.get(k) ?? null, nextRelease, nameOf, viewer };
+  const task = (u: string) => tasks.get(u) ?? null;
   return {
     views: withLifecycle(assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.data.map(toBuildPull), now, nameOf }), { pulls: pulls.data, ...lifecycle }),
     bodies: new Map(issues.map((i) => [i.number, i.body ?? ''])),
@@ -181,7 +189,7 @@ async function read(): Promise<BuildData> {
     jiraBase: jiraBase(),
     fixes: fixRows(sessions, pulls.data, now, nameOf),
     pulls: pulls.data,
-    explorations: explorationBuildRows(explored, { products: (await productRepos)?.configuredProducts() ?? DEFAULT_PRODUCTS, now, approvers: approversNow(), ...lifecycle }),
+    explorations: explorationBuildRows(explored, { products: (await productRepos)?.configuredProducts() ?? DEFAULT_PRODUCTS, now, approvers: approversNow(), ...lifecycle, task }),
   };
 }
 

@@ -211,3 +211,20 @@ export const reviewsFromStatus = (st: { approvers?: readonly string[] | null; ch
   ...(st?.approvers ?? []).map((login) => ({ user: { login }, state: 'APPROVED' })),
   ...(st?.changesRequested ?? []).map((login) => ({ user: { login }, state: 'CHANGES_REQUESTED' })),
 ];
+
+/** The developers' task Done exploring opened from the design team's copy, as one read of the issue returns it. */
+export interface DesignTaskRead {
+  assignees: readonly { login: string }[];
+  state: string;
+  stateReason: string | null;
+  closedAt: string | null;
+}
+
+/**
+ * Where a design copy exploration stands from its task in the developers' repository: closed as done = shipped,
+ * closed otherwise = closed (not planned), someone assigned = building, else ready (waiting to be picked up).
+ */
+export function taskStatus(t: DesignTaskRead): 'ready' | 'building' | 'shipped' | 'closed' {
+  if (t.state === 'closed') return t.stateReason === 'completed' ? 'shipped' : 'closed';
+  return t.assignees.length ? 'building' : 'ready';
+}

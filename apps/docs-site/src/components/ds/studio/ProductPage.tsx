@@ -49,6 +49,8 @@ export interface ProductPageViewProps {
   rename?: ProductRename | null;
   /** Make the team's copy, get the latest: absent for a viewer who cannot (signed out), the card still says why. */
   copy?: CopyActions | null;
+  /** Whether the viewer may change the library (create-branch libraryLead): false for a designer of the team. */
+  lead?: boolean;
 }
 
 /** The pencil after the title, the name in place while editing, or the rename waiting for review. */
@@ -235,7 +237,7 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
 }
 
 /** The page, painted from what is read so far. Pure render: tested in ProductPage.test.ts. */
-export function ProductPageView({ productKey, data, components, rename, copy }: ProductPageViewProps) {
+export function ProductPageView({ productKey, data, components, rename, copy, lead = true }: ProductPageViewProps) {
   const product = data?.product ?? null;
   const head = useRenameTitle(product?.name ?? '', product?.key ?? productKey, data?.products ?? [], product ? rename : null);
   const loading = !data || data.loading;
@@ -290,7 +292,7 @@ export function ProductPageView({ productKey, data, components, rename, copy }: 
         <section className="zone pp-empty" aria-label={`Nothing explored in ${name} yet`}>
           <Drawing name="paint" width={160} />
           <div className="pp-empty-text">
-            <p className="t-body">{product ? emptyProductLine(product, library) : ''}</p>
+            <p className="t-body">{product ? emptyProductLine(product, library, lead) : ''}</p>
             {product && start('menu')}
           </div>
         </section>
@@ -334,6 +336,25 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   /** Signed in with GitHub: may make the team's copy of the product and get the latest into it. */
   const [canCopy, setCanCopy] = useState(false);
   const [reload, setReload] = useState(0);
+  /** May change the library, as the start action reads it (StartExploration): a designer of the team may not. */
+  const [lead, setLead] = useState(true);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const [{ isSampleTeam }, { siteConfig }, { onAccess }, { libraryLead }] = await Promise.all([
+        import('../../../lib/demo'),
+        import('../../../scripts/repo-context'),
+        import('../../../scripts/github-session'),
+        import('../../../lib/create-branch'),
+      ]);
+      const c = siteConfig();
+      if (isSampleTeam(c.owner && c.repo ? `${c.owner}/${c.repo}` : null)) return;
+      onAccess((a) => live && setLead(libraryLead(a)));
+    })().catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -424,5 +445,5 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           },
         }
       : null;
-  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} copy={copy} />;
+  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} copy={copy} lead={lead} />;
 }

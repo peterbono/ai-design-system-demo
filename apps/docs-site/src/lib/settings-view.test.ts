@@ -37,6 +37,13 @@ describe('approval rules', () => {
     expect(plainApprovals('Design owner + tech owner')).toBe('design owner + tech owner');
   });
 
+  it('never shows doc links or decision numbers', () => {
+    expect(plainApprovals('Design owner **and** tech owner, mandatory. A token value change (values changed or tokens added only): design owner only, see [BUILD-REQUESTS.md](BUILD-REQUESTS.md) (TV-1)')).toBe(
+      'design owner + tech owner. A token value change (values changed or tokens added only): design owner only',
+    );
+    expect(plainApprovals('1 code owner, or none when a lead publishes it (see [Tier 1 publish by leads](#tier-1-publish-by-leads))')).toBe('one owner, or none when a lead publishes it');
+  });
+
   it('reads the real docs/GOVERNANCE.md', () => {
     const rules = approvalRules(tierSummaries());
     expect(rules).toHaveLength(3);

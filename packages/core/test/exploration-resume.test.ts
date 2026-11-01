@@ -79,14 +79,16 @@ describe('what changed, in words', () => {
   });
   it('turns commit subjects into words', () => {
     expect(subjectWords('feat(orders): add row selection to the Orders table')).toBe('added row selection to the Orders table');
-    expect(subjectWords('Bulk actions bar — three actions')).toBe('changed bulk actions bar, three actions');
+    expect(subjectWords('Bulk actions bar — three actions')).toBe('made a change: Bulk actions bar, three actions');
+    expect(subjectWords("Preview from the design team's copy")).toBe("made a change: Preview from the design team's copy");
     expect(subjectWords('fix: fix spacing (#12)')).toBe('fixed spacing');
   });
   it('says a merge in designer words, never git ones', () => {
     expect(subjectWords("Merge branch 'main' into explore/dashboard-orders-waiting-to-ship")).toBe('brought in the latest product');
     expect(subjectWords('Merge pull request #3 from peterbono/main')).toBe('brought in the latest product');
     expect(subjectWords("Merge remote-tracking branch 'origin/main'")).toBe('brought in the latest product');
-    expect(subjectWords('Merged the two tables')).toBe('changed merged the two tables');
+    expect(subjectWords('Get the latest Art print shop (Bridge toolbar 0.6.0)')).toBe('brought in the latest product');
+    expect(subjectWords('Merged the two tables')).toBe('made a change: Merged the two tables');
   });
 });
 
