@@ -951,12 +951,16 @@ export class GitHubClient {
   }
 
   async findOpenPullRequest(branch: string): Promise<PullRequest | undefined> {
-    const r = await this.request<{ number: number; html_url: string; title: string; draft?: boolean; head: { ref: string } }[]>(
-      'GET',
-      `${this.repoPath}/pulls?state=open&head=${encodeURIComponent(`${this.owner}:${branch}`)}`,
-    );
-    const pr = r[0];
-    return pr ? { number: pr.number, url: pr.html_url, title: pr.title, draft: !!pr.draft, headRef: pr.head.ref } : undefined;
+    type Row = { number: number; html_url: string; title: string; draft?: boolean; head: { ref: string; repo?: { full_name?: string } | null } };
+    const of = (pr: Row): PullRequest => ({ number: pr.number, url: pr.html_url, title: pr.title, draft: !!pr.draft, headRef: pr.head.ref });
+    const r = await this.request<Row[]>('GET', `${this.repoPath}/pulls?state=open&head=${encodeURIComponent(`${this.owner}:${branch}`)}`);
+    if (r[0]) return of(r[0]);
+    // A fork in its owner's own account or organization (the design team's copy of a product): GitHub reads
+    // `head=owner:branch` as the network's root repository there, so the filter finds nothing. One read of the open
+    // pull requests, matched on this repository's own branch.
+    const open = await this.request<Row[]>('GET', `${this.repoPath}/pulls?state=open&per_page=100&sort=updated&direction=desc`).catch(() => [] as Row[]);
+    const own = open.find((pr) => pr.head.ref === branch && (pr.head.repo?.full_name ?? this.fullName).toLowerCase() === this.fullName.toLowerCase());
+    return own ? of(own) : undefined;
   }
 
   /** Best effort: labels need the repo to allow it; failure is not fatal. */

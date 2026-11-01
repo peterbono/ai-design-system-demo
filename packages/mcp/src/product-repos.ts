@@ -13,6 +13,8 @@ import {
   productRepoOf,
   productRepos,
   productsOf,
+  withCopyPreview,
+  designCopyOf,
   type GitHubClient,
   type ProductConfig,
 } from '@bridge-ds/core';
@@ -47,7 +49,9 @@ export async function locate(ctx: BridgeContext, input: string | number, ds: Git
   const { config } = await ctx.config();
   const products = productsOf(config);
   const r = parseExplorationRef(input);
-  const inProduct = (p: ProductConfig, repo: string): Located => ({ gh: productClient(ctx, repo), ref: r.ref, product: p, repo });
+  // In the design team's copy, the copy's preview pattern stands for the product's (its deploys show the explorations).
+  const seen = (p: ProductConfig, repo: string) => (designCopyOf(p, ds.fullName)?.toLowerCase() === repo.toLowerCase() ? withCopyPreview(p) : p);
+  const inProduct = (p: ProductConfig, repo: string): Located => ({ gh: productClient(ctx, repo), ref: r.ref, product: seen(p, repo), repo });
   if (r.product) {
     const p = findProduct(products, r.product);
     if (!p) throw new Error(`Unknown product "${r.product}". Products: ${products.map((x) => x.key).join(', ')} (bridge.config.json "products").`);
@@ -68,7 +72,7 @@ export async function locate(ctx: BridgeContext, input: string | number, ds: Git
   if (here && hereRepo) {
     if (typeof r.ref === 'number') return inProduct(here, hereRepo);
     const at = productClient(ctx, hereRepo);
-    if (await at.findOpenPullRequest(`${EXPLORATION_PREFIX}${explorationSlug(r.ref)}`).catch(() => undefined)) return { gh: at, ref: r.ref, product: here, repo: hereRepo };
+    if (await at.findOpenPullRequest(`${EXPLORATION_PREFIX}${explorationSlug(r.ref)}`).catch(() => undefined)) return inProduct(here, hereRepo);
   }
   if (typeof r.ref === 'string') {
     // A name: the design system repository first, then each product repository (one read each, unreachable ones skipped).

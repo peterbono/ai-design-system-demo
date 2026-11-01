@@ -88,6 +88,23 @@ test('write calls: blob, tree, commit, ref, PR', async () => {
   assert.deepEqual(calls[4]!.body, { sha: 'commit2', force: false });
 });
 
+test('findOpenPullRequest finds a branch in a same-owner fork, where the head filter finds nothing', async () => {
+  const pull = (n: number, ref: string, repo: string) => ({ number: n, html_url: `https://github.com/${repo}/pull/${n}`, title: `T${n}`, draft: true, head: { ref, repo: { full_name: repo } } });
+  const { calls, fetchImpl } = stub({
+    'GET /repos/org/shop-design/pulls?state=open&head=org%3Aexplore%2Finvoices': { body: [] },
+    'GET /repos/org/shop-design/pulls?state=open&head=org%3Aexplore%2Fnone': { body: [] },
+    'GET /repos/org/shop-design/pulls?state=open&per_page=100&sort=updated&direction=desc': {
+      body: [pull(4, 'explore/invoices', 'someone/shop-design'), pull(3, 'explore/invoices', 'org/shop-design'), pull(2, 'explore/other', 'org/shop-design')],
+    },
+  });
+  const c = new GitHubClient('org/shop-design', 't', fetchImpl);
+  const pr = await c.findOpenPullRequest('explore/invoices');
+  assert.equal(pr?.number, 3, "this repository's own branch, not a contributor fork's branch of the same name");
+  assert.equal(pr?.headRef, 'explore/invoices');
+  assert.equal(await c.findOpenPullRequest('explore/none'), undefined);
+  assert.equal(calls.filter((x) => x.url.includes('per_page=100')).length, 2, 'the fallback read only runs when the head filter found nothing');
+});
+
 test('transient failures are retried for reads, never for PR creation', async () => {
   let n = 0;
   const flaky: FetchLike = async (url) => {
