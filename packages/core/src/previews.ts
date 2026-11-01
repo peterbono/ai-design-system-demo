@@ -417,10 +417,11 @@ export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, so
   for (const st of sources.statuses ?? []) {
     if (contexts.has(st.context)) continue;
     contexts.add(st.context);
-    const project = projectOfLabel(st.context);
+    const url = httpsUrl(st.target_url);
+    // A repository with one Vercel project reports its status as plain "Vercel": the project is in the inspector URL.
+    const project = projectOfLabel(st.context) ?? (/^\s*vercel\s*$/i.test(st.context) && url ? inspectorProject(url) : null);
     if (!project) continue;
     const app = appForProject(project, apps);
-    const url = httpsUrl(st.target_url);
     const skipped = IGNORED_BUILD.test(st.description ?? '');
     offer(app, url && !isInspectorUrl(url) ? url : null, 'status', stateOf(st.state), 0, skipped);
     const scope = url && isInspectorUrl(url) ? inspectorScope(url, project) : null;
@@ -478,6 +479,12 @@ export function vercelBranchAlias(project: string, branch: string, scope: string
     label = `${p}-git-${cut}-${hash}-${sc}`;
   }
   return `https://${label}.vercel.app/`;
+}
+
+/** The project of a Vercel inspector URL (https://vercel.com/<scope>/<project>/<deployment id>). */
+function inspectorProject(url: string): string | null {
+  const m = /^https:\/\/(?:www\.)?vercel\.com\/[a-z0-9-]+\/([a-z0-9._-]+)\/[A-Za-z0-9]+\/?$/i.exec(url);
+  return m ? m[1]! : null;
 }
 
 /** The team scope of a Vercel inspector URL (https://vercel.com/<scope>/<project>/<deployment id>) for that project. */
