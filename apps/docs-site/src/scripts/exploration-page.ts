@@ -48,7 +48,7 @@ import { developerLines, productCrumbs, productProduction, productTodayUrl, tryI
 import { touchesVisuals } from '../lib/visual-impact';
 import { jiraKeyOf } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
-import { canKeepExploration, keepExplorationLine, productKeeperLine } from '../lib/write-route';
+import { canKeepExploration, keepExplorationLine, productKeeperLine, startedByEmailMember } from '../lib/write-route';
 import type { ExplorationPageProps } from '../components/ds/studio/ExplorationPage';
 import { askDoneExploring } from './exploration-done';
 import { explorationsConfig } from './exploration-start';
@@ -209,11 +209,15 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // In the design team's copy of the product (products[].design): Claude Code opens the copy on this branch.
   const at = own ? copyRepos(product) : null;
   const inCopy = at && own && at.copy.toLowerCase() === own.repo.toLowerCase() ? at : null;
+  // Someone who joined with their email has no GitHub for Claude Code: the Claude app with Bridge (the tools panel) is theirs.
+  const member = currentContributor();
   const codeUrl = (previewUrl: string | null) =>
-    inCopy ? claudeCodeUrl({ copy: inCopy.copy, branch: r.branch, name: r.name, purpose: r.purpose, product: product.name, previewUrl }) : null;
-  // Who may say Done exploring or archive it: the person who started it or a reviewer, with GitHub, in direct mode.
-  const keeper = canKeepExploration({ viewer, author: r.author, reviewer: viewerRole() === 'reviewer', write: own ? null : (currentAccess()?.write ?? null) });
-  const emailOnProduct = Boolean(own && currentContributor());
+    inCopy && !member ? claudeCodeUrl({ copy: inCopy.copy, branch: r.branch, name: r.name, purpose: r.purpose, product: product.name, previewUrl }) : null;
+  // Who may say Done exploring or archive it: the person who started it or a reviewer, with GitHub, in direct mode; in
+  // the design team's copy, also the email member Bridge started it for (the proxy checks it again on each write).
+  const emailKeeper = Boolean(inCopy && member && startedByEmailMember(pull.body, member));
+  const keeper = emailKeeper || canKeepExploration({ viewer, author: r.author, reviewer: viewerRole() === 'reviewer', write: own ? null : (currentAccess()?.write ?? null) });
+  const emailOnProduct = Boolean(own && member && !inCopy);
   const direct = changesModeOnPage() === 'direct';
   const writable = connected() && direct && keeper && !emailOnProduct;
   // The "..." menu: Rename, Back to exploring (waiting for code only), Archive, for the same people as Archive.

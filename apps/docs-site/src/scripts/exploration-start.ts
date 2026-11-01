@@ -4,6 +4,7 @@
 // embeds its preview settings as #bridge-branches. In suggest mode nothing starts: an exploration is a branch.
 import {
   EXPLORATION_PREFIX,
+  GitHubError,
   linkRequestToExplorationOnGitHub,
   productRepoAccess,
   startExplorationOnGitHub,
@@ -87,8 +88,20 @@ export async function startInProductRepo(
   inProduct: NonNullable<ExplorationSettings['inProduct']>,
 ): Promise<LinkedStart | ProductRepoBlocked> {
   const [owner, name] = repo.split('/') as [string, string];
-  // An email member's writes go through Bridge to the design system only: nothing is written in the product's own.
-  if (currentContributor()) return { blocked: 'read-only' };
+  // An email member explores in the design team's copy through Bridge (api/contribute planProductCall), never in the
+  // developers' own repository. Their right to push is Bridge's to decide, so only the default branch is read here.
+  if (currentContributor()) {
+    if (!inProduct.copyOf) return { blocked: 'read-only' };
+    let base: string;
+    try {
+      base = (await studioClient(repo, getToken() ?? '').getRepo()).defaultBranch;
+    } catch (err) {
+      // No copy yet, or Bridge not on it: making one is an admin's (the dialog asks one), never an email member's.
+      if (err instanceof GitHubError && (err.status === 404 || err.status === 403 || err.status === 409) && err.auth !== 'rejected') return { blocked: 'read-only' };
+      throw err;
+    }
+    return startLinkedExploration({ owner, repo: name, defaultBranch: base, apps: {}, packages: [] }, e, null, labels, inProduct);
+  }
   const access = await productRepoAccess(studioClient(repo, getToken() ?? ''));
   // The design team's copy GitHub does not show: not made yet (the dialog offers to make it).
   if (!access.ok) return { blocked: inProduct.copyOf && access.reason === 'not-connected' ? 'no-copy' : access.reason };

@@ -136,6 +136,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
 
   // A lead may also start in the library; until the access is known, only the products (a lead sees it a moment later).
   const [lead, setLead] = useState(false);
+  // Joined with their email (no GitHub): they explore a product in its design team's copy, through Bridge.
+  const [email, setEmail] = useState(false);
   const targets = startTargets(products, { library: lead });
   const picked = targets.find((t) => t.value === target) ?? null;
 
@@ -183,9 +185,21 @@ export default function StartExploration({ components, appearance = 'menu', prod
     // Setting state after an unmount is a no-op in React 18: no guard, so a remount never loses the access.
     else
       void import('../../../scripts/github-session')
-        .then((m) => m.onAccess((a) => setLead(libraryLead(a))))
+        .then((m) => {
+          setEmail(Boolean(m.currentContributor()));
+          m.onAccess((a) => setLead(libraryLead(a)));
+        })
         .catch(() => undefined);
   }, []);
+
+  // Known before they type: a product with no design copy is out of an email member's reach, so say it at once.
+  useEffect(() => {
+    if (!open || !email || !picked || picked.library) return;
+    const c = siteConfig();
+    const repo = featureRepo(picked.product, `${c.owner}/${c.repo}`);
+    if (repo && !picked.product.design?.repo) setBlocked({ product: picked.product.name, repo, reason: 'read-only', config: picked.product });
+    else setBlocked((b) => (b && b.product === picked.product.name ? b : null));
+  }, [open, email, target]);
 
   // The access said lead after the dialog opened: pick again from what the page asked (the library, say).
   useEffect(() => {
@@ -403,9 +417,9 @@ export default function StartExploration({ components, appearance = 'menu', prod
                 <Button
                   variant="secondary"
                   iconStart={copied ? Check : Copy}
-                  onClick={() => void copy(askAdmin(blocked.product, blocked.repo, blocked.reason as 'not-connected' | 'read-only', installUrl()).message, 'Message copied. Paste it to an admin.')}
+                  onClick={() => void copy(askAdmin(blocked.product, blocked.repo, blocked.reason as 'not-connected' | 'read-only', installUrl(), email).message, 'Message copied. Paste it to an admin.')}
                 >
-                  {copied ? 'Message copied' : askAdmin(blocked.product, blocked.repo, blocked.reason, installUrl()).label}
+                  {copied ? 'Message copied' : askAdmin(blocked.product, blocked.repo, blocked.reason, installUrl(), email).label}
                 </Button>
                 {lead && (
                   <Button variant="link" disabled={busy} onClick={() => void start(true)}>
@@ -415,7 +429,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
               </>
             }
           >
-            {productRepoBlockedLine(blocked.product, blocked.reason)}
+            {productRepoBlockedLine(blocked.product, blocked.reason, lead)}
           </Alert>
         )}
         <span className="sr-only" role="status" aria-live="polite">

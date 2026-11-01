@@ -771,10 +771,12 @@ function busyIfLimited(res: Response): Response {
 export function studioClient(repo: string, token: string | null = getToken(), options?: ClientOptions): GitHubClient {
   // An email member's client goes through this site's proxy for its own repository, which is not always the page's
   // (a team Library page is not a Studio team shell: its page repository is the site's own). A client for one of the
-  // team's product repositories reads through the team's proxy (its session is the team's); writes there are refused.
-  const product = pageProductRepos().includes(repo.toLowerCase());
+  // team's product repositories goes through the team's proxy (its session is the team's), and so does a client it
+  // derives for another of them (Done exploring files the task in the developers' repository from the copy's client).
+  const products = pageProductRepos();
+  const product = products.includes(repo.toLowerCase());
   const via = product ? pageRepo() : repo;
-  const f: FetchLike = isContribAuth(token) ? (url, init = {}) => (isContribAuth(init.headers?.Authorization) ? contributeFetch(via, url, init as RequestInit, product ? [repo] : []) : studioFetch(url, init)) : studioFetch;
+  const f: FetchLike = isContribAuth(token) ? (url, init = {}) => (isContribAuth(init.headers?.Authorization) ? contributeFetch(via, url, init as RequestInit, product ? products : []) : studioFetch(url, init)) : studioFetch;
   return new GitHubClient(repo, token ?? '', f, undefined, options);
 }
 

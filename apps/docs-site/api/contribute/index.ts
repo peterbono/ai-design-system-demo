@@ -62,6 +62,12 @@
 //   POST   issues/<n>/labels           theirs only
 // Never: merges, reviews, requested reviewers, rulesets, branch protection, collaborators, deleting a ref, hooks,
 // settings, another repository, GraphQL.
+// In the team's products (bridge.config.json products[] with a design.repo, planProductCall), an email designer
+// explores like everyone: in the design team's copy their explore/* branches (started from the default branch with
+// design files only, then moved forward by design files only, while the branch may hold prototype code), their draft
+// pull request to the default branch, its exploration labels and comments, Sync fork of the default branch and the
+// default branch merged into their exploration; in the developers' repository the from-design label and one task per
+// exploration of theirs, which they may comment on, close as not planned and reopen. A product without a copy: reads only.
 // Design files only: writes land in the folders bridge.config.json declares for tokens, component docs and specs,
 // changesets and Bridge's own files (designPaths), never code, CI, package files or guardrails, because CI runs what
 // a pull request contains. On a public repository the member's email is never published: commits carry
@@ -199,6 +205,7 @@ export const NOT_ALLOWED = 'Bridge does not do this for people who joined with t
 const SIGNIN = 'You signed out. Sign in again with your email: Bridge sends you a code.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 const APP_MISSING = 'Bridge cannot write to this design system yet. An admin of the repository gives the Bridge app access to it.';
+const PRODUCT_APP_MISSING = 'Bridge cannot work in this product yet. Ask an admin to connect it to Bridge.';
 export const LIMIT_WORDS = {
   writes: "You reached today's limit of changes through Bridge. Try again tomorrow.",
   signin: 'Bridge already sent a few links today. Use the latest one, or try again tomorrow.',
@@ -550,6 +557,11 @@ interface Call {
   method: string;
   target: Target;
   body: Record<string, unknown> | null;
+  /**
+   * A write in one of the team's product repositories (productScope): the design team's copy, where explorations run,
+   * or the developers' repository, where Done exploring files their task. Absent: the team's own repository.
+   */
+  scope?: ProductScope | undefined;
 }
 
 interface Plan {
@@ -669,7 +681,7 @@ async function designPaths(ctx: Ctx, c: Call, defaultBranch: string): Promise<De
     }
   } else if (res.status !== 404) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
   // The name the team goes by, kept with it for the team pickers and emails (api/_lib/teams.ts). Never throws.
-  if (res.status === 404 || config) await putTeamName(ctx.svc.redis, c.full, configName(config), ctx.now());
+  if (!c.scope && (res.status === 404 || config)) await putTeamName(ctx.svc.redis, c.full, configName(config), ctx.now());
   const paths = designPathsFrom(config);
   configCache.set(key, { at: ctx.now(), paths });
   return paths;
@@ -736,6 +748,8 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
     const paths = (files as { filename?: unknown; previous_filename?: unknown }[]).flatMap((f) => [f.filename, f.previous_filename].filter((x): x is string => typeof x === 'string'));
     if (paths.length) await checkPaths(paths);
   };
+
+  if (c.scope) return planProductCall(ctx, c, { at, body, def, isDefault, ownsIssue, recordIssue, author, requested, checkPaths, checkCommit });
 
   switch (c.method) {
     case 'GET':
@@ -832,6 +846,277 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
   }
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Product repositories: the design team's copy and the developers' task (email designers explore products too)
+
+/** A product of the team with a design copy (bridge.config.json products[].repo and products[].design.repo). */
+export interface ProductPair {
+  /** The developers' repository, lower case. */
+  code: string;
+  /** The design team's copy, lower case. */
+  copy: string;
+}
+
+/** Which product repository a write lands in, and its other half. */
+export type ProductScope = { kind: 'copy'; pair: ProductPair } | { kind: 'code'; pair: ProductPair };
+
+/** The products of a team's bridge.config.json that have a design copy. Anything malformed is left out. */
+export function productPairsFrom(config: unknown, team: string): ProductPair[] {
+  const products = config && typeof config === 'object' ? (config as { products?: unknown }).products : null;
+  if (!Array.isArray(products)) return [];
+  const repo = (v: unknown) => (typeof v === 'string' && /^[\w.-]+\/[\w.-]+$/.test(v.trim()) ? v.trim().toLowerCase() : null);
+  const t = team.toLowerCase();
+  const out: ProductPair[] = [];
+  for (const p of products) {
+    if (!p || typeof p !== 'object') continue;
+    const code = repo((p as { repo?: unknown }).repo);
+    const copy = repo(((p as { design?: { repo?: unknown } }).design ?? {}).repo);
+    if (code && copy && code !== copy && code !== t && copy !== t) out.push({ code, copy });
+  }
+  return out;
+}
+
+/** The scope of `target` for the team: its design copy or its developers' repository, else null (not the team's). */
+export function scopeOf(pairs: readonly ProductPair[], target: string): ProductScope | null {
+  const t = target.toLowerCase();
+  const asCopy = pairs.find((p) => p.copy === t);
+  if (asCopy) return { kind: 'copy', pair: asCopy };
+  const asCode = pairs.find((p) => p.code === t);
+  return asCode ? { kind: 'code', pair: asCode } : null;
+}
+
+/** The team's product pairs, read from its default branch with the app, cached 5 minutes per warm function. */
+const pairsCache = new Map<string, { at: number; pairs: ProductPair[] }>();
+export const clearProductPairCache = () => pairsCache.clear();
+
+async function productPairs(ctx: Ctx, team: { owner: string; repo: string; full: string }): Promise<ProductPair[]> {
+  const hit = pairsCache.get(team.full);
+  if (hit && ctx.now() - hit.at < 5 * 60 * 1000) return hit.pairs;
+  const token = await ctx.svc.app.installationToken(team.owner, team.repo);
+  // Deny by default: a team Bridge cannot read lists no product.
+  if (!token) return [];
+  let res: Response;
+  try {
+    res = await ctx.f(`${API}/repos/${team.owner}/${team.repo}/contents/bridge.config.json`, {
+      method: 'GET',
+      headers: { Accept: 'application/vnd.github.raw', Authorization: `Bearer ${token}`, 'User-Agent': 'bridge-contribute', 'X-GitHub-Api-Version': '2022-11-28' },
+    });
+  } catch {
+    throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  }
+  if (res.status !== 200) return [];
+  let pairs: ProductPair[] = [];
+  try {
+    pairs = productPairsFrom(JSON.parse(await res.text()), team.full);
+  } catch {
+    pairs = [];
+  }
+  pairsCache.set(team.full, { at: ctx.now(), pairs });
+  return pairs;
+}
+
+// The names core uses (explorations.ts, design-copy-github.ts), kept here so this function bundles without the core
+// package; a test holds them equal to core's.
+export const EXPLORATION_PREFIX = 'explore/';
+export const EXPLORATION_LABEL = 'exploration';
+export const EXPLORATION_READY_LABEL = 'ready-for-devs';
+export const EXPLORATION_ARCHIVED_LABEL = 'archived';
+export const FROM_DESIGN_LABEL = 'from-design';
+
+/** Labels an email designer puts on or takes off their own exploration in the copy. */
+const COPY_LABELS = new Set([EXPLORATION_LABEL, EXPLORATION_READY_LABEL, EXPLORATION_ARCHIVED_LABEL]);
+const copyLabel = (l: unknown) => typeof l === 'string' && (COPY_LABELS.has(l) || /^product:[\w.-]{1,64}$/.test(l));
+
+interface PlanHelpers {
+  at: (...p: string[]) => boolean;
+  body: Record<string, unknown>;
+  def: () => Promise<string>;
+  isDefault: (b: string) => Promise<boolean>;
+  ownsIssue: (n: string | undefined) => Promise<boolean>;
+  recordIssue: (data: any) => Promise<void>;
+  author: () => Promise<{ name: string; email: string }>;
+  requested: (text: unknown) => Promise<string>;
+  checkPaths: (paths: string[]) => Promise<void>;
+  checkCommit: (sha: unknown) => Promise<void>;
+}
+
+/**
+ * The policy in a product repository, deny by default. In the design team's copy: only their own explore/* branches
+ * (new from the default branch with design files only, then moved forward by design files only), their draft pull
+ * request to the default branch with its labels and comments, "Get the latest" (GitHub's Sync fork of the default
+ * branch) and "Bring it in" (the default branch merged into their own exploration). In the developers' repository:
+ * the from-design label, one task per exploration of theirs (an issue labeled from-design that links their pull
+ * request in the copy), and on that task only a comment, closing it as not planned and opening it again. Never:
+ * the default branch written, a merge into it, reviews, settings, any other repository.
+ */
+async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan> {
+  const scope = c.scope!;
+  const r = c.target.rest;
+  const { at, body } = h;
+  const ownedExplore = async (b: unknown) =>
+    typeof b === 'string' && validBranch(b) && b.startsWith(EXPLORATION_PREFIX) && !(await h.isDefault(b)) && (await ctx.svc.redis.cmd('GET', branchKey(c.full, b))) === c.member.email;
+
+  if (scope.kind === 'copy') {
+    /** A move of their branch: a fast-forward whose own changes are design files only (the branch may hold code). */
+    const checkForward = async (b: string, sha: unknown) => {
+      if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/i.test(sha)) throw notAllowed();
+      const ref = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/git/ref/heads/${encodeRef(b)}`);
+      const from = ref.data?.object?.sha;
+      if (ref.status !== 200 || typeof from !== 'string') throw notAllowed();
+      const cmp = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/compare/${from}...${sha}`);
+      const files = cmp.data?.files;
+      if (cmp.status !== 200 || cmp.data?.status !== 'ahead' || !Array.isArray(files)) throw notAllowed();
+      if (files.length >= 300) throw new HttpError(403, 'not-allowed', DESIGN_ONLY);
+      const paths = (files as { filename?: unknown; previous_filename?: unknown }[]).flatMap((f) => [f.filename, f.previous_filename].filter((x): x is string => typeof x === 'string'));
+      if (paths.length) await h.checkPaths(paths);
+    };
+    switch (c.method) {
+      case 'POST': {
+        if (at('git', 'blobs')) return { body };
+        if (at('git', 'trees')) {
+          const tree = body.tree;
+          if (!Array.isArray(tree) || !tree.length) throw notAllowed();
+          const entries = tree as Record<string, unknown>[];
+          if (entries.some((e) => !e || typeof e !== 'object' || typeof e.path !== 'string' || (e.mode !== undefined && e.mode !== '100644' && e.mode !== '040000') || e.type === 'commit')) throw new HttpError(403, 'not-allowed', DESIGN_ONLY);
+          await h.checkPaths(entries.map((e) => e.path as string));
+          return { body: pick(body, ['base_tree', 'tree']) };
+        }
+        if (at('git', 'commits')) {
+          const date = body.author && typeof body.author === 'object' && typeof (body.author as Record<string, unknown>).date === 'string' ? { date: (body.author as Record<string, unknown>).date } : {};
+          return { body: { ...pick(body, ['message', 'tree', 'parents']), author: { ...(await h.author()), ...date } } };
+        }
+        if (at('git', 'refs')) {
+          const m = typeof body.ref === 'string' ? /^refs\/heads\/(.+)$/.exec(body.ref) : null;
+          const b = m?.[1];
+          if (!b || !validBranch(b) || !b.startsWith(EXPLORATION_PREFIX) || (await h.isDefault(b)) || typeof body.sha !== 'string') throw notAllowed();
+          const exists = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/git/ref/heads/${encodeRef(b)}`);
+          if (exists.status !== 404) throw notAllowed();
+          await h.checkCommit(body.sha);
+          return {
+            body: { ref: `refs/heads/${b}`, sha: body.sha },
+            after: async () => {
+              await ctx.svc.redis.cmd('SET', branchKey(c.full, b), c.member.email, 'EX', OWNERSHIP_TTL_S);
+              await rememberMine(ctx, c.full, c.member.email, `b:${b}`);
+            },
+          };
+        }
+        if (at('pulls')) {
+          if (typeof body.head !== 'string' || typeof body.base !== 'string') throw notAllowed();
+          const i = body.head.indexOf(':');
+          if (i >= 0 && body.head.slice(0, i).toLowerCase() !== c.owner.toLowerCase()) throw notAllowed();
+          const head = i >= 0 ? body.head.slice(i + 1) : body.head;
+          if (!(await ownedExplore(head)) || !(await h.isDefault(body.base))) throw notAllowed();
+          // Always a draft: an exploration is never offered for merging in the copy.
+          return { body: { ...pick(body, ['title']), head, base: body.base, draft: true, body: await h.requested(body.body) }, after: h.recordIssue };
+        }
+        if (at('issues', '*', 'comments')) {
+          if (!(await h.ownsIssue(r[1])) || typeof body.body !== 'string') throw notAllowed();
+          return { body: { body: `**${c.member.name}** (via Bridge):\n\n${body.body}` } };
+        }
+        if (at('issues', '*', 'labels')) {
+          const labels = body.labels;
+          if (!(await h.ownsIssue(r[1])) || !Array.isArray(labels) || !labels.length || !labels.every(copyLabel)) throw notAllowed();
+          return { body: { labels } };
+        }
+        if (at('merge-upstream')) {
+          // GitHub's "Sync fork": the copy's default branch takes the product's, nothing else.
+          if (typeof body.branch !== 'string' || !(await h.isDefault(body.branch))) throw notAllowed();
+          return { body: { branch: body.branch } };
+        }
+        if (at('merges')) {
+          // "Bring it in": the default branch merged into their own exploration, never the other way.
+          if (!(await ownedExplore(body.base)) || typeof body.head !== 'string' || !(await h.isDefault(body.head))) throw notAllowed();
+          return { body: { ...pick(body, ['commit_message']), base: body.base, head: body.head } };
+        }
+        throw notAllowed();
+      }
+      case 'PATCH': {
+        if (r.length >= 4 && r[0] === 'git' && r[1] === 'refs' && r[2] === 'heads') {
+          const b = r.slice(3).join('/');
+          if (body.force || !(await ownedExplore(b)) || typeof body.sha !== 'string') throw notAllowed();
+          await checkForward(b, body.sha);
+          return { body: { sha: body.sha, force: false } };
+        }
+        if (at('pulls', '*')) {
+          if (!onlyKeys(body, ['title', 'body', 'state']) || (body.state !== undefined && body.state !== 'open' && body.state !== 'closed') || !(await h.ownsIssue(r[1]))) throw notAllowed();
+          return { body: 'body' in body ? { ...body, body: await h.requested(body.body) } : body };
+        }
+        throw notAllowed();
+      }
+      case 'PUT':
+      case 'DELETE': {
+        if (r.length >= 2 && r[0] === 'contents') {
+          if (!(await ownedExplore(body.branch))) throw notAllowed();
+          await h.checkPaths([r.slice(1).join('/')]);
+          const keys = c.method === 'PUT' ? ['message', 'content', 'sha', 'branch'] : ['message', 'sha', 'branch'];
+          return { body: { ...pick(body, keys), author: await h.author() } };
+        }
+        if (c.method === 'DELETE' && at('issues', '*', 'labels', '*')) {
+          if (!(await h.ownsIssue(r[1])) || !copyLabel(r[3])) throw notAllowed();
+          return { body: null };
+        }
+        throw notAllowed();
+      }
+      default:
+        throw notAllowed();
+    }
+  }
+
+  // The developers' repository: their task, and nothing else.
+  const copy = scope.pair.copy;
+  /** A pull request of theirs in the copy that `text` links. */
+  const linksOwnedExploration = async (text: unknown) => {
+    if (typeof text !== 'string') return false;
+    const [owner, name] = copy.split('/');
+    const re = new RegExp(`https://github\\.com/${owner!.replace(/[.]/g, '\\.')}/${name!.replace(/[.]/g, '\\.')}/pull/(\\d+)`, 'gi');
+    for (const m of text.matchAll(re)) if ((await ctx.svc.redis.cmd('GET', issueKey(copy, m[1]!))) === c.member.email) return true;
+    return false;
+  };
+  /** Their task: opened through here, or a from-design task that links one of their explorations in the copy. */
+  const theirTask = async (n: string | undefined) => {
+    if (n === undefined || !NUMBER.test(n)) return false;
+    if (await h.ownsIssue(n)) return true;
+    const issue = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/issues/${n}`);
+    if (issue.status !== 200 || issue.data?.pull_request) return false;
+    const labels = Array.isArray(issue.data?.labels) ? (issue.data.labels as { name?: unknown }[]).map((l) => l?.name) : [];
+    return labels.includes(FROM_DESIGN_LABEL) && (await linksOwnedExploration(issue.data?.body));
+  };
+  switch (c.method) {
+    case 'POST': {
+      if (at('labels')) {
+        if (body.name !== FROM_DESIGN_LABEL) throw notAllowed();
+        return { body: pick(body, ['name', 'color', 'description']) };
+      }
+      if (at('issues')) {
+        const labels = body.labels;
+        if (typeof body.title !== 'string' || !body.title.startsWith('Design: ') || !Array.isArray(labels) || labels.length !== 1 || labels[0] !== FROM_DESIGN_LABEL) throw notAllowed();
+        if (!(await linksOwnedExploration(body.body))) throw notAllowed();
+        return { body: { title: body.title, labels, body: await h.requested(body.body) }, after: h.recordIssue };
+      }
+      if (at('issues', '*', 'comments')) {
+        if (typeof body.body !== 'string' || !(await theirTask(r[1]))) throw notAllowed();
+        return { body: { body: `**${c.member.name}** (via Bridge):\n\n${body.body}` } };
+      }
+      throw notAllowed();
+    }
+    case 'PATCH': {
+      if (at('issues', '*')) {
+        if (!onlyKeys(body, ['body', 'state', 'state_reason'])) throw notAllowed();
+        // Closing as done means shipped: that is the developers' to say.
+        if (body.state !== undefined && body.state !== 'open' && body.state !== 'closed') throw notAllowed();
+        if (body.state_reason !== undefined && body.state_reason !== 'not_planned' && body.state_reason !== 'reopened') throw notAllowed();
+        if (body.state === 'closed' && body.state_reason !== 'not_planned') throw notAllowed();
+        if ('body' in body && !(await linksOwnedExploration(body.body))) throw notAllowed();
+        if (!(await theirTask(r[1]))) throw notAllowed();
+        return { body: 'body' in body ? { ...body, body: await h.requested(body.body) } : body };
+      }
+      throw notAllowed();
+    }
+    default:
+      throw notAllowed();
+  }
+}
+
 const ACCEPT = /^application\/(json|vnd\.github(\.[A-Za-z0-9.+-]+)?)$/;
 const PASS_TYPE = /^(application\/(json|vnd\.github[^;]*)|text\/plain)\b/i;
 
@@ -841,7 +1126,13 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
   if (method === 'GET') return onTeamRead(req, ctx, params);
   const member = await sessionMember(ctx, req, full);
   if (!member) return json(401, { error: 'signin', message: SIGNIN }, { 'Set-Cookie': clearSession(full) });
-  const target = parseTarget(params.get('gh'), owner, repo);
+  // The team's own repository, or one of its products' (the design copy, the developers' task): anything else, never.
+  const any = parseAnyTarget(params.get('gh'));
+  const own = any.owner.toLowerCase() === owner.toLowerCase() && any.repo.toLowerCase() === repo.toLowerCase();
+  const scope = own ? null : scopeOf(await productPairs(ctx, { owner, repo, full }), `${any.owner}/${any.repo}`);
+  if (!own && !scope) throw notAllowed();
+  const target: Target = { rest: any.rest, rawRest: any.rawRest, query: any.query };
+  const at = own ? { owner, repo, full } : { owner: any.owner, repo: any.repo, full: `${any.owner}/${any.repo}`.toLowerCase() };
 
   let body: Record<string, unknown> | null = null;
   if (method !== 'GET') {
@@ -861,9 +1152,9 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
     }
   }
 
-  const token = await ctx.svc.app.installationToken(owner, repo);
-  if (!token) return fail(409, 'app_missing', APP_MISSING);
-  const plan = await planCall(ctx, { owner, repo, full, member, token, method, target, body });
+  const token = await ctx.svc.app.installationToken(at.owner, at.repo);
+  if (!token) return fail(409, 'app_missing', scope ? PRODUCT_APP_MISSING : APP_MISSING);
+  const plan = await planCall(ctx, { owner: at.owner, repo: at.repo, full: at.full, member, token, method, target, body, scope: scope ?? undefined });
 
   if (method !== 'GET') {
     const day = dayOf(ctx.now());
@@ -872,7 +1163,7 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
 
   const accept = req.headers.get('accept')?.trim() ?? '';
   const inm = req.headers.get('if-none-match');
-  const url = `${API}/repos/${owner}/${repo}${target.rawRest.length ? `/${target.rawRest.join('/')}` : ''}${target.query ? `?${target.query}` : ''}`;
+  const url = `${API}/repos/${at.owner}/${at.repo}${target.rawRest.length ? `/${target.rawRest.join('/')}` : ''}${target.query ? `?${target.query}` : ''}`;
   let res: Response;
   try {
     res = await ctx.f(url, {
@@ -892,7 +1183,10 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
   }
   const text = res.status === 204 || res.status === 304 ? null : await res.text();
   // Reads kept by Bridge (api/_lib/team-read.ts) are checked again after a change made here.
-  if (res.status >= 200 && res.status < 300) await noteWrite(ctx.svc.redis, full, ctx.now()).catch(() => undefined);
+  if (res.status >= 200 && res.status < 300) {
+    await noteWrite(ctx.svc.redis, full, ctx.now()).catch(() => undefined);
+    if (at.full !== full) await noteWrite(ctx.svc.redis, at.full, ctx.now()).catch(() => undefined);
+  }
   if (plan.after && res.status >= 200 && res.status < 300) {
     let data: unknown = null;
     try {
