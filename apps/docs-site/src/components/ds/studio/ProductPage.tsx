@@ -20,13 +20,13 @@
 // scripts/product-page.ts.
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Pencil } from 'lucide-react';
-import { Badge, Button, IconButton, Input, Link, Skeleton, Tooltip } from '@bridge-ds/react';
+import { Badge, Button, Card, CardBody, IconButton, Input, Link, Skeleton, Tooltip } from '@bridge-ds/react';
 import type { ProductConfig } from '@bridge-ds/core';
 import { StudioHead } from './StudioHead';
 import { Drawing } from './Drawing';
 import StartExploration from './StartExploration';
 import { ExplorationCardItem } from './ExplorationCards';
-import { archivedHref, archivedLine, emptyProductLine, productFacts, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
+import { LIBRARY_ASKS, archivedHref, archivedLine, emptyProductLine, productFacts, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
 import { studioHref } from '../../../lib/team-path';
 import { PRODUCT_NAME_MAX, PRODUCT_NAME_WORDS, productNameProblem } from '../../../lib/product-name';
 import { COPY_WORDS, latestLine, madeLine, showsBehind } from '../../../lib/design-copy';
@@ -293,7 +293,24 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
           <Drawing name="paint" width={160} />
           <div className="pp-empty-text">
             <p className="t-body">{product ? emptyProductLine(product, library, lead) : ''}</p>
-            {product && start('menu')}
+            {product && library && !lead ? (
+              <ul className="pp-asks">
+                {LIBRARY_ASKS.map((a) => (
+                  <li key={a.key}>
+                    <Card interactive className="pp-ask">
+                      <CardBody className="pp-ask-body">
+                        <Link href={studioHref(a.path)} className="pp-ask-title" data-card-primary="">
+                          {a.title}
+                        </Link>
+                        <span className="t-ui t-muted">{a.line}</span>
+                      </CardBody>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              product && start('menu')
+            )}
           </div>
         </section>
       ) : (

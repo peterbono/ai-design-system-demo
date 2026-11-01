@@ -82,6 +82,39 @@
   margin: 0;
 }
 
+/* A designer on the library's page: the two ways to ask, side by side, each card going to its page. */
+.pp-asks {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-60), 1fr));
+  gap: var(--space-4);
+  justify-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-asks > li {
+  margin: 0;
+}
+
+.pp-ask {
+  height: 100%;
+}
+
+.pp-ask-body {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.pp-ask-title {
+  color: var(--color-text-link);
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
 .pp-archived {
   margin: var(--space-8) 0 0;
 }
