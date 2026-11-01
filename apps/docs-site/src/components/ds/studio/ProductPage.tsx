@@ -299,9 +299,9 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
                   <li key={a.key}>
                     <Card interactive className="pp-ask">
                       <CardBody className="pp-ask-body">
-                        <a href={studioHref(a.path)} className="pp-ask-title" data-card-primary="">
+                        <Link href={studioHref(a.path)} className="pp-ask-title" data-card-primary="">
                           {a.title}
-                        </a>
+                        </Link>
                         <span className="t-ui t-muted">{a.line}</span>
                       </CardBody>
                     </Card>
