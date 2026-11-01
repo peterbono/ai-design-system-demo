@@ -9,6 +9,8 @@ import {
   EXPLORATION_LABEL,
   EXPLORATION_PREFIX,
   EXPLORATION_READY_LABEL,
+  DESIGN_COPY_STARTING_POINT,
+  designCopyTakeCommands,
   doneExploringPlan,
   explorationStartingPoint,
   explorationStatus,
@@ -23,7 +25,8 @@ import {
 import { findExplorationOnGitHub } from './explorations-github';
 import { GitHubError, type GitHubClient } from './github-client';
 import { proposePiecesOnGitHub, type ProposedPieces } from './prod-branch-github';
-import type { ProductConfig } from './products';
+import { productCodeRepoOf, productOfDesignCopy, type ProductConfig } from './products';
+import { designTaskBody, designTaskTitle, FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION } from './design-copy-github';
 import type { RequestSource } from './requests';
 
 export interface DoneExploringInput {
@@ -64,6 +67,8 @@ export interface DoneExploring {
   note: string;
   /** Steps that did not go through, with what to do on GitHub instead. */
   warnings: string[];
+  /** From a design copy: the developers' task opened in the product's own repository. */
+  task?: { number: number; url: string; repo: string } | undefined;
 }
 
 /**
@@ -79,12 +84,17 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   if (status === 'shipped') throw new GitHubError(422, `#${p.number} is already shipped.`);
   if (status === 'promoted') throw new GitHubError(422, `#${p.number} was already sent to review.`);
   const fresh = status === 'active';
+  // In the design team's copy of a product: the developers get a task in their own repository, never a branch.
+  const copyOf = productOfDesignCopy(input.products ?? [], gh.fullName);
+  const codeRepo = copyOf ? productCodeRepoOf(copyOf, null) : null;
   const files = fresh ? await gh.listPullRequestFiles(p.number) : [];
-  const plan = fresh ? doneExploringPlan({ body: p.body, branch: p.headRef, files: files.map((f) => ({ path: f.filename, status: f.status })), date: input.date, doneBy: input.openedBy }) : null;
-  const take = plan?.take ?? (['git fetch origin', `git checkout ${p.headRef}`] as [string, string]);
+  const plan = fresh
+    ? doneExploringPlan({ body: p.body, branch: p.headRef, files: files.map((f) => ({ path: f.filename, status: f.status })), date: input.date, doneBy: input.openedBy, ...(codeRepo ? { copy: gh.fullName } : {}) })
+    : null;
+  const take = plan?.take ?? (codeRepo ? designCopyTakeCommands(gh.fullName, p.headRef) : (['git fetch origin', `git checkout ${p.headRef}`] as [string, string]));
   // The checks of the head the developers start from, so the note says truthfully whether anything ran or passed.
   const checks: ExplorationChecks | null = p.headSha ? await Promise.resolve(p.headSha).then((sha) => gh.getChecks(sha, { exploration: isGuardedExploration({ state: p.state, draft: p.draft, labels: p.labels, headRef: p.headRef, body: p.body }) })).then((c) => c.state, () => null) : null;
-  const out: DoneExploring = { number: p.number, url: p.url, branch: p.headRef, status: fresh ? 'ready' : status, handedOff: fresh, plan, pieces: { proposed: [], already: [], unknown: [], warnings: [] }, take, checks, note: explorationStartingPoint(checks), warnings: [] };
+  const out: DoneExploring = { number: p.number, url: p.url, branch: p.headRef, status: fresh ? 'ready' : status, handedOff: fresh, plan, pieces: { proposed: [], already: [], unknown: [], warnings: [] }, take, checks, note: codeRepo ? DESIGN_COPY_STARTING_POINT : explorationStartingPoint(checks), warnings: [] };
   const products = input.products ?? [];
   const ask = { pieces: input.pieces ?? [], products, previewUrl: input.previewUrl, openedBy: input.openedBy, agent: input.agent, source: input.source, library: input.library };
   if (input.dryRun) {
@@ -96,6 +106,31 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   out.pieces = await proposePiecesOnGitHub(gh, p.number, ask);
   out.warnings.push(...out.pieces.warnings);
   if (!plan) return out;
+  // From a design copy: the task in the developers' repository first, so a refusal leaves the exploration running.
+  let task: string | undefined;
+  if (codeRepo) {
+    const dev = gh.withBranchPrefix(undefined).forRepo(codeRepo);
+    await dev.ensureLabel(FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION).catch(() => undefined);
+    const e = parseExplorationBody(p.body);
+    const name = e?.name ?? p.title.replace(/^Exploration:\s*/i, '');
+    const issue = await dev.createIssue({
+      title: designTaskTitle(name),
+      body: designTaskBody({
+        name,
+        purpose: e?.purpose,
+        previewUrl: input.previewUrl,
+        changes: files.filter((f) => !plan.removeFiles.includes(f.filename)).map((f) => f.filename),
+        pieces: out.pieces.proposed.map((x) => ({ title: x.title, url: x.url })),
+        copy: gh.fullName,
+        branch: p.headRef,
+        pr: { number: p.number, url: p.url },
+        doneBy: input.openedBy,
+      }),
+      labels: [FROM_DESIGN_LABEL],
+    });
+    task = issue.url;
+    out.task = { number: issue.number, url: issue.url, repo: codeRepo };
+  }
   const x = gh.withBranchPrefix(EXPLORATION_PREFIX);
   let doneSha = p.headSha;
   if (plan.removeFiles.length) {
@@ -113,7 +148,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   // The pieces wrote their links into the body: read it again before the developer section goes in.
   const latest = await gh.getPullRequest(p.number).catch(() => p);
   const doneAt = parseExplorationBody(plan.body)?.doneAt ?? (input.date ?? new Date()).toISOString();
-  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneBy: input.openedBy, doneSha, checks }) });
+  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneBy: input.openedBy, doneSha, checks, ...(codeRepo ? { copy: gh.fullName } : {}), ...(task ? { task } : {}) }) });
   return out;
 }
 

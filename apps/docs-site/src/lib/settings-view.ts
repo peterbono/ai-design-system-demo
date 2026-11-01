@@ -338,7 +338,8 @@ export const teamPlain = (slug: string) => `the ${slug.replace(/[-_]+/g, ' ')} t
 // cannot read simply adds nothing to Changes or the home).
 
 /** Where Bridge stands with a product's own repository: still checking, connected, read only, or not connected. */
-export type ProductConnection = 'checking' | 'connected' | 'read-only' | 'not-connected' | 'unavailable';
+/** `no-copy`: the product is explored in the design team's copy (products[].design), and the copy is not made yet. */
+export type ProductConnection = 'checking' | 'connected' | 'read-only' | 'not-connected' | 'unavailable' | 'no-copy';
 
 export interface ProductConnectionRow {
   label: string;
@@ -367,6 +368,8 @@ export function productConnectionRow(
       ask: ask(x.product, x.repo, 'read-only', x.installLink),
     };
   if (x.state === 'unavailable') return { label, badge: { text: 'Not checked', tone: 'neutral' }, value: `GitHub did not answer for ${x.repo}. Try again in a few minutes.`, ask: null };
+  if (x.state === 'no-copy')
+    return { label, badge: { text: 'No copy yet', tone: 'neutral' }, value: `Explorations for ${x.product} start in the design team's copy, ${x.repo}. Make it with "Make my copy" on the ${x.product} page.`, ask: null };
   return {
     label,
     badge: { text: 'Not connected', tone: 'warning' },

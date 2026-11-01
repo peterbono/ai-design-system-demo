@@ -27,6 +27,8 @@ import {
   CHANGE_MARKER_RULE,
   productRepoAccess,
   productRepoOf,
+  productCodeRepoOf,
+  designCopyOf,
   explorationSlug,
   explorationTestBuildOnGitHub,
   explorationRefLabel,
@@ -114,6 +116,20 @@ export function productRepoBlocked(ctx: BridgeContext, product: string, repo: st
         ? `Starting it in ${repo} needs a GitHub token that reaches it (${addToken(ctx)}).`
         : `Bridge is not connected to ${repo} yet, or this token does not reach it.`;
   return `${product} explorations are created in its own repository (${repo}). ${why} Ask an admin to connect ${product} to Bridge (install the Bridge GitHub App on ${repo}, or give the token access to it). Or, only if the person chooses it, start it in the design system repository for now (${say(ctx, 'where: "library"', '--in-library')}).`;
+}
+
+/**
+ * Why an exploration cannot start in a product's design copy (products[].design): the copy is not made yet (or out of
+ * reach), the person may only read it, or no token. Never the developers' repository as a fallback.
+ */
+export function designCopyBlocked(ctx: BridgeContext, product: string, repo: string, reason: 'not-connected' | 'read-only' | 'no-token'): string {
+  const why =
+    reason === 'read-only'
+      ? `You can read ${repo} but not create branches there: ask an admin of ${repo.split('/')[0]} for write access.`
+      : reason === 'no-token'
+        ? `Starting it in ${repo} needs a GitHub token that reaches it (${addToken(ctx)}).`
+        : `The copy does not exist yet, or this token does not reach it: make it with "Make my copy" on ${product}'s page in Bridge Studio.`;
+  return `${product} explorations are created in the design team's copy of ${product} (${repo}), never in the developers' repository. ${why} Or, only if the person chooses it, start it in the design system repository for now (${say(ctx, 'where: "library"', '--in-library')}).`;
 }
 
 /**
@@ -209,7 +225,10 @@ async function startInProductRepo(ctx: BridgeContext, x: { e: Exploration; produ
   const { e, product, repo } = x;
   const slug = e.slug!;
   const branch = `${EXPLORATION_PREFIX}${slug}`;
-  const inProduct = { name: product.name, library: x.library, ...(product.preview ? { preview: product.preview } : {}) };
+  // In the design team's copy (products[].design): the developers' repository is never written, the copy's previews show it.
+  const copyOf = designCopyOf(product, x.library) ? productCodeRepoOf(product, x.library) : null;
+  const template = copyOf ? product.design?.preview : product.preview;
+  const inProduct = { name: product.name, library: x.library, ...(template ? { preview: template } : {}), ...(copyOf ? { copyOf } : {}) };
   const [owner, name] = repo.split('/') as [string, string];
   const pgh = ctx.githubFor(repo, { protectedBranches: ['main', 'master'], branchPrefix: EXPLORATION_PREFIX });
   const access = ctx.canWriteRemote ? await productRepoAccess(pgh) : null;
@@ -226,9 +245,10 @@ async function startInProductRepo(ctx: BridgeContext, x: { e: Exploration; produ
     note: { path: explorationNotePath(slug), content: explorationNote(e) },
     prBody: explorationPrBody(e, { owner, repo: name, packages: [], apps: {}, inProduct }),
   };
-  if (x.dryRun) return { status: 'dry-run' as const, ...preview, ...(access && !access.ok ? { blocked: productRepoBlocked(ctx, product.name, repo, access.reason) } : {}) };
-  if (!access) throw new Error(productRepoBlocked(ctx, product.name, repo, 'no-token'));
-  if (!access.ok) throw new Error(productRepoBlocked(ctx, product.name, repo, access.reason));
+  const blocked = (reason: 'not-connected' | 'read-only' | 'no-token') => (copyOf ? designCopyBlocked(ctx, product.name, repo, reason) : productRepoBlocked(ctx, product.name, repo, reason));
+  if (x.dryRun) return { status: 'dry-run' as const, ...preview, ...(access && !access.ok ? { blocked: blocked(access.reason) } : {}) };
+  if (!access) throw new Error(blocked('no-token'));
+  if (!access.ok) throw new Error(blocked(access.reason));
   const client = ctx.githubFor(repo, { protectedBranches: [...new Set(['main', 'master', base])], branchPrefix: EXPLORATION_PREFIX });
   const r = await startExplorationOnGitHub(client, e, { base, packages: [], apps: {}, labels: x.labels, inProduct });
   return {

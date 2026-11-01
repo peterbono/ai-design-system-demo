@@ -184,7 +184,7 @@ const pageRepo = () => {
  */
 const pageProductRepos = (): string[] => {
   try {
-    return productReposOfConfig((siteConfig() as { products?: { repo?: string }[] }).products, pageRepo());
+    return productReposOfConfig((siteConfig() as { products?: { repo?: string; design?: { repo?: string } }[] }).products, pageRepo());
   } catch {
     return [];
   }

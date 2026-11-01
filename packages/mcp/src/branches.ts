@@ -9,6 +9,7 @@ import {
   addedComment,
   productRepoAccess,
   productRepos,
+  designCopyOf,
   askOthersToReviewOnGitHub,
   commentOnGitHub,
   reviewersToAsk,
@@ -419,12 +420,25 @@ export async function listProducts(ctx: BridgeContext) {
   const ds = (await ctx.github().catch(() => null))?.fullName ?? (config.repo ? `${config.repo.owner}/${config.repo.name}` : null);
   // One read per product with its own repository: whether its explorations show up in the lists.
   const own = new Map(await Promise.all(productRepos(products, ds).map(async (x) => [x.product.key, await productConnection(ctx, x.repo)] as const)));
+  const copies = new Map(products.flatMap((p) => (designCopyOf(p, ds) ? [[p.key, designCopyOf(p, ds)!] as const] : [])));
   return {
     products: products.map((p) => ({
       key: p.key,
       name: p.name,
       ...(p.repo ? { repo: p.repo } : {}),
-      ...(own.has(p.key) ? { connection: own.get(p.key)!, ...(own.get(p.key) === 'not-connected' ? { connect: `Install the Bridge GitHub App on ${p.repo} (or give the token access to it): until then its explorations are left out of the lists.` } : {}) } : {}),
+      ...(copies.has(p.key) ? { designCopy: copies.get(p.key)! } : {}),
+      ...(own.has(p.key)
+        ? {
+            connection: own.get(p.key)!,
+            ...(own.get(p.key) === 'not-connected'
+              ? {
+                  connect: copies.has(p.key)
+                    ? `The design team's copy ${copies.get(p.key)} is not made yet, or this token does not reach it: "Make my copy" on ${p.name}'s page in Bridge Studio makes it. Until then its explorations are left out of the lists.`
+                    : `Install the Bridge GitHub App on ${p.repo} (or give the token access to it): until then its explorations are left out of the lists.`,
+                }
+              : {}),
+          }
+        : {}),
       ...(p.path ? { path: p.path } : {}),
       ...(p.preview ? { preview: p.preview } : {}),
       ...(p.framework ? { framework: p.framework } : {}),

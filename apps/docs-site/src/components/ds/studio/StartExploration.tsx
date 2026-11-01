@@ -38,6 +38,7 @@ import {
   startTargets,
 } from '../../../lib/create-branch';
 import { installUrl } from '../../../lib/access-view';
+import { COPY_WORDS, madeLine } from '../../../lib/design-copy';
 import { siteConfig } from '../../../scripts/repo-context';
 import { useCopy } from './TeamLink';
 import { copilotSetup, connectorUrl, TERMINAL_SETUP_LINE, terminalSetup } from '../../../lib/claude-connector';
@@ -119,7 +120,9 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The product's own repository is out of Bridge's reach: the admin action, and the library fallback on request.
-  const [blocked, setBlocked] = useState<{ product: string; repo: string; reason: 'not-connected' | 'read-only' } | null>(null);
+  const [blocked, setBlocked] = useState<{ product: string; repo: string; reason: 'not-connected' | 'read-only' | 'no-copy'; config?: ProductConfig } | null>(null);
+  /** "Make my copy" from the dialog, for a product explored in the design team's copy that has none yet. */
+  const [making, setMaking] = useState(false);
   const { copied, said, copy } = useCopy(3000);
   const [done, setDone] = useState<{ prompt: string; href: string; name: string; where: string; setup: ToolSetup } | null>(null);
   const [claudeLink, setClaudeLink] = useState<ClaudeLink>('unknown');
@@ -215,11 +218,15 @@ export default function StartExploration({ components, appearance = 'menu', prod
       const e = { name, purpose: featurePurpose(sentence), useCase: 'terminal' as const, ...(author ? { author } : {}), ...(key ? { jira: key } : {}) };
       const labels = productMarks(products, t.product).labels;
       const repo = inLibrary || t.library ? null : featureRepo(t.product, `${cfg.owner}/${cfg.repo}`);
+      // In the design team's copy (products[].design): the copy's previews, and the developers' repository never written.
+      const { copyRepos } = await import('../../../scripts/design-copy');
+      const at = repo ? copyRepos(t.product) : null;
+      const template = at ? t.product.design?.preview : t.product.preview;
       const r = repo
-        ? await startInProductRepo(repo, e, labels, { name: t.product.name, library: `${cfg.owner}/${cfg.repo}`, ...(t.product.preview ? { preview: t.product.preview } : {}) })
+        ? await startInProductRepo(repo, e, labels, { name: t.product.name, library: `${cfg.owner}/${cfg.repo}`, ...(template ? { preview: template } : {}), ...(at ? { copyOf: at.code } : {}) })
         : await startLinkedExploration(cfg, e, null, labels);
       if ('blocked' in r) {
-        setBlocked({ product: t.product.name, repo: repo!, reason: r.blocked });
+        setBlocked({ product: t.product.name, repo: repo!, reason: r.blocked, config: t.product });
         return;
       }
       setBlocked(null);
@@ -330,7 +337,38 @@ export default function StartExploration({ components, appearance = 'menu', prod
             </Button>
           </span>
         )}
-        {blocked && !error && (
+        {blocked?.reason === 'no-copy' && !error && (
+          <Alert
+            tone="info"
+            actions={
+              <Button
+                variant="secondary"
+                loading={making}
+                onClick={() =>
+                  void (async () => {
+                    if (!blocked.config || making) return;
+                    setMaking(true);
+                    try {
+                      const { makeCopy } = await import('../../../scripts/design-copy');
+                      const r = await makeCopy(blocked.config);
+                      if (r === 'ready') {
+                        setBlocked(null);
+                        await start();
+                      } else setError(madeLine(blocked.product, r));
+                    } finally {
+                      setMaking(false);
+                    }
+                  })()
+                }
+              >
+                {COPY_WORDS.make}
+              </Button>
+            }
+          >
+            {making ? COPY_WORDS.making : COPY_WORDS.noCopyStart(blocked.product)}
+          </Alert>
+        )}
+        {blocked && blocked.reason !== 'no-copy' && !error && (
           <Alert
             tone="warning"
             actions={
@@ -338,7 +376,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
                 <Button
                   variant="secondary"
                   iconStart={copied ? Check : Copy}
-                  onClick={() => void copy(askAdmin(blocked.product, blocked.repo, blocked.reason, installUrl()).message, 'Message copied. Paste it to an admin.')}
+                  onClick={() => void copy(askAdmin(blocked.product, blocked.repo, blocked.reason as 'not-connected' | 'read-only', installUrl()).message, 'Message copied. Paste it to an admin.')}
                 >
                   {copied ? 'Message copied' : askAdmin(blocked.product, blocked.repo, blocked.reason, installUrl()).label}
                 </Button>

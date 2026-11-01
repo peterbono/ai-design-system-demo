@@ -43,6 +43,7 @@ const data = (over: Partial<ProductPageData> = {}): ProductPageData => ({
   failed: null,
   cards: [],
   archived: [],
+  copy: null,
   ...over,
 });
 
@@ -82,6 +83,38 @@ describe('ProductPageView', () => {
     expect(container.querySelector('[data-st-actions]')!.textContent).toBe('');
     expect(container.querySelector('.pp-facts')).toBeNull();
     await expectNoAxeViolations(container);
+  });
+
+  it("no copy of the product yet: one calm card and Make my copy, never the developers' repository", async () => {
+    const make = vi.fn(async () => ({ line: 'Your copy of Product admin is ready. Start an exploration in it.', ready: true }));
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ copy: { kind: 'missing' }, reached: null }), copy: { make, latest: vi.fn() } }));
+    const card = container.querySelector('[data-copy-missing]')!;
+    expect(card.textContent).toContain("Get your own copy of Product admin to explore in. The developers' code stays untouched.");
+    // The card is the one action: no start in the header, no list, no "Not connected yet".
+    expect(container.querySelector('[data-st-actions]')!.textContent).toBe('');
+    expect(container.querySelector('[data-state-group]')).toBeNull();
+    expect(container.textContent).not.toMatch(/fork|repository|Not connected/i);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Make my copy' }));
+    });
+    expect(make).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(card.textContent).toContain('Your copy of Product admin is ready.'));
+    await expectNoAxeViolations(container);
+  });
+
+  it('the product moved on since the copy: one quiet line and Get the latest, nothing when up to date', async () => {
+    const latest = vi.fn(async () => 'Your copy is up to date.');
+    const { container, unmount } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)], copy: { kind: 'ready', behind: 2 } }), copy: { make: vi.fn(), latest } }));
+    expect(container.querySelector('[data-copy-behind]')!.textContent).toContain('Product admin changed since your copy.');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Get the latest' }));
+    });
+    expect(latest).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(container.querySelector('.pp-facts')!.textContent).toContain('Your copy is up to date.'));
+    expect(container.querySelector('[data-copy-behind]')).toBeNull();
+    unmount();
+    const fresh = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)], copy: { kind: 'ready', behind: 0 } }) }));
+    expect(fresh.container.querySelector('[data-copy-behind]')).toBeNull();
   });
 
   it('says "2 archived." in the plural, and nothing at all without archived ones', () => {

@@ -166,7 +166,9 @@ export async function listProductExplorationsOnGitHub(
 
 /** An exploration read in a product's own repository: its repository, its product and the product's preview. */
 export function inProductRepo(x: ExplorationSummary, product: ProductConfig, repo: string): ExplorationSummary {
-  const url = previewUrl(product.preview, { branch: x.branch, pr: x.number, sha: x.headSha });
+  // In the design team's copy, the copy's own preview deploys show it.
+  const template = product.design?.repo?.toLowerCase() === repo.toLowerCase() ? product.design.preview : product.preview;
+  const url = previewUrl(template, { branch: x.branch, pr: x.number, sha: x.headSha });
   return { ...x, repo, product: product.key, previews: url ? [{ app: product.key, label: product.name, url }] : [] };
 }
 

@@ -61,7 +61,7 @@ import { plateDrawing } from '../../../lib/branch-thumb';
 import { capturedLine } from '../../../lib/preview-shots';
 import { TERMINAL_SETUP_LINE } from '../../../lib/claude-connector';
 import type { AiTool } from '../../../lib/ai-tools';
-import { claudeNewUrl, ToolAction, ToolPanel, useAiTools, type ToolLines, type ToolSetup } from './AiToolPanel';
+import { ClaudeGlyph, claudeNewUrl, ToolAction, ToolPanel, useAiTools, type ToolLines, type ToolSetup } from './AiToolPanel';
 
 export { claudeNewUrl };
 
@@ -151,6 +151,11 @@ export interface ExplorationPageProps {
   terminalSetup?: string | null;
   /** The command VS Code needs once for Copilot: bridge connect --tool copilot in a product, code --add-mcp for the library. */
   copilotSetup?: { label: string; command: string } | null;
+  /**
+   * In the design team's copy of a product (lib/design-copy.ts claudeCodeUrl): "Open in Claude Code" opens the copy on
+   * this exploration's branch, and stands for the AI tool panel and its Continue button.
+   */
+  claudeCodeUrl?: string | null;
 }
 
 /** The tool the panel has open, for the buttons further down the page (Check in Claude, the X2 action). */
@@ -164,6 +169,13 @@ const setupOf = (p: ExplorationPageProps): ToolSetup => ({
 
 /** The open tool's button with this page's line and connector gate. */
 function ContinueButton({ p, tool, line, say, variant, children, size = 'lg' }: { p: ExplorationPageProps; tool: AiTool; line: string; say: (s: string) => void; variant: 'primary' | 'secondary'; children?: string; size?: 'md' | 'lg' }) {
+  if (p.claudeCodeUrl)
+    return (
+      <ButtonLink variant={variant} size={size} className="xp-continue" href={p.claudeCodeUrl} target="_blank" rel="noopener">
+        <ClaudeGlyph />
+        Open in Claude Code
+      </ButtonLink>
+    );
   return (
     <ToolAction
       tool={tool}
@@ -519,9 +531,13 @@ function ExplorationBody(p: ExplorationPageProps) {
               <h2 className="xp-h-lg" id="xp-start-h">
                 Nothing built yet
               </h2>
-              <p className="xp-body">You explore with {withWhat} and the library. Your preview appears here after the first change.</p>
+              <p className="xp-body">
+                {p.claudeCodeUrl
+                  ? "You explore with Claude Code in your team's copy of the product, with the library. Your preview appears here after the first change."
+                  : `You explore with ${withWhat} and the library. Your preview appears here after the first change.`}
+              </p>
             </div>
-            <ToolPanel tools={view.tools} tab={tab} setTab={setTab} chosen={view.chosen} lines={lines} setup={setupOf(p)} onCopy={p.onCopy} say={setSaid} />
+            {!p.claudeCodeUrl && <ToolPanel tools={view.tools} tab={tab} setTab={setTab} chosen={view.chosen} lines={lines} setup={setupOf(p)} onCopy={p.onCopy} say={setSaid} />}
             <div className="xp-acts">
               <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="primary" />
               {p.todayUrl && (

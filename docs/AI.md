@@ -324,8 +324,8 @@ What stays in Studio, and why:
 
 Products are listed in `bridge.config.json` under `products` (name, the folder or GitHub repo they live in, a
 preview link pattern, the framework). Without the key, Bridge uses this repository's two: Admin demo
-(`apps/admin`) and Library, the default. This repository also lists Product admin (`admin-app`), a product with its
-own repository (`peterbono/bridge-product-admin`). A branch belongs to the product named by its `product: <key>` label,
+(`apps/admin`) and Library, the default. This repository also lists Art print shop (`admin-app`), a product with its
+own repository (`art-print-shop-co/art-print-shop`), explored in the design team's copy (`products[].design`, see EXPLORATIONS.md). A branch belongs to the product named by its `product: <key>` label,
 else to the product whose folder it changes, else to the default product: Studio's Branches page groups by the
 same rule.
 

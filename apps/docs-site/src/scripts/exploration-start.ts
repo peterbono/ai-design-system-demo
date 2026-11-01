@@ -67,9 +67,12 @@ export async function startLinkedExploration(
   }
 }
 
-/** Bridge cannot open branches in the product's own repository: not connected (or out of the token's reach), or read only. */
+/**
+ * Bridge cannot open branches in the product's own repository: not connected (or out of the token's reach), or read
+ * only; for a product explored in the design team's copy, `no-copy` when the copy is not made yet.
+ */
 export interface ProductRepoBlocked {
-  blocked: 'not-connected' | 'read-only';
+  blocked: 'not-connected' | 'read-only' | 'no-copy';
 }
 
 /**
@@ -87,6 +90,7 @@ export async function startInProductRepo(
   // An email member's writes go through Bridge to the design system only: nothing is written in the product's own.
   if (currentContributor()) return { blocked: 'read-only' };
   const access = await productRepoAccess(studioClient(repo, getToken() ?? ''));
-  if (!access.ok) return { blocked: access.reason };
+  // The design team's copy GitHub does not show: not made yet (the dialog offers to make it).
+  if (!access.ok) return { blocked: inProduct.copyOf && access.reason === 'not-connected' ? 'no-copy' : access.reason };
   return startLinkedExploration({ owner, repo: name, defaultBranch: access.base, apps: {}, packages: [] }, e, null, labels, inProduct);
 }

@@ -8,6 +8,8 @@
 // exploration status is neutral grey: states, not verdicts. The tier slot reads "Exploration (not mergeable)".
 import {
   EXPLORATION_STARTING_POINT,
+  DESIGN_COPY_STARTING_POINT,
+  designCopyTakeCommands,
   EXPLORATION_STATUS_LABEL,
   EXPLORATION_TIER_LABEL,
   EXPLORATION_USE_CASES,
@@ -448,7 +450,9 @@ export function doneLine(requests: number): string {
 }
 
 /** The developer fold: the branch, the two commands to take it, and the note that it is a starting point. */
-export function takeItLines(branch: string): { branch: string; commands: [string, string]; note: string } {
+export function takeItLines(branch: string, copy?: string | null): { branch: string; commands: [string, string]; note: string } {
+  // In the design team's copy: the developers fetch the code from the copy, into their own repository.
+  if (copy) return { branch, commands: designCopyTakeCommands(copy, branch), note: DESIGN_COPY_STARTING_POINT };
   return { branch, commands: explorationTakeCommands(branch), note: EXPLORATION_STARTING_POINT };
 }
 

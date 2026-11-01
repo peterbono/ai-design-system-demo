@@ -534,6 +534,14 @@ describe('team reads: a product repository of the team', () => {
     expect((await bare.read(`${S}/pulls`, await bare.member())).status).toBe(403);
   });
 
+  it("reads the design team's copy of a product the team lists (products[].design.repo)", async () => {
+    const copy = 'acme/shop-design';
+    const s = setup({ configs: { [TEAM]: JSON.stringify({ products: [{ key: 'shop', name: 'Shop', repo: SHOP, design: { repo: copy } }, { key: 'library', name: 'Library', default: true }] }) } });
+    const cookie = await s.member();
+    expect((await s.read(`/repos/${copy}/pulls?state=open&per_page=100`, cookie)).status).toBe(200);
+    expect(s.tokens).toContain(copy);
+  });
+
   it('needs a reader of the team first: nobody else reads a product repository', async () => {
     const s = setup({ configs: config(TEAM, [SHOP]) });
     expect((await s.read(`${S}/pulls`)).status).toBe(401);
