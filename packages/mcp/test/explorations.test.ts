@@ -89,6 +89,34 @@ describe('explorations on GitHub', () => {
     expect(ds.pulls[1]!.labels.map((l: any) => l.name)).toEqual(['exploration', 'product: shop']);
   });
 
+  it("a product with a design copy: the exploration starts in the copy, never in the developers' repository", async () => {
+    const tree = files();
+    const cfg = JSON.parse(tree['bridge.config.json']!);
+    cfg.products = [
+      { key: 'shop', name: 'Shop', repo: 'acme/shop', design: { repo: 'acme/shop-design', preview: 'https://shop-design-git-{branch}-acme.vercel.app' }, preview: 'https://shop-git-{branch}-acme.vercel.app' },
+      { key: 'library', name: 'Library', default: true },
+    ];
+    const ds = fakeGitHub('acme', 'ds', { ...tree, 'bridge.config.json': `${JSON.stringify(cfg, null, 2)}\n` });
+    const copy = fakeGitHub('acme', 'shop-design', { 'package.json': '{"name":"shop"}' });
+    const shop = fakeGitHub('acme', 'shop', { 'package.json': '{"name":"shop"}' });
+    const route = ((url: string, init?: RequestInit) =>
+      String(url).includes('/repos/acme/shop-design') ? copy.fetch(url, init) : String(url).includes('/repos/acme/shop') ? shop.fetch(url, init) : ds.fetch(url, init)) as typeof fetch;
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: route });
+    const r = (await explorations.startExploration(ctx, { name: 'Billing screen', product: 'shop', source: 'mcp' })) as any;
+    expect(r).toMatchObject({ status: 'started', repo: 'acme/shop-design', inProductRepo: true, branch: 'explore/billing-screen' });
+    expect(copy.pulls).toHaveLength(1);
+    expect(shop.pulls).toHaveLength(0);
+    expect(copy.pulls[0]!.body).toContain("design team's copy of Shop, never in the developers' repository (acme/shop)");
+    expect(copy.pulls[0]!.body).toContain('| Shop | https://shop-design-git-explore-billing-screen-acme.vercel.app/ |');
+
+    // No copy yet: nothing written anywhere, and the way to make it.
+    const none = ((url: string, init?: RequestInit) =>
+      String(url).includes('/repos/acme/shop-design') ? Promise.resolve(new Response('{"message":"Not Found"}', { status: 404 })) : String(url).includes('/repos/acme/shop') ? shop.fetch(url, init) : ds.fetch(url, init)) as typeof fetch;
+    const off = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: none });
+    await expect(explorations.startExploration(off, { name: 'Checkout', product: 'shop' })).rejects.toThrow(/design team's copy of Shop \(acme\/shop-design\)[\s\S]*Make my copy/);
+    expect(shop.pulls).toHaveLength(0);
+  });
+
   it('token edits, requests and docs drafts aimed at the exploration branch; list; promote', async () => {
     const gh = fakeGitHub('acme', 'ds', files());
     const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });

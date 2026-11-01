@@ -787,7 +787,27 @@
           "repo": {
             "type": "string",
             "pattern": "^[\\w.-]+/[\\w.-]+$",
-            "description": "owner/name when the product lives in another GitHub repository."
+            "description": "owner/name when the product lives in another GitHub repository: the developers' own."
+          },
+          "design": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "repo"
+            ],
+            "description": "The design team's copy of the product's repository (a fork the team owns). Explorations of this product start there, never in the developers' repository, and Done exploring sends the developers a task (an issue labeled from-design) instead of a branch.",
+            "properties": {
+              "repo": {
+                "type": "string",
+                "pattern": "^[\\w.-]+/[\\w.-]+$",
+                "description": "owner/name of the copy, such as acme/shop-design."
+              },
+              "preview": {
+                "type": "string",
+                "pattern": "^https?://",
+                "description": "Preview URL pattern of the copy, with the same placeholders as previews.apps."
+              }
+            }
           },
           "path": {
             "type": "string",

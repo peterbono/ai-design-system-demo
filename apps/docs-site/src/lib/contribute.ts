@@ -47,12 +47,13 @@ export interface ContributeMember {
 }
 
 /**
- * The product repositories of a team ("owner/name", bridge.config.json products[].repo) other than the team's own:
- * Studio reads them through the team's proxy (GET only, api/_lib/team-read.ts productReadAllowed).
+ * The product repositories of a team ("owner/name", bridge.config.json products[].repo, and the design team's copy,
+ * products[].design.repo) other than the team's own: Studio reads them through the team's proxy (GET only,
+ * api/_lib/team-read.ts productReadAllowed).
  */
-export function productReposOfConfig(products: readonly { repo?: string | undefined }[] | null | undefined, team: string): string[] {
+export function productReposOfConfig(products: readonly { repo?: string | undefined; design?: { repo?: string | undefined } | undefined }[] | null | undefined, team: string): string[] {
   const t = team.toLowerCase();
-  return [...new Set((products ?? []).map((p) => p?.repo?.trim().toLowerCase() ?? '').filter((r) => /^[\w.-]+\/[\w.-]+$/.test(r) && r !== t))];
+  return [...new Set((products ?? []).flatMap((p) => [p?.repo, p?.design?.repo]).map((r) => r?.trim().toLowerCase() ?? '').filter((r) => /^[\w.-]+\/[\w.-]+$/.test(r) && r !== t))];
 }
 
 /**

@@ -4,41 +4,41 @@ import { plateDrawing, PLATE_DRAWINGS } from './branch-thumb';
 import { previewOf } from './home-explorations';
 
 const DS = { owner: 'peterbono', repo: 'ai-design-system-demo' };
-const entry = { sha: '5584f9417761d3a95f8c55f4cae19d82e59cfc5d', capturedAt: '2026-10-31T02:35:29.833Z', image: 'peterbono/bridge-product-admin/2.webp', url: 'https://x.vercel.app/', route: '/', screen: 'Orders waiting to ship alert' };
+const entry = { sha: '5584f9417761d3a95f8c55f4cae19d82e59cfc5d', capturedAt: '2026-10-31T02:35:29.833Z', image: 'art-print-shop-co/art-print-shop/2.webp', url: 'https://x.vercel.app/', route: '/', screen: 'Orders waiting to ship alert' };
 
 describe('preview shots: the index', () => {
   it('reads index.json from the bridge-shots branch, raw (no API quota)', () => {
     expect(shotsIndexUrl('peterbono', 'ai-design-system-demo')).toBe('https://raw.githubusercontent.com/peterbono/ai-design-system-demo/bridge-shots/index.json');
-    expect(shotKey('peterbono/Bridge-Product-Admin', 2)).toBe('peterbono/bridge-product-admin#2');
+    expect(shotKey('Art-Print-Shop-Co/Art-Print-Shop', 2)).toBe('art-print-shop-co/art-print-shop#2');
   });
 
   it('keeps well formed entries only: an image path that matches its key, a sha and a date', () => {
     const idx = parseShotsIndex({
       shots: {
-        'peterbono/bridge-product-admin#2': entry,
-        'peterbono/bridge-product-admin#3': { ...entry, image: 'peterbono/bridge-product-admin/2.webp' },
+        'art-print-shop-co/art-print-shop#2': entry,
+        'art-print-shop-co/art-print-shop#3': { ...entry, image: 'art-print-shop-co/art-print-shop/2.webp' },
         'peterbono/other#4': { ...entry, image: '../../evil/4.webp' },
         'peterbono/other#5': { ...entry, image: 'peterbono/other/5.webp', sha: 'not a sha' },
         'peterbono/other#6': { ...entry, image: 'peterbono/other/6.webp', capturedAt: 'yesterday' },
       },
     });
-    expect(Object.keys(idx!.shots)).toEqual(['peterbono/bridge-product-admin#2']);
+    expect(Object.keys(idx!.shots)).toEqual(['art-print-shop-co/art-print-shop#2']);
     expect(parseShotsIndex(null)).toBeNull();
     expect(parseShotsIndex({ nope: true })).toBeNull();
     expect(parseShotsIndex('<html>404</html>')).toBeNull();
   });
 
   it('finds the capture of a product repository exploration, its URL pinned to the commit', () => {
-    const idx = parseShotsIndex({ shots: { 'peterbono/bridge-product-admin#2': entry } });
-    const shot = shotFor(idx, DS, 'peterbono/bridge-product-admin', 2);
+    const idx = parseShotsIndex({ shots: { 'art-print-shop-co/art-print-shop#2': entry } });
+    const shot = shotFor(idx, DS, 'art-print-shop-co/art-print-shop', 2);
     expect(shot).toEqual({
-      src: 'https://raw.githubusercontent.com/peterbono/ai-design-system-demo/bridge-shots/peterbono/bridge-product-admin/2.webp?v=5584f94',
+      src: 'https://raw.githubusercontent.com/peterbono/ai-design-system-demo/bridge-shots/art-print-shop-co/art-print-shop/2.webp?v=5584f94',
       capturedAt: entry.capturedAt,
       sha: entry.sha,
       screen: 'Orders waiting to ship alert',
     });
     expect(shotFor(idx, DS, 'peterbono/ai-design-system-demo', 2)).toBeNull();
-    expect(shotFor(null, DS, 'peterbono/bridge-product-admin', 2)).toBeNull();
+    expect(shotFor(null, DS, 'art-print-shop-co/art-print-shop', 2)).toBeNull();
   });
 
   it('says when it was captured', () => {
@@ -48,7 +48,7 @@ describe('preview shots: the index', () => {
 });
 
 describe('preview shots: what a card shows', () => {
-  const shot = shotFor(parseShotsIndex({ shots: { 'peterbono/bridge-product-admin#2': entry } }), DS, 'peterbono/bridge-product-admin', 2)!;
+  const shot = shotFor(parseShotsIndex({ shots: { 'art-print-shop-co/art-print-shop#2': entry } }), DS, 'art-print-shop-co/art-print-shop', 2)!;
 
   it('shows the capture, keeping what the plate would say if the image fails', () => {
     const spec = previewOf(shotThumb(shot), { product: 'Product admin', screen: null, seed: 'admin-app#2' });

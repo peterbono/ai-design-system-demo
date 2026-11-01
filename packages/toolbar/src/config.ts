@@ -9,7 +9,7 @@ interface ConfigLike {
   repo?: { owner?: string; name?: string; defaultBranch?: string };
   tokens?: { root?: string };
   previews?: { apps?: Record<string, string | undefined>; production?: Record<string, string | undefined> };
-  products?: { key?: string; repo?: string; preview?: string; production?: string }[];
+  products?: { key?: string; repo?: string; preview?: string; production?: string; design?: { repo?: string; preview?: string } }[];
 }
 
 /** Values the product sets itself win over the config: the Studio, production and preview URLs. */
@@ -18,6 +18,12 @@ export interface BuildOverrides {
   production?: string | null;
   preview?: string | null;
   deployEnv?: string | null;
+  /**
+   * The repository this deploy was built from ("owner/name", such as VERCEL_GIT_REPO_OWNER/VERCEL_GIT_REPO_SLUG): when
+   * it is the design team's copy of the product (products[].design.repo), the toolbar reads the copy's explorations
+   * and its preview pattern. Any other value is ignored.
+   */
+  repo?: string | null;
   /** Bridge's origin for reads (default production Bridge), null to read GitHub directly. */
   proxy?: string | null;
 }
@@ -34,14 +40,16 @@ export function buildFromConfig(raw: unknown, ds: string, product: string, overr
   const entry = (config.products ?? []).find((p) => p?.key === product);
   if (!entry) return null;
   const own = entry.repo && REPO.test(entry.repo) ? entry.repo : null;
-  const [owner, repo] = (own ?? ds).split('/') as [string, string];
+  // A deploy of the design team's copy: the copy's explorations and previews.
+  const copy = own && entry.design?.repo && REPO.test(entry.design.repo) && overrides.repo?.trim().toLowerCase() === entry.design.repo.toLowerCase() ? entry.design.repo : null;
+  const [owner, repo] = (copy ?? own ?? ds).split('/') as [string, string];
   const pick = (v: string | null | undefined, fallback: string | null | undefined) => (v !== undefined ? v : (fallback ?? null));
   return {
     owner,
     repo,
     studio: pick(overrides.studio, config.previews?.production?.docs),
     production: pick(overrides.production, entry.production ?? config.previews?.production?.[product]),
-    preview: pick(overrides.preview, entry.preview ?? config.previews?.apps?.[product]),
+    preview: pick(overrides.preview, copy ? entry.design?.preview : (entry.preview ?? config.previews?.apps?.[product])),
     deployEnv: overrides.deployEnv ?? null,
     ...(overrides.proxy !== undefined ? { proxy: overrides.proxy } : {}),
     defaultBranch: config.repo?.defaultBranch ?? 'main',

@@ -1,6 +1,6 @@
 // Explorations and product branches that live in a product's own repository (bridge.config.json products[].repo),
 // for Claude and the CLI: a client per product repository with the same token, and which repository a reference
-// means. "admin-app#12", "peterbono/bridge-product-admin#12", "admin-app:checkout-flow" and a pull request link name one in a
+// means. "admin-app#12", "art-print-shop-co/art-print-shop#12", "admin-app:checkout-flow" and a pull request link name one in a
 // product's repository; "12", "#12" and a plain name stay in the design system repository, and a plain name not found
 // there is looked up in the product repositories too. Run inside a connected product repository (.bridge/product.json),
 // "12", "#12" and a name mean that product's own explorations first. The reference rules are @bridge-ds/core's (parseExplorationRef).
@@ -58,7 +58,9 @@ export async function locate(ctx: BridgeContext, input: string | number, ds: Git
     if (r.repo.toLowerCase() === ds.fullName.toLowerCase()) return { gh: ds, ref: r.ref };
     const p = productOfRepo(products, r.repo, ds.fullName);
     if (!p) throw new Error(`${r.repo} is neither the design system repository (${ds.fullName}) nor a product repository in bridge.config.json "products".`);
-    return inProduct(p, productRepoOf(p, ds.fullName)!);
+    // The repository named: the design team's copy, or the developers' own one (a branch they build).
+    const named = productRepoOf(p, ds.fullName)!;
+    return inProduct(p, named.toLowerCase() === r.repo.toLowerCase() ? named : r.repo);
   }
   // Run inside a connected product repository (.bridge/product.json): "#12" and a name mean that product's own ones.
   const here = ctx.product ? findProduct(products, ctx.product) : undefined;

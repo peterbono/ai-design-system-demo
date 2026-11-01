@@ -8,7 +8,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { CHANGE_MARKER_RULE, productsOf, productRepoOf, type ProductConfig } from '@bridge-ds/core';
+import { CHANGE_MARKER_RULE, productsOf, productCodeRepoOf, productRepoOf, type ProductConfig } from '@bridge-ds/core';
 import { git, originRepo } from '@bridge-ds/core/node';
 import { BridgeContext, GIT_CONFIG_KEYS, PRODUCT_POINTER, parseProductPointer, type ProductPointer } from '@bridge-ds/mcp';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
@@ -248,7 +248,8 @@ export async function connect(root: string, a: { designSystem: string; product?:
   let found: ProductConfig | undefined;
   if (a.products) {
     const byKey = wanted ? a.products.find((p) => p.key === wanted || p.name.toLowerCase() === wanted.toLowerCase()) : undefined;
-    const byRepo = a.origin ? a.products.find((p) => productRepoOf(p, a.designSystem)?.toLowerCase() === a.origin!.toLowerCase()) : undefined;
+    // The design team's copy, or the developers' own repository.
+    const byRepo = a.origin ? (a.products.find((p) => productRepoOf(p, a.designSystem)?.toLowerCase() === a.origin!.toLowerCase()) ?? a.products.find((p) => productCodeRepoOf(p, a.designSystem)?.toLowerCase() === a.origin!.toLowerCase())) : undefined;
     found = wanted ? byKey : byRepo;
     if (!found) {
       const list = a.products.map((p) => `${p.key} (${p.name})`).join(', ');
@@ -260,7 +261,7 @@ export async function connect(root: string, a: { designSystem: string; product?:
     }
     product = { key: found.key, name: found.name, repo: productRepoOf(found, a.designSystem) ?? undefined };
     if (!product.repo) warnings.push(`${found.name} has no "repo" in the design system's bridge.config.json, so its explorations are created in ${a.designSystem}. An admin can add "repo": "${a.origin ?? 'owner/name'}" to that product.`);
-    else if (a.origin && product.repo.toLowerCase() !== a.origin.toLowerCase()) warnings.push(`${found.name} is set to ${product.repo} in the design system, but this checkout's origin is ${a.origin}.`);
+    else if (a.origin && product.repo.toLowerCase() !== a.origin.toLowerCase() && productCodeRepoOf(found, a.designSystem)?.toLowerCase() !== a.origin.toLowerCase()) warnings.push(`${found.name} is set to ${product.repo} in the design system, but this checkout's origin is ${a.origin}.`);
   } else {
     if (!wanted) throw new RequestUsageError(`Bridge could not read ${a.designSystem}'s bridge.config.json to find this product. Pass --product <key>, or check the name and your access.`);
     product = { key: wanted, name: wanted };

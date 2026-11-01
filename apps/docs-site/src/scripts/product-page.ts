@@ -1,6 +1,7 @@
 // What a product page reads (components/ds/studio/ProductPage.tsx): only that product's explorations, through the
 // same cached reads the home and Changes make, so opening a product after the home costs no new list read.
-//   - A product with its own repository (bridge.config.json products[].repo): that repository's open pull requests
+//   - A product with its own repository (bridge.config.json products[].repo, or the design team's copy of it when
+//     products[].design is set: then where the copy stands first, scripts/design-copy.ts): that repository's open pull requests
 //     (the read scripts/product-repos.ts makes for every list) and its recently closed ones (Shipped).
 //   - The library, or a product that lives in the library repository: the design system's open and recently closed
 //     pull requests (the home's two reads), kept to the explorations of this product.
@@ -15,6 +16,8 @@ import { cardProductKey } from '../lib/product-page';
 import { person, requesterPerson, type Person } from '../lib/home-model';
 import type { ThumbSpec } from '../lib/branch-thumb';
 import { busyText } from '../lib/team-load';
+import type { CopyView } from '../lib/design-copy';
+import { copyRepos, readCopyView } from './design-copy';
 
 export interface ProductPageData {
   product: ProductConfig | null;
@@ -27,6 +30,11 @@ export interface ProductPageData {
   failed: string | null;
   cards: ExplorationCard[];
   archived: ExplorationCard[];
+  /**
+   * The design team's copy of the product (products[].design), when the team set one: missing (the page offers "Make
+   * my copy" instead of the list), or ready with how far behind the product it is. Null otherwise, or while unknown.
+   */
+  copy: CopyView | null;
 }
 
 type Pull = ExplorationPullLike & { user: { login: string; avatar_url?: string; type?: string } | null };
@@ -42,11 +50,20 @@ export async function loadProductPage(key: string, onUpdate: (d: ProductPageData
   const products = configuredProducts();
   const product = findProduct(products, key) ?? null;
   const own = product ? productRepoByKey(product.key) : null;
-  const base: ProductPageData = { product, products, ownRepo: own?.repo ?? null, reached: null, loading: true, failed: null, cards: [], archived: [] };
+  const base: ProductPageData = { product, products, ownRepo: own?.repo ?? null, reached: null, loading: true, failed: null, cards: [], archived: [], copy: null };
   onUpdate(base);
   if (!product) {
     onUpdate({ ...base, loading: false });
     return;
+  }
+  // A product explored in the design team's copy: where the copy stands first. No copy yet: the page offers to make it.
+  if (copyRepos(product)) {
+    const copy = await readCopyView(product);
+    base.copy = copy && copy.kind !== 'none' ? copy : null;
+    if (copy?.kind === 'missing') {
+      onUpdate({ ...base, loading: false });
+      return;
+    }
   }
   const ds = readRepo();
   const repo = own?.repo ?? `${ds.owner}/${ds.repo}`;

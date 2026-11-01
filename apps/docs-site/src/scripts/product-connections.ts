@@ -18,10 +18,11 @@ function rowHtml(product: ProductConfig, repo: string, state: ProductConnection)
   </div>`;
 }
 
-async function stateOf(repo: string): Promise<ProductConnection> {
+async function stateOf(repo: string, copy: boolean): Promise<ProductConnection> {
   try {
     const a = await productRepoAccess(studioClient(repo, getToken() ?? ''));
-    return a.ok ? 'connected' : a.reason;
+    // The design team's copy GitHub does not show: not made yet.
+    return a.ok ? 'connected' : copy && a.reason === 'not-connected' ? 'no-copy' : a.reason;
   } catch {
     return 'unavailable';
   }
@@ -39,7 +40,7 @@ export function initProductConnections() {
   }
   host.innerHTML = repos.map((x) => rowHtml(x.product, x.repo, 'checking')).join('');
   for (const x of repos) {
-    void stateOf(x.repo).then((state) => {
+    void stateOf(x.repo, x.product.design?.repo?.toLowerCase() === x.repo.toLowerCase()).then((state) => {
       const el = host.querySelector(`[data-product-row="${CSS.escape(x.product.key)}"]`);
       if (el) el.outerHTML = rowHtml(x.product, x.repo, state);
     });

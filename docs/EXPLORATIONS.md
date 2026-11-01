@@ -40,14 +40,49 @@ Connect GitHub).
 the draft pull request there, so developers check the branch out in their usual environment. The library arrives as
 the npm package, as on main; to try library changes that are not released yet, install the snapshot of their library
 branch (`npm i @bridge-ds/react@<snapshot>`, below). A product that is a folder of the design system repository (the
-Admin demo) and the demo workspace keep their explorations in the design system repository. Here, Product admin
-(`admin-app`, [peterbono/bridge-product-admin](https://github.com/peterbono/bridge-product-admin), a copy of the Admin
-demo built with the library from npm) is a product with its own repository:
-their explorations are `explore/*` branches there, each with a Vercel preview. When Bridge cannot reach
+Admin demo) and the demo workspace keep their explorations in the design system repository. When Bridge cannot reach
 the product repository (Bridge not installed on it, or no write access), Studio's "Create branch" says so in one
 line with **Ask an admin to connect <product>** (it copies a message for an admin) and starts it in the design system
 repository only if the person picks **Start in the library instead**. Claude gets the same error and asks before
 using `where: "library"`; the CLI takes `--in-library`.
+
+**The design team's copy.** The developers' repository is their workspace: designers should not open branches there.
+A product can name a copy of it that the design team owns, a GitHub fork, with `products[].design`:
+
+```json
+{ "key": "admin-app", "name": "Art print shop", "repo": "art-print-shop-co/art-print-shop",
+  "design": { "repo": "art-print-shop-co/art-print-shop-design", "preview": "https://<copy project>-git-{branch}-<team>.vercel.app" } }
+```
+
+Then every new exploration of that product starts **in the copy**, never in `repo`, and Bridge only ever writes one
+thing in the developers' repository: the task "Done exploring" sends them.
+
+- **Make my copy.** The product page shows one card while the copy does not exist: "Get your own copy of Art print
+  shop to explore in. The developers' code stays untouched." The button asks GitHub for the fork (in the copy's
+  organization, every branch, `POST /repos/{repo}/forks`, built in the background) and waits until it is there, about
+  a minute. With the viewer's GitHub sign-in: the Bridge GitHub App must be installed on the product's repository and
+  on the copy's organization (all repositories, so the new repository is covered), with Administration write. If the
+  organization turned copies of private repositories off, the card says "Copies of Art print shop are turned off. Ask
+  an admin to allow them." Studio's start dialog offers the same button when the copy is missing; Claude and the CLI
+  say to make it in Studio.
+- **Get the latest.** When the product moved on since the copy, the product page says "Art print shop changed since
+  your copy. Get the latest" (GitHub's "Sync fork", `POST /repos/{copy}/merge-upstream`). When GitHub cannot merge on
+  its own, it says to ask a developer.
+- **Open in Claude Code.** An exploration in the copy opens in Claude Code on the web
+  (`https://claude.ai/code?repositories=<copy>&prompt=...`): the link selects the copy, and the first message names
+  the branch to check out, the goal and the preview (the link cannot pick a branch itself). It needs a Claude plan
+  with Claude Code on the web and GitHub connected there.
+- **Previews.** Link the copy to its own Vercel project and set `design.preview`: each exploration branch gets its
+  preview there. Without it, the exploration page waits for the preview Vercel reports.
+- **Done exploring.** The developers get a task in `repo`: an issue labeled `from-design` ("Design: <name>") with the
+  preview link, the files the prototype changes, the library pieces it needed, and how to fetch the prototype code
+  from the copy if they want it (`git fetch https://github.com/<copy>.git explore/<name>`). No branch and no pull
+  request reach their repository. The exploration records the task, and its page reads it: who is assigned ("Waiting
+  for Ana"), and shipped once they close it as done.
+
+Explorations started in the developers' repository before the copy existed are not listed any more once
+`design.repo` is set: move them to the copy (push the branch there, open the draft again) and close them in the
+developers' repository.
 
 From a terminal:
 

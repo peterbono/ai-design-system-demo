@@ -29,7 +29,7 @@
 //   - read only: GET, and a token narrowed to read permissions (READ_PERMISSIONS, else READ_BASE)
 //   - only paths under /repos/<the team> (api/contribute parseTarget: no `..`, no encoded slash), and only the
 //     resources of READ_RULES; everything else answers 403 not-allowed (hooks, keys, secrets, invitations, settings...)
-//   - or paths under a product repository the team's bridge.config.json lists (products[].repo, productReposOf, kept
+//   - or paths under a product repository the team's bridge.config.json lists (products[].repo and the design team's copy, products[].design.repo; productReposOf, kept
 //     PRODUCTS_KEEP_S): the same READ_RULES minus members-only ones, with a read token of that repository, on the
 //     team's budget; the app missing there answers 409 product_missing (the page skips that product only); a visitor
 //     of a public demo team also needs the product repository to be public
@@ -370,7 +370,8 @@ export function originTemplatesOf(config: unknown): string[] {
     products?: unknown;
   };
   const urls: unknown[] = [...Object.values(c.previews?.production ?? {}), ...Object.values(c.previews?.apps ?? {})];
-  if (Array.isArray(c.products)) for (const p of c.products) if (p && typeof p === 'object') urls.push((p as { production?: unknown }).production, (p as { preview?: unknown }).preview);
+  if (Array.isArray(c.products))
+    for (const p of c.products) if (p && typeof p === 'object') urls.push((p as { production?: unknown }).production, (p as { preview?: unknown }).preview, ((p as { design?: { preview?: unknown } }).design ?? {}).preview);
   const out = new Set<string>();
   for (const u of urls) {
     if (typeof u !== 'string') continue;
@@ -431,7 +432,8 @@ export async function teamReadConfigOf(ctx: ReadCtx, owner: string, repo: string
         ? [
             ...new Set(
               config.products
-                .map((p) => (p && typeof p === 'object' ? (p as { repo?: unknown }).repo : undefined))
+                // The product's own repository and the design team's copy of it (products[].design.repo).
+                .flatMap((p) => (p && typeof p === 'object' ? [(p as { repo?: unknown }).repo, ((p as { design?: { repo?: unknown } }).design ?? {}).repo] : []))
                 .filter((r): r is string => typeof r === 'string' && REPO_FULL.test(r.trim()))
                 .map((r) => r.trim().toLowerCase())
                 .filter((r) => r !== full),

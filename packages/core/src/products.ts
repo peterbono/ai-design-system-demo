@@ -8,8 +8,13 @@ export interface ProductConfig {
   key: string;
   /** What people read ("Admin demo"). */
   name: string;
-  /** "owner/name" when the product lives in another GitHub repository. */
+  /** "owner/name" when the product lives in another GitHub repository: the developers' own. */
   repo?: string;
+  /**
+   * The design team's copy of that repository (a fork the team owns): explorations start there, never in the
+   * developers' repository, and "Done exploring" sends the developers a task (an issue) instead of a branch.
+   */
+  design?: DesignCopyConfig;
   /** Folder of this repository, repo-relative ("apps/admin"). */
   path?: string;
   /** Preview URL pattern, same placeholders as previews.apps: {branch} {rawBranch} {pr} {sha} {sha7}. */
@@ -23,6 +28,14 @@ export interface ProductConfig {
   framework?: string;
   /** The product a branch belongs to when nothing else matches: the library. */
   default?: boolean;
+}
+
+/** The design team's copy of a product repository (ProductConfig.design). */
+export interface DesignCopyConfig {
+  /** "owner/name" of the copy. */
+  repo: string;
+  /** Preview URL pattern of the copy, same placeholders as previews.apps. */
+  preview?: string;
 }
 
 /** What a config without `products` means: the Admin demo first, then the library (the default). */
@@ -119,15 +132,41 @@ export function productForPlace(
 }
 
 /**
- * The repository an exploration for this product is created in: the product's own repository when the team connected
- * one (`repo`, other than the design system repository), so developers check the branch out in their own
- * environment and get the library from npm. Null otherwise (a product folder of the design system repository, the
- * library itself, the demo workspace): the exploration then lives in the design system repository.
+ * The repository an exploration for this product is created in: the design team's copy when the team set one
+ * (`design.repo`), else the product's own repository (`repo`, other than the design system repository), so the work
+ * runs in a real copy of the product with the library from npm. Null otherwise (a product folder of the design system
+ * repository, the library itself, the demo workspace): the exploration then lives in the design system repository.
  */
 export function productRepoOf(p: ProductConfig | null | undefined, designSystemRepo: string | null | undefined): string | null {
+  return designCopyOf(p, designSystemRepo) ?? productCodeRepoOf(p, designSystemRepo);
+}
+
+/** The developers' own repository of a product (`repo`, other than the design system repository), else null. */
+export function productCodeRepoOf(p: ProductConfig | null | undefined, designSystemRepo: string | null | undefined): string | null {
   const repo = p?.repo?.trim();
   if (!repo || !REPO.test(repo)) return null;
   return repo.toLowerCase() === (designSystemRepo ?? '').trim().toLowerCase() ? null : repo;
+}
+
+/**
+ * The design team's copy of a product's repository (`design.repo`), when the product has its own repository and the
+ * copy is another one; else null. Explorations of that product live there.
+ */
+export function designCopyOf(p: ProductConfig | null | undefined, designSystemRepo: string | null | undefined): string | null {
+  const code = productCodeRepoOf(p, designSystemRepo);
+  const copy = p?.design?.repo?.trim();
+  if (!code || !copy || !REPO.test(copy)) return null;
+  const low = copy.toLowerCase();
+  return low === code.toLowerCase() || low === (designSystemRepo ?? '').trim().toLowerCase() ? null : copy;
+}
+
+/**
+ * The product as its explorations in the design team's copy see it: the copy's preview pattern stands for `preview`
+ * (none when the copy has no preview deploys yet), since every exploration preview is a deploy of the copy.
+ */
+function withCopyPreview(p: ProductConfig): ProductConfig {
+  const { preview: _preview, ...rest } = p;
+  return p.design?.preview ? { ...rest, preview: p.design.preview } : rest;
 }
 
 /**
@@ -141,21 +180,30 @@ export function productRepos(products: readonly ProductConfig[], designSystemRep
     const repo = productRepoOf(p, designSystemRepo);
     if (!repo || seen.has(repo.toLowerCase())) continue;
     seen.add(repo.toLowerCase());
-    out.push({ product: p, repo });
+    out.push({ product: designCopyOf(p, designSystemRepo) ? withCopyPreview(p) : p, repo });
   }
   return out;
 }
 
-/** The product whose own repository is `repo` ("owner/name", any case), or undefined (the design system repository). */
+/**
+ * The product whose explorations live in `repo` ("owner/name", any case), else the product whose developers' repository
+ * it is; undefined for the design system repository.
+ */
 export function productOfRepo(products: readonly ProductConfig[], repo: string | null | undefined, designSystemRepo?: string | null | undefined): ProductConfig | undefined {
   const r = (repo ?? '').trim().toLowerCase();
   if (!r) return undefined;
-  return productRepos(products, designSystemRepo).find((x) => x.repo.toLowerCase() === r)?.product;
+  return productRepos(products, designSystemRepo).find((x) => x.repo.toLowerCase() === r)?.product ?? products.find((p) => productCodeRepoOf(p, designSystemRepo)?.toLowerCase() === r);
+}
+
+/** The product whose design team's copy is `repo` (designCopyOf), any case. */
+export function productOfDesignCopy(products: readonly ProductConfig[], repo: string | null | undefined, designSystemRepo?: string | null | undefined): ProductConfig | undefined {
+  const r = (repo ?? '').trim().toLowerCase();
+  return r ? products.find((p) => designCopyOf(p, designSystemRepo)?.toLowerCase() === r) : undefined;
 }
 
 const KEY = /^[a-z0-9][a-z0-9-]*$/;
 const REPO = /^[\w.-]+\/[\w.-]+$/;
-const FIELDS = ['key', 'name', 'repo', 'path', 'preview', 'production', 'framework', 'default'];
+const FIELDS = ['key', 'name', 'repo', 'design', 'path','preview', 'production', 'framework', 'default'];
 
 /** What is wrong with a `products` value, each problem saying how to fix it. Empty: valid (or absent). */
 export function productProblems(raw: unknown): string[] {
@@ -178,6 +226,17 @@ export function productProblems(raw: unknown): string[] {
     else seen.add(o.key);
     if (typeof o.name !== 'string' || !o.name.trim()) problems.push(`${at}.name" must be the name people read, such as "Admin demo"`);
     if (o.repo !== undefined && (typeof o.repo !== 'string' || !REPO.test(o.repo))) problems.push(`${at}.repo" must be "owner/name"`);
+    if (o.design !== undefined) {
+      const d = o.design as Record<string, unknown> | null;
+      if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.repo !== 'string' || !REPO.test(d.repo)) {
+        problems.push(`${at}.design" must be { "repo": "owner/name" }: the design team's copy of the product's repository`);
+      } else {
+        for (const k of Object.keys(d)) if (k !== 'repo' && k !== 'preview') problems.push(`${at}.design.${k}" is not a known field (repo, preview)`);
+        if (d.preview !== undefined && (typeof d.preview !== 'string' || !/^https?:\/\//.test(d.preview))) problems.push(`${at}.design.preview" must be an http(s) URL template, such as "https://shop-design-git-{branch}.vercel.app"`);
+        if (typeof o.repo !== 'string') problems.push(`${at}.design" needs "repo" too: the copy is of the product's own repository`);
+        else if (d.repo.toLowerCase() === o.repo.toLowerCase()) problems.push(`${at}.design.repo" must be another repository than "repo": the design team's copy, not the developers' repository`);
+      }
+    }
     if (o.path !== undefined) {
       const bad = typeof o.path !== 'string' || !o.path.trim() || o.path.startsWith('/') || o.path.split('/').includes('..');
       if (bad) problems.push(`${at}.path" must be a folder relative to the repository root, without a leading "/" or "..", such as "apps/admin"`);

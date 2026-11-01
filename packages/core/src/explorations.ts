@@ -94,6 +94,11 @@ export interface Exploration {
   /** The branch head at that moment: a newer head means developers are building on it. */
   doneSha?: string | undefined;
   /**
+   * In a design team's copy (ProductConfig.design): the developers' task Done exploring opened in the product's own
+   * repository (its issue URL). The developers build from it there; nothing reaches their repository as a branch.
+   */
+  task?: string | undefined;
+  /**
    * ISO date someone said "Back to exploring" (withoutDoneExploring): the body says it runs again even when the
    * `ready-for-devs` label could not be removed. A later "Done exploring" (doneAt) wins.
    */
@@ -132,7 +137,7 @@ export function explorationSlugFromBranch(ref: string): string | null {
 /**
  * Which exploration a person or a tool means, wherever it lives. In the design system repository: its number ("12",
  * "#12") or its name ("pill-buttons", "explore/pill-buttons"). In a product's own repository, the product key or the
- * repository goes first: "admin-app#12", "peterbono/bridge-product-admin#12", "admin-app:checkout-flow", or the pull request link.
+ * repository goes first: "admin-app#12", "art-print-shop-co/art-print-shop#12", "admin-app:checkout-flow", or the pull request link.
  */
 export interface ExplorationRef {
   /** A product key ("shop"), when the reference names one. */
@@ -217,7 +222,13 @@ export interface ExplorationPrContext {
    * out there and to get the library from npm (`library`: the design system repository), with the product's preview
    * template instead of the library's apps.
    */
-  inProduct?: { name: string; library: string; preview?: string | undefined } | undefined;
+  inProduct?: {
+    name: string;
+    library: string;
+    preview?: string | undefined;
+    /** The developers' own repository when the exploration lives in the design team's copy of it (ProductConfig.design). */
+    copyOf?: string | undefined;
+  } | undefined;
 }
 
 /**
@@ -265,7 +276,9 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
     lines.push(
       '### Work on it',
       '',
-      `This exploration lives in the ${p.name} repository, so it runs in your usual environment: \`git fetch origin && git switch ${branch}\`, then start ${p.name} as you always do.`,
+      p.copyOf
+        ? `This exploration lives in the design team's copy of ${p.name}, never in the developers' repository (${p.copyOf}). It runs like the product: \`git fetch origin && git switch ${branch}\`, then start ${p.name} as you always do. "Done exploring" sends the developers a task in ${p.copyOf}.`
+        : `This exploration lives in the ${p.name} repository, so it runs in your usual environment: \`git fetch origin && git switch ${branch}\`, then start ${p.name} as you always do.`,
       '',
       `The library comes from npm, as on main. To try library changes that are not released yet, install the snapshot of their branch in ${p.library} (\`npm i @bridge-ds/react@<snapshot>\`): the command is in its "Try this exploration in your product" comment. Library changes are made in ${p.library}, never on this branch.`,
       '',
@@ -318,6 +331,7 @@ function explorationBlock(e: Exploration): string {
     ...(e.doneAt ? { doneAt: e.doneAt } : {}),
     ...(e.doneBy ? { doneBy: e.doneBy } : {}),
     ...(e.doneSha ? { doneSha: e.doneSha } : {}),
+    ...(e.task ? { task: e.task } : {}),
     ...(e.reopenedAt ? { reopenedAt: e.reopenedAt } : {}),
   };
   return `<!-- ${MARK} ${JSON.stringify(data).replace(/-->/g, '--\\u003e')} -->`;
@@ -466,6 +480,15 @@ export function isHeldExploration(p: {
 /** How a developer takes an exploration: fetch, then check out its branch. */
 export const explorationTakeCommands = (branch: string): [string, string] => ['git fetch origin', `git checkout ${branch}`];
 
+/**
+ * How a developer takes the code of an exploration that lives in the design team's copy ("owner/name"), from their
+ * own repository: fetch the branch from the copy, then start a branch of theirs from it.
+ */
+export const designCopyTakeCommands = (copy: string, branch: string): [string, string] => [`git fetch https://github.com/${copy}.git ${branch}`, `git switch -c ${branch} FETCH_HEAD`];
+
+/** What developers read about an exploration from the design team's copy: a task in their repository, the code optional. */
+export const DESIGN_COPY_STARTING_POINT = "Sent to you as a task in your repository. The prototype lives in the design team's copy: its code is optional, a starting point nobody has reviewed yet.";
+
 const CONTINUE = 'Continue on this branch: its pull request already exists, so Bridge follows your pushes, and the merge reads as shipped.';
 
 /** What developers read next to those commands, when nothing is known about the branch checks: a starting point. */
@@ -513,14 +536,14 @@ export interface DoneExploringPlan {
  * the body says how developers take it. The draft stays a draft and the pull request stays open, so its preview lives
  * on. The caller records the head once the note is gone (withDoneExploring with `doneSha`).
  */
-export function doneExploringPlan(input: { body: string | null | undefined; branch: string; files: { path: string; status?: string | undefined }[]; date?: Date | undefined; doneBy?: string | undefined }): DoneExploringPlan {
+export function doneExploringPlan(input: { body: string | null | undefined; branch: string; files: { path: string; status?: string | undefined }[]; date?: Date | undefined; doneBy?: string | undefined; copy?: string | undefined }): DoneExploringPlan {
   const removeFiles = input.files.filter((f) => f.path.startsWith(`${EXPLORATION_NOTES_DIR}/`) && f.status !== 'removed').map((f) => f.path);
   return {
     removeLabels: [EXPLORATION_LABEL],
     addLabels: [EXPLORATION_READY_LABEL],
     removeFiles,
-    body: withDoneExploring(input.body, { branch: input.branch, doneAt: (input.date ?? new Date()).toISOString(), doneBy: input.doneBy }),
-    take: explorationTakeCommands(input.branch),
+    body: withDoneExploring(input.body, { branch: input.branch, doneAt: (input.date ?? new Date()).toISOString(), doneBy: input.doneBy, ...(input.copy ? { copy: input.copy } : {}) }),
+    take: input.copy ? designCopyTakeCommands(input.copy, input.branch) : explorationTakeCommands(input.branch),
     markReady: false,
   };
 }
@@ -532,21 +555,42 @@ const DEV_SECTION = '### For developers';
  * section (the two commands and the starting point note), and the hidden block records when, and on which head once
  * known. Calling it again replaces the section and the block.
  */
-export function withDoneExploring(body: string | null | undefined, done: { branch: string; doneAt: string; doneBy?: string | undefined; doneSha?: string | undefined; checks?: ExplorationChecks | null | undefined }): string {
+export function withDoneExploring(
+  body: string | null | undefined,
+  done: { branch: string; doneAt: string; doneBy?: string | undefined; doneSha?: string | undefined; checks?: ExplorationChecks | null | undefined; copy?: string | undefined; task?: string | undefined },
+): string {
   const e = parseExplorationBody(body);
-  const [fetch, checkout] = explorationTakeCommands(done.branch);
-  const section = [
-    DEV_SECTION,
-    '',
-    `**Done exploring on ${done.doneAt.slice(0, 10)}.** ${explorationStartingPoint(done.checks)}`,
-    '',
-    '```sh',
-    fetch,
-    checkout,
-    '```',
-    '',
-    'Mark this pull request ready for review when the code is yours. Keep it open: its preview link is how designers, the DS lead and stakeholders come back to the prototype.',
-  ].join('\n');
+  const [fetch, checkout] = done.copy ? designCopyTakeCommands(done.copy, done.branch) : explorationTakeCommands(done.branch);
+  const section = (
+    done.copy
+      ? [
+          DEV_SECTION,
+          '',
+          `**Done exploring on ${done.doneAt.slice(0, 10)}.** ${DESIGN_COPY_STARTING_POINT}`,
+          ...(done.task ? ['', `The developers' task: ${done.task}`] : []),
+          '',
+          'To reuse the prototype code, from your own repository:',
+          '',
+          '```sh',
+          fetch,
+          checkout,
+          '```',
+          '',
+          "Keep this pull request open: its preview link is how designers, the DS lead and stakeholders come back to the prototype. Nothing from it reaches the developers' repository on its own.",
+        ]
+      : [
+          DEV_SECTION,
+          '',
+          `**Done exploring on ${done.doneAt.slice(0, 10)}.** ${explorationStartingPoint(done.checks)}`,
+          '',
+          '```sh',
+          fetch,
+          checkout,
+          '```',
+          '',
+          'Mark this pull request ready for review when the code is yours. Keep it open: its preview link is how designers, the DS lead and stakeholders come back to the prototype.',
+        ]
+  ).join('\n');
   const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
   const kept = (body ?? '')
     .replace(/^> Not mergeable as is\..*$\n?\n?/m, '')
@@ -554,7 +598,7 @@ export function withDoneExploring(body: string | null | undefined, done: { branc
     .replace(/### For developers[\s\S]*?(?=### |<!-- |$)/, '');
   if (!e || !block.test(kept)) return `${kept.trim()}${kept.trim() ? '\n\n' : ''}${section}`;
   const at = kept.search(block);
-  const nextBlock = explorationBlock({ ...e, doneAt: done.doneAt, ...(done.doneBy ? { doneBy: done.doneBy } : {}), ...(done.doneSha ? { doneSha: done.doneSha } : {}) });
+  const nextBlock = explorationBlock({ ...e, doneAt: done.doneAt, ...(done.doneBy ? { doneBy: done.doneBy } : {}), ...(done.doneSha ? { doneSha: done.doneSha } : {}), ...(done.task ? { task: done.task } : {}) });
   const after = kept.slice(at).replace(block, () => nextBlock).trim();
   return `${kept.slice(0, at).trim()}\n\n${section}\n\n${after}`.trim();
 }

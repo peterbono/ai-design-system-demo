@@ -20,8 +20,8 @@ describe('preview-shots: which pull requests', () => {
 
 describe('preview-shots: where and when', () => {
   it('stores one image and one json per pull request, keyed in lower case', () => {
-    expect(shotPaths('peterbono/Bridge-Product-Admin', 2)).toEqual({ image: 'peterbono/bridge-product-admin/2.webp', meta: 'peterbono/bridge-product-admin/2.json' });
-    expect(shotKey('peterbono/Bridge-Product-Admin', 2)).toBe('peterbono/bridge-product-admin#2');
+    expect(shotPaths('Art-Print-Shop-Co/Art-Print-Shop', 2)).toEqual({ image: 'art-print-shop-co/art-print-shop/2.webp', meta: 'art-print-shop-co/art-print-shop/2.json' });
+    expect(shotKey('Art-Print-Shop-Co/Art-Print-Shop', 2)).toBe('art-print-shop-co/art-print-shop#2');
   });
 
   it('skips a head commit already captured, retries a new one, stops after three failures', () => {

@@ -14,7 +14,7 @@ const config = {
     {
       key: 'admin-app',
       name: 'Product admin',
-      repo: 'peterbono/bridge-product-admin',
+      repo: 'art-print-shop-co/art-print-shop',
       preview: 'https://bridge-product-admin-git-{branch}-peterbonos-projects.vercel.app',
       production: 'https://bridge-product-admin.vercel.app',
     },
@@ -25,8 +25,8 @@ describe('buildFromConfig', () => {
   it('reads a product with its own repository: its pull requests, production and preview', () => {
     const b = buildFromConfig(config, 'peterbono/ai-design-system-demo', 'admin-app');
     expect(b).toMatchObject({
-      owner: 'peterbono',
-      repo: 'bridge-product-admin',
+      owner: 'art-print-shop-co',
+      repo: 'art-print-shop',
       studio: 'https://bridge.floriangouloubi.com',
       production: 'https://bridge-product-admin.vercel.app',
       preview: 'https://bridge-product-admin-git-{branch}-peterbonos-projects.vercel.app',
@@ -39,6 +39,17 @@ describe('buildFromConfig', () => {
   it('reads a product of the design system repository from previews when it has no URLs of its own', () => {
     const b = buildFromConfig({ ...config, products: [{ key: 'admin', name: 'Admin demo', path: 'apps/admin' }] }, 'peterbono/ai-design-system-demo', 'admin');
     expect(b).toMatchObject({ owner: 'peterbono', repo: 'ai-design-system-demo', production: 'https://bridge-demo.floriangouloubi.com', preview: 'https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app' });
+  });
+
+  it("a deploy of the design team's copy reads the copy and its previews; any other repository changes nothing", () => {
+    const withCopy = { ...config, products: [{ ...config.products[1]!, design: { repo: 'art-print-shop-co/art-print-shop-design', preview: 'https://aps-design-git-{branch}.vercel.app' } }] };
+    expect(buildFromConfig(withCopy, 'peterbono/ai-design-system-demo', 'admin-app', { repo: 'Art-Print-Shop-Co/art-print-shop-design' })).toMatchObject({
+      owner: 'art-print-shop-co',
+      repo: 'art-print-shop-design',
+      preview: 'https://aps-design-git-{branch}.vercel.app',
+    });
+    expect(buildFromConfig(withCopy, 'peterbono/ai-design-system-demo', 'admin-app', { repo: 'someone/else' })).toMatchObject({ repo: 'art-print-shop', preview: 'https://bridge-product-admin-git-{branch}-peterbonos-projects.vercel.app' });
+    expect(buildFromConfig(withCopy, 'peterbono/ai-design-system-demo', 'admin-app')).toMatchObject({ repo: 'art-print-shop' });
   });
 
   it('lets the product override the config, null included', () => {
@@ -59,6 +70,6 @@ describe('studioChangeUrl', () => {
     const own = buildFromConfig(config, 'peterbono/ai-design-system-demo', 'admin-app')!;
     expect(studioChangeUrl(ds, 12)).toBe('https://bridge.floriangouloubi.com/studio/changes/?pr=12');
     expect(studioChangeUrl(own, 3)).toBe('https://bridge.floriangouloubi.com/studio/changes/?exploration=3&product=admin-app');
-    expect(studioChangeUrl({ ...own, studio: null }, 3)).toBe('https://github.com/peterbono/bridge-product-admin/pull/3');
+    expect(studioChangeUrl({ ...own, studio: null }, 3)).toBe('https://github.com/art-print-shop-co/art-print-shop/pull/3');
   });
 });

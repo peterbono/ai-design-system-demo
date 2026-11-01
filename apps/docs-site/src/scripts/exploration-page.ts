@@ -50,6 +50,8 @@ import { askDoneExploring } from './exploration-done';
 import { explorationsConfig } from './exploration-start';
 import { changedFiles, namesOf, pieceActions, pieceActor, previewSources, productPreviewOf, readView, withToolbar } from './product-branch';
 import { productClient, productRepoByKey } from './product-repos';
+import { copyRepos } from './design-copy';
+import { claudeCodeUrl } from '../lib/design-copy';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, studioClient } from './github-session';
 import { changesModeOnPage } from './changes-mode';
 import { sendModeFor } from '../lib/write-route';
@@ -132,6 +134,21 @@ async function readyLabelEvent(r: ExplorationRow): Promise<{ login: string; at: 
   }
 }
 
+/**
+ * The developers' task Done exploring opened from a design copy (its issue URL in the exploration block): who is
+ * assigned, and whether it is closed. Null when it cannot be read.
+ */
+async function readTask(url: string): Promise<{ assignees: { login: string }[]; state: string; stateReason: string | null; closedAt: string | null } | null> {
+  const m = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)$/.exec(url.trim());
+  if (!m) return null;
+  try {
+    const i = (await ghGet<{ assignees?: { login: string }[] | null; state: string; state_reason?: string | null; closed_at?: string | null }>(`/repos/${m[1]}/issues/${m[2]}`)).data;
+    return { assignees: i.assignees ?? [], state: i.state, stateReason: i.state_reason ?? null, closedAt: i.closed_at ?? null };
+  } catch {
+    return null;
+  }
+}
+
 /** The pull request's reviews (one read, once the developers have started, shared with the lists' cache); none when GitHub cannot be read. */
 async function pullReviews(r: ExplorationRow, version: string | null): Promise<PullReviewLike[]> {
   const own = productRepoByKey(r.product);
@@ -196,6 +213,11 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const own = productRepoByKey(r.product);
   const gh = own ? productClient(own.repo, pull.base?.ref) : dsClient();
   const viewer = currentViewer()?.login ?? null;
+  // In the design team's copy of the product (products[].design): Claude Code opens the copy on this branch.
+  const at = own ? copyRepos(product) : null;
+  const inCopy = at && own && at.copy.toLowerCase() === own.repo.toLowerCase() ? at : null;
+  const codeUrl = (previewUrl: string | null) =>
+    inCopy ? claudeCodeUrl({ copy: inCopy.copy, branch: r.branch, name: r.name, purpose: r.purpose, product: product.name, previewUrl }) : null;
   // Who may say Done exploring or archive it: the person who started it or a reviewer, with GitHub, in direct mode.
   const keeper = canKeepExploration({ viewer, author: r.author, reviewer: viewerRole() === 'reviewer', write: own ? null : (currentAccess()?.write ?? null) });
   const emailOnProduct = Boolean(own && currentContributor());
@@ -274,7 +296,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
         : null,
       onCopy: (text) => copyText(text),
       developer: developerLines({ number: r.number, branch: r.branch, links: [], ...(own ? { product: own.product.key, repo: own.repo } : {}) }),
-      take: takeItLines(r.branch),
+      take: takeItLines(r.branch, inCopy?.copy),
+      claudeCodeUrl: codeUrl(null),
       githubUrl: safeUrl(r.url, '#'),
       ...(said ? { said } : {}),
       // Continue in Claude: the steps first while the viewer's own Claude has no Bridge (read once per session).
@@ -327,6 +350,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     tryUrl,
     previewNote,
     previewBuilding,
+    ...(inCopy ? { claudeCodeUrl: codeUrl(v.state === 'branch' ? v.url : null) } : {}),
   });
   const plate = { product: isLibrary ? 'Library' : product.name, screen: changedScreenOf(files) ?? shot?.screen ?? null, seed: key };
   const shotProps = shot ? { thumb: shot.src, thumbCapturedAt: shot.capturedAt } : {};
@@ -340,12 +364,15 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   }
 
   // After Done exploring: who said it and when, the developers on it, the four steps, the library part.
-  const status = r.status as 'ready' | 'building' | 'shipped';
   const block = parseExplorationBody(pull.body);
+  // From the design team's copy, the developers work from their task in their own repository: who is assigned to it,
+  // and whether they closed it as done (shipped). One read.
+  const task = inCopy && block?.task ? await readTask(block.task) : null;
+  const status = (task?.state === 'closed' && task.stateReason === 'completed' ? 'shipped' : r.status) as 'ready' | 'building' | 'shipped';
   const label = doneByOf(commits) ? null : await readyLabelEvent(r);
   const doneLogin = doneByOf(commits) ?? label?.login ?? r.author;
   const doneAt = block?.doneAt ?? label?.at ?? null;
-  const builders = buildersOf({ assignees: (pull as { assignees?: { login: string }[] }).assignees ?? [], commits, doneAt, author: r.author });
+  const builders = buildersOf({ assignees: task ? task.assignees : ((pull as { assignees?: { login: string }[] }).assignees ?? []), commits: inCopy ? [] : commits, doneAt, author: r.author });
   // The review step: the pull request's reviews (one read, once the developers have started), its draft state, and who
   // is asked: the requested reviewers, else the design approvers of the team.
   const reviews = status === 'ready' ? [] : await pullReviews(r, (pull as { updated_at?: string }).updated_at ?? r.headSha);
@@ -360,7 +387,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   if (current?.key !== key) return;
   const allNames = { ...names, ...knownNamesOf([...asked, ...(verdict ? [verdict.login] : [])]), ...more };
   const doneBy = faceOf(doneLogin, false, allNames);
-  const shippedAt = (pull as { merged_at?: string | null }).merged_at ?? null;
+  const shippedAt = task?.closedAt ?? (pull as { merged_at?: string | null }).merged_at ?? null;
   const review = {
     // Reviewers asked on a draft: the developers asked for a review all the same.
     draft: pull.draft !== false && !requested.length,

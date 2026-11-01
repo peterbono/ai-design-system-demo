@@ -2,7 +2,10 @@
 //   - The shared page header (StudioHead): the product's name, one live summary sentence ("2 exploring, 1 waiting for
 //     code."), and "Start an exploration" at the end of the title's line, preselected with this product (the one start
 //     flow, StartExploration). No drawing in the header: the action owns the end of the line.
-//   - One quiet line under the header: "Open the live product", and a warning only when Bridge cannot reach it.
+//   - One quiet line under the header: "Open the live product", a warning only when Bridge cannot reach it, and, for a
+//     product explored in the design team's copy (products[].design), "Art print shop changed since your copy. Get the
+//     latest" only when the product moved on (scripts/design-copy.ts, lib/design-copy.ts).
+//   - No copy of such a product yet: one calm card in place of the list, "Make my copy" its one action.
 //   - Its explorations, grouped by where they stand (Exploring, Waiting for code, Being built, In review, Shipped: the lifecycle's words), each
 //     the exploration card of the home (ExplorationCards.tsx); archived ones only counted in one quiet line at the end
 //     ("1 archived. See archived"), which opens Changes' Archived tab for this product.
@@ -26,6 +29,7 @@ import { ExplorationCardItem } from './ExplorationCards';
 import { archivedHref, archivedLine, emptyProductLine, productFacts, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
 import { studioHref } from '../../../lib/team-path';
 import { PRODUCT_NAME_MAX, PRODUCT_NAME_WORDS, productNameProblem } from '../../../lib/product-name';
+import { COPY_WORDS, latestLine, madeLine, showsBehind } from '../../../lib/design-copy';
 import type { ProductPageData } from '../../../scripts/product-page';
 import type { HomeComponent } from './StudioHome';
 
@@ -43,6 +47,8 @@ export interface ProductPageViewProps {
   data: ProductPageData | null;
   components: HomeComponent[];
   rename?: ProductRename | null;
+  /** Make the team's copy, get the latest: absent for a viewer who cannot (signed out), the card still says why. */
+  copy?: CopyActions | null;
 }
 
 /** The pencil after the title, the name in place while editing, or the rename waiting for review. */
@@ -148,12 +154,31 @@ function useRenameTitle(name: string, productKey: string, products: readonly { k
   };
 }
 
-function Facts({ product, data }: { product: ProductConfig; data: ProductPageData }) {
+/** The two copy actions of the island (scripts/design-copy.ts), each answering the sentence to show. */
+export interface CopyActions {
+  make: () => Promise<{ line: string; ready: boolean }>;
+  latest: () => Promise<string>;
+}
+
+function Facts({ product, data, copy }: { product: ProductConfig; data: ProductPageData; copy?: CopyActions | null }) {
   const f = productFacts(product, data.ownRepo, data.reached);
-  // Only what a designer acts on: the live product, and the connection only when Bridge cannot reach it. The repository
-  // and a healthy "Connected" are developer facts and noise here (Settings has them).
-  const off = f.connection && !f.connection.ok ? f.connection.text : null;
-  if (!f.production && !off) return null;
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  // Only what a designer acts on: the live product, the connection only when Bridge cannot reach it, and "Get the
+  // latest" only when the product moved on since the team's copy. The repository and a healthy "Connected" are
+  // developer facts and noise here (Settings has them).
+  const off = f.connection && !f.connection.ok && !data.copy ? f.connection.text : null;
+  const behind = showsBehind(data.copy) && !said;
+  if (!f.production && !off && !behind && !said) return null;
+  const latest = async () => {
+    if (!copy || busy) return;
+    setBusy(true);
+    try {
+      setSaid(await copy.latest());
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <p className="t-ui t-muted pp-facts">
       {f.production && (
@@ -162,12 +187,55 @@ function Facts({ product, data }: { product: ProductConfig; data: ProductPageDat
         </Link>
       )}
       {off && <span className="pp-conn is-off">{off}</span>}
+      {behind && (
+        <span className="pp-behind" data-copy-behind="">
+          {COPY_WORDS.behind(product.name)}{' '}
+          {copy && (
+            <Button variant="link" size="sm" loading={busy} onClick={() => void latest()}>
+              {COPY_WORDS.getLatest}
+            </Button>
+          )}
+        </span>
+      )}
+      {copy && <span aria-live="polite">{said}</span>}
     </p>
   );
 }
 
+/** No copy of the product yet: why the team gets one, in one sentence, and the one action. */
+function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyActions | null }) {
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<{ line: string; ready: boolean } | null>(null);
+  const make = async () => {
+    if (!copy || busy) return;
+    setBusy(true);
+    setSaid(null);
+    try {
+      setSaid(await copy.make());
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="zone pp-empty pp-copy" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
+      <Drawing name="paint" width={160} />
+      <div className="pp-empty-text">
+        <p className="t-body">{COPY_WORDS.intro(product.name)}</p>
+        {copy && (
+          <Button variant="primary" size="lg" loading={busy} onClick={() => void make()}>
+            {COPY_WORDS.make}
+          </Button>
+        )}
+        <p className="t-ui t-muted" role="status">
+          {busy ? COPY_WORDS.making : (said?.line ?? '')}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 /** The page, painted from what is read so far. Pure render: tested in ProductPage.test.ts. */
-export function ProductPageView({ productKey, data, components, rename }: ProductPageViewProps) {
+export function ProductPageView({ productKey, data, components, rename, copy }: ProductPageViewProps) {
   const product = data?.product ?? null;
   const head = useRenameTitle(product?.name ?? '', product?.key ?? productKey, data?.products ?? [], product ? rename : null);
   const loading = !data || data.loading;
@@ -184,7 +252,9 @@ export function ProductPageView({ productKey, data, components, rename }: Produc
   const name = product?.name ?? '';
   const cards = data?.cards ?? [];
   const archived = data?.archived ?? [];
-  const empty = !loading && !data?.failed && cards.length === 0;
+  // No copy of the product yet (products[].design): the card to make one stands for the list and the start action.
+  const noCopy = !loading && data?.copy?.kind === 'missing';
+  const empty = !loading && !data?.failed && !noCopy && cards.length === 0;
   const library = Boolean(product?.default);
   const start = (appearance: 'menu' | 'button') => (
     <span className="cg-create" data-greet="">
@@ -198,9 +268,9 @@ export function ProductPageView({ productKey, data, components, rename }: Produc
         titleAfter={head.after}
         summary={loading && !cards.length ? '' : data?.failed ? '' : productSummary(cards)}
         // One primary action: on the title's line, or in the empty moment when there is nothing yet.
-        actions={product && !empty ? start('menu') : null}
+        actions={product && !empty && !noCopy ? start('menu') : null}
       >
-        {product && data && <Facts product={product} data={data} />}
+        {product && data && <Facts product={product} data={data} copy={copy ?? null} />}
         <p className="t-ui t-muted pp-rename-note" role="status">
           {head.note}
         </p>
@@ -214,6 +284,8 @@ export function ProductPageView({ productKey, data, components, rename }: Produc
             </li>
           ))}
         </ul>
+      ) : noCopy && product ? (
+        <CopyCard product={product} copy={copy ?? null} />
       ) : empty ? (
         <section className="zone pp-empty" aria-label={`Nothing explored in ${name} yet`}>
           <Drawing name="paint" width={160} />
@@ -259,6 +331,9 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   const [sent, setSent] = useState(false);
   /** The keys the team's own bridge.config.json lists (not the defaults Bridge shows without a list). */
   const [listedKeys, setListedKeys] = useState<string[]>([]);
+  /** Signed in with GitHub: may make the team's copy of the product and get the latest into it. */
+  const [canCopy, setCanCopy] = useState(false);
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -298,11 +373,40 @@ export default function ProductPage({ productKey, components = [] }: { productKe
       if (live) setListedKeys(((siteConfig() as { products?: ProductConfig[] }).products ?? []).map((p) => p.key.toLowerCase()));
       const { loadProductPage } = await import('../../../scripts/product-page');
       await loadProductPage(key, (d) => live && setData(d));
+      const { currentContributor } = await import('../../../scripts/github-session');
+      // Making the copy and getting the latest write on GitHub: never through an email member's session.
+      if (live) setCanCopy(!currentContributor());
     })();
     return () => {
       live = false;
     };
-  }, [key]);
+  }, [key, reload]);
+  const copy: CopyActions | null =
+    canCopy && data?.product && data.copy
+      ? {
+          make: async () => {
+            const session = await import('../../../scripts/github-session');
+            if (!session.hasWorkingToken()) {
+              const { ghAction } = await import('../../../lib/gh-wording');
+              return { line: `${ghAction('make your copy', session.prefersSignIn())}.`, ready: false };
+            }
+            const { makeCopy } = await import('../../../scripts/design-copy');
+            const r = await makeCopy(data.product!);
+            // Made: the page reads the copy again, and shows the explorations and the start action.
+            if (r === 'ready') setReload((n) => n + 1);
+            return { line: madeLine(data.product!.name, r), ready: r === 'ready' };
+          },
+          latest: async () => {
+            const session = await import('../../../scripts/github-session');
+            if (!session.hasWorkingToken()) {
+              const { ghAction } = await import('../../../lib/gh-wording');
+              return `${ghAction('get the latest', session.prefersSignIn())}.`;
+            }
+            const { getLatest } = await import('../../../scripts/design-copy');
+            return latestLine(await getLatest(data.product!));
+          },
+        }
+      : null;
   useEffect(() => {
     // A team shell is built once for every product ("Product | Bridge Studio"): the tab names this one.
     if (data?.product) document.title = document.title.replace(/^[^|]*\|/, `${data.product.name} |`);
@@ -320,5 +424,5 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           },
         }
       : null;
-  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} />;
+  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} copy={copy} />;
 }

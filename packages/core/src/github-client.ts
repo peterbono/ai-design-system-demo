@@ -759,6 +759,47 @@ export class GitHubClient {
     return { status: r.status, aheadBy: r.ahead_by, behindBy: r.behind_by, files: (r.files ?? []).map((f) => ({ filename: f.filename, status: f.status })) };
   }
 
+  /** The same client (token, transport, options) for another repository ("owner/name"). */
+  forRepo(repo: string): GitHubClient {
+    return new GitHubClient(repo, this.token, this.fetchImpl, this.retry, { ...this.options, protectedBranches: this.protectedBranches });
+  }
+
+  // --- Forks (the design team's copy of a product) -------------------------------------------------
+
+  /**
+   * Asks GitHub for a copy (fork) of this repository in `organization` named `name`, with every branch. GitHub answers
+   * at once (202) and builds the copy in the background: poll getRepo on the copy until it answers.
+   */
+  async createFork(input: { organization?: string | undefined; name: string }): Promise<{ fullName: string }> {
+    this.assertToken('Making a copy');
+    const r = await this.request<{ full_name: string }>('POST', `${this.repoPath}/forks`, {
+      ...(input.organization ? { organization: input.organization } : {}),
+      name: input.name,
+      default_branch_only: false,
+    });
+    return { fullName: r.full_name };
+  }
+
+  /**
+   * Brings `branch` of this copy up to date with the repository it was copied from (GitHub's "Sync fork"). `merged`
+   * false when it already was.
+   */
+  async mergeUpstream(branch: string): Promise<{ merged: boolean; message: string }> {
+    this.assertToken('Getting the latest');
+    const r = await this.request<{ merge_type?: string; message?: string }>('POST', `${this.repoPath}/merge-upstream`, { branch });
+    return { merged: Boolean(r.merge_type && r.merge_type !== 'none'), message: r.message ?? '' };
+  }
+
+  /** Creates a label unless it exists (GitHub answers 422 then). */
+  async ensureLabel(name: string, color: string, description: string): Promise<void> {
+    this.assertToken('Adding a label');
+    try {
+      await this.request('POST', `${this.repoPath}/labels`, { name, color, description });
+    } catch (err) {
+      if (!(err instanceof GitHubError && err.status === 422)) throw err;
+    }
+  }
+
   // --- History (read only) ----------------------------------------------------------------------
 
   /** Commits on a ref, newest first, optionally only those touching `path` (a file or directory). */
