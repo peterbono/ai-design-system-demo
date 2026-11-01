@@ -218,6 +218,86 @@ export interface DesignTaskRead {
   state: string;
   stateReason: string | null;
   closedAt: string | null;
+  /** The developers' open pull request that links the task (devPullOfTimeline), when one was read. */
+  devPull?: DevPull | null;
+}
+
+/** The developers' pull request for a design task: in their repository, linked to the task. */
+export interface DevPull {
+  number: number;
+  url: string;
+  /** Its branch, once the pull request itself was read: its preview is built from it. */
+  headRef?: string | null;
+  draft?: boolean;
+}
+
+/** One event of an issue's timeline, the fields devPullOfTimeline reads (GitHub's cross-referenced shape). */
+export interface TimelineEventLike {
+  event?: string;
+  source?: {
+    type?: string;
+    issue?: { number?: number; html_url?: string; state?: string; draft?: boolean; pull_request?: { merged_at?: string | null } | null; repository?: { full_name?: string } | null } | null;
+  } | null;
+}
+
+/**
+ * The developers' pull request that links a design task, from the task's timeline: the newest open pull request of
+ * the developers' repository that mentions the task ("Closes #7" or its URL). Null when none is open.
+ */
+export function devPullOfTimeline(events: readonly TimelineEventLike[], devRepo: string): DevPull | null {
+  const repo = devRepo.trim().toLowerCase();
+  let found: DevPull | null = null;
+  for (const e of events) {
+    if (e.event !== 'cross-referenced') continue;
+    const i = e.source?.issue;
+    if (!i?.pull_request || i.state !== 'open' || i.pull_request.merged_at) continue;
+    if ((i.repository?.full_name ?? '').toLowerCase() !== repo || !i.number || !i.html_url) continue;
+    found = { number: i.number, url: i.html_url, ...(i.draft !== undefined ? { draft: i.draft } : {}) };
+  }
+  return found;
+}
+
+/**
+ * Where a design copy exploration stands from its task, in the lifecycle's words: closed as done = Shipped, closed
+ * otherwise = Closed, an open pull request of the developers on it = In review (their version is ready for the
+ * designer's eyes; a draft stays Being built), someone assigned = Being built, else Waiting to be picked up.
+ */
+export function taskStage(t: DesignTaskRead): LifecycleStage {
+  const s = taskStatus(t);
+  if (s === 'shipped') return 'shipped';
+  if (s === 'closed') return 'closed';
+  if (t.devPull) return t.devPull.draft ? 'being-built' : 'in-review';
+  return s === 'building' ? 'being-built' : 'waiting-for-code';
+}
+
+/** The Review step of a design copy exploration, while the developers' version waits for the designer's eyes. */
+export const DEV_VERSION_READY = "The developers' version is ready for your eyes";
+
+/** The designer's answer on the developers' version, as Bridge posts it on their pull request. */
+export type DesignAnswer = { kind: 'looks-right' } | { kind: 'changes'; text: string };
+
+/** The first words of every design review Bridge posts: how Bridge finds the last answer again. */
+export const DESIGN_REVIEW_PREFIX = 'Design review from Bridge:';
+
+/** The comment Bridge posts on the developers' pull request, in their words. */
+export function designReviewComment(a: DesignAnswer): string {
+  return a.kind === 'looks-right' ? `${DESIGN_REVIEW_PREFIX} looks right.` : `${DESIGN_REVIEW_PREFIX} needs changes: ${a.text.trim()}`;
+}
+
+/** The last design review Bridge posted on a pull request (its comments, oldest first): who answered what, and when. */
+export function designReviewOf(comments: readonly { body?: string | null; user?: { login?: string } | null; created_at?: string }[]): { kind: 'looks-right' | 'changes'; login: string; text: string | null; at: string } | null {
+  for (let i = comments.length - 1; i >= 0; i--) {
+    const c = comments[i]!;
+    const body = (c.body ?? '').trim();
+    if (!body.startsWith(DESIGN_REVIEW_PREFIX)) continue;
+    const rest = body.slice(DESIGN_REVIEW_PREFIX.length).trim();
+    const login = c.user?.login ?? '';
+    const at = c.created_at ?? '';
+    if (/^looks right\.?$/i.test(rest)) return { kind: 'looks-right', login, text: null, at };
+    const m = /^needs changes:\s*([\s\S]*)$/i.exec(rest);
+    if (m) return { kind: 'changes', login, text: m[1]!.trim() || null, at };
+  }
+  return null;
 }
 
 /**

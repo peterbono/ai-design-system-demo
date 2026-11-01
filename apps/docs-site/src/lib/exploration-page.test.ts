@@ -191,6 +191,20 @@ describe('after Done exploring (Waiting to be picked up, Being built, Shipped)',
       expect(row(steps, 2)).toEqual(['waiting', 'Review', 'Changes requested by Dana', true]);
     });
 
+    it("the developers' own version (a design copy exploration): open it, then the designer's answer", () => {
+      const ready = handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [], verdict: null, dev: { url: 'https://dev.vercel.app', answer: null } } });
+      expect(row(ready, 1)).toEqual(['done', 'Built', 'By Sam', false]);
+      expect(row(ready, 2)).toEqual(['waiting', 'Review', "The developers' version is ready for your eyes", true]);
+      expect(ready[2]!.link).toEqual({ label: 'Open their version', href: 'https://dev.vercel.app' });
+      const draft = handoffSteps({ ...base, status: 'building', review: { draft: true, asked: [], verdict: null, dev: { url: null, answer: null } } });
+      expect(row(draft, 2)).toEqual(['waiting', 'Review', 'When the developers ask', false]);
+      const changes = handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [], verdict: null, dev: { url: null, answer: { kind: 'changes', by: dana } } } });
+      expect(row(changes, 2)).toEqual(['waiting', 'Review', 'Dana asked for changes', true]);
+      const right = handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [], verdict: null, dev: { url: null, answer: { kind: 'looks-right', by: dana } } } });
+      expect(row(right, 2)).toEqual(['done', 'Reviewed', 'Dana said it looks right', false]);
+      expect(row(right, 3)).toEqual(['waiting', 'Shipped', 'Then live in Admin demo', true]);
+    });
+
     it('approved: the review is done, shipping is next', () => {
       const steps = handoffSteps({ ...base, status: 'building', review: { draft: false, asked: [dana], verdict: { kind: 'approved', by: dana } } });
       expect(row(steps, 2)).toEqual(['done', 'Reviewed', 'Approved by Dana', false]);
@@ -225,6 +239,13 @@ describe('after Done exploring (Waiting to be picked up, Being built, Shipped)',
   it('puts "said done exploring" in the activity, without Bridge\'s own commit', () => {
     const rows = handoffActivity({ commits: [...commits, done, dev], author: 'florian', doneBy: 'ann', doneAt: '2026-10-30T12:20:00Z', names: { ann: 'Ann', sam: 'Sam' }, now: NOW });
     expect(rows.map((r) => `${r.who.name} ${r.text}`)).toEqual(['Sam wired the bulk actions to the API', 'Ann said done exploring', 'florian with Claude added a Bulk actions bar: Mark shipped, Export, Cancel']);
+  });
+
+  it("puts the designer's answer on the developers' version in the activity", () => {
+    const rows = handoffActivity({ commits: [...commits, done, dev], author: 'florian', doneBy: 'ann', doneAt: '2026-10-30T12:20:00Z', designAnswer: { kind: 'changes', login: 'ann', at: '2026-10-31T09:00:00Z' }, names: { ann: 'Ann', sam: 'Sam' }, now: NOW });
+    expect(`${rows[0]!.who.name} ${rows[0]!.text}`).toBe('Ann asked for changes');
+    const right = handoffActivity({ commits: [...commits, done, dev], author: 'florian', doneBy: 'ann', doneAt: '2026-10-30T12:20:00Z', designAnswer: { kind: 'looks-right', login: 'ann', at: '2026-10-31T09:00:00Z' }, names: { ann: 'Ann' }, now: NOW });
+    expect(right[0]!.text).toBe('said it looks right');
   });
 
   it('lists the requests a library exploration already sent, with their status', () => {

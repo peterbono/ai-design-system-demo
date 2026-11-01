@@ -46,6 +46,7 @@ import {
   MenuTrigger,
   Skeleton,
   Spinner,
+  Textarea,
   ToastProvider,
   TokenValue,
   Tooltip,
@@ -54,7 +55,7 @@ import {
 import ButtonLink from '../ButtonLink';
 import { Drawing } from './Drawing';
 import { Who } from './faces';
-import type { LifecycleStage } from '../../../lib/review-state';
+import type { DesignAnswer, LifecycleStage } from '../../../lib/review-state';
 import { explorationTag, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
 import { studioHref } from '../../../lib/team-path';
 import { ARCHIVED_LINE } from '../../../lib/explorations-view';
@@ -81,6 +82,11 @@ export interface HandoffView {
   pieces: LibraryPieces;
   /** The one action of a piece still without a library side (send it), when this viewer can. */
   onPiece?: ((piece: SentPiece) => Promise<string | void>) | null;
+  /**
+   * The designer's answer on the developers' version (a design copy exploration whose developers opened their pull
+   * request): Looks right, or Needs changes with a short text. Null when there is nothing to answer or the viewer cannot.
+   */
+  onAnswer?: ((a: DesignAnswer) => Promise<string | void>) | null;
 }
 
 export interface ExplorationPageProps {
@@ -405,6 +411,54 @@ function LibraryPart({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
   );
 }
 
+/**
+ * The designer's answer on the developers' version, under the steps: Looks right in one click, Needs changes opens a
+ * short text first (progressive disclosure). Bridge posts it on the developers' pull request.
+ */
+function DevAnswer({ onAnswer, say }: { onAnswer: NonNullable<HandoffView['onAnswer']>; say: (s: string) => void }) {
+  const [asking, setAsking] = useState(false);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState<'looks-right' | 'changes' | null>(null);
+  const send = (a: DesignAnswer) => {
+    setBusy(a.kind);
+    onAnswer(a)
+      .then((r) => r && say(r))
+      .catch((err: Error) => say(err.message))
+      .finally(() => setBusy(null));
+  };
+  if (asking) {
+    return (
+      <form
+        className="xp-answer"
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault();
+          if (text.trim()) send({ kind: 'changes', text });
+        }}
+      >
+        <Textarea label="What should change" hint="The developers read it on their work." rows={3} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+        <ButtonGroup>
+          <Button type="submit" variant="primary" size="md" loading={busy === 'changes'} disabled={!text.trim()}>
+            Send to the developers
+          </Button>
+          <Button type="button" variant="ghost" size="md" onClick={() => setAsking(false)} disabled={busy !== null}>
+            Cancel
+          </Button>
+        </ButtonGroup>
+      </form>
+    );
+  }
+  return (
+    <ButtonGroup>
+      <Button variant="secondary" size="md" loading={busy === 'looks-right'} onClick={() => send({ kind: 'looks-right' })}>
+        Looks right
+      </Button>
+      <Button variant="ghost" size="md" disabled={busy !== null} onClick={() => setAsking(true)}>
+        Needs changes
+      </Button>
+    </ButtonGroup>
+  );
+}
+
 /** The one Harbor zone after Done exploring: the hand-off in four steps, then the library part. */
 function HandoffCard({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void }) {
   return (
@@ -431,6 +485,7 @@ function HandoffCard({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
           />
         ))}
       </Checklist>
+      {h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && <DevAnswer onAnswer={h.onAnswer} say={say} />}
       <LibraryPart h={h} p={p} say={say} />
     </section>
   );
