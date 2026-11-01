@@ -542,8 +542,10 @@
   line-height: var(--typography-h3-line-height);
 }
 
-/* "Start an exploration" as a way to start: a button that opens the start flow, set like the other choices' titles. */
+/* "Start an exploration" as a way to start: a button that opens the start flow, set like the other choices' titles.
+   Static, so its card-wide click area (Card's data-card-primary ::after) spans the card, not only the button. */
 .sh-choice-btn {
+  position: static;
   justify-self: start;
   height: auto;
   padding: 0;
