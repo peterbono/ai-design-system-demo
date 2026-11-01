@@ -1,5 +1,18 @@
 # @bridge-ds/docs-site
 
+## 0.25.0
+
+### Minor Changes
+
+- 64c548a: Studio: "Ask to join the team" on a team's address sends a join request inside Bridge, for any work domain. Admins see it with the other join requests (Home, Settings > Members) and approve it there. When Bridge cannot send it, the ready message is copied instead and the page says so.
+
+### Patch Changes
+
+- 41c1479: Start an exploration: "The library" is a lead's choice (a reviewer or an admin), described as "Change a token, a component or its guidance in the design system." A designer of the team sees only the products, and no Where at all when there is one; the library's own page offers them no start.
+- ae1c7b2: Toolbar: a change that lives in the design team's copy of a product stays readable on This change and on Live product. Studio's link names the copy (`bridge-repo`), the toolbar keeps it for the session and across the switch, and the host can pass it as the new `repo` prop. The "Nothing changed in view" note is gone.
+- Updated dependencies [ae1c7b2]
+  - @bridge-ds/core@0.26.1
+
 ## 0.24.0
 
 ### Minor Changes
