@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONNECTOR_WORDS as W, connectionSentence, connectorUrl, developerSnippets, elapsedLabel, fixPullNumber, fixRows, missingFixPulls, parseSession, reviewOf, type Session } from './claude-connector';
+import { CONNECT_FIRST, CONNECTOR_WORDS as W, connectFirst, connectionSentence, connectorUrl, developerSnippets, elapsedLabel, fixPullNumber, fixRows, missingFixPulls, parseSession, reviewOf, type Session } from './claude-connector';
 import { matchesBuildFilter } from '@bridge-ds/core';
 
 const c = (by: string, lastUsedAt: string) => ({ id: by, client: 'Claude', by, createdAt: lastUsedAt, lastUsedAt, mine: false });
@@ -88,5 +88,25 @@ describe("Being built, Claude's fixes as rows of the one list", () => {
     const stopped = fixRows([{ ...working, state: 'stopped', steps: [{ ...steps[0]!, kind: 'stopped', text: 'Claude stopped: no fix brought it closer to the code.' }] }], [], NOW, names)[0]!;
     expect(stopped.status).toBe('not-planned');
     expect(stopped.fix.line).toContain('Claude stopped: no fix brought it closer to the code');
+  });
+});
+
+describe('connect first (the Claude app path before Bridge is connected)', () => {
+  it('puts the connect steps first only on the Claude app path, and only when the read found no connection', () => {
+    expect(connectFirst('claude-app', 'no')).toBe(true);
+    expect(connectFirst('claude-app', 'yes')).toBe(false);
+    // No read (signed out, a failed read): the line stays first, as before.
+    expect(connectFirst('claude-app', 'unknown')).toBe(false);
+    expect(connectFirst('claude-app', undefined)).toBe(false);
+    // The terminal and Copilot never wait on the connector.
+    expect(connectFirst('claude-code', 'no')).toBe(false);
+    expect(connectFirst('copilot', 'no')).toBe(false);
+  });
+
+  it('says it in designer words, never an em dash', () => {
+    for (const w of [CONNECT_FIRST.connect, CONNECT_FIRST.readyIntro, CONNECT_FIRST.then, CONNECT_FIRST.connected]) {
+      expect(w).not.toContain('—');
+      expect(w).not.toMatch(/\b(MCP|OAuth|repository|branch|token)\b/i);
+    }
   });
 });

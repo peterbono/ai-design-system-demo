@@ -6,12 +6,16 @@
 //   - ToolAction: the tool's button. Claude app: opens a new Claude conversation with the line in it (and copies it),
 //     after the connect steps while the viewer's own Claude has no Bridge (ConnectClaudeDialog, claudeLink 'no').
 //     Terminal: "Continue in Claude" copies the line. VS Code: "Copy for Copilot" copies it for Copilot Chat.
+//   - ConnectFirst and ConnectClaudeButton: while the viewer's own Claude has no Bridge (claudeLink 'no'), the connect
+//     steps come first and "Connect Bridge to Claude" is the one primary; the line waits under them, second.
+//     useClaudeRecheck reads the connection again each time the page comes back into view, so the panel switches.
 //   - AiToolsChoice and AiToolsDialog: the multi-select itself, for onboarding, Settings and the quiet link.
 import { useEffect, useState, type ReactNode } from 'react';
-import { Copy as CopyIcon } from 'lucide-react';
+import { Copy as CopyIcon, ExternalLink } from 'lucide-react';
 import { Avatar, Button, Checkbox, CheckboxGroup, Dialog, DialogContent, IconButton, SegmentedControl, Tooltip } from '@bridge-ds/react';
 import { AI_TOOL_HINT, AI_TOOL_LABEL, AI_TOOL_TAB, AI_TOOLS, AI_TOOLS_WORDS, parseAiTools, tabFor, toolsFor, type AiTool, type ToolsView } from '../../../lib/ai-tools';
-import { ConnectClaudeDialog } from './ConnectClaudeDialog';
+import { ConnectClaudeDialog, ConnectClaudeSteps } from './ConnectClaudeDialog';
+import { CONNECT_FIRST } from '../../../lib/claude-connector';
 import { AI_TOOLS_EVENT, knownAiTools, lastAiTab, readAiTools, rememberAiTab, saveMyAiTools } from '../../../scripts/ai-tools';
 // The panel's styles (.xp-paste*, .xp-continue, the connect dialog): the Start dialog uses them outside the exploration page.
 import '../../../styles/exploration-page.css';
@@ -57,6 +61,55 @@ export const ACTION_LABEL: Record<AiTool, string> = {
 
 export function ClaudeGlyph({ size = 'xs' }: { size?: 'xs' | 'sm' }) {
   return <Avatar kind="agent" brand="claude" name="Claude" size={size} decorative className="xp-claude" />;
+}
+
+/**
+ * While the viewer's own Claude has no Bridge (`waiting`), reads the connection again each time the page comes back
+ * into view (they connected it in Claude's tab), and hands the answer back.
+ */
+export function useClaudeRecheck(waiting: boolean, onRead: (v: ClaudeLink) => void) {
+  useEffect(() => {
+    if (!waiting) return;
+    let live = true;
+    const on = () => {
+      if (document.visibilityState !== 'visible') return;
+      void import('../../../scripts/claude-link')
+        .then((m) => {
+          m.forgetClaudeLink();
+          return m.viewerClaudeLink();
+        })
+        .then((v) => live && onRead(v));
+    };
+    document.addEventListener('visibilitychange', on);
+    window.addEventListener('focus', on);
+    return () => {
+      live = false;
+      document.removeEventListener('visibilitychange', on);
+      window.removeEventListener('focus', on);
+    };
+    // onRead is the caller's setter: the listeners follow `waiting` only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waiting]);
+}
+
+/** The connect steps first, then "Then paste this in Claude" and what the place shows for the line (its ToolPanel). */
+export function ConnectFirst({ address, onCopy, children }: { address: string; onCopy: (text: string) => Promise<void>; children: ReactNode }) {
+  return (
+    <div className="xp-cf">
+      <ConnectClaudeSteps address={address} onCopy={onCopy} openButton={false} />
+      <p className="xp-muted xp-cf-then">{CONNECT_FIRST.then}</p>
+      {children}
+    </div>
+  );
+}
+
+/** The one primary while the viewer's Claude has no Bridge: Claude's connectors, in a new tab. */
+export function ConnectClaudeButton({ size = 'lg' }: { size?: 'md' | 'lg' }) {
+  return (
+    <Button variant="primary" size={size} className="xp-continue" iconEnd={ExternalLink} render={<a href={CONNECT_FIRST.connectorsUrl} target="_blank" rel="noopener" />}>
+      {CONNECT_FIRST.connect}
+    </Button>
+  );
 }
 
 /**

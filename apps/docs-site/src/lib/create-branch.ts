@@ -120,6 +120,15 @@ export function claudePrompt(x: { sentence: string; product: ProductConfig; numb
   return `Open Bridge exploration #${x.number} "${featureName(x.sentence)}" in ${x.product.name}${where} and use the Bridge library. I'll tell you what to explore.`;
 }
 
+/**
+ * The line for the Claude app, through the Bridge connector: the connector finds the exploration from its ref alone
+ * (product#n), so no repository or branch reaches the designer. The terminal and Copilot keep claudePrompt.
+ */
+export function connectorPrompt(x: { sentence: string; product: ProductConfig; number: number; library?: boolean; copy?: { repo: string; branch: string } | null }): string {
+  if (!x.copy) return claudePrompt(x);
+  return `Open Bridge exploration ${x.product.key}#${x.number} "${featureName(x.sentence)}" and use the Bridge library. I'll tell you what to explore.`;
+}
+
 /** Where the person lands once the exploration started: its page in Changes, with the product that holds it when it lives in a product's own repository. */
 export const featureHref = (n: number, product?: string | null) => studioHref(`changes/?exploration=${n}${product ? `&product=${encodeURIComponent(product)}` : ''}`);
 

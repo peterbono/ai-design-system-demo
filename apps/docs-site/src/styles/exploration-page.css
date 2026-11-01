@@ -293,6 +293,22 @@
   margin: 0;
 }
 
+/* The connect steps in place (ConnectFirst: the start flow's last step, Nothing built yet) while the viewer's own Claude
+   has no Bridge: the steps, then a quiet "Then paste this in Claude" over the line. The org line stays under step 2. */
+.xp-cf {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.xp-cf .xp-cc-quiet {
+  margin: 0;
+}
+
+.xp-cf-then {
+  margin: var(--space-2) 0 0;
+}
+
 /* "Exploring" in Harbor, as on the validated board: the selected surface and the link text, its dot the same. */
 .xp-page .xp-pagehead .xp-exploring {
   --_bg: var(--color-surface-selected);

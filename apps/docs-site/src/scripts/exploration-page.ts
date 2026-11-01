@@ -314,6 +314,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
         forgetClaudeLink();
         repaint(d, key, { claudeLink: 'unknown' });
       },
+      onClaudeLink: (v) => repaint(d, key, { claudeLink: v }),
       terminalSetup: own ? terminalSetup(`${CFG.owner}/${CFG.repo}`) : null,
       // VS Code (Copilot): bridge connect --tool copilot in the product, or the server added to VS Code for the library.
       copilotSetup: copilotSetup(`${CFG.owner}/${CFG.repo}`, Boolean(own)),

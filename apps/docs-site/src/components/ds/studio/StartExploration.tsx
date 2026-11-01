@@ -28,6 +28,7 @@ import { startChangeHref } from '../../../lib/overview-board';
 import {
   askAdmin,
   claudePrompt,
+  connectorPrompt,
   featureHref,
   featureName,
   featurePurpose,
@@ -44,13 +45,13 @@ import { COPY_WORDS, madeLine } from '../../../lib/design-copy';
 import { siteConfig } from '../../../scripts/repo-context';
 import { isSampleTeam } from '../../../lib/demo';
 import { useCopy } from './TeamLink';
-import { copilotSetup, connectorUrl, TERMINAL_SETUP_LINE, TERMINAL_SETUP_LINE_COPY, terminalSetup } from '../../../lib/claude-connector';
+import { CONNECT_FIRST, connectFirst, copilotSetup, connectorUrl, TERMINAL_SETUP_LINE, TERMINAL_SETUP_LINE_COPY, terminalSetup } from '../../../lib/claude-connector';
 import type { AiTool } from '../../../lib/ai-tools';
-import { TOOL_SAID, ToolAction, ToolPanel, useAiTools, type ClaudeLink, type ToolLines, type ToolSetup } from './AiToolPanel';
+import { ConnectClaudeButton, ConnectFirst, TOOL_SAID, ToolAction, ToolPanel, useAiTools, useClaudeRecheck, type ClaudeLink, type ToolLines, type ToolSetup } from './AiToolPanel';
 
 /** The line for each tool once it started: the Claude app and Copilot Chat take the sentence, the terminal runs Claude Code with it. */
-export function startLines(prompt: string): ToolLines {
-  return { 'claude-app': prompt, 'claude-code': `claude '${prompt.replace(/'/g, "'\\''")}'`, copilot: prompt };
+export function startLines(prompt: string, app?: string): ToolLines {
+  return { 'claude-app': app ?? prompt, 'claude-code': `claude '${prompt.replace(/'/g, "'\\''")}'`, copilot: prompt };
 }
 
 /** The primary of the start step, for the open tool. */
@@ -127,13 +128,19 @@ export default function StartExploration({ components, appearance = 'menu', prod
   /** "Make my copy" from the dialog, for a product explored in the design team's copy that has none yet. */
   const [making, setMaking] = useState(false);
   const { copied, said, copy } = useCopy(3000);
-  const [done, setDone] = useState<{ prompt: string; href: string; name: string; where: string; setup: ToolSetup } | null>(null);
+  const [done, setDone] = useState<{ prompt: string; app: string; href: string; name: string; where: string; setup: ToolSetup } | null>(null);
   const [claudeLink, setClaudeLink] = useState<ClaudeLink>('unknown');
   const [toolSaid, setToolSaid] = useState('');
   // Joined with their email (no GitHub): they explore a product in its design team's copy, through Bridge, and the
   // Claude app with Bridge is their one AI tool.
   const [email, setEmail] = useState(false);
   const tools = useAiTools(claudeLink, email);
+  // The last step while the viewer's own Claude has no Bridge: read again when they come back from Claude.
+  const first = step === 'done' && connectFirst(tools.tab, claudeLink);
+  useClaudeRecheck(first, (v) => {
+    setClaudeLink(v);
+    if (v === 'yes') setToolSaid(CONNECT_FIRST.connected);
+  });
   const sentenceRef = useRef<HTMLInputElement>(null);
   const jiraRef = useRef<HTMLInputElement>(null);
 
@@ -272,9 +279,12 @@ export default function StartExploration({ components, appearance = 'menu', prod
       setBlocked(null);
       const { started } = r;
       const ds = `${cfg.owner}/${cfg.repo}`;
-      const prompt = claudePrompt({ sentence, product: t.product, number: started.pr, library: t.library, copy: at ? { repo: at.copy, branch: started.branch } : null });
+      const ref = { sentence, product: t.product, number: started.pr, library: t.library, copy: at ? { repo: at.copy, branch: started.branch } : null };
+      const prompt = claudePrompt(ref);
       setDone({
         prompt,
+        // The Claude app goes through the Bridge connector, which finds the exploration from its ref alone.
+        app: connectorPrompt(ref),
         href: featureHref(started.pr, repo ? t.product.key : null),
         name,
         where: t.library ? VOCAB.main : t.product.name,
@@ -289,7 +299,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
       // Copilot and the terminal: the line goes on the clipboard right away (the click that started it allows it).
       if (tools.tab !== 'claude-app') {
         const tab = tools.tab;
-        void clip(startLines(prompt)[tab]).then(
+        void clip(startLines(prompt, connectorPrompt(ref))[tab]).then(
           () => setToolSaid(TOOL_SAID[tab].copied),
           () => setToolSaid(''),
         );
@@ -477,14 +487,21 @@ export default function StartExploration({ components, appearance = 'menu', prod
       </Button>,
     );
   } else {
-    const lines = startLines(done?.prompt ?? '');
+    const lines = startLines(done?.prompt ?? '', done?.app);
+    const panel = <ToolPanel tools={tools.view.tools} tab={tools.tab} setTab={tools.setTab} chosen={tools.view.chosen} lines={lines} setup={done?.setup ?? {}} onCopy={clip} say={setToolSaid} />;
     title = tools.tab === 'copilot' ? 'Ready for Copilot' : 'Ready for Claude AI';
     body = (
       <div className="sc-form">
         <p className="t-body sc-line">
-          <b>{done?.name}</b> is a new exploration in {done?.where}. {toolSaid || (tools.tab === 'copilot' ? 'Paste this in Copilot Chat in VS Code, in Agent mode.' : tools.tab === 'claude-code' ? 'Run this in your terminal.' : 'Continue it in Claude.')}
+          <b>{done?.name}</b> is a new exploration in {done?.where}. {first ? CONNECT_FIRST.readyIntro : toolSaid || (tools.tab === 'copilot' ? 'Paste this in Copilot Chat in VS Code, in Agent mode.' : tools.tab === 'claude-code' ? 'Run this in your terminal.' : 'Continue it in Claude.')}
         </p>
-        <ToolPanel tools={tools.view.tools} tab={tools.tab} setTab={tools.setTab} chosen={tools.view.chosen} lines={lines} setup={done?.setup ?? {}} onCopy={clip} say={setToolSaid} />
+        {first ? (
+          <ConnectFirst address={connectorUrl(location.origin)} onCopy={clip}>
+            {panel}
+          </ConnectFirst>
+        ) : (
+          panel
+        )}
         <span className="sr-only" role="status" aria-live="polite">
           {toolSaid}
         </span>
@@ -494,7 +511,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
       <Button variant="link" onClick={() => done && go(done.href)}>
         Open the exploration
       </Button>,
-      <ToolAction
+      first ? <ConnectClaudeButton /> : <ToolAction
         tool={tools.tab}
         line={lines[tools.tab]}
         onCopy={clip}

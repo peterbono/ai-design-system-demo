@@ -20,16 +20,8 @@ export interface ConnectClaudeDialogProps {
 }
 
 export function ConnectClaudeDialog({ open, onOpenChange, address, continueHref, onContinue, onCopy }: ConnectClaudeDialogProps) {
-  const [copied, setCopied] = useState<'yes' | 'failed' | null>(null);
-  const copy = () => onCopy(address).then(() => setCopied('yes'), () => setCopied('failed'));
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) setCopied(null);
-        onOpenChange(o);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         title={C.title}
         description={C.intro}
@@ -50,31 +42,48 @@ export function ConnectClaudeDialog({ open, onOpenChange, address, continueHref,
           </ButtonGroup>
         }
       >
-        <ol className="xp-cc-steps">
-          <li>
-            <p>{W.step1}</p>
-            <div className="xp-cc-address">
-              <code className="xp-cc-url" aria-label={W.address}>
-                {address}
-              </code>
-              <Button variant="secondary" data-density="compact" iconStart={copied === 'yes' ? Check : Copy} onClick={() => void copy()}>
-                {copied === 'yes' ? W.copied : W.copy}
-              </Button>
-            </div>
-            {copied === 'failed' && <p className="xp-cc-quiet">Select the address and copy it.</p>}
+        <ConnectClaudeSteps address={address} onCopy={onCopy} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * The connect steps on their own: the address with Copy address, Claude's connectors (unless the place shows its own
+ * primary for it, `openButton` false), the sign-in step and the quiet line for Claude Team and Enterprise. The dialog
+ * above, the start flow's last step and the exploration page share it.
+ */
+export function ConnectClaudeSteps({ address, onCopy, openButton = true }: { address: string; onCopy: (text: string) => Promise<void>; openButton?: boolean }) {
+  const [copied, setCopied] = useState<'yes' | 'failed' | null>(null);
+  const copy = () => onCopy(address).then(() => setCopied('yes'), () => setCopied('failed'));
+  return (
+    <>
+      <ol className="xp-cc-steps">
+        <li>
+          <p>{W.step1}</p>
+          <div className="xp-cc-address">
+            <code className="xp-cc-url" aria-label={W.address}>
+              {address}
+            </code>
+            <Button variant="secondary" data-density="compact" iconStart={copied === 'yes' ? Check : Copy} onClick={() => void copy()}>
+              {copied === 'yes' ? W.copied : W.copy}
+            </Button>
+          </div>
+          {copied === 'failed' && <p className="xp-cc-quiet">Select the address and copy it.</p>}
+          {openButton && (
             <Button variant="secondary" iconEnd={ExternalLink} className="xp-cc-open" render={<a href={C.connectorsUrl} target="_blank" rel="noopener" />}>
               {C.open}
             </Button>
-          </li>
-          <li>
-            <p>{W.step2}</p>
-          </li>
-        </ol>
-        <p className="xp-cc-quiet">{W.orgAdmins}</p>
-        <p className="sr-only" role="status" aria-live="polite">
-          {copied === 'yes' ? W.copied : ''}
-        </p>
-      </DialogContent>
-    </Dialog>
+          )}
+        </li>
+        <li>
+          <p>{W.step2}</p>
+        </li>
+      </ol>
+      <p className="xp-cc-quiet">{W.orgAdmins}</p>
+      <p className="sr-only" role="status" aria-live="polite">
+        {copied === 'yes' ? W.copied : ''}
+      </p>
+    </>
   );
 }

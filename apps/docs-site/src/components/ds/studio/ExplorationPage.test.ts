@@ -9,6 +9,14 @@ import { expectNoAxeViolations } from '../../../../../../packages/react/src/test
 import { userEvent } from '@testing-library/user-event';
 import { explorationMenu } from '../../../lib/exploration-page';
 
+// The connection read: once connected in Claude, the next read says yes.
+const linkReads = vi.hoisted(() => ({ forget: vi.fn() }));
+vi.mock('../../../scripts/claude-link', () => ({
+  forgetClaudeLink: linkReads.forget,
+  viewerClaudeLink: async () => 'yes',
+  knownClaudeLink: () => 'unknown',
+}));
+
 const florian = { login: 'florian', name: 'Florian', agent: false, avatar: null };
 const claude = { login: 'claude', name: 'Claude', agent: true, avatar: null };
 
@@ -143,37 +151,36 @@ describe("Continue in Claude, gated on the viewer's own Claude connection", () =
     expect(screen.getByRole('link', { name: /Continue in Claude/ }).getAttribute('href')).toBe(claudeUrl);
   });
 
-  it('not connected: shows the two steps first, then continues to Claude with the line', async () => {
+  it('not connected: the steps come first in place, the one primary opens Claude connectors, the line waits under them', async () => {
     const onCopy = vi.fn(async () => {});
-    const onClaudeConnected = vi.fn();
-    paint({ claudeLink: 'no', connectorAddress: 'https://bridge.example.com/mcp', onCopy, onClaudeConnected });
+    paint({ claudeLink: 'no', connectorAddress: 'https://bridge.example.com/mcp', onCopy });
     expect(screen.queryByRole('link', { name: /Continue in Claude/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Continue in Claude/ })).toBeNull();
+    expect(screen.getByText(/Add custom connector, name it Bridge/)).toBeTruthy();
+    expect(screen.getByText('Sign in with Bridge when Claude asks.')).toBeTruthy();
+    expect(screen.getByText('https://bridge.example.com/mcp')).toBeTruthy();
+    expect(screen.getByText('Then paste this in Claude')).toBeTruthy();
+    expect(screen.getByText(base.lines.app)).toBeTruthy();
+    const connect = screen.getByRole('link', { name: /Connect Bridge to Claude/ });
+    expect(connect.getAttribute('href')).toBe('https://claude.ai/settings/connectors');
+    expect(connect.getAttribute('target')).toBe('_blank');
+    // One primary: the steps do not repeat the connectors link.
+    expect(screen.queryByRole('link', { name: /Open Claude connectors/ })).toBeNull();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Continue in Claude/ }));
-    });
-    const dialog = await screen.findByRole('dialog', { name: 'Connect Bridge to your Claude first' });
-    expect(within(dialog).getByText(/Add custom connector, name it Bridge/)).toBeTruthy();
-    expect(within(dialog).getByText('Sign in with Bridge when Claude asks.')).toBeTruthy();
-    expect(within(dialog).getByText('https://bridge.example.com/mcp')).toBeTruthy();
-    const connectors = within(dialog).getByRole('link', { name: /Open Claude connectors/ });
-    expect(connectors.getAttribute('href')).toBe('https://claude.ai/settings/connectors');
-    expect(connectors.getAttribute('target')).toBe('_blank');
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Copy address' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Copy address' }));
     });
     expect(onCopy).toHaveBeenLastCalledWith('https://bridge.example.com/mcp');
-    expect(within(dialog).getByRole('button', { name: 'Address copied' })).toBeTruthy();
-    await expectNoAxeViolations(dialog);
-    const go = within(dialog).getByRole('link', { name: "I've connected it, continue" });
-    expect(go.getAttribute('href')).toBe(claudeUrl);
-    expect(go.getAttribute('target')).toBe('_blank');
+    expect(screen.getByRole('button', { name: 'Address copied' })).toBeTruthy();
+  });
+
+  it('not connected: coming back to the page reads the connection again and hands it to the page', async () => {
+    const onClaudeLink = vi.fn();
+    paint({ claudeLink: 'no', onClaudeLink });
     await act(async () => {
-      fireEvent.click(go);
+      window.dispatchEvent(new Event('focus'));
     });
-    expect(onClaudeConnected).toHaveBeenCalledTimes(1);
-    expect(onCopy).toHaveBeenLastCalledWith(base.lines.app);
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(screen.getByText('Opened in Claude with the line ready. Press Enter to start.')).toBeTruthy();
+    await waitFor(() => expect(onClaudeLink).toHaveBeenCalledWith('yes'));
+    expect(linkReads.forget).toHaveBeenCalled();
   });
 
   it('the Terminal tab still copies, and names the one command a product folder needs', async () => {
