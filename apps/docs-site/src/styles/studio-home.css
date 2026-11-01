@@ -542,6 +542,17 @@
   line-height: var(--typography-h3-line-height);
 }
 
+/* The Home's one way to start: the drawing beside the title and its line, one card across the zone. */
+.sh-choice-one .sh-choice-body {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-6);
+}
+
+.sh-choice-one .sh-choice-body > .ill {
+  grid-row: span 2;
+}
+
 /* "Start an exploration" as a way to start: a button that opens the start flow, set like the other choices' titles.
    Static, so its card-wide click area (Card's data-card-primary ::after) spans the card, not only the button. */
 .sh-choice-btn {

@@ -269,7 +269,7 @@ const CONTRIBUTOR_TOUR: Record<ContributorTourAt, { title: string; text: string 
 /** The home with nothing at all points at its ways to start instead: an exploration first, then the library changes. */
 const WHERE_TO_START = {
   title: 'Where to start',
-  text: 'Start an exploration to try a product screen or a library idea with Claude AI, or edit the library directly. Nothing reaches the library until a reviewer approves it.',
+  text: 'Start an exploration to try a product screen or a library idea with Claude AI. Nothing reaches the library until a reviewer approves it.',
 };
 
 /** One step's words. `empty`: the home with nothing at all, whose start step points at the ways to start. */

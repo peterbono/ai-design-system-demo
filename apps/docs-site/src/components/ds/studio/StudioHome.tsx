@@ -312,41 +312,22 @@ function pageProducts(): ProductConfig[] {
   }
 }
 
-const CHOICES = [
-  { drawing: 'tokens', title: 'Edit tokens', line: 'A color, a spacing, a radius. See every place it shows before you send it.', key: 'tokens' },
-  { drawing: 'components', title: 'Ask for a component change', line: 'Describe what is missing or wrong. A developer builds it with Claude, the owner decides.', key: 'component' },
-  { drawing: 'guide', title: 'Write usage guidance', line: 'When to use a component, and when not to.', key: 'guidance' },
-] as const;
-
-/** The first way to start, before the library ones: an exploration, through the start flow (StartExploration). */
+/**
+ * The one way to start on the Home: an exploration, through the start flow (StartExploration). Designers mostly
+ * explore; editing tokens, asking for a component change and writing guidance stay on their own pages (Tokens,
+ * Components), never next to it here.
+ */
 const EXPLORE_CHOICE = 'Try a product screen with Claude AI. Bridge shows what the library does not have yet.';
 
-function Start({ hrefs, components }: { hrefs: Record<(typeof CHOICES)[number]['key'], string>; components: HomeComponent[] }) {
+function Start({ components }: { components: HomeComponent[] }) {
   return (
-    <ul className="sh-choices" aria-label="Ways to start">
-      <li>
-        <Card interactive className="sh-choice">
-          <CardBody className="sh-choice-body">
-            <Drawing name="paint" width={104} />
-            <StartExploration components={components} appearance="choice" />
-            <span className="t-ui t-muted">{EXPLORE_CHOICE}</span>
-          </CardBody>
-        </Card>
-      </li>
-      {CHOICES.map((c) => (
-        <li key={c.key}>
-          <Card interactive className="sh-choice">
-            <CardBody className="sh-choice-body">
-              <Drawing name={c.drawing} width={104} />
-              <Link href={hrefs[c.key]} variant="subtle" data-card-primary>
-                <span className="sh-choice-title">{c.title}</span>
-              </Link>
-              <span className="t-ui t-muted">{c.line}</span>
-            </CardBody>
-          </Card>
-        </li>
-      ))}
-    </ul>
+    <Card interactive className="sh-choice sh-choice-one">
+      <CardBody className="sh-choice-body">
+        <Drawing name="paint" width={104} />
+        <StartExploration components={components} appearance="choice" />
+        <span className="t-ui t-muted">{EXPLORE_CHOICE}</span>
+      </CardBody>
+    </Card>
   );
 }
 
@@ -372,6 +353,7 @@ export interface StudioHomeProps {
   signedOut: { line: string; button: string; signIn: boolean };
   /** GitHub could not be read. */
   failed: string | null;
+  /** Kept for callers: the library ways to start live on their own pages now, not on the Home (see Start). */
   startHrefs: Record<'tokens' | 'component' | 'guidance', string>;
   /**
    * Signed in with setup steps left: "4 of 8 connected" and its checklist (Onboarding.tsx), on the status line under
@@ -502,11 +484,11 @@ function HomeBody(p: StudioHomeProps) {
               {p.greeting} {p.recent ? quietSentence(ownOpenWork(p.explorations, p.branches), Boolean(p.failed)) : `Nothing needs you${p.failed ? '' : ', and you have nothing in progress'}.`}
             </p>
             <h1 id="sh-hello" className="sh-hello">
-              What do you want to change?
+              What do you want to explore?
             </h1>
           </div>
           {tour?.('branches')}
-          <Start hrefs={p.startHrefs} components={p.components} />
+          <Start components={p.components} />
           {tour?.('start')}
         </section>
         {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
