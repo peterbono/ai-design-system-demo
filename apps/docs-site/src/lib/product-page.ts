@@ -165,11 +165,20 @@ export function productFacts(product: ProductConfig, ownRepo: string | null, rea
  * start action there, so the line says where their asks go instead.
  */
 export function emptyProductLine(product: ProductConfig, library: boolean, lead = true): string {
-  if (library && !lead) return 'The design system leads change the library. To ask for a change, open the component in Components.';
+  if (library && !lead) return 'The design system leads change the library. Ask them for what you need.';
   return library
     ? 'Try a token, a variant or a new component with Claude AI, in a safe copy of the library, before it goes to review.'
     : `Try one of the screens of ${product.name} with Claude AI. Bridge spots what the library does not have, and what works goes to review.`;
 }
+
+/**
+ * A designer of the team on the library's page (no start action there): the two ways to ask, each a card to its page.
+ * A component change from Components, a token change from Tokens; both reach a lead for review.
+ */
+export const LIBRARY_ASKS = [
+  { key: 'component', title: 'Ask for a component change', line: 'Open a component and say what should change. A lead picks it up.', path: 'components/' },
+  { key: 'token', title: 'Suggest a token change', line: 'Adjust a color, size or spacing. A lead reviews it before it ships.', path: 'tokens/' },
+] as const;
 
 /** The quiet line at the end of a product page: "1 archived.", "2 archived.". */
 export const archivedLine = (n: number): string => `${n} archived.`;
