@@ -1,5 +1,11 @@
 # @bridge-ds/docs-site
 
+## 0.26.2
+
+### Patch Changes
+
+- a8b9799: Home: the whole Start an exploration card opens the start flow, and its title and line read as one block beside the drawing.
+
 ## 0.26.1
 
 ### Patch Changes

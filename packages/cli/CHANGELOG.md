@@ -1,5 +1,11 @@
 # @bridge-ds/cli
 
+## 0.17.2
+
+### Patch Changes
+
+- 27fd4c4: Rebundles core 0.26.2: `bridge explore continue <branch>` finds explorations in a design copy that is a fork in the same organization.
+
 ## 0.17.1
 
 ### Patch Changes

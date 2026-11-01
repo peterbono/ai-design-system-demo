@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/cli",
-  "version": "0.17.1",
+  "version": "0.17.2",
   "type": "module",
   "description": "bridge CLI: set up Bridge in a design system repo, check tokens in CI, search and diff tokens, propose changes, start the MCP server.",
   "license": "FSL-1.1-MIT",
