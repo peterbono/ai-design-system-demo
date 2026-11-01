@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, productMarks, productOfBranch, type ProductConfig } from '@bridge-ds/core';
-import { askAdmin, claudePrompt, featureHref, featureName, featurePurpose, featureProblems, featureProducts, featureRepo, initialTarget, LIBRARY_TARGET, productParam, productRepoBlockedLine, startTargets } from './create-branch';
+import { askAdmin, claudePrompt, featureHref, featureName, featurePurpose, featureProblems, featureProducts, featureRepo, initialTarget, LIBRARY_TARGET,
+  libraryLead, productParam, productRepoBlockedLine, startTargets } from './create-branch';
 
 const THREE: ProductConfig[] = [
   { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
@@ -23,10 +24,21 @@ describe('start an exploration, in a product or the library', () => {
       ['shop', 'Shop', false],
       ['library', 'The library', true],
     ]);
-    expect(t[2]!.description).toBe('Tokens, variants, new components');
+    expect(t[2]!.description).toBe('Change a token, a component or its guidance in the design system.');
     expect(LIBRARY_TARGET.label).toBe('The library');
     expect(startTargets([{ key: 'ds', name: 'Design system', default: true }]).map((x) => x.label)).toEqual(['The library']);
     expect(startTargets([])).toEqual([]);
+  });
+
+  it('keeps the library for a lead: a designer of the team gets the products, a team with no product keeps the library', () => {
+    expect(startTargets(THREE, { library: false }).map((x) => x.value)).toEqual(['admin', 'shop']);
+    expect(startTargets([{ key: 'ds', name: 'Design system', default: true }], { library: false }).map((x) => x.label)).toEqual(['The library']);
+    expect(libraryLead({ write: true, contributor: false })).toBe(true);
+    expect(libraryLead({ write: true, contributor: true, admin: true })).toBe(true);
+    expect(libraryLead({ write: true, contributor: true })).toBe(false);
+    expect(libraryLead({ write: false })).toBe(false);
+    expect(libraryLead(null)).toBe(false);
+    expect(libraryLead(null, true)).toBe(true);
   });
 
   it('preselects the target the page came from, else the only product, else the library when there is no product', () => {

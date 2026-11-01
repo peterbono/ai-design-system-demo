@@ -4,7 +4,7 @@
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import type { ProductConfig } from '@bridge-ds/core';
 import { ProductPageView } from './ProductPage';
@@ -12,6 +12,17 @@ import { navProducts, ProductsNavView } from './ProductsNav';
 import { person } from '../../../lib/home-model';
 import type { ExplorationCard } from '../../../lib/home-explorations';
 import type { ProductPageData } from '../../../scripts/product-page';
+
+// The viewer's access: a lead (GitHub write) by default, who may also start in the library.
+const viewer = vi.hoisted(() => ({ access: { state: 'writer', write: true, admin: false, contributor: false } as Record<string, unknown> | null }));
+vi.mock('../../../scripts/github-session', async (actual) => ({
+  ...(await actual<Record<string, unknown>>()),
+  onAccess: (fn: (a: unknown) => void) => viewer.access && fn(viewer.access),
+}));
+// The session module is large: load it once before the tests, so the access arrives right after a dialog opens.
+beforeAll(async () => {
+  await import('../../../scripts/github-session');
+}, 30_000);
 
 const products: ProductConfig[] = [
   { key: 'admin-app', name: 'Product admin', repo: 'acme/product-admin', production: 'https://admin.acme.app' },
@@ -65,7 +76,7 @@ describe('ProductPageView', () => {
     // On a product page the product goes without saying.
     expect(container.querySelector('.sh-card-product')).toBeNull();
     // The one primary action on the title's line; archived ones are one quiet line to Changes' Archived tab, no cards.
-    expect(container.querySelector('[data-st-actions]')!.textContent).toContain('Start an exploration');
+    await waitFor(() => expect(container.querySelector('[data-st-actions]')!.textContent).toContain('Start an exploration'));
     const line = container.querySelector('[data-archived-line]')!;
     expect(line.textContent).toBe('1 archived. See archived');
     expect(screen.getByRole('link', { name: 'See archived' }).getAttribute('href')).toBe('/studio/changes/?state=archived&product=admin-app');
@@ -79,10 +90,22 @@ describe('ProductPageView', () => {
     expect(container.querySelector('[data-st-summary]')!.textContent).toBe('Nothing explored here yet.');
     expect(container.querySelector('.pp-empty svg')).toBeTruthy();
     expect(container.querySelector('.pp-empty')!.textContent).toContain('Try a token, a variant or a new component');
-    expect(container.querySelector('.pp-empty')!.textContent).toContain('Start an exploration');
+    await waitFor(() => expect(container.querySelector('.pp-empty')!.textContent).toContain('Start an exploration'));
     expect(container.querySelector('[data-st-actions]')!.textContent).toBe('');
     expect(container.querySelector('.pp-facts')).toBeNull();
     await expectNoAxeViolations(container);
+  });
+
+  it("offers a designer of the team no start on the library's page: library changes are the lead's", async () => {
+    viewer.access = { state: 'writer', write: true, admin: false, contributor: true };
+    try {
+      const { container } = render(createElement(ProductPageView, { productKey: 'library', components: [], data: data({ product: products[1]!, ownRepo: null, reached: null }) }));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(container.querySelector('.pp-empty')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Start an exploration' })).toBeNull();
+    } finally {
+      viewer.access = { state: 'writer', write: true, admin: false, contributor: false };
+    }
   });
 
   it("no copy of the product yet: one calm card and Make my copy, never the developers' repository", async () => {

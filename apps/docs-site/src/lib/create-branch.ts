@@ -14,7 +14,7 @@ export function featureProducts(products: readonly ProductConfig[]): ProductConf
 }
 
 /** The library as a target, after the products: its name in the menu and the one line under it. */
-export const LIBRARY_TARGET = { label: 'The library', hint: 'Tokens, variants, new components' } as const;
+export const LIBRARY_TARGET = { label: 'The library', hint: 'Change a token, a component or its guidance in the design system.' } as const;
 
 export interface StartTarget {
   value: string;
@@ -25,14 +25,25 @@ export interface StartTarget {
   library: boolean;
 }
 
-/** Where an exploration can start: every product, then the library. Empty while the products are unknown. */
-export function startTargets(products: readonly ProductConfig[]): StartTarget[] {
+/**
+ * Where an exploration can start: every product, then the library. Empty while the products are unknown. The library
+ * is a lead's choice (`library: false` for a designer of the team, who explores products and asks the lead for library
+ * changes); a team that lists no product keeps it, or there would be nowhere to start.
+ */
+export function startTargets(products: readonly ProductConfig[], opts: { library?: boolean } = {}): StartTarget[] {
   if (!products.length) return [];
   const lib = defaultProduct(products);
-  return [
-    ...featureProducts(products).map((p) => ({ value: p.key, label: p.name, product: p, library: false })),
-    { value: lib.key, label: LIBRARY_TARGET.label, description: LIBRARY_TARGET.hint, product: lib, library: true },
-  ];
+  const features = featureProducts(products).map((p) => ({ value: p.key, label: p.name, product: p, library: false }));
+  if (opts.library === false && features.length) return features;
+  return [...features, { value: lib.key, label: LIBRARY_TARGET.label, description: LIBRARY_TARGET.hint, product: lib, library: true }];
+}
+
+/**
+ * May start an exploration in the library itself: a lead, that is an admin (an email admin included) or someone who
+ * may approve (GitHub write, never an email contributor). The sample team's seat is its DS lead.
+ */
+export function libraryLead(access: { admin?: boolean; write?: boolean; contributor?: boolean } | null | undefined, sample = false): boolean {
+  return sample || Boolean(access?.admin) || Boolean(access?.write && !access.contributor);
 }
 
 /**

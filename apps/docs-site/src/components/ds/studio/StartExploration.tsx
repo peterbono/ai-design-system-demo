@@ -1,7 +1,8 @@
 // "Start an exploration" (VOCAB.startExploration): the one way to start work in Studio, on the Changes header and the
 // Studio home (rules and words: lib/create-branch.ts). A DS Dialog, one question: "What do you want to explore?"
-//   - Where: a product, or the library itself (Tokens, variants, new components). A change to the library is an
-//     exploration whose target is the library. Preselected from ?product= (key, name, or "library"), else the only
+//   - Where: a product, or, for a lead (libraryLead), the library itself (a token, a component or its guidance). A change
+//     to the library is an exploration whose target is the library. A designer of the team only sees products, and
+//     with one product no Where at all. Preselected from ?product= (key, name, or "library"), else the only
 //     product, else the library when the team lists no product.
 //   - What it is, in one sentence, and a Jira ticket on demand. The primary follows the person's AI tool
 //     (AiToolPanel.tsx, lib/ai-tools.ts): "Start with Claude AI" for Claude, "Start in Copilot" for GitHub Copilot
@@ -21,7 +22,7 @@
 import { VOCAB } from '../../../lib/vocabulary';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, Plus } from 'lucide-react';
-import { parseJiraKey, productMarks, productsOf, type ProductConfig } from '@bridge-ds/core';
+import { defaultProduct, parseJiraKey, productMarks, productsOf, type ProductConfig } from '@bridge-ds/core';
 import { Alert, Button, Combobox, Dialog, DialogContent, DialogTrigger, Input, Select } from '@bridge-ds/react';
 import { startChangeHref } from '../../../lib/overview-board';
 import {
@@ -33,6 +34,7 @@ import {
   featureProblems,
   featureRepo,
   initialTarget,
+  libraryLead,
   productParam,
   productRepoBlockedLine,
   startTargets,
@@ -40,6 +42,7 @@ import {
 import { installUrl } from '../../../lib/access-view';
 import { COPY_WORDS, madeLine } from '../../../lib/design-copy';
 import { siteConfig } from '../../../scripts/repo-context';
+import { isSampleTeam } from '../../../lib/demo';
 import { useCopy } from './TeamLink';
 import { copilotSetup, connectorUrl, TERMINAL_SETUP_LINE, terminalSetup } from '../../../lib/claude-connector';
 import type { AiTool } from '../../../lib/ai-tools';
@@ -131,13 +134,20 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const sentenceRef = useRef<HTMLInputElement>(null);
   const jiraRef = useRef<HTMLInputElement>(null);
 
-  const targets = startTargets(products);
+  // A lead may also start in the library; until the access is known, only the products (a lead sees it a moment later).
+  const [lead, setLead] = useState(false);
+  const targets = startTargets(products, { library: lead });
   const picked = targets.find((t) => t.value === target) ?? null;
 
+  // Where the page asked to start, and whether the person picked since: the lead's library comes a moment after open.
+  const asked = useRef<string | null>(null);
+  const pickedByHand = useRef(false);
   const reset = (all: ProductConfig[], fromPage: string | null) => {
+    asked.current = fromPage;
+    pickedByHand.current = false;
     setStep('start');
     setSlug(null);
-    setTarget(initialTarget(startTargets(all), fromPage));
+    setTarget(initialTarget(startTargets(all, { library: lead }), fromPage));
     setSentence('');
     setJira('');
     setJiraOpen(false);
@@ -166,6 +176,21 @@ export default function StartExploration({ components, appearance = 'menu', prod
     }
     return () => document.removeEventListener(START_CHANGE_EVENT, on);
   }, []);
+
+  useEffect(() => {
+    const c = siteConfig();
+    if (isSampleTeam(c.owner && c.repo ? `${c.owner}/${c.repo}` : null)) setLead(true);
+    // Setting state after an unmount is a no-op in React 18: no guard, so a remount never loses the access.
+    else
+      void import('../../../scripts/github-session')
+        .then((m) => m.onAccess((a) => setLead(libraryLead(a))))
+        .catch(() => undefined);
+  }, []);
+
+  // The access said lead after the dialog opened: pick again from what the page asked (the library, say).
+  useEffect(() => {
+    if (lead && open && !pickedByHand.current) setTarget(initialTarget(startTargets(products, { library: true }), asked.current));
+  }, [lead]);
 
   useEffect(() => {
     document.dispatchEvent(new CustomEvent(PICKER_EVENT, { detail: { open } }));
@@ -290,7 +315,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
         }}
       >
         {/* A product page already decided where: one read-only line, no dropdown. Elsewhere the person picks. */}
-        {product && picked ? (
+        {/* One product and no library (a designer of the team): where is implied, no field. */}
+        {!product && targets.length === 1 && !targets[0]!.library ? null : product && picked ? (
           <dl className="sc-where" data-where-fixed="">
             <dt className="t-ui sc-where-label">Where</dt>
             <dd className="sc-where-value">
@@ -306,6 +332,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
             options={targets.map((t) => ({ value: t.value, label: t.label, ...(t.description ? { description: t.description } : {}) }))}
             value={target}
             onValueChange={(v) => {
+              pickedByHand.current = true;
               setTarget(v);
               setBlocked(null);
             }}
@@ -380,9 +407,11 @@ export default function StartExploration({ components, appearance = 'menu', prod
                 >
                   {copied ? 'Message copied' : askAdmin(blocked.product, blocked.repo, blocked.reason, installUrl()).label}
                 </Button>
-                <Button variant="link" disabled={busy} onClick={() => void start(true)}>
-                  Start in the library instead
-                </Button>
+                {lead && (
+                  <Button variant="link" disabled={busy} onClick={() => void start(true)}>
+                    Start in the library instead
+                  </Button>
+                )}
               </>
             }
           >
@@ -466,6 +495,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const label = VOCAB.startExploration;
   const gate = 'start explorations';
   if (look.hidden && appearance === 'menu') return null;
+  // The library's own page: starting there is a lead's; a designer asks for a library change on Components instead.
+  if (!lead && product && products.length && product === defaultProduct(products).key) return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange} disablePointerDismissal={step === 'start' && Boolean(sentence.trim())}>
       <DialogTrigger
