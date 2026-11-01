@@ -323,9 +323,11 @@ function Start({ components }: { components: HomeComponent[] }) {
   return (
     <Card interactive className="sh-choice sh-choice-one">
       <CardBody className="sh-choice-body">
-        <Drawing name="paint" width={104} />
-        <StartExploration components={components} appearance="choice" />
-        <span className="t-ui t-muted">{EXPLORE_CHOICE}</span>
+        <Drawing name="paint" width={88} />
+        <span className="sh-choice-text">
+          <StartExploration components={components} appearance="choice" />
+          <span className="t-ui t-muted">{EXPLORE_CHOICE}</span>
+        </span>
       </CardBody>
     </Card>
   );
