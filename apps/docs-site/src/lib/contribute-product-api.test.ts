@@ -16,6 +16,7 @@ import {
   type FetchLike,
   FROM_DESIGN_LABEL,
   handleContribute,
+  isSandboxPath,
   issueSession,
   productPairsFrom,
   scopeOf,
@@ -35,6 +36,9 @@ const CODE = 'c'.repeat(40);
 const HEAD = 'd'.repeat(40);
 const NEXT = 'e'.repeat(40);
 const NEXT_CODE = 'f'.repeat(40);
+/** A commit after HEAD that also touches CI, and one that touches the hosting settings. */
+const NEXT_CI = '1'.repeat(40);
+const NEXT_HOSTING = '2'.repeat(40);
 const CONFIG = JSON.stringify({ products: [{ key: 'shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' } }, { key: 'blog', repo: 'acme/blog' }] });
 
 const res = (status: number, body?: unknown) => new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -68,6 +72,8 @@ function github(w: World): FetchLike {
       if (from === 'main' && to === CODE) return res(200, { status: 'ahead', files: [{ filename: 'src/App.tsx' }] });
       if (from === HEAD && to === NEXT) return res(200, { status: 'ahead', files: [{ filename: '.bridge/explorations/orders.md' }] });
       if (from === HEAD && to === NEXT_CODE) return res(200, { status: 'ahead', files: [{ filename: 'src/App.tsx' }] });
+      if (from === HEAD && to === NEXT_CI) return res(200, { status: 'ahead', files: [{ filename: 'src/App.tsx' }, { filename: '.github/workflows/ci.yml' }] });
+      if (from === HEAD && to === NEXT_HOSTING) return res(200, { status: 'ahead', files: [{ filename: 'vercel.json' }] });
       if (from === HEAD) return res(200, { status: 'diverged', files: [] });
       return res(404, { message: 'Not Found' });
     }
@@ -174,21 +180,50 @@ describe('the design copy', () => {
     expect((await call('POST', `${C}/pulls`, { title: 'x', head: 'explore/theirs', base: 'explore/other' })).r.status).toBe(403);
   });
 
-  it('moves their branch forward by design files only, even when the branch holds code; never force, never another', async () => {
+  it('moves their branch forward with prototype code, never CI or hosting settings; never force, never another', async () => {
     const { call } = await signedIn();
     expect((await call('PATCH', `${C}/git/refs/heads/explore/theirs`, { sha: NEXT })).r.status).toBe(200);
-    expect((await call('PATCH', `${C}/git/refs/heads/explore/theirs`, { sha: NEXT_CODE })).r.status).toBe(403);
+    expect((await call('PATCH', `${C}/git/refs/heads/explore/theirs`, { sha: NEXT_CODE })).r.status).toBe(200);
+    expect((await call('PATCH', `${C}/git/refs/heads/explore/theirs`, { sha: NEXT_CI })).r.status).toBe(403);
+    expect((await call('PATCH', `${C}/git/refs/heads/explore/theirs`, { sha: NEXT_HOSTING })).r.status).toBe(403);
     expect((await call('PATCH', `${C}/git/refs/heads/explore/theirs`, { sha: 'b'.repeat(40) })).r.status).toBe(403);
     expect((await call('PATCH', `${C}/git/refs/heads/explore/theirs`, { sha: NEXT, force: true })).r.status).toBe(403);
     expect((await call('PATCH', `${C}/git/refs/heads/explore/other`, { sha: NEXT })).r.status).toBe(403);
     expect((await call('PATCH', `${C}/git/refs/heads/main`, { sha: NEXT })).r.status).toBe(403);
   });
 
-  it('writes trees of design files only', async () => {
+  it('writes trees of prototype code and design files, never CI, hosting settings, node_modules, submodules or symlinks', async () => {
     const { call } = await signedIn();
     expect((await call('POST', `${C}/git/trees`, { base_tree: 't', tree: [{ path: '.bridge/explorations/orders.md', sha: null }] })).r.status).toBe(201);
-    expect((await call('POST', `${C}/git/trees`, { base_tree: 't', tree: [{ path: 'src/App.tsx', content: 'x' }] })).r.status).toBe(403);
-    expect((await call('POST', `${C}/git/trees`, { base_tree: 't', tree: [{ path: '.github/workflows/x.yml', content: 'x' }] })).r.status).toBe(403);
+    expect((await call('POST', `${C}/git/trees`, { base_tree: 't', tree: [{ path: 'src/App.tsx', content: 'x' }, { path: 'package.json', content: '{}' }] })).r.status).toBe(201);
+    expect((await call('POST', `${C}/git/trees`, { base_tree: 't', tree: [{ path: 'scripts/seed.sh', mode: '100755', content: 'x' }] })).r.status).toBe(201);
+    for (const entry of [
+      { path: '.github/workflows/x.yml', content: 'x' },
+      { path: 'vercel.json', content: '{}' },
+      { path: '.vercel/project.json', content: '{}' },
+      { path: 'node_modules/x/index.js', content: 'x' },
+      { path: 'src/link', mode: '120000', content: '/etc/passwd' },
+      { path: 'vendor', mode: '160000', type: 'commit', sha: 'a'.repeat(40) },
+      { path: 'src/../.github/x.yml', content: 'x' },
+    ])
+      expect((await call('POST', `${C}/git/trees`, { base_tree: 't', tree: [entry] })).r.status, entry.path).toBe(403);
+  });
+
+  it('saves files on their own exploration: code yes, CI and hosting settings no, never another branch', async () => {
+    const { call } = await signedIn();
+    const put = (path: string, branch = 'explore/theirs') => call('PUT', `${C}/contents/${path}`, { message: 'x', content: 'eA==', branch });
+    expect((await put('src/App.tsx')).r.status).toBe(200);
+    expect((await put('.github/workflows/x.yml')).r.status).toBe(403);
+    expect((await put('vercel.json')).r.status).toBe(403);
+    expect((await put('src/App.tsx', 'explore/other')).r.status).toBe(403);
+    expect((await put('src/App.tsx', 'main')).r.status).toBe(403);
+    expect((await call('DELETE', `${C}/contents/src/Old.tsx`, { message: 'x', sha: 's', branch: 'explore/theirs' })).r.status).toBe(200);
+  });
+
+  it('isSandboxPath: any file but CI, hosting settings and node_modules, with sane segments', () => {
+    for (const ok of ['src/App.tsx', 'package.json', 'public/logo.svg', '.bridge/explorations/x.md', 'README.md', '.env.example']) expect(isSandboxPath(ok), ok).toBe(true);
+    for (const no of ['', '/src/App.tsx', '.github', '.github/workflows/ci.yml', '.GitHub/x', 'vercel.json', '.vercel/project.json', 'node_modules/x', 'a/node_modules/b', 'apps/web/vercel.json', 'apps/web/.vercel/x.json', 'src/../x', 'src//x', 'src/./x', 'a\\b'])
+      expect(isSandboxPath(no), no).toBe(false);
   });
 
   it('labels, unlabels, comments on and edits their own pull request only, with exploration labels only', async () => {
@@ -275,5 +310,52 @@ describe("the developers' repository", () => {
       ['POST', `${D}/merge-upstream`, { branch: 'main' }],
     ] as const)
       expect((await call(m, p, b)).r.status, `${m} ${p}`).toBe(403);
+  });
+});
+
+describe("Claude for an email member (api/mcp proxyFetchFor): the connector's GitHub calls through this same policy", () => {
+  async function viaClaude() {
+    const s = setup();
+    await join(s);
+    await s.redis.cmd('SET', `bridge:contrib:branch:acme/shop-design:explore/theirs`, 'dino@yopmail.com');
+    const { proxyFetchFor } = await import('../../api/mcp/index');
+    const member = (await s.members.get(TEAM, 'dino@yopmail.com'))!;
+    const f = proxyFetchFor(member, TEAM, ENV, s.deps as never, { redis: s.redis, key: Buffer.alloc(32), secret: SECRET });
+    const put = (path: string, branch = 'explore/theirs') =>
+      f(`https://api.github.com${C}/contents/${path}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Accept: 'application/vnd.github+json' }, body: JSON.stringify({ message: 'x', content: 'eA==', branch }) });
+    return { ...s, f, put };
+  }
+
+  it('saves prototype code on their own exploration in the copy, as them', async () => {
+    const { put, w } = await viaClaude();
+    expect((await put('src/App.tsx')).status).toBe(200);
+    const sent = w.calls.filter((c) => c.method === 'PUT' && c.path === `${C}/contents/src/App.tsx`).at(-1)!;
+    expect(sent.body.author).toEqual({ name: 'Dino', email: 'dino@yopmail.com' });
+  });
+
+  it('answers a refusal of the policy as a 422 with the policy words, never a token message', async () => {
+    const { put, f } = await viaClaude();
+    const ci = await put('.github/workflows/x.yml');
+    expect(ci.status).toBe(422);
+    expect((await ci.json()).message).toMatch(/build and hosting settings/);
+    const main = await put('src/App.tsx', 'main');
+    expect(main.status).toBe(422);
+    expect((await main.json()).message).toMatch(/joined with their email/);
+    // In the developers' repository: never code.
+    const dev = await f(`https://api.github.com${D}/contents/src/App.tsx`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'x', content: 'eA==', branch: 'explore/theirs' }) });
+    expect(dev.status).toBe(422);
+  });
+
+  it('refuses anything that is not a repository of the team: GraphQL, /user, the raw host', async () => {
+    const { f } = await viaClaude();
+    expect((await f('https://api.github.com/graphql', { method: 'POST', headers: {}, body: '{"query":"mutation{x}"}' })).status).toBe(403);
+    expect((await f('https://api.github.com/user', { method: 'GET', headers: {} })).status).toBe(403);
+    expect((await f('https://raw.githubusercontent.com/acme/shop-design/main/src/App.tsx', { method: 'GET', headers: {} })).status).toBe(403);
+  });
+
+  it('ends with the membership: a removed member gets nothing through', async () => {
+    const { put, members } = await viaClaude();
+    await members.remove(TEAM, 'dino@yopmail.com');
+    expect((await put('src/App.tsx')).status).toBe(422);
   });
 });

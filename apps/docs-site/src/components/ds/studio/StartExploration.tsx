@@ -130,14 +130,15 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const [done, setDone] = useState<{ prompt: string; href: string; name: string; where: string; setup: ToolSetup } | null>(null);
   const [claudeLink, setClaudeLink] = useState<ClaudeLink>('unknown');
   const [toolSaid, setToolSaid] = useState('');
-  const tools = useAiTools(claudeLink);
+  // Joined with their email (no GitHub): they explore a product in its design team's copy, through Bridge, and the
+  // Claude app with Bridge is their one AI tool.
+  const [email, setEmail] = useState(false);
+  const tools = useAiTools(claudeLink, email);
   const sentenceRef = useRef<HTMLInputElement>(null);
   const jiraRef = useRef<HTMLInputElement>(null);
 
   // A lead may also start in the library; until the access is known, only the products (a lead sees it a moment later).
   const [lead, setLead] = useState(false);
-  // Joined with their email (no GitHub): they explore a product in its design team's copy, through Bridge.
-  const [email, setEmail] = useState(false);
   const targets = startTargets(products, { library: lead });
   const picked = targets.find((t) => t.value === target) ?? null;
 

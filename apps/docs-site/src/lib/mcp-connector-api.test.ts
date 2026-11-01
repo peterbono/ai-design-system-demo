@@ -10,7 +10,7 @@ import { QUIET_AFTER_MS, stepOf, STEP_WORDS } from '../../api/_lib/fix-sessions'
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { redirectMatches } from '../../api/_lib/oauth';
-import { handleConnector, HOSTED_REFUSED_TOOLS, HOSTED_REFUSED_WORDS, type ConnectorEnv, type FetchLike, type McpHandler } from '../../api/mcp/index';
+import { EMAIL_REFUSED_TOOLS, EMAIL_REFUSED_WORDS, handleConnector, HOSTED_REFUSED_TOOLS, HOSTED_REFUSED_WORDS, LIBRARY_LEADS_WORDS, type ConnectorEnv, type FetchLike, type McpHandler } from '../../api/mcp/index';
 import { handleFixSessions } from '../../api/fix-sessions/index';
 
 const HOST = 'bridge.example.com';
@@ -47,16 +47,17 @@ function world(o: { push?: boolean; refreshFails?: boolean; realMcp?: boolean; c
   };
   const redis = memoryRedis(() => t);
   const env: ConnectorEnv = { LIBRARY_SESSION_SECRET: SECRET, GITHUB_APP_CLIENT_ID: 'Iv1.bridge', GITHUB_APP_CLIENT_SECRET: 'app-secret', PUBLIC_SITE_URL: SITE };
-  const mcpSeen: { body: unknown; repo: string }[] = [];
+  const mcpSeen: { body: unknown; repo: string; token: string; proxied: boolean }[] = [];
   const toolAnswers: Record<string, unknown> = {};
   const mcp: McpHandler = async (ctx, _req, body) => {
-    mcpSeen.push({ body, repo: (ctx as unknown as { repo: string }).repo });
+    const c = ctx as unknown as { repo: string; token: string; fetch?: unknown };
+    mcpSeen.push({ body, repo: c.repo, token: c.token, proxied: typeof c.fetch === 'function' });
     const m = body as { id: number; method: string; params?: { name?: string } };
     if (m.method !== 'tools/call') return res(200, { jsonrpc: '2.0', id: m.id, result: { tools: [] } });
     return res(200, { jsonrpc: '2.0', id: m.id, result: { content: [{ type: 'text', text: JSON.stringify(toolAnswers[m.params!.name!]) }] } });
   };
   // realMcp: the real Bridge MCP server (packages/mcp handleHttp) on a real context, GitHub faked by `f`.
-  const fakes = o.realMcp ? {} : { mcp, context: async (x: { repo: string; token: string }) => ({ repo: x.repo, token: x.token }) as unknown as BridgeContext };
+  const fakes = o.realMcp ? {} : { mcp, context: async (x: { repo: string; token: string; fetch?: FetchLike }) => ({ repo: x.repo, token: x.token, fetch: x.fetch }) as unknown as BridgeContext };
   const checked: { repo: string; pr: number | string }[] = [];
   const checkPieces = async (ctx: BridgeContext, pr: number | string) => {
     if (o.checkFails) throw new Error('GitHub answered 500');
@@ -488,4 +489,65 @@ describe("Claude's handshake on the hosted connector (production logs: 400, 200,
       expect(((await list.json()).result.tools as { name: string }[]).map((t) => t.name)).toContain('bridge_get_gap_case');
     });
   }
+});
+
+describe('an email member connects Claude with their Bridge sign-in (no GitHub)', () => {
+  /** Register, authorize, sign in to Bridge as Dino (no GitHub), then Allow with the email path. */
+  async function emailSignIn(w: ReturnType<typeof world>, member = true) {
+    const reg = await w.call('/api/mcp?oauth=register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'Claude', redirect_uris: [CALLBACK] }) });
+    const id = (await reg.json()).client_id as string;
+    const q = new URLSearchParams({ response_type: 'code', client_id: id, redirect_uri: CALLBACK, code_challenge: CHALLENGE, code_challenge_method: 'S256', state: 'st8', resource: `${SITE}/mcp`, scope: 'bridge' });
+    const auth = await w.call(`/api/mcp?oauth=authorize&${q}`);
+    const request = new URL(auth.headers.get('location')!, SITE).searchParams.get('request')!;
+    const cookie = cookieOf(auth);
+    await putAccount(w.redis, { id: 'a2', email: 'dino@yopmail.com', name: 'Dino', createdAt: '2026-10-01T00:00:00Z', version: 1 } as never);
+    const account = `${ACCOUNT_COOKIE}=${signAccountSession({ email: 'dino@yopmail.com', v: 1, exp: w.now() + 60_000 }, SECRET)}`;
+    if (member) await memberStore(w.redis).put('acme/design', { email: 'dino@yopmail.com', name: 'Dino', role: 'edit', version: 1, addedBy: 'florian', at: '2026-10-01T00:00:00Z' });
+    const info = await (await w.call(`/api/mcp?oauth=request&id=${request}`, { headers: { cookie: `bridge_oauth=${cookie}; ${account}` } })).json();
+    const approve = await w.call('/api/mcp?oauth=approve', { method: 'POST', headers: { 'content-type': 'application/json', origin: SITE, cookie: `bridge_oauth=${cookie}; ${account}` }, body: JSON.stringify({ request, repo: 'acme/design', allow: true, via: 'email' }) });
+    return { id, info, approve };
+  }
+
+  it('lists the team as reachable by email, and Allow returns to Claude with a code, without GitHub', async () => {
+    const w = world({ app: true });
+    const { id, info, approve } = await emailSignIn(w);
+    expect(info.teams).toEqual([{ repo: 'acme/design', name: 'Design', email: true }]);
+    expect(approve.status).toBe(200);
+    const to = new URL((await approve.json()).redirect);
+    expect(to.origin + to.pathname).toBe(CALLBACK);
+    expect(w.calls.some((c) => c.url.includes('github.com/login/oauth'))).toBe(false);
+    const t = await tokens(w, id, to.searchParams.get('code')!);
+    expect(t.status).toBe(200);
+    // The MCP server runs with the proxy as its GitHub: never a GitHub token of theirs (they have none).
+    const r = await mcpPost(w, t.body.access_token, rpc(1, 'bridge_list_explorations', {}));
+    expect(r.status).toBe(200);
+    expect(w.mcpSeen.at(-1)).toMatchObject({ repo: 'acme/design', token: 'bridge-email-member', proxied: true });
+  });
+
+  it('never reaches the tools that need GitHub powers or a lead, in plain words', async () => {
+    const w = world({ app: true });
+    const { id, approve } = await emailSignIn(w);
+    const t = await tokens(w, id, new URL((await approve.json()).redirect).searchParams.get('code')!);
+    const seen = w.mcpSeen.length;
+    for (const name of ['bridge_review_pr', 'bridge_propose_figma_fixes', 'bridge_merge_branch']) {
+      const r = await (await mcpPost(w, t.body.access_token, rpc(2, name, {}))).json();
+      expect(r.error.message, name).toBe(name === 'bridge_merge_branch' ? HOSTED_REFUSED_WORDS : EMAIL_REFUSED_WORDS);
+    }
+    const lib = await (await mcpPost(w, t.body.access_token, rpc(3, 'bridge_open_library_branch', {}))).json();
+    expect(lib.error.message).toBe(LIBRARY_LEADS_WORDS);
+    expect(w.mcpSeen.length).toBe(seen);
+    expect(EMAIL_REFUSED_TOOLS).toContain('bridge_scaffold_component');
+    expect(EMAIL_REFUSED_TOOLS).not.toContain('bridge_start_exploration');
+    expect(EMAIL_REFUSED_TOOLS).not.toContain('bridge_promote_exploration');
+  });
+
+  it('refuses someone who is not on the team, and ends the connection when they leave it', async () => {
+    const outsider = world({ app: true });
+    expect((await emailSignIn(outsider, false)).approve.status).toBe(403);
+    const w = world({ app: true });
+    const { id, approve } = await emailSignIn(w);
+    const t = await tokens(w, id, new URL((await approve.json()).redirect).searchParams.get('code')!);
+    await memberStore(w.redis).remove('acme/design', 'dino@yopmail.com');
+    expect((await mcpPost(w, t.body.access_token, rpc(4, 'bridge_list_explorations', {}))).status).toBe(401);
+  });
 });

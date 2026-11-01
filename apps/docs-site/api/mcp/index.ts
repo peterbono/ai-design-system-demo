@@ -22,6 +22,11 @@
 // The MCP server acts on the team's repository chosen at sign-in, with the signed-in person's GitHub App user token:
 // every write is theirs and goes through the usual paths (a draft pull request on bridge/figma-fixes-<component>,
 // labelled drafted-by-claude and figma-fixes, Tier 2), never the default branch.
+// Someone who joined the team with their email (no GitHub account) connects with their Bridge sign-in alone (an email
+// grant, api/_lib/oauth.ts): every GitHub call of their session goes through the email contributors' proxy in process
+// (api/contribute handleContribute, its deny-by-default policy: their explorations in the design team's copy, their
+// developers' task, design files of the library), and the tools that need GitHub powers (reviews, merges, Figma fixes,
+// code in the library, the library's own explorations) are neither listed nor run (EMAIL_REFUSED_TOOLS).
 //
 // Env: KV_REST_API_URL + KV_REST_API_TOKEN (or the UPSTASH_* pair), LIBRARY_SESSION_SECRET (the Bridge account session,
 // and the sealing key of the GitHub tokens kept for a connection), GITHUB_APP_CLIENT_ID + GITHUB_APP_CLIENT_SECRET (the
@@ -30,7 +35,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { BridgeContext, handleHttp, pieces } from '@bridge-ds/mcp';
-import type { ContribEnv } from '../contribute/index.js';
+import { cookieName, handleContribute, signSession, type ContribEnv } from '../contribute/index.js';
 import { displayName, sessionAccount } from '../_lib/account.js';
 import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/fix-sessions.js';
 import type { AppTokens } from '../_lib/github-app.js';
@@ -56,6 +61,7 @@ import {
   listGrants,
   OAUTH_WORDS,
   openGitHubTokens,
+  openGrantEmail,
   pkcePair,
   putRequest,
   registerClient,
@@ -97,7 +103,7 @@ export interface ConnectorDeps {
   app?: AppTokens;
   mcp?: McpHandler;
   /** How the context is made (tests: a context without GitHub calls). */
-  context?: (opts: { repo: string; token: string }) => Promise<BridgeContext>;
+  context?: (opts: { repo: string; token: string; fetch?: FetchLike }) => Promise<BridgeContext>;
   /** The library check of an exploration (tests replace it; default: the MCP server's bridge_missing_pieces, recorded). */
   checkPieces?: (ctx: BridgeContext, pr: number | string) => Promise<{ pieces: unknown[]; recorded: boolean }>;
 }
@@ -116,6 +122,29 @@ export const PIECES_WORDS = {
 export const HOSTED_REFUSED_TOOLS: readonly string[] = ['bridge_merge_branch'];
 export const HOSTED_REFUSED_WORDS = 'Claude does not merge through Bridge: a person merges it from Bridge Studio or GitHub.';
 
+/**
+ * The tools a member who joined with their email cannot use through Claude: they need GitHub powers (reviews, merges,
+ * code in the library, Figma fixes, product package changes) or a lead's (the library's own explorations). Neither
+ * listed nor run; a call gets EMAIL_REFUSED_WORDS (or LIBRARY_LEADS_WORDS) in plain words.
+ */
+export const EMAIL_REFUSED_TOOLS: readonly string[] = [
+  'bridge_review_branch',
+  'bridge_review_pr',
+  'bridge_review_suggestion',
+  'bridge_apply_suggestion',
+  'bridge_combine_branches',
+  'bridge_propose_figma_fixes',
+  'bridge_try_figma_fix',
+  'bridge_push_figma_component',
+  'bridge_scaffold_component',
+  'bridge_propose_revert',
+  'bridge_switch_to_published',
+  'bridge_use_library_preview',
+  'bridge_open_library_branch',
+];
+export const EMAIL_REFUSED_WORDS = 'You joined this team with your email, so Bridge does not do this for you. Ask a reviewer or an admin of your team.';
+export const LIBRARY_LEADS_WORDS = 'The design system leads change the library. Ask them for what you need, or explore one of your products.';
+
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 const SEAL_PURPOSE = 'mcp-connector-github-tokens';
 const CORS = {
@@ -127,7 +156,7 @@ const CORS = {
 };
 const NO_STORE = { 'Cache-Control': 'no-store', Pragma: 'no-cache' };
 
-interface Services {
+export interface Services {
   redis: Redis;
   key: Buffer;
   secret: string;
@@ -178,7 +207,8 @@ async function teamsWithDesignSystem(redis: Redis, email: string): Promise<{ rep
   const live: string[] = [];
   for (const repo of repos) if (await members.get(repo, email)) live.push(repo);
   const names = await getTeamNames(redis, live).catch(() => new Map<string, { name: string }>());
-  return live.map((repo) => ({ repo, name: teamDisplayName(repo, { name: names.get(repo.toLowerCase())?.name }) }));
+  // Every team here knows the account by its email: Claude can connect with the Bridge sign-in alone (no GitHub).
+  return live.map((repo) => ({ repo, name: teamDisplayName(repo, { name: names.get(repo.toLowerCase())?.name }), email: true }));
 }
 
 async function onOAuth(step: string, req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: Services, site: Site): Promise<Response> {
@@ -226,6 +256,15 @@ async function onOAuth(step: string, req: Request, env: ConnectorEnv, deps: Conn
       const account = await sessionAccount(req, redis, svc.secret, now);
       if (!account) return fail(401, 'signin', OAUTH_WORDS.signIn);
       const { full } = parseRepo(body.repo);
+      if (body.via === 'email') {
+        // Their Bridge sign-in is the proof: a member of this team by that email, no GitHub leg.
+        const member = await (deps.members ?? memberStore(redis)).get(full, account.email);
+        if (!member || member.email.toLowerCase() !== account.email.trim().toLowerCase()) return fail(403, 'not_member', OAUTH_WORDS.notMember);
+        const grant = await createGrant(redis, svc.key, { repo: full, client: r, login: '', name: member.name || account.name, email: member.email, account: accountRef(account.email) }, random, now);
+        const issued = await issueCode(redis, r, grant.id, random);
+        await dropRequest(redis, r.id);
+        return json(200, { redirect: clientRedirect(r, site.issuer, { code: issued }) }, { ...NO_STORE, 'Set-Cookie': requestCookie('', 0) });
+      }
       const app = githubApp(env);
       if (!app) return fail(503, 'not_configured', OAUTH_WORDS.notConfigured);
       const state = Buffer.from(random(24)).toString('base64url');
@@ -304,6 +343,49 @@ async function githubTokenOf(g: Grant, env: ConnectorEnv, deps: ConnectorDeps, s
   return next.access;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Email grants: the MCP server's GitHub calls through the email contributors' proxy
+
+const GITHUB_API = 'https://api.github.com';
+/** The proxy's session for one call: a few minutes, signed like the Studio cookie, never sent anywhere but in process. */
+const PROXY_SESSION_MS = 5 * 60_000;
+
+const proxyError = (status: number, message: string) => new Response(JSON.stringify({ message }), { status, headers: { 'Content-Type': 'application/json' } });
+
+/**
+ * The fetch an email member's MCP session uses for GitHub: every call to api.github.com/repos/... goes to
+ * handleContribute in process, as their Studio session would (the same member check, policy, daily cap and attribution);
+ * anything else (GraphQL, /user, the raw host) is refused. A refusal of the policy comes back as a 422 that carries the
+ * proxy's own words, so Claude says why in plain words instead of a token message.
+ */
+export function proxyFetchFor(member: { email: string; name: string; version: number }, team: string, env: ConnectorEnv, deps: ConnectorDeps, svc: Services): FetchLike {
+  const now = deps.now ?? Date.now;
+  return async (url, init) => {
+    const u = new URL(url);
+    if (u.origin !== GITHUB_API || !u.pathname.startsWith('/repos/')) return proxyError(403, 'Bridge reads and writes your team\'s repositories only.');
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const session = signSession({ repo: team.toLowerCase(), email: member.email, name: member.name, v: member.version, exp: now() + PROXY_SESSION_MS }, svc.secret);
+    const given = new Headers((init?.headers as HeadersInit | undefined) ?? {});
+    const headers: Record<string, string> = { Cookie: `${cookieName(team)}=${session}`, 'X-Bridge-Contribute': '1' };
+    for (const h of ['accept', 'content-type', 'if-none-match']) {
+      const v = given.get(h);
+      if (v) headers[h] = v;
+    }
+    const body = init?.body;
+    const req = new Request(`https://bridge.invalid/api/contribute?repo=${encodeURIComponent(team)}&gh=${encodeURIComponent(u.pathname + u.search)}`, {
+      method,
+      headers,
+      ...(body !== undefined && body !== null && method !== 'GET' ? { body: body as BodyInit } : {}),
+    });
+    const res = await handleContribute(req, env, { fetch: deps.fetch, now, redis: svc.redis, ...(deps.members ? { members: deps.members } : {}), ...(deps.app ? { app: deps.app } : {}) });
+    if (res.status === 403 || res.status === 401) {
+      const said = (await res.clone().json().catch(() => null)) as { error?: unknown; message?: unknown } | null;
+      if (said && typeof said.message === 'string') return proxyError(422, said.message);
+    }
+    return res;
+  };
+}
+
 interface RpcMessage {
   id?: string | number | null;
   method?: string;
@@ -342,7 +424,18 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
   if (!bearer) return unauthorized();
   const grant = await grantOfAccessToken(svc.redis, bearer);
   if (!grant) return unauthorized('invalid_token');
-  const token = await githubTokenOf(grant, env, deps, svc, now);
+  // An email grant: still a member of the team (removed, or joined again since, ends it), acting through the proxy.
+  let emailMember: { email: string; name: string; version: number } | null = null;
+  if (grant.via === 'email') {
+    const email = openGrantEmail(grant, svc.key);
+    const m = email ? await (deps.members ?? memberStore(svc.redis)).get(grant.repo, email) : null;
+    if (!m) {
+      await revokeGrant(svc.redis, grant);
+      return unauthorized('invalid_token');
+    }
+    emailMember = m;
+  }
+  const token = emailMember ? 'bridge-email-member' : await githubTokenOf(grant, env, deps, svc, now);
   if (!token) {
     await revokeGrant(svc.redis, grant);
     return unauthorized('invalid_token');
@@ -359,18 +452,26 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
   // Agents never merge here: a call to a refused tool (alone or in a batch) gets the protocol's unknown-tool error and
   // nothing of the request runs.
   const messages = (Array.isArray(body) ? body : [body]) as RpcMessage[];
-  if (messages.some((m) => m && m.method === 'tools/call' && typeof m.params?.name === 'string' && HOSTED_REFUSED_TOOLS.includes(m.params.name))) {
-    const errors = messages.filter((m) => m && (typeof m.id === 'string' || typeof m.id === 'number')).map((m) => ({ jsonrpc: '2.0', id: m.id, error: { code: -32602, message: HOSTED_REFUSED_WORDS } }));
-    return json(200, Array.isArray(body) ? errors : (errors[0] ?? { jsonrpc: '2.0', id: null, error: { code: -32602, message: HOSTED_REFUSED_WORDS } }), NO_STORE);
+  const refused = emailMember ? [...HOSTED_REFUSED_TOOLS, ...EMAIL_REFUSED_TOOLS] : HOSTED_REFUSED_TOOLS;
+  const refusedCall = messages.find((m) => m && m.method === 'tools/call' && typeof m.params?.name === 'string' && refused.includes(m.params.name));
+  if (refusedCall) {
+    const name = refusedCall.params!.name as string;
+    const words = HOSTED_REFUSED_TOOLS.includes(name) ? HOSTED_REFUSED_WORDS : name === 'bridge_open_library_branch' ? LIBRARY_LEADS_WORDS : EMAIL_REFUSED_WORDS;
+    const errors = messages.filter((m) => m && (typeof m.id === 'string' || typeof m.id === 'number')).map((m) => ({ jsonrpc: '2.0', id: m.id, error: { code: -32602, message: words } }));
+    return json(200, Array.isArray(body) ? errors : (errors[0] ?? { jsonrpc: '2.0', id: null, error: { code: -32602, message: words } }), NO_STORE);
   }
-  const ctx = deps.context ? await deps.context({ repo: grant.repo, token }) : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: deps.fetch as unknown as typeof fetch });
+  // An email member's GitHub calls go through the proxy (proxyFetchFor); everyone else's with their own GitHub token.
+  const ghFetch = emailMember ? proxyFetchFor(emailMember, grant.repo, env, deps, svc) : deps.fetch;
+  const ctx = deps.context
+    ? await deps.context({ repo: grant.repo, token, ...(emailMember ? { fetch: ghFetch } : {}) })
+    : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: ghFetch as unknown as typeof fetch });
   // The body was read here (to record the steps): the transport takes it parsed, the request goes on without it.
   const headers = new Headers(req.headers);
   headers.delete('content-length');
   const forward = new Request(req.url, { method: req.method, headers });
   // Each Claude session opens with one 400 here: Claude tries the 2026-07-28 revision first, Bridge (2025-11-25 and
   // earlier) says no, Claude falls back to initialize. That is the spec's era detection, not an error (see handleHttp).
-  const res = await (deps.mcp ?? ((c, r, b) => handleHttp(c, r, b, { exclude: HOSTED_REFUSED_TOOLS })))(ctx, forward, body);
+  const res = await (deps.mcp ?? ((c, r, b) => handleHttp(c, r, b, { exclude: [...refused] })))(ctx, forward, body);
   const calls = toolCalls(body).filter((c) => c.name === 'bridge_get_gap_case' || c.name === 'bridge_try_figma_fix' || c.name === 'bridge_propose_figma_fixes');
   if (!calls.length || !/json/i.test(res.headers.get('content-type') ?? '')) return res;
   const text = await res.text();

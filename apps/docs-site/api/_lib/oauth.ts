@@ -8,6 +8,9 @@
 //     GitHub confirms who they are with the Bridge GitHub App (user-to-server); Bridge checks that GitHub account can
 //     push to the team's repository. The server then acts on that repository with that person's GitHub App user token,
 //     renewed on the server (GitHub's refresh token, sealed at rest, never sent to any client).
+//   - Or, for someone who joined the team with their email (no GitHub account, api/_lib/members.ts), their Bridge
+//     sign-in is the proof: an email grant (`via: 'email'`) seals their email instead of GitHub tokens, and the server
+//     acts through the email contributors' proxy (api/contribute, its deny-by-default policy), never as an admin.
 //   - Bridge's own tokens are opaque and short-lived: access tokens 1 hour, refresh tokens 30 days, rotated on every use
 //     (a used one is gone). Only their SHA-256 is stored. A grant (one person, one team, one client) is revocable from
 //     Studio Settings, which ends its tokens at once.
@@ -53,6 +56,7 @@ export const OAUTH_WORDS = {
   noAccess: "Your GitHub account cannot change this team's design system. Pick a team you can edit, or ask its admin for access.",
   notConfigured: 'Bridge inside Claude is not set up on this site yet.',
   github: 'GitHub did not confirm your sign-in. Start again from Claude.',
+  notMember: "You are not on this team in Bridge. Ask its admin for an invite, then connect Claude again.",
 } as const;
 
 const now = () => Date.now();
@@ -361,9 +365,12 @@ export interface Grant {
   name: string;
   createdAt: string;
   lastUsedAt: string;
+  /** Sealed: the GitHub tokens, or for an email grant `{ email }`. */
   gh: Sealed;
   /** accountRef of the Bridge account that connected it (grants made before it carry none). */
   account?: string;
+  /** 'email': a member who joined with their email; the server acts through the contributors' proxy. */
+  via?: 'email';
 }
 
 const grantKey = (id: string) => `bridge:oauth:grant:${id}`;
@@ -376,10 +383,30 @@ const atKey = (t: string) => `bridge:oauth:at:${hash(t)}`;
 const rtKey = (t: string) => `bridge:oauth:rt:${hash(t)}`;
 const isGrant = (v: any) => v.v === 1 && typeof v.id === 'string' && typeof v.repo === 'string' && v.gh && typeof v.gh.ct === 'string';
 
-export async function createGrant(redis: Redis, key: Buffer, x: { repo: string; client: Pick<AuthRequest, 'clientId' | 'clientName'>; login: string; name: string; gh: GitHubTokens; account?: string | undefined }, random: (n: number) => Uint8Array, at = now()): Promise<Grant> {
+export async function createGrant(
+  redis: Redis,
+  key: Buffer,
+  x: { repo: string; client: Pick<AuthRequest, 'clientId' | 'clientName'>; login: string; name: string; account?: string | undefined } & ({ gh: GitHubTokens; email?: undefined } | { email: string; gh?: undefined }),
+  random: (n: number) => Uint8Array,
+  at = now(),
+): Promise<Grant> {
   const id = b64url(Buffer.from(random(18)));
   const iso = new Date(at).toISOString();
-  const g: Grant = { v: 1, id, repo: x.repo.toLowerCase(), clientId: x.client.clientId, clientName: x.client.clientName, login: x.login, name: x.name, createdAt: iso, lastUsedAt: iso, gh: seal(JSON.stringify(x.gh), key, id, random), ...(x.account ? { account: x.account } : {}) };
+  const secret = x.email !== undefined ? JSON.stringify({ email: x.email.trim().toLowerCase() }) : JSON.stringify(x.gh);
+  const g: Grant = {
+    v: 1,
+    id,
+    repo: x.repo.toLowerCase(),
+    clientId: x.client.clientId,
+    clientName: x.client.clientName,
+    login: x.login,
+    name: x.name,
+    createdAt: iso,
+    lastUsedAt: iso,
+    gh: seal(secret, key, id, random),
+    ...(x.account ? { account: x.account } : {}),
+    ...(x.email !== undefined ? { via: 'email' as const } : {}),
+  };
   await redis.pipe([
     ['SET', grantKey(id), JSON.stringify(g), 'EX', GRANT_TTL_S],
     ['SADD', grantsKey(g.repo), id],
@@ -449,8 +476,22 @@ export async function listGrants(redis: Redis, repo: string): Promise<Grant[]> {
 }
 
 export function openGitHubTokens(g: Grant, key: Buffer): GitHubTokens | null {
+  if (g.via === 'email') return null;
   const t = unseal(g.gh, key, g.id);
   return t ? (JSON.parse(t) as GitHubTokens) : null;
+}
+
+/** The member's email of an email grant (sealed in it), or null for a GitHub grant or a seal that does not open. */
+export function openGrantEmail(g: Grant, key: Buffer): string | null {
+  if (g.via !== 'email') return null;
+  const t = unseal(g.gh, key, g.id);
+  if (!t) return null;
+  try {
+    const email = (JSON.parse(t) as { email?: unknown }).email;
+    return typeof email === 'string' && email ? email : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function issueCode(redis: Redis, r: AuthRequest, grantId: string, random: (n: number) => Uint8Array): Promise<string> {

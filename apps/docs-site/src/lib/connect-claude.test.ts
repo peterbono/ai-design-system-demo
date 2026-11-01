@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLAUDE_CONNECT_WORDS as W, connectClaudeStep, parseRequestInfo, readQuery, type RequestInfo } from './connect-claude';
+import { CLAUDE_CONNECT_WORDS as W, connectClaudeStep, connectPath, parseRequestInfo, readQuery, type RequestInfo } from './connect-claude';
 
 const base: RequestInfo = { client: 'Claude', redirectHost: 'claude.ai', sameBrowser: true, signedIn: true, name: 'Dana', teams: [] };
 const q = { request: 'abcdefghijklmnopqrstuvwx', error: null };
@@ -35,5 +35,21 @@ describe('Use Bridge in Claude: the steps', () => {
     const all = Object.values(W).filter((v) => typeof v === 'string').join(' ');
     expect(all).not.toMatch(/come back here/i);
     expect(all).not.toMatch(/—/);
+  });
+});
+
+describe('Use Bridge in Claude: with GitHub or with the Bridge sign-in', () => {
+  it('keeps the email flag of a team, and only a true one', () => {
+    const info = parseRequestInfo({ ...base, teams: [{ repo: 'acme/design', name: 'Design', email: true }, { repo: 'acme/other', name: 'Other', email: 'yes' }] })!;
+    expect(info.teams).toEqual([{ repo: 'acme/design', name: 'Design', email: true }, { repo: 'acme/other', name: 'Other' }]);
+  });
+
+  it('a member by email with no GitHub sign-in here allows with Bridge alone; GitHub stays one link away', () => {
+    const team = { repo: 'acme/design', name: 'Design', email: true };
+    expect(connectPath(team, false)).toEqual({ path: 'email', other: 'github' });
+    expect(connectPath(team, true)).toEqual({ path: 'github', other: 'email' });
+    expect(connectPath({ repo: 'acme/design', name: 'Design' }, false)).toEqual({ path: 'github', other: null });
+    expect(connectPath(undefined, false)).toEqual({ path: 'github', other: null });
+    for (const words of [W.backEmail('claude.ai'), W.useEmail, W.useGitHub, W.allowingEmail]) expect(words).not.toContain('\u2014');
   });
 });
