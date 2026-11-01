@@ -36,6 +36,7 @@ import StudioHeader from '../../../components/StudioHeader.astro';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
 import ChangeRules from '../../../components/ds/studio/ChangeRules';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
+import AddProduct from '../../../components/ds/studio/AddProduct';
 import AiToolsSetting from '../../../components/ds/studio/AiToolsSetting';
 import { signInConfig } from '../../../lib/signin-config';
 import { Badge, Button, Card, CardBody, CardHeader, Input, Link, SegmentedControl } from '@bridge-ds/react';
@@ -456,30 +457,29 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
         </Card>
       </div>
     </section>
-    {
-      productRepos.length > 0 && (
-        <section class="set-band" id="products" aria-labelledby="set-products">
-          <div class="set-band-intro">
-            <h2 id="set-products" class="set-h">Products</h2>
-            <p class="set-intro">Products with their own repository. Their explorations start there, and Bridge lists them once it can read it.</p>
-          </div>
-          <div class="set-band-body">
-            <Card>
-              <CardBody>
-                <div class="set-rows" data-product-connections aria-live="polite">
-                  {productRepos.map((x) => (
-                    <div class="set-row">
-                      <p class="set-row-label">{x.product.name}</p>
-                      <p class="set-row-value set-row-span">Explorations for {x.product.name} live in {x.repo}.</p>
-                    </div>
-                  ))}
+    <section class="set-band" id="products" aria-labelledby="set-products">
+      <div class="set-band-intro">
+        <h2 id="set-products" class="set-h">Products</h2>
+        <p class="set-intro">The products your team designs for. Their explorations happen in a copy, and the developers get a task when a designer is done.</p>
+      </div>
+      <div class="set-band-body">
+        <Card>
+          <CardBody>
+            <div class="set-rows" data-product-connections aria-live="polite">
+              {productRepos.map((x) => (
+                <div class="set-row">
+                  <p class="set-row-label">{x.product.name}</p>
+                  <p class="set-row-value set-row-span">Explorations for {x.product.name} live in {x.repo}.</p>
                 </div>
-              </CardBody>
-            </Card>
-          </div>
-        </section>
-      )
-    }
+              ))}
+            </div>
+            <div class="set-products-add">
+              <AddProduct client:only="react" />
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+    </section>
     <section class="set-band" id="ai-tools" aria-labelledby="set-ai-tools">
       <div class="set-band-intro">
         <h2 id="set-ai-tools" class="set-h">Your AI tools</h2>

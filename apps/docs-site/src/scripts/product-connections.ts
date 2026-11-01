@@ -28,16 +28,16 @@ async function stateOf(repo: string, copy: boolean): Promise<ProductConnection> 
   }
 }
 
-/** Paints the rows (checking first), then each one as its read lands. Hides the section when no product has its own repository. */
+/** Paints the rows (checking first), then each one as its read lands. With no product yet, only Add a product shows. */
 export function initProductConnections() {
   const host = document.querySelector<HTMLElement>('[data-product-connections]');
-  const band = document.getElementById('products');
   if (!host) return;
   const repos = siteProductRepos();
   if (!repos.length) {
-    if (band) band.hidden = true;
+    host.hidden = true;
     return;
   }
+  host.hidden = false;
   host.innerHTML = repos.map((x) => rowHtml(x.product, x.repo, 'checking')).join('');
   for (const x of repos) {
     void stateOf(x.repo, x.product.design?.repo?.toLowerCase() === x.repo.toLowerCase()).then((state) => {

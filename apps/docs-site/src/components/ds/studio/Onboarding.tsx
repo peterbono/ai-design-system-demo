@@ -32,6 +32,8 @@ import { StorybookField } from './StorybookField';
 import { TeamField } from './TeamLauncher';
 import { useCopy } from './TeamLink';
 import InviteDialog from './InviteDialog';
+import AddProduct from './AddProduct';
+import { ADD_PRODUCT_WORDS } from '../../../lib/add-product';
 import { MEMBERS_WORDS } from '../../../lib/invites';
 import { askInstallMessage, installUrl } from '../../../lib/access-view';
 import type { WorkspaceStorybook } from '../../../lib/workspace';
@@ -753,7 +755,13 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
         break;
       }
       panel = (
-        <Panel step={step} total={total} title="Products" lead="The apps that use your library, found in the repository's Bridge settings." footer={nav()}>
+        <Panel
+          step={step}
+          total={total}
+          title="Products"
+          lead="The products your team designs for. Designers explore them in a copy, and the developers get a task when a designer is done."
+          footer={ctx.products.length ? nav() : nav(<AddProduct variant="primary" onSent={() => actions.mark('products')} />)}
+        >
           {ctx.products.length ? (
             <>
               <ul className="onb-list">
@@ -772,9 +780,10 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
                 ))}
               </ul>
               {ctx.products.some((p) => p.design) && <p className="onb-quiet">{PRODUCTS_COPY_LINE}</p>}
+              <AddProduct onSent={() => actions.mark('products')} />
             </>
           ) : (
-            <p className="onb-quiet">No product is listed yet. Add them to bridge.config.json under products.</p>
+            <p className="onb-quiet">{ADD_PRODUCT_WORDS.lead}</p>
           )}
         </Panel>
       );
