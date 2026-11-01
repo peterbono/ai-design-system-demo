@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-11-01T15:39:03.556Z",
-  "sha": "194c7a111cf65d747cb5610907ef2b9a364b8b5c",
+  "createdAt": "2026-11-01T15:57:56.071Z",
+  "sha": "d4f492908d83a60a0aa9b36ee626830181a2f927",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -910,7 +910,7 @@
       }
     },
     "Combobox/Popup": {
-      "specHash": "8ed62203",
+      "specHash": "3977cd1a",
       "variants": {
         "Default": {
           "file": "combobox-popup/default.png",
@@ -2078,7 +2078,7 @@
       }
     },
     "Select/Popup": {
-      "specHash": "ec9e0627",
+      "specHash": "26f40784",
       "variants": {
         "Default": {
           "file": "select-popup/default.png",
