@@ -174,7 +174,7 @@ describe('Being built: explorations handed to developers', () => {
 
   it('lists each handed-off status in its tab, and leaves running, archived, closed and older shipped ones out', () => {
     const list = rows([
-      // Waiting for code, for the admin product: the label could not be removed, Done exploring in the body stands (#611).
+      // Waiting to be picked up, for the admin product: the label could not be removed, Done exploring in the body stands (#611).
       pull(611, { name: 'explore new design pr being built', labels: ['exploration', 'product: admin', 'visual-change'] }),
       // Developers pushed past the head Done exploring left.
       pull(2, { name: 'Billing screen', head: { ref: 'explore/billing', sha: 'h2' }, assignees: [{ login: 'theo' }] }),
@@ -189,7 +189,7 @@ describe('Being built: explorations handed to developers', () => {
       pull(8, { state: 'closed' }),
       { ...pull(9, {}), body: 'Fixes the button', head: { ref: 'fix/button', sha: 'x' }, labels: [] },
     ]);
-    expect(list.map((r) => `${r.number}:${r.status}:${r.label}`)).toEqual(['611:requested:Waiting for code', '2:in-progress:Being built', '3:in-review:In review', '4:shipped:Shipped']);
+    expect(list.map((r) => `${r.number}:${r.status}:${r.label}`)).toEqual(['611:requested:Waiting to be picked up', '2:in-progress:Being built', '3:in-review:In review', '4:shipped:Shipped']);
     const [ready, building, , shipped] = list;
     expect(ready).toMatchObject({ title: 'Explore new design pr being built', requestedBy: 'ann', builders: [], stale: false, exploration: { href: 'changes/?exploration=611', product: 'Admin demo' } });
     expect(ready!.exploration.line).toMatch(/^Admin demo · Done exploring by Ann on /);

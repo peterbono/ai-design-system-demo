@@ -92,6 +92,14 @@ describe('start an exploration, in a product or the library', () => {
     expect(claudePrompt({ sentence: 'x', product: { key: 'k', name: 'K' }, number: 1 })).toContain('"x" in K and use');
     expect(claudePrompt({ sentence: 'Pill buttons', product: THREE[2]!, number: 7, library: true })).toBe('Open Bridge exploration #7 "Pill buttons" in the Bridge library. I\'ll tell you what to explore.');
     expect(featureHref(160)).toBe('/studio/changes/?exploration=160');
+    expect(featureHref(2, 'admin-app')).toBe('/studio/changes/?exploration=2&product=admin-app');
+  });
+
+  it('names the design team\'s copy and the branch, never the developers\' repository', () => {
+    const shop: ProductConfig = { key: 'admin-app', name: 'Art print shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' } };
+    const line = claudePrompt({ sentence: 'Orders empty state', product: shop, number: 2, copy: { repo: 'acme/shop-design', branch: 'explore/orders-empty-state' } });
+    expect(line).toBe('Open Bridge exploration admin-app#2 "Orders empty state" in the design team\'s copy of Art print shop (acme/shop-design, branch explore/orders-empty-state) and use the Bridge library. I\'ll tell you what to explore.');
+    expect(line).not.toContain('(acme/shop)');
   });
 
   it('labels a feature so the Branches page groups it under its product (core rule)', () => {

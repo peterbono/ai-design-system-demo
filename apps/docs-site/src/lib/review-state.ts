@@ -131,7 +131,7 @@ export type LifecycleStage = 'exploring' | 'waiting-for-code' | 'being-built' | 
 /** The words of each stage: the tab, the tag and the line say the same. */
 export const LIFECYCLE_LABEL: Record<LifecycleStage, string> = {
   exploring: 'Exploring',
-  'waiting-for-code': 'Waiting for code',
+  'waiting-for-code': 'Waiting to be picked up',
   'being-built': 'Being built',
   'in-review': 'In review',
   'next-release': 'In the next release',

@@ -45,7 +45,7 @@ export type ProductStateKey = 'running' | 'review' | 'waiting' | 'building' | 's
  */
 export const PRODUCT_STATES: { key: ProductStateKey; label: string; count: (n: number) => string }[] = [
   { key: 'running', label: LIFECYCLE_LABEL.exploring, count: (n) => `${n} exploring` },
-  { key: 'waiting', label: LIFECYCLE_LABEL['waiting-for-code'], count: (n) => `${n} waiting for code` },
+  { key: 'waiting', label: LIFECYCLE_LABEL['waiting-for-code'], count: (n) => `${n} waiting to be picked up` },
   { key: 'building', label: LIFECYCLE_LABEL['being-built'], count: (n) => `${n} being built` },
   { key: 'review', label: LIFECYCLE_LABEL['in-review'], count: (n) => `${n} in review` },
   { key: 'shipped', label: LIFECYCLE_LABEL.shipped, count: (n) => `${n} shipped` },

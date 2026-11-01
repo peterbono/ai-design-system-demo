@@ -172,7 +172,7 @@ export const SCREEN_SKETCH: ThumbSpec = { kind: 'screen', src: null };
 
 /** The tag of a card's state: the exploration page's words and tones (lib/exploration-page explorationTag). */
 export function cardTag(stage: ExplorationStage, state: string): { tone: TagTone; dot: boolean } {
-  const byWord: Record<string, string> = { 'Not started': 'active', Exploring: 'active', 'Waiting for code': 'ready', 'Being built': 'building', Shipped: 'shipped', 'In review': 'promoted', 'Kept in the library': 'kept' };
+  const byWord: Record<string, string> = { 'Not started': 'active', Exploring: 'active', 'Waiting for code': 'ready', 'Waiting to be picked up': 'ready', 'Being built': 'building', Shipped: 'shipped', 'In review': 'promoted', 'Kept in the library': 'kept' };
   const status = byWord[state];
   if (status) {
     const t = explorationTag(status, { notStarted: state === 'Not started' });

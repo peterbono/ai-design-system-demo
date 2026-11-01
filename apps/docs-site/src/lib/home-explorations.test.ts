@@ -89,7 +89,7 @@ describe('the explorations of the Studio home', () => {
     expect(explorationStage({ ...profile, state: 'closed', merged_at: '2026-10-23T10:00:00Z' })).toEqual({ stage: 'kept', state: 'Kept in the library' });
     // Done exploring said but the exploration label could not be removed: with the developers, not running.
     const done = '<!-- bridge-exploration {"name":"Profile page","doneAt":"2026-10-31T13:35:11.487Z","doneSha":"aaa"} -->';
-    expect(explorationStage({ ...profile, body: done, head: { ref: 'explore/profile-page', sha: 'aaa' } })).toEqual({ stage: 'with-devs', state: 'Waiting for code' });
+    expect(explorationStage({ ...profile, body: done, head: { ref: 'explore/profile-page', sha: 'aaa' } })).toEqual({ stage: 'with-devs', state: 'Waiting to be picked up' });
   });
 
   it('titles a card with the exploration name, else the title for people', () => {
@@ -123,7 +123,7 @@ describe('the explorations of the Studio home', () => {
     expect(cardTag('exploring', 'Not started')).toEqual({ tone: 'neutral', dot: false });
     expect(cardTag('exploring', 'Exploring')).toEqual({ tone: 'info', dot: true });
     expect(cardTag('found', '2 new pieces found')).toEqual({ tone: 'info', dot: true });
-    expect(cardTag('with-devs', 'Waiting for code')).toEqual({ tone: 'warning', dot: false });
+    expect(cardTag('with-devs', 'Waiting to be picked up')).toEqual({ tone: 'warning', dot: false });
     expect(cardTag('with-devs', 'Being built')).toEqual({ tone: 'info', dot: true });
     expect(cardTag('kept', 'Shipped')).toEqual({ tone: 'success', dot: false });
     expect(cardTag('kept', 'Kept in the library')).toEqual({ tone: 'success', dot: false });
@@ -221,7 +221,7 @@ describe('the quiet team Home', () => {
     ({ number: n, key: String(n), title: `S${n}`, href: '#', product: null, author: person('ann', 'Ann', null), stage: 'exploring', state: 'Exploring', updated: `2026-10-${String(10 + n).padStart(2, '0')}T10:00:00Z`, preview: SCREEN_SKETCH, own: false, ...over }) as Parameters<typeof recentExplorations>[0][number];
 
   it('keeps the four newest explorations, whatever their stage, and how many there are in all', () => {
-    const cards = [c(1), c(2, { stage: 'kept', state: 'Shipped' }), c(3), c(4, { stage: 'with-devs', state: 'Waiting for code' }), c(5), c(6)];
+    const cards = [c(1), c(2, { stage: 'kept', state: 'Shipped' }), c(3), c(4, { stage: 'with-devs', state: 'Waiting to be picked up' }), c(5), c(6)];
     const r = recentExplorations(cards);
     expect(RECENT_CARDS).toBe(4);
     expect(r.cards.map((x) => x.number)).toEqual([6, 5, 4, 3]);
@@ -229,16 +229,16 @@ describe('the quiet team Home', () => {
   });
 
   it("says what is open of the viewer's own work in the Changes words, else that nothing is", () => {
-    expect(ownOpenWork([c(1, { own: true, stage: 'with-devs', state: 'Waiting for code' })])).toBe('1 waiting for code.');
+    expect(ownOpenWork([c(1, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })])).toBe('1 waiting to be picked up.');
     expect(ownOpenWork([c(1, { own: true }), c(2, { own: true, stage: 'found', state: '1 new piece found' }), c(3, { own: true, stage: 'with-devs', state: 'Being built' }), c(4, { own: true, stage: 'in-review', state: 'In review' })])).toBe('2 exploring, 1 being built, 1 in review.');
     // Someone else's, shipped, kept or archived: not open work of the viewer.
     expect(ownOpenWork([c(1), c(2, { own: true, stage: 'kept', state: 'Shipped' }), c(3, { own: true, state: 'Archived' })])).toBeNull();
     // Library changes: a draft is being built, one waiting for a developer waits for code, one sent is in review.
-    expect(ownOpenWork([], [{ stage: 'draft' }, { stage: 'waiting' }, { stage: 'ready' }])).toBe('1 waiting for code, 1 being built, 1 in review.');
+    expect(ownOpenWork([], [{ stage: 'draft' }, { stage: 'waiting' }, { stage: 'ready' }])).toBe('1 waiting to be picked up, 1 being built, 1 in review.');
   });
 
   it('tells the truth after the greeting', () => {
-    expect(quietSentence('1 waiting for code.')).toBe('Nothing needs you. 1 waiting for code.');
+    expect(quietSentence('1 waiting to be picked up.')).toBe('Nothing needs you. 1 waiting to be picked up.');
     expect(quietSentence(null)).toBe('Nothing needs you, and you have nothing in progress.');
     expect(quietSentence(null, true)).toBe('Nothing needs you.');
   });

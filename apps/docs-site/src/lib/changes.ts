@@ -590,7 +590,10 @@ export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSumm
         ? `Waiting for ${namesFor(role, e.logins, p)}`
         : e.open
           ? 'Waiting for a reviewer'
-          : `Waiting: no other ${ROLE_NAME[role]} can approve`;
+          : // The only owner made it (GitHub refuses self-approval): the owner override is theirs, never a dead end.
+            same(p.author, p.viewer) && listed.some((x) => same(x, p.viewer))
+            ? 'You made it: add it with the owner override, under More'
+            : `Waiting: no other ${ROLE_NAME[role]} can approve`;
     return { ...base, state: 'waiting' as const, text };
   });
 }

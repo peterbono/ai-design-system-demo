@@ -471,6 +471,6 @@ export const BACK_TO_EXPLORING_LINE = 'Back to exploring. Say Done exploring aga
  * sign in instead of being left with "cannot be read".
  */
 export function unreadableExplorationLine(n: number, where: string, opts: { product: boolean; signedOut: boolean }): string {
-  const line = `#${n} is not an exploration in ${where}, or it cannot be read right now.`;
+  const line = `Bridge cannot find exploration #${n} in ${where} right now. Open it again from Changes.`;
   return opts.product && opts.signedOut ? `${line} Signed out, Bridge only shows explorations of public products: sign in to see it.` : line;
 }

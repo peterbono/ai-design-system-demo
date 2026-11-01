@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONNECTOR_WORDS as W, connectionSentence, connectorUrl, developerSnippets, elapsedLabel, fixRows, parseSession, reviewOf, type Session } from './claude-connector';
+import { CONNECTOR_WORDS as W, connectionSentence, connectorUrl, developerSnippets, elapsedLabel, fixPullNumber, fixRows, missingFixPulls, parseSession, reviewOf, type Session } from './claude-connector';
 import { matchesBuildFilter } from '@bridge-ds/core';
 
 const c = (by: string, lastUsedAt: string) => ({ id: by, client: 'Claude', by, createdAt: lastUsedAt, lastUsedAt, mine: false });
@@ -64,6 +64,14 @@ describe("Being built, Claude's fixes as rows of the one list", () => {
     expect(closed.fix.line).toContain('Your team closed it without keeping it');
     expect(matchesBuildFilter(closed, 'all', NOW)).toBe(true);
     expect(fixRows([ready], [], NOW, names)[0]!.status).toBe('in-review');
+  });
+
+  it('names the fix pull requests the list read missed, so an old merged fix is read and never stays In review', () => {
+    expect(fixPullNumber(ready)).toBe(598);
+    expect(missingFixPulls([ready], [])).toEqual([598]);
+    expect(missingFixPulls([ready, ready], [{ number: 12 }])).toEqual([598]);
+    expect(missingFixPulls([ready], [{ number: 598 }])).toEqual([]);
+    expect(missingFixPulls([{ ...ready, steps: [steps[0]!] }], [])).toEqual([]);
   });
 
   it('while Claude works: In progress with the last real step; went quiet is flagged; stopped is Not planned with the reason', () => {

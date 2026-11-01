@@ -610,13 +610,12 @@ export async function openExploration(n: number, push = true, product: string | 
     if (of) return pb.openProductBranch(d, r, pull, of, products, reopen, after.said);
   }
   const at = product ? productRepoByKey(product) : null;
-  const where = product ? (at?.product.name ?? product) : `${CFG.owner}/${CFG.repo}`;
-  // The pull request on GitHub, in the repository the exploration lives in (the product's own one when it has one).
-  const ghLink = product ? (at ? `https://github.com/${at.repo}/pull/${n}` : null) : `https://github.com/${CFG.owner}/${CFG.repo}/pull/${n}`;
+  // Designer words: the product's name or the library, never a repository or a GitHub link (devs fix it in GitHub).
+  const where = product ? (at?.product.name ?? product) : 'the library';
   const line = unreadableExplorationLine(n, where, { product: Boolean(product), signedOut: !currentViewer() && !currentContributor() });
   d.innerHTML = r
     ? renderExplorationDetail(r, { connected: connected(), keeper: keeperOf(r) })
-    : `${crumbs(n, product)}<p class="cg-muted">${esc(line)}${ghLink ? ` <a href="${attrUrl(ghLink)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}</a>.` : ''}</p>`;
+    : `${crumbs(n, product)}<p class="cg-muted">${esc(line)}</p>`;
   if (r && after.said) saySaid(after.said);
   if (r) {
     void paintTryIt(r);
