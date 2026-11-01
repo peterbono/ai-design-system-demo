@@ -12,7 +12,8 @@
 //                                   config pull request; waiting while that pull request is open; "Later is fine".
 //   4. How changes reach your code  done when bridge.config.json sets `changes`; waiting while the pull request that
 //                                   sets it is open; otherwise the current step (suggestions by default).
-//   5. Invite your team             share the team link. Done once the viewer copied it (this browser remembers);
+//   5. Invite your team             Invite collaborators (email and role). Done once invites went out (this browser
+//                                   remembers);
 //                                   next after step 4 in the first run, "Later is fine" otherwise.
 //   6. Products                     the apps listed in bridge.config.json `products`, found with the repo.
 //   7. Figma plugin, 8. Claude AI   nothing on GitHub says they are set up: the viewer marks them done in this
@@ -64,11 +65,14 @@ export const STEP_LINE: Record<StepId, string> = {
   name: TEAM_NAME_WORDS.stepLine,
   products: 'The apps that use your library',
   changes: 'Suggestions or pull requests',
-  team: 'Share one link. GitHub decides who gets in.',
+  team: 'Invite people by email, each with a role.',
   figma: 'Keeps the Figma kit in step with code',
   claude: 'The AI you build with: Claude, Copilot',
   create: 'A name, and who can find it',
 };
+
+/** Step "Invite your team", above "Invite collaborators": what an invited person gets. */
+export const INVITE_STEP_BODY = 'They get an email and land in your team with the role you pick.';
 
 /** Step 2 of "Create your team": GitHub only comes back to link the repository. */
 const CREATE_LIBRARY_LINE = 'Storybook URL, or connect GitHub to read your code';
@@ -92,7 +96,7 @@ export interface OnboardingFacts {
   teamName?: string | null;
   /** The open pull request that sets `name`, proposed from this browser. */
   named?: { pr: number; name: string } | null;
-  /** Steps the viewer marked done in this browser (Figma plugin, Claude AI, the team link copied). */
+  /** Steps the viewer marked done in this browser (Figma plugin, Claude AI, invites sent). */
   marked?: readonly StepId[];
   /**
    * A team's Bridge on the hosted site: the viewer's access to the repository (null while GitHub is asked). Absent on
@@ -196,7 +200,7 @@ export function onboardingSteps(f: OnboardingFacts): Step[] {
         return { ...base, ...changesStep(f) };
       case 'team':
         return marked.has('team')
-          ? { ...base, detail: 'Team link shared', state: 'done', status: 'Done' }
+          ? { ...base, detail: 'Invites sent', state: 'done', status: 'Done' }
           : { ...base, detail: STEP_LINE.team, state: 'later', status: 'Later is fine' };
       default:
         return marked.has(id)

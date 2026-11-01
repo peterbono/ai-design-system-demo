@@ -11,7 +11,8 @@
 // the card says how many components it found and links to them.
 // Step 3 (Name your team): one field prefilled with the repository name in words; Save name opens the config pull
 // request that sets `name` (scripts/roles.ts proposeTeamName), the same way as the changes step.
-// Step 5 (Invite your team): the team link and "Who can do what" (TeamLink.tsx); copying the link marks it done.
+// Step 5 (Invite your team): one sentence and "Invite collaborators" (InviteDialog.tsx, email and role); sending invites
+// marks it done. No link to share: the showcase at /studio/ is not the team's address.
 // The browser workspace (lib/start.ts, pages/studio/workspace.astro): six steps and no repository yet. Step 2 takes a
 // Storybook, or a repository that opens its team at the next step; the steps that need the repository say so.
 // Signed in with a Bridge account, it is "Create your team" (boards E6 and E7a): step 1 names the team and, for a work
@@ -20,7 +21,7 @@
 // team" is done only then. Under the steps, "Expecting an invite?" names the email to give the design lead. Step 2 asks
 // for GitHub only to link the repository, which the team then moves to (linkRepo).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, ChevronDown, Copy } from 'lucide-react';
+import { Check, ChevronDown, Copy, UserPlus } from 'lucide-react';
 import { bridgeMcpInstallCommand, type ChangesMode, type RepoAccessState } from '@bridge-ds/core';
 import { Accordion, AccordionItem, Badge, Button, Card, CardBody, Checkbox, CodeBlock, Icon, Input, Link, Popover, PopoverContent, PopoverTrigger, Progress } from '@bridge-ds/react';
 import { Drawing } from './Drawing';
@@ -28,10 +29,12 @@ import ButtonLink from '../ButtonLink';
 import { ChangesChoices, DevelopersGet } from './ChangesMode';
 import { StorybookField } from './StorybookField';
 import { TeamField } from './TeamLauncher';
-import { TeamLink, useCopy } from './TeamLink';
+import { useCopy } from './TeamLink';
+import InviteDialog from './InviteDialog';
+import { MEMBERS_WORDS } from '../../../lib/invites';
 import { askInstallMessage, installUrl } from '../../../lib/access-view';
 import type { WorkspaceStorybook } from '../../../lib/workspace';
-import { doneCount, doneSummary, firstRunTitle, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, STEP_IDS, STEP_LINE, STEP_TITLE, withSetupStep, type OnboardingMemory, type Step, type StepId } from '../../../lib/onboarding';
+import { doneCount, doneSummary, firstRunTitle, INVITE_STEP_BODY, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, STEP_IDS, STEP_LINE, STEP_TITLE, withSetupStep, type OnboardingMemory, type Step, type StepId } from '../../../lib/onboarding';
 import { CHANGES_CHOICE } from '../../../lib/settings-view';
 import { VOCAB } from '../../../lib/vocabulary';
 import { STUDIO_ROOT, studioHref } from '../../../lib/team-path';
@@ -44,6 +47,23 @@ import { TEAM_NAME_WORDS, teamNameProblem } from '../../../lib/team-name';
 import { AI_TOOLS_WORDS, FALLBACK_TOOLS, toolsSummary, type AiTool } from '../../../lib/ai-tools';
 import { copilotSetup } from '../../../lib/claude-connector';
 import { AiToolsChoice } from './AiToolPanel';
+
+/**
+ * Step "Invite your team": one sentence, then "Invite collaborators", which opens the invite dialog (email and role,
+ * board I1). No link to share: an invited person gets an email that opens their team.
+ */
+function InviteStep({ onSent }: { onSent: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="onb-invite">
+      <p className="onb-quiet">{INVITE_STEP_BODY}</p>
+      <Button variant="primary" iconStart={UserPlus} onClick={() => setOpen(true)}>
+        {MEMBERS_WORDS.title}
+      </Button>
+      <InviteDialog open={open} onOpenChange={setOpen} onSent={onSent} />
+    </div>
+  );
+}
 
 /**
  * Step "Your AI tools": which AI the person builds with (Claude app, Claude Code in a terminal, GitHub Copilot in VS
@@ -698,18 +718,10 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
     }
     case 'team':
       panel = (
-        // Copy link is this step's one primary action; Continue steps back.
+        // Invite collaborators is this step's one primary action (the same dialog as the team chip and Settings > Members);
+        // sending marks it done. Continue steps back.
         <Panel step={step} total={total} title={STEP_TITLE.team} lead={STEP_LINE.team} footer={nav(<Button variant="secondary" onClick={next}>Continue</Button>)}>
-          <TeamLink
-            id="onb-team-link"
-            owner={ctx.team.owner}
-            repo={ctx.team.repo}
-            link={ctx.team.link}
-            access={ctx.team.access}
-            changes={ctx.team.changes}
-            owners={ctx.team.owners}
-            onCopied={() => actions.mark('team')}
-          />
+          <InviteStep onSent={() => actions.mark('team')} />
         </Panel>
       );
       break;

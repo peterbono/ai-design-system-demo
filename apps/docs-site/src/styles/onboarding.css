@@ -90,6 +90,13 @@
   color: var(--color-text-muted);
 }
 
+/* Step "Invite your team": the sentence, then Invite collaborators under it. */
+.onb-invite {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+}
+
 /* The steps: one row component, the whole row is the button. */
 .onb-steps {
   display: grid;

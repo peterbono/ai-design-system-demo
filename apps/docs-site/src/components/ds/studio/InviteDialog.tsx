@@ -41,6 +41,8 @@ export interface InviteDialogProps {
   onOpenChange: (open: boolean) => void;
   /** The members already read by the page (Settings): the dialog and the page then show one list. */
   shared?: { data: MembersData; update: (fn: (d: MembersData) => MembersData) => void };
+  /** Once invites went out (onboarding's "Invite your team" is then done). */
+  onSent?: () => void;
 }
 
 function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn: (d: MembersData) => MembersData) => void; onNotice: (n: Notice | null) => void }) {
@@ -91,7 +93,7 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
   );
 }
 
-export default function InviteDialog({ open, onOpenChange, shared }: InviteDialogProps) {
+export default function InviteDialog({ open, onOpenChange, shared, onSent }: InviteDialogProps) {
   const own = useMembers(open && !shared);
   const load = shared ? ({ status: 'ready', data: shared.data } as const) : own.load;
   const update = shared?.update ?? own.update;
@@ -148,7 +150,10 @@ export default function InviteDialog({ open, onOpenChange, shared }: InviteDialo
     const r = await memberActions(data, update).send(emails, choice, data.people);
     setBusy(false);
     if (r.notice) setNotice(r.notice);
-    if (r.notice?.tone === 'success') setEmails(r.left);
+    if (r.notice?.tone === 'success') {
+      setEmails(r.left);
+      onSent?.();
+    }
   };
 
   const sample = data?.context === 'sample';

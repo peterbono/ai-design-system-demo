@@ -97,11 +97,11 @@ describe('name your team', () => {
 describe('invite your team', () => {
   it('waits as Later is fine, and is done once the link was copied', () => {
     const later = onboardingSteps({ ...base, changes: 'suggest' }).find((s) => s.id === 'team')!;
-    expect(later).toMatchObject({ n: 5, title: 'Invite your team', state: 'later', status: 'Later is fine', detail: 'Share one link. GitHub decides who gets in.' });
+    expect(later).toMatchObject({ n: 5, title: 'Invite your team', state: 'later', status: 'Later is fine', detail: 'Invite people by email, each with a role.' });
     // Not a core step: the first run does not open for it alone.
     expect(showsFirstRun(onboardingSteps({ ...base, changes: 'suggest' }), { later: false })).toBe(false);
     const done = onboardingSteps({ ...base, changes: 'suggest', marked: ['team'] }).find((s) => s.id === 'team')!;
-    expect(done).toMatchObject({ state: 'done', detail: 'Team link shared' });
+    expect(done).toMatchObject({ state: 'done', detail: 'Invites sent' });
     expect(parseMemory(JSON.stringify({ marked: ['team'] })).marked).toEqual(['team']);
   });
 });
