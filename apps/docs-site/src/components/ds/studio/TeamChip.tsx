@@ -26,7 +26,7 @@ import type { RepoAccessState } from '@bridge-ds/core';
 import { chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName, roleBadge } from '../../../lib/access-view';
 import { forgetRecentTeam, knownTeamName, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
 import { pillState } from '../../../lib/access';
-import { teamHref } from '../../../lib/team-path';
+import { isHosted, pageTeamFromPath, teamHref } from '../../../lib/team-path';
 import { ghButton } from '../../../lib/gh-wording';
 import { ACCOUNT_WORDS, roleWord, signInHref } from '../../../lib/account';
 import NewTeamDialog, { type TeamAccessCheck } from './NewTeamDialog';
@@ -89,6 +89,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   // A GitHub account with write access who holds a review right reads "Reviewer", never "Can edit" (scripts/needs-you).
   const [reviewer, setReviewer] = useState(false);
   const [ghSignedIn, setSignedIn] = useState(false);
+  // The GitHub session has answered once: until then the chip says "Checking", never "Guest" to someone signed in.
+  const [sessionKnown, setSessionKnown] = useState(false);
   // A Bridge account (GET /api/account): its teams join "Your teams", each with its role.
   const account = useAccount();
   const signedIn = ghSignedIn || Boolean(account);
@@ -102,6 +104,14 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const [cfg, setCfg] = useState<{ read: boolean; name: string | null }>({ read: false, name: null });
   const [names, setNames] = useState<Record<string, string>>({});
   const [roles, setRoles] = useState<Record<string, string>>({});
+
+  // A team shell names its team from the address at once, before the session and its scripts load (a cold first visit
+  // can take seconds): never "Your team" while the address already says which.
+  useEffect(() => {
+    if (workspace || built) return;
+    const t = pageTeamFromPath(location.pathname, isHosted());
+    if (t) setName((n) => n ?? `${t.owner}/${t.repo}`);
+  }, [workspace, built]);
 
   useEffect(() => {
     let live = true;
@@ -129,6 +139,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
       const { startFacts } = await import('../../../scripts/start');
       if (live) setFacts(startFacts());
       session.initGitHubConnect((v) => {
+        setSessionKnown(true);
         setSignedIn(Boolean(v));
         setViewerName(v ? (shortName(v.name) ?? v.login) : null);
         if (!v) setAccess(r.hosted ? (session.currentAccess()?.state ?? null) : null);
@@ -196,7 +207,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     : // The settings' name, else the account's name for this team, else the one this browser knows (the server keeps
       // it), before and after the settings are read: settings without a `name` never flip it to the repository in words.
       chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.name ?? (name ? (accountTeamName(name) ?? knownTeamName(name)) : null) });
-  const badge = chip.kind === 'team' ? roleBadge(access, ghSignedIn, reviewer) : chip.badge;
+  const badge = !sessionKnown && !account && chip.kind !== 'workspace' ? { label: 'Checking', tone: 'neutral' as const } : chip.kind === 'team' ? roleBadge(access, ghSignedIn, reviewer) : chip.badge;
   const offerTeams = launcher || hosted;
   // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first
   // with a check and your role. The browser workspace shows only while you are in it or have no team of your own; from

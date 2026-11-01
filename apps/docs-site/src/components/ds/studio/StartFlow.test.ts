@@ -106,7 +106,8 @@ describe('the setup steps, in order and by keyboard', () => {
     window.history.replaceState(null, '', '/studio/workspace/?setup=library&x=1');
     render(createElement(Onboarding, { steps: steps('ann'), name: 'Ann', initial: 'library', ctx, actions: actions() }));
     expect(window.location.search).toBe('?setup=library&x=1');
-    await userEvent.setup().click(screen.getByRole('button', { name: /Name your team|Continue/ }));
+    // A step not done has no button that skips it but "Do this later": open the next one from the checklist.
+    await userEvent.setup().click(within(screen.getByRole('list', { name: 'Setup steps' })).getAllByRole('button')[2]!);
     const heading = screen.getAllByRole('heading', { level: 2 })[0]!;
     expect(document.activeElement).toBe(heading);
     expect(new URLSearchParams(window.location.search).get('setup')).not.toBe('library');

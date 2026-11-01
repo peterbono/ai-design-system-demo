@@ -1,7 +1,8 @@
 // Studio onboarding (rules and words in lib/onboarding.ts), mounted by pages/studio/index.astro:
 //   - Onboarding: the first run. The eight steps on the left (the open one highlighted, any row opens its step), the
 //     open step in one card on the right. Opens on "How changes reach your code" while bridge.config.json does not
-//     say it. Every step after sign-in can wait: "Do this later" goes to the home.
+//     say it. Every step after sign-in can wait: "Do this later" goes to the home. A step's primary button does its
+//     action (Send for review, Save name, I installed it); a done step moves on with "Next: <step>"; nothing else skips.
 //   - FinishConnecting: on the home once the first run is behind, "4 of 8 connected" opens the steps left as a
 //     compact checklist. "Hide checklist" puts it away for this browser.
 // Step 2 (your design system): a self-hosted Studio is built for one repository, so it is connected from the start.
@@ -16,8 +17,8 @@
 // The browser workspace (lib/start.ts, pages/studio/workspace.astro): six steps and no repository yet. Step 2 takes a
 // Storybook, or a repository that opens its team at the next step; the steps that need the repository say so.
 // Signed in with a Bridge account, it is "Create your team" (boards E6 and E7a): step 1 names the team and, for a work
-// email, offers "Let people with @acme.com find this team" (checked); a public email gets one line instead. Continue
-// creates the team on the server (api/entry create-team): its creator is its admin, colleagues find it, and "Your
+// email, offers "Let people with @acme.com find this team" (checked); a public email gets one line instead. Create the
+// team creates it on the server (api/entry create-team): its creator is its admin, colleagues find it, and "Your
 // team" is done only then. Under the steps, "Expecting an invite?" names the email to give the design lead. Step 2 asks
 // for GitHub only to link the repository, which the team then moves to (linkRepo).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -34,7 +35,7 @@ import InviteDialog from './InviteDialog';
 import { MEMBERS_WORDS } from '../../../lib/invites';
 import { askInstallMessage, installUrl } from '../../../lib/access-view';
 import type { WorkspaceStorybook } from '../../../lib/workspace';
-import { doneCount, doneSummary, firstRunTitle, INVITE_STEP_BODY, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, STEP_IDS, STEP_LINE, STEP_TITLE, withSetupStep, type OnboardingMemory, type Step, type StepId } from '../../../lib/onboarding';
+import { AI_TOOLS_COPY_LINE, doneCount, doneSummary, firstRunTitle, INVITE_STEP_BODY, PRODUCTS_COPY_LINE, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, STEP_IDS, STEP_LINE, STEP_TITLE, withSetupStep, type OnboardingMemory, type Step, type StepId } from '../../../lib/onboarding';
 import { CHANGES_CHOICE } from '../../../lib/settings-view';
 import { VOCAB } from '../../../lib/vocabulary';
 import { STUDIO_ROOT, studioHref } from '../../../lib/team-path';
@@ -70,7 +71,7 @@ function InviteStep({ onSent }: { onSent: () => void }) {
  * Code), saved for them (scripts/ai-tools.ts), then what each chosen tool needs once. Asked once: the exploration
  * page and the Start dialog then show only these tools. Settings > Your AI tools changes it later.
  */
-function AiToolsStep({ ctx, done, panel, onSaved, next }: { ctx: OnboardingContext; done: boolean; panel: (children: ReactNode, footer: ReactNode) => ReactNode; onSaved: () => void; next: () => void }) {
+function AiToolsStep({ ctx, done, panel, onSaved }: { ctx: OnboardingContext; done: boolean; panel: (children: ReactNode, footer: ReactNode) => ReactNode; onSaved: () => void }) {
   const [value, setValue] = useState<AiTool[]>([...FALLBACK_TOOLS]);
   const [saved, setSaved] = useState<AiTool[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,11 +118,10 @@ function AiToolsStep({ ctx, done, panel, onSaved, next }: { ctx: OnboardingConte
         </>
       )}
       {ctx.workspace && <p className="onb-quiet">What each tool needs once comes with the repository, on step 2.</p>}
+      {ctx.products.some((p) => p.design) && <p className="onb-quiet">{AI_TOOLS_COPY_LINE}</p>}
       {saved && <p className="onb-quiet">Saved: {toolsSummary(saved)}. Change it later in Settings.</p>}
     </>,
-    unchanged ? (
-      <Button onClick={next}>Continue</Button>
-    ) : (
+    unchanged ? undefined : (
       <Button onClick={() => void save()} loading={busy}>
         Save and continue
       </Button>
@@ -135,7 +135,8 @@ export interface OnboardingContext {
   storybook: string | null;
   /** The Storybook added in this browser with the quick start (scripts/workspace.ts). */
   quickStart?: WorkspaceStorybook | null;
-  products: { name: string; path?: string }[];
+  /** `design`: the product has a design team copy (products[].design), where its explorations are made. */
+  products: { name: string; path?: string | undefined; key?: string | undefined; design?: boolean }[];
   /** The one-time command that adds the Bridge MCP to Claude Code for this repository. */
   mcpCommand: string;
   /** Where the Figma plugin is installed from, and the Claude set-up page. */
@@ -478,10 +479,13 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
     if (new URLSearchParams(location.search).has('setup')) history.replaceState(history.state, '', `${location.pathname}${withSetupStep(location.search, open)}${location.hash}`);
   }, [open]);
   const narrow = useNarrow();
-  const next = () => {
+  const nextId = (): StepId | null => {
     const i = steps.findIndex((s) => s.id === open);
-    const after = steps.slice(i + 1).find((s) => s.state !== 'done') ?? steps[i + 1];
-    if (after) setOpen(after.id);
+    return (steps.slice(i + 1).find((s) => s.state !== 'done') ?? steps[i + 1])?.id ?? null;
+  };
+  const next = () => {
+    const after = nextId();
+    if (after) setOpen(after);
     else actions.later(open);
   };
   const back = () => {
@@ -501,19 +505,38 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
     ) : (
       <span />
     );
-  const nav = (primary: ReactNode = <Button onClick={next}>Continue</Button>) => (
+  // The footer. `action`: the button that does this step (Send for review, Save name, I installed it); it is the only
+  // primary. A step already done (or waiting on a review) has nothing left to do: it moves on with a button that says
+  // where it goes. A step not done without an action here (its action sits in the body) only offers "Do this later":
+  // never a "Continue" that skips like "Do this later" does (Florian, 2026-11-01).
+  const after = nextId();
+  const moveOn = (
+    <Button variant="secondary" onClick={next}>
+      {after ? `Next: ${STEP_TITLE[after]}` : 'Go to your home'}
+    </Button>
+  );
+  const settled = step.state === 'done' || step.state === 'waiting';
+  const nav = (action?: ReactNode) => (
     <>
       {backLink}
       <span className="onb-foot-end">
-        {later}
-        {primary}
+        {action ? (
+          <>
+            {later}
+            {action}
+          </>
+        ) : settled ? (
+          moveOn
+        ) : (
+          later
+        )}
       </span>
     </>
   );
 
   // The browser workspace: a step that needs the repository says so, and leads back to step 2.
   const needsRepo = (lead: string) => (
-    <Panel step={step} total={total} title={STEP_TITLE[open]} lead={lead} footer={nav(<Button variant="secondary" onClick={next}>Continue</Button>)}>
+    <Panel step={step} total={total} title={STEP_TITLE[open]} lead={lead} footer={nav()}>
       <p className="onb-quiet">This comes with the repository. Connect it on step 2 first.</p>
       <p>
         <Button variant="primary" onClick={() => setOpen('library')}>
@@ -556,7 +579,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
               <span className="onb-foot-end">
                 <span className="onb-quiet">{ENTRY_WORDS.nextLibrary}</span>
                 <Button type="submit" form="onb-create-form" loading={creating} disabled={creating}>
-                  Continue
+                  {ENTRY_WORDS.createButton}
                 </Button>
               </span>
             </>
@@ -618,15 +641,14 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
       );
       break;
     case 'library': {
-      // Installing Bridge is this step's one primary action; Continue steps back.
-      const install = ctx.hosted?.access === 'not-installed' && ctx.hosted.admin;
+      // Installing Bridge (or adding a Storybook) is this step's action, in its body: the footer only skips.
       panel = (
         <Panel
           step={step}
           total={total}
           title="Connect your design system"
           lead="Two ways in. Storybook is the quick start; the repository unlocks the checks."
-          footer={nav(install ? <Button variant="secondary" onClick={next}>Continue</Button> : undefined)}
+          footer={nav()}
         >
           <LibraryStep ctx={ctx} step={step} actions={actions} />
         </Panel>
@@ -719,8 +741,8 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
     case 'team':
       panel = (
         // Invite collaborators is this step's one primary action (the same dialog as the team chip and Settings > Members);
-        // sending marks it done. Continue steps back.
-        <Panel step={step} total={total} title={STEP_TITLE.team} lead={STEP_LINE.team} footer={nav(<Button variant="secondary" onClick={next}>Continue</Button>)}>
+        // sending marks it done, then the footer moves on.
+        <Panel step={step} total={total} title={STEP_TITLE.team} lead={STEP_LINE.team} footer={nav()}>
           <InviteStep onSent={() => actions.mark('team')} />
         </Panel>
       );
@@ -733,14 +755,24 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
       panel = (
         <Panel step={step} total={total} title="Products" lead="The apps that use your library, found in the repository's Bridge settings." footer={nav()}>
           {ctx.products.length ? (
-            <ul className="onb-list">
-              {ctx.products.map((p) => (
-                <li key={p.name}>
-                  <span className="onb-strong">{p.name}</span>
-                  {p.path && <span className="mono onb-quiet">{p.path}</span>}
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="onb-list">
+                {ctx.products.map((p) => (
+                  <li key={p.name}>
+                    {/* A product with a design team copy opens its page: "Make my copy" lives there until the copy exists. */}
+                    {p.design && p.key ? (
+                      <Link href={studioHref(`products/${p.key}/`)} className="onb-strong">
+                        {p.name}
+                      </Link>
+                    ) : (
+                      <span className="onb-strong">{p.name}</span>
+                    )}
+                    {p.path && <span className="mono onb-quiet">{p.path}</span>}
+                  </li>
+                ))}
+              </ul>
+              {ctx.products.some((p) => p.design) && <p className="onb-quiet">{PRODUCTS_COPY_LINE}</p>}
+            </>
           ) : (
             <p className="onb-quiet">No product is listed yet. Add them to bridge.config.json under products.</p>
           )}
@@ -749,7 +781,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
       break;
     case 'changes': {
       if (ctx.workspace) {
-        panel = needsRepo('When your team keeps an exploration, Bridge hands the change to your developers. You pick how once the repository is connected.');
+        panel = needsRepo('When your team keeps a library change, Bridge hands it to your developers. You pick how once the repository is connected.');
         break;
       }
       const chosen = step.state === 'done';
@@ -758,7 +790,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
           step={step}
           total={total}
           title="How changes reach your code"
-          lead="When your team keeps an exploration, Bridge hands the change to your developers. Pick how."
+          lead="When your team keeps a library change, Bridge hands it to your developers. Pick how. Product explorations always reach their developers as a task."
           footer={
             sent || chosen || step.state === 'waiting'
               ? nav()
@@ -778,7 +810,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
                       }
                     }}
                   >
-                    Continue
+                    Send for review
                   </Button>,
                 )
           }
@@ -803,7 +835,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
             <>
               <ChangesChoices value={mode} onChange={setMode} />
               {mode === 'suggest' && <DevelopersGet repo={ctx.repo} />}
-              <p className="onb-quiet">Change this later in Settings. Continue asks your team to review the choice.</p>
+              <p className="onb-quiet">Change this later in Settings. Send for review asks your team to approve the choice.</p>
               {error && (
                 <p className="rq-error" role="alert">
                   {error}
@@ -829,7 +861,6 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
             actions.mark('claude');
             next();
           }}
-          next={next}
         />
       );
       break;
@@ -842,16 +873,14 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
           title={STEP_TITLE.figma}
           lead="The plugin brings your tokens into Figma Variables and sends your variable edits for review."
           footer={nav(
-            done ? (
-              <Button onClick={next}>Continue</Button>
-            ) : (
+            done ? undefined : (
               <Button
                 onClick={() => {
                   actions.mark('figma');
                   next();
                 }}
               >
-                Mark as done
+                I installed it
               </Button>
             ),
           )}
@@ -881,7 +910,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
       <div className="onb-head">
         <Drawing name="hero" width={126} className="onb-art" />
         <h1 id="onb-title" className="onb-h1">
-          {ctx.account ? ENTRY_WORDS.setupTitle(name, ctx.account.teamName) : firstRunTitle(name, open === 'changes' ? 'changes' : 'library')}
+          {ctx.account ? ENTRY_WORDS.setupTitle(name, ctx.account.teamName) : firstRunTitle(name, open === 'changes' ? 'changes' : 'library', doneCount(steps) === steps.length)}
         </h1>
       </div>
       <div className="onb-main">{panel}</div>
@@ -1025,7 +1054,7 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
       /* private mode: kept for this visit only */
     }
   };
-  const [cfg, setCfg] = useState<{ name: string | null; changes: ChangesMode | null; owners?: { design: string[]; tech: string[] }; products: { name: string; path?: string }[]; storybook: string | null }>({
+  const [cfg, setCfg] = useState<{ name: string | null; changes: ChangesMode | null; owners?: { design: string[]; tech: string[] }; products: OnboardingContext['products']; storybook: string | null }>({
     name: null,
     changes: null,
     products: [],
@@ -1041,7 +1070,7 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
           name: c.name ?? null,
           changes: c.changes ?? null,
           owners: c.owners,
-          products: (c.products ?? []).map((p) => ({ name: p.name, path: p.path })),
+          products: (c.products ?? []).map((p) => ({ name: p.name, path: p.path, key: p.key, design: Boolean(p.design?.repo) })),
           storybook: null,
         });
       });
