@@ -466,7 +466,8 @@ export function contrastNeed(fail: number): NeedRow | null {
 }
 
 /**
- * Someone asks to join the team with their work email (board E7b, admins only): their name, "asks to join Acme
+ * Someone asks to join the team (board E7b, admins only), from a team open to their work domain or from the team's own
+ * address (NoAccess.tsx, Ask to join the team): their name, "asks to join Acme
  * Design", their email and the role they get. Approve and Decline sit in the row while 3 things or fewer wait; past
  * that it folds into "N more" like any row and opens Settings, Members (E7c).
  */

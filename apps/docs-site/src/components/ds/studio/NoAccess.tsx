@@ -4,6 +4,10 @@
 //     one primary action first (Sign in with GitHub, or Ask your lead for access, which copies a ready message), a
 //     secondary, quiet links and a note. The nav stays, so the team chip still says where you are.
 //   - banner: one DS Banner over a read-only Studio (guest on a public repository, Bridge not set up, outside the team).
+// "Ask to join the team" (outside the team, or a Bridge account that is not on it) sends a join request inside Bridge
+// on the hosted site (AskButton): the admins see it in their join rows (Home, Settings > Members) and approve it there.
+// Signed in with GitHub only, Bridge first signs the person in to an account with that GitHub (it has their email).
+// When Bridge cannot send it, the ready message is copied instead and the page says so.
 // "Continue with email" (real teams with email sign-in) opens the one sign-in screen of Bridge (pages/signin.astro)
 // with ?next=<this page>; GitHub stays the primary action here and an option there.
 // TeamAccessGate mounts it on every team page (layouts/Layout.astro, hosted only) and also opens the hosted
@@ -11,7 +15,7 @@
 import { useEffect, useState } from 'react';
 import '../../../styles/onboarding.css';
 import '../../../styles/requests.css';
-import { AlertTriangle, Check, Copy, Info, LogOut, Mail } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Info, LogOut, Mail, UserPlus } from 'lucide-react';
 import { Banner, Button, Link } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
 import ButtonLink from '../ButtonLink';
@@ -19,9 +23,9 @@ import { GitHubMark } from './brand-icons';
 import { Drawing } from './Drawing';
 import { useCopy } from './TeamLink';
 import { HostedOnboarding, setupStepFromUrl } from './Onboarding';
-import { accessScreen, SIGN_IN_PARAM, SIGNED_OUT_ELSEWHERE_KEY, signedOutScreen, teamLink, type AccessAction, type AccessScreen } from '../../../lib/access-view';
+import { accessScreen, ASK_WORDS, SIGN_IN_PARAM, SIGNED_OUT_ELSEWHERE_KEY, signedOutScreen, teamLink, type AccessAction, type AccessScreen } from '../../../lib/access-view';
 import { signInHref } from '../../../lib/account';
-import { studioBase } from '../../../lib/team-path';
+import { isHostedSite, studioBase } from '../../../lib/team-path';
 import { isDemoRepo } from '../../../lib/demo';
 import { updatedLine } from '../../../lib/activity-view';
 import { CONTRIBUTE_WORDS, contributeEligible } from '../../../lib/contribute';
@@ -36,8 +40,84 @@ const SESSION_ATTRS = {
   signout: { 'data-gh-forget': '' },
 } as const;
 
+/**
+ * Ask to join the team inside Bridge. Already asked (the server says so): the line instead of the button. Without a
+ * Bridge account, the GitHub sign-in of this browser makes or opens one first. Bridge cannot send it: the message is
+ * copied, and said.
+ */
+function AskButton({ action, variant, copy }: { action: Extract<AccessAction, { kind: 'ask' }>; variant: 'primary' | 'secondary'; copy: (text: string, done: string) => void }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'copied'>('idle');
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const { getAccount } = await import('../../../scripts/account-session');
+        if (!(await getAccount()).account) return;
+        const { askedToJoin } = await import('../../../scripts/entry-session');
+        if (live && (await askedToJoin(action.repo))) setState('sent');
+      } catch {
+        // The button stays.
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [action.repo]);
+  const fallback = () => {
+    setState('copied');
+    copy(action.fallback.text, ASK_WORDS.fallback);
+  };
+  const ask = async () => {
+    setState('busy');
+    try {
+      const acc = await import('../../../scripts/account-session');
+      if (!(await acc.getAccount()).account) {
+        const token = await acc.workingGitHubToken();
+        if (!token) return fallback();
+        await acc.signInWithGitHub(token);
+      }
+      const { askToJoin } = await import('../../../scripts/entry-session');
+      const r = await askToJoin(action.repo);
+      if ('joined' in r) {
+        // An invite was waiting: they are in.
+        location.assign(r.next || location.href);
+        return;
+      }
+      setState('sent');
+    } catch (err) {
+      // Already on the team (409): the page opens with their access.
+      if ((err as { status?: number }).status === 409) {
+        location.reload();
+        return;
+      }
+      fallback();
+    }
+  };
+  if (state === 'sent')
+    return (
+      <span className="na-sent" role="status">
+        <Check aria-hidden="true" size={16} /> {ASK_WORDS.sent}
+      </span>
+    );
+  return (
+    <>
+      <Button variant={variant} iconStart={state === 'copied' ? Check : UserPlus} loading={state === 'busy'} disabled={state === 'busy'} onClick={() => void ask()}>
+        {state === 'copied' ? 'Message copied' : state === 'busy' ? ASK_WORDS.sending : action.label}
+      </Button>
+      {/* Said once to a screen reader by the page's live line (useCopy); shown here for everyone else. */}
+      {state === 'copied' && (
+        <span className="na-quiet" aria-hidden="true">
+          {ASK_WORDS.fallback}
+        </span>
+      )}
+    </>
+  );
+}
+
 function ActionButton({ action, variant, copy, copied }: { action: AccessAction; variant: 'primary' | 'secondary'; copy: (text: string, done: string) => void; copied: boolean }) {
   switch (action.kind) {
+    case 'ask':
+      return <AskButton action={action} variant={variant} copy={copy} />;
     case 'email':
       return (
         <ButtonLink variant={variant} iconStart={Mail} href={signInHere()}>
@@ -199,6 +279,10 @@ export interface GateState {
   email?: boolean;
   /** The sign-in link from an email had expired. */
   emailExpired?: boolean;
+  /** This site sends join requests inside Bridge (the hosted one). */
+  asks?: boolean;
+  /** Signed in to a Bridge account that is not on this team. */
+  account?: boolean;
 }
 
 /**
@@ -232,16 +316,27 @@ export function TeamAccessGate() {
       setLink(teamLink(location.origin, studioBase(location.pathname, true)));
       if (document.documentElement.dataset.shell === 'home') setSetupAt(setupStepFromUrl(location.search));
       let email = false;
+      // Signed in to a Bridge account that is not on this team: it can ask to join from here (hosted site only).
+      let account = false;
+      const asks = isHostedSite();
       const paint = (access: ReturnType<typeof session.currentAccess>) => {
         const r = repoContext();
         const v = session.currentViewer();
-        setG({ owner: r.owner, repo: r.repo, login: v?.login ?? null, access: access?.state ?? null, repoAdmin: access?.repoAdmin === true || access?.admin === true, email, emailExpired: session.contributeLinkState() === 'expired' });
+        setG({ owner: r.owner, repo: r.repo, login: v?.login ?? null, access: access?.state ?? null, repoAdmin: access?.repoAdmin === true || access?.admin === true, email, emailExpired: session.contributeLinkState() === 'expired', asks, account });
       };
       session.initGitHubConnect(() => paint(session.currentAccess()));
       session.onAccess(paint);
       // Sign in with your email, on real teams whose site has the email server (one GET, shared with the session).
       const r = repoContext();
       const full = `${r.owner}/${r.repo}`;
+      if (asks) {
+        void import('../../../scripts/account-session').then(async ({ getAccount }) => {
+          const a = (await getAccount()).account;
+          if (!live || !a) return;
+          account = !a.teams.some((t) => t.repo.toLowerCase() === full.toLowerCase());
+          paint(session.currentAccess());
+        });
+      }
       if (contributeEligible(full, r.hosted)) {
         const { contributeInfo } = await import('../../../scripts/contribute-session');
         const info = await contributeInfo(full);
@@ -267,7 +362,7 @@ export function TeamAccessGate() {
 
   // The demo greets a guest itself (its demo banner, lib/demo.ts): no guest banner over it.
   const guestOnDemo = g?.access === 'anonymous-public' && isDemoRepo(`${g.owner}/${g.repo}`);
-  const stateScreen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin, email: Boolean(g.email), name: knownTeamName(`${g.owner}/${g.repo}`) }) : null;
+  const stateScreen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin, email: Boolean(g.email), name: knownTeamName(`${g.owner}/${g.repo}`), asks: Boolean(g.asks), account: Boolean(g.account) }) : null;
   const screen = signedOutElsewhere && g && !g.login ? signedOutScreen(g.owner, g.repo) : stateScreen;
   const block = screen?.layout === 'block';
   const setup = Boolean(g?.login && setupAt && !block);

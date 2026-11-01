@@ -34,6 +34,10 @@ interface World {
   names: Record<number, string>;
   /** bridge.config.json of each repository (none: 404). */
   configs: Record<string, unknown>;
+  /** Private repositories (GET /repos says private: true). */
+  privateRepos: Set<string>;
+  /** The repositories the user token can read (GET /repos/:o/:r with it). */
+  userReads: Set<string>;
 }
 
 function setup() {
@@ -45,6 +49,8 @@ function setup() {
     installed: new Set([REPO, 'acme/other']),
     names: {},
     configs: {},
+    privateRepos: new Set(),
+    userReads: new Set(),
   };
   const calls: string[] = [];
   const redis = memoryRedis(() => now);
@@ -61,6 +67,8 @@ function setup() {
         if (u.pathname === '/user') return res(200, { id: w.userId, login: 'ada' });
         if (u.pathname === '/user/installations') return res(200, { installations: [{ id: 5 }] });
         if (u.pathname === '/user/installations/5/repositories') return res(200, { repositories: w.userRepos });
+        const read = /^\/repos\/([^/]+\/[^/]+)$/.exec(u.pathname);
+        if (read && w.userReads.has(read[1]!.toLowerCase())) return res(200, { full_name: read[1], private: w.privateRepos.has(read[1]!.toLowerCase()) });
         return res(404, {});
       }
       if (auth !== `Bearer ${APP_TOKEN}`) return res(401, {});
@@ -79,7 +87,7 @@ function setup() {
       m = /^\/user\/(\d+)$/.exec(u.pathname);
       if (m) return res(200, { id: Number(m[1]), login: Number(m[1]) === 9 ? 'cara-now' : 'someone', ...(w.names[Number(m[1])] ? { name: w.names[Number(m[1])] } : {}) });
       m = /^\/repos\/([^/]+)\/([^/]+)$/.exec(u.pathname);
-      if (m && init.method === 'GET') return res(200, { owner: { login: m[1], type: 'Organization' }, default_branch: 'main' });
+      if (m && init.method === 'GET') return res(200, { owner: { login: m[1], type: 'Organization' }, default_branch: 'main', private: w.privateRepos.has(`${m[1]}/${m[2]}`.toLowerCase()) });
       m = /^\/repos\/([^/]+\/[^/]+)\/collaborators\/([^/]+)$/.exec(u.pathname);
       if (m && init.method === 'PUT') return res(204);
       return res(404, {});
@@ -727,5 +735,65 @@ describe('invite links (invite-link, the one identity of an invite)', () => {
   it('every other action still needs the session', async () => {
     const s = setup();
     expect((await post(s, null, { action: 'request', repo: REPO })).status).toBe(401);
+  });
+});
+
+describe('ask to join from the team address (any work domain)', () => {
+  it('a public team: a Gmail account asks, the admin sees it in the requests and approves with Can edit', async () => {
+    const s = setup();
+    const admin = await account(s, 'ada@acme.design', 'Ada Admin', { login: 'ada', id: 1 });
+    const sam = await account(s, 'sam.rivera@gmail.com', 'Sam Rivera');
+    const r = await post(s, sam, { action: 'ask', repo: REPO });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ requested: true });
+    // The admins get the email; it never says "work email" for a public mailbox.
+    expect(s.sent.map((m) => m.to)).toEqual(['ada@acme.design']);
+    expect(s.sent[0]!.text).not.toContain('work email');
+    expect(await (await get(s, sam, '?asked=acme/ds')).json()).toMatchObject({ asked: true });
+    // Asking again keeps one request.
+    expect(await (await post(s, sam, { action: 'ask', repo: REPO })).json()).toMatchObject({ requested: true, already: true });
+    const list = (await (await get(s, admin, `?requests=${REPO}`)).json()) as { requests: { id: string; email: string }[] };
+    expect(list.requests.map((x) => x.email)).toEqual(['sam.rivera@gmail.com']);
+    const ok = await post(s, admin, { action: 'approve', repo: REPO, id: list.requests[0]!.id });
+    expect(ok.status).toBe(200);
+    expect((await s.members.get(REPO, 'sam.rivera@gmail.com'))?.role).toBe('edit');
+    expect(await (await get(s, sam, '?asked=acme/ds')).json()).toEqual({ asked: false });
+  });
+
+  it('a private team: only with a linked GitHub account that reads it; anything else answers like no team', async () => {
+    const s = setup();
+    s.w.privateRepos.add(REPO);
+    const sam = await account(s, 'sam@else.dev', 'Sam', { login: 'ada', id: 1 });
+    // No GitHub sign-in sent: the same 404 as a team that does not exist.
+    const blind = await post(s, sam, { action: 'ask', repo: REPO });
+    expect(blind.status).toBe(404);
+    expect(await blind.json()).toMatchObject({ message: NOT_OPEN });
+    // Their GitHub sign-in cannot read it: still 404.
+    expect((await post(s, sam, { action: 'ask', repo: REPO }, { bearer: USER_TOKEN })).status).toBe(404);
+    s.w.userReads.add(REPO);
+    expect((await post(s, sam, { action: 'ask', repo: REPO }, { bearer: USER_TOKEN })).status).toBe(200);
+  });
+
+  it('a repository Bridge does not serve, a team made in Bridge, a member, an invite', async () => {
+    const s = setup();
+    const sam = await account(s, 'sam@else.dev', 'Sam');
+    expect((await post(s, sam, { action: 'ask', repo: 'acme/nobridge' })).status).toBe(404);
+    // A team made in Bridge (no repository): never asked from an address.
+    expect([400, 404]).toContain((await post(s, sam, { action: 'ask', repo: '_team/' + 'a'.repeat(20) })).status);
+    await s.members.put(REPO, { email: 'sam@else.dev', name: 'Sam', role: 'edit', version: 1, addedBy: 'ada', at: new Date(T0).toISOString() });
+    expect((await post(s, sam, { action: 'ask', repo: REPO })).status).toBe(409);
+    const s2 = setup();
+    const kim = await account(s2, 'kim@else.dev', 'Kim');
+    await invite(s2, { email: 'kim@else.dev' });
+    expect(await (await post(s2, kim, { action: 'ask', repo: REPO })).json()).toMatchObject({ joined: true });
+  });
+
+  it('asked never says anything about another person', async () => {
+    const s = setup();
+    const sam = await account(s, 'sam@else.dev', 'Sam');
+    const kim = await account(s, 'kim@else.dev', 'Kim');
+    await post(s, sam, { action: 'ask', repo: REPO });
+    expect(await (await get(s, kim, '?asked=acme/ds')).json()).toEqual({ asked: false });
+    expect(await (await get(s, kim, '?asked=not a repo')).json()).toEqual({ asked: false });
   });
 });
