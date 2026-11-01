@@ -21,6 +21,12 @@ export interface BridgeToolbarProps {
    * Bridge refuses or cannot be reached.
    */
   proxy?: string | null;
+  /**
+   * The repository this deploy was built from ("owner/name", such as VERCEL_GIT_REPO_OWNER/VERCEL_GIT_REPO_SLUG). When
+   * it is the product's design copy (products[].design.repo), the toolbar reads the copy's changes. Without it, the
+   * `bridge-repo` Studio puts in the link decides.
+   */
+  repo?: string | null;
   /** The deploy environment ("production", "preview"), when the host tells it at build time (VERCEL_ENV). */
   deployEnv?: string | null;
   /** Every fact at once, read at build time: no config read at run time (the Admin demo passes it). */

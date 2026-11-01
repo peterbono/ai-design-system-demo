@@ -48,6 +48,12 @@ export const OPEN_KEY = 'bridge-admin:toolbar-open';
 /** Changes tried together: the picks of the tokens they set differently (core encodePicks), from Studio. */
 export const USE_PARAM = 'bridge-use';
 export const USE_KEY = 'bridge-admin:use';
+/**
+ * The repository the change lives in, when it is not the product's own: the design team's copy (products[].design.repo).
+ * Studio adds it to the link; the switch between This change and Live product keeps it (the whole query is carried).
+ */
+export const REPO_PARAM = 'bridge-repo';
+export const REPO_KEY = 'bridge-admin:repo';
 /** At most this many changes are tried together. */
 export const MAX_TOGETHER = 4;
 
@@ -99,6 +105,24 @@ export function readChanges(search: string, storage: StorageLike | null): number
     return list;
   }
   return storage ? parseChanges(safe(() => storage.getItem(SESSION_KEY), null)) : [];
+}
+
+const REPO_RE = /^[\w.-]+\/[\w.-]+$/;
+
+/**
+ * The repository that came with the change (REPO_PARAM): from the address, kept for the session like the change, else
+ * the session's. Null when none or not "owner/name"; config.ts only honors it when it is the product's design copy.
+ */
+export function readRepo(search: string, storage: StorageLike | null): string | null {
+  const params = new URLSearchParams(search);
+  if (params.has(PARAM)) {
+    const raw = params.get(REPO_PARAM)?.trim() ?? '';
+    const repo = REPO_RE.test(raw) ? raw : null;
+    if (storage) safe(() => (repo ? storage.setItem(REPO_KEY, repo) : storage.removeItem(REPO_KEY)), undefined);
+    return repo;
+  }
+  const kept = storage ? safe(() => storage.getItem(REPO_KEY), null) : null;
+  return kept && REPO_RE.test(kept) ? kept : null;
 }
 
 /** The picks that came with the list: from the address, else the session. */

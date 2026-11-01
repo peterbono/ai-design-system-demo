@@ -14,7 +14,14 @@ vi.mock('../lib/explorations-view', async (importOriginal) => {
   return { ...real, explorationPreviews: () => [{ app: 'admin', label: 'Admin demo', url: reported, state: 'ready', source: 'comment' }] };
 });
 
-const { productPreviewOf, tryUrlOf } = await import('./product-branch');
+// The product repositories this page knows (bridge.config.json products[]): none, unless a test sets one.
+let repos: { product: ProductConfig; repo: string }[] = [];
+vi.mock('./product-repos', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./product-repos')>();
+  return { ...real, productRepoByKey: (key: string | null | undefined) => repos.find((x) => x.product.key === key) ?? null };
+});
+
+const { productPreviewOf, tryUrlOf, withToolbar } = await import('./product-branch');
 
 const r = { number: 9, branch: 'explore/x', headSha: 'abc' } as ExplorationRow;
 
@@ -50,5 +57,25 @@ describe('the preview of an exploration started for a product of the design syst
   it('finds it from the statuses alone when the Vercel comment is missing', () => {
     const p = productPreviewOf(r611, { comments: [], statuses: PR611.statuses }, 'admin', admin);
     expect([p?.url, p?.source, p?.state]).toEqual([ADMIN_611, 'status', 'ready']);
+  });
+});
+
+describe("an exploration in the design team's copy opens with the copy named (bridge-repo)", () => {
+  const COPY = 'art-print-shop-co/art-print-shop-design';
+  const shop = { key: 'admin-app', name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop', design: { repo: COPY } } as ProductConfig;
+  const preview = 'https://art-print-shop-design-git-explore-da-6e68e5-peterbonos-projects.vercel.app/';
+
+  it("adds the copy, so the toolbar reads change #1 there and not in the developers' repository", () => {
+    repos = [{ product: shop, repo: COPY }];
+    const url = new URL(withToolbar({ ...r, number: 1, product: 'admin-app' } as ExplorationRow)(preview)!);
+    expect(url.searchParams.get('bridge')).toBe('1');
+    expect(url.searchParams.get('bridge-repo')).toBe(COPY);
+  });
+
+  it("names no repository for the developers' own repository or the design system's", () => {
+    repos = [{ product: { ...shop, design: undefined } as ProductConfig, repo: 'art-print-shop-co/art-print-shop' }];
+    expect(withToolbar({ ...r, number: 1, product: 'admin-app' } as ExplorationRow)(preview)).toBe(`${preview}?bridge=1`);
+    repos = [];
+    expect(withToolbar(r)(preview)).toBe(`${preview}?bridge=9`);
   });
 });

@@ -30,6 +30,7 @@ import {
   placeToolbar,
   readChanges,
   readDock,
+  readRepo,
   readReturn,
   readScroll,
   readUse,
@@ -94,17 +95,19 @@ export default function ToolbarRoot(props: BridgeToolbarProps) {
   // The proxy prop wins over the one a build carries (default: production Bridge, reads.ts).
   const given = useMemo(() => (props.build && proxy !== undefined ? { ...props.build, proxy } : props.build), [props.build, proxy]);
   const [build, setBuild] = useState<BridgeBuild | null>(given ?? null);
+  // The design copy a change lives in: the prop (the host knows its own repository), else what Studio's link carried.
+  const [repo] = useState(() => props.repo ?? (typeof window === 'undefined' ? null : readRepo(window.location.search, session())));
   useEffect(() => {
     if (given || !ds || !product) return;
     let live = true;
-    loadBuild(ds, product, { studio, production, preview, deployEnv, ...(proxy !== undefined ? { proxy } : {}) }).then(
+    loadBuild(ds, product, { studio, production, preview, deployEnv, repo, ...(proxy !== undefined ? { proxy } : {}) }).then(
       (b) => live && setBuild(b),
       (err: Error) => console.warn(`Bridge toolbar: ${err.message}`),
     );
     return () => {
       live = false;
     };
-  }, [given, ds, product, studio, production, preview, deployEnv, proxy]);
+  }, [given, ds, product, studio, production, preview, deployEnv, repo, proxy]);
   if (!build) return null;
   return <Decide build={build} useScope={props.scope ?? useDocumentScope} shops={props.shops ?? []} together={props.together ?? null} />;
 }
@@ -663,11 +666,7 @@ function Toolbar({
         {screens ? elsewhereLine([]) : EMPTY_LINE}
       </p>
     )
-  ) : total && shownCount === 0 && position === null ? (
-    <p className={styles.note} role="status">
-      Nothing changed in view. Next takes you to {total === 1 ? 'the changed element' : `the ${total} changed elements`}.
-    </p>
-  ) : tg && T && side === 'after' && activeHere < T.included.length ? (
+  ) : total && shownCount === 0 && position === null ? null : tg && T && side === 'after' && activeHere < T.included.length ? (
     <p className={styles.note} role="status">
       {activeHere} of these {T.included.length} changes {activeHere === 1 ? 'shows' : 'show'} in {theme}. Changes lists what each one does here.
     </p>

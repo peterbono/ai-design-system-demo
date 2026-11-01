@@ -22,6 +22,8 @@ import {
   readScroll,
   RETURN_KEY,
   sameScreenOn,
+  readRepo,
+  REPO_KEY,
   SESSION_KEY,
   liveTokensUrl,
   shouldRender,
@@ -302,5 +304,30 @@ describe('token roles', () => {
     expect(stepOfToken('color.bg.default')).toBeNull();
     const [t] = tokenChanges('packages/tokens/src/brands/bridge.tokens.json', { palette: { primary: { 700: { $value: '{color.harbor.700}' } } } }, { palette: { primary: { 700: { $value: '{color.teal.700}' } } } });
     expect(t).toMatchObject({ name: 'Brand primary', step: 'Primary 700', theme: null, brand: 'bridge', cssVar: '--palette-primary-700' });
+  });
+});
+
+describe("the design copy a change lives in (bridge-repo)", () => {
+  const copy = 'art-print-shop-co/art-print-shop-design';
+  it('comes with the change, is kept for the session, and is dropped by a change without it', () => {
+    const store = memoryStorage();
+    expect(readRepo(`?bridge=1&bridge-repo=${copy}`, store)).toBe(copy);
+    expect(store.data.get(REPO_KEY)).toBe(copy);
+    // Later pages of the same session (the hash router drops the query): the session's.
+    expect(readRepo('', store)).toBe(copy);
+    // A new change from Studio without a copy: the product's own repository again.
+    expect(readRepo('?bridge=7', store)).toBeNull();
+    expect(store.data.has(REPO_KEY)).toBe(false);
+    expect(readRepo('?bridge=1&bridge-repo=not a repo', null)).toBeNull();
+  });
+  it('survives the switch from This change to Live product and back', () => {
+    const preview = `https://art-print-shop-design-git-explore-da-6e68e5-peterbonos-projects.vercel.app/?bridge=1&bridge-repo=${copy}&tenant=northwind`;
+    const u = new URL(preview);
+    const live = new URL(sameScreenOn('https://bridge-product-admin.vercel.app', { search: u.search, hash: '#/orders' }, { change: 1, returnTo: u.origin, marks: 1 }));
+    expect(live.searchParams.get('bridge-repo')).toBe(copy);
+    expect(readRepo(live.search, null)).toBe(copy);
+    const back = new URL(sameScreenOn(u.origin, { search: live.search, hash: live.hash }, { change: 1 }));
+    expect(back.searchParams.get('bridge-repo')).toBe(copy);
+    expect(back.hash).toBe('#/orders');
   });
 });

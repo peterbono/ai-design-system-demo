@@ -70,6 +70,11 @@ describe('topScreen', () => {
 });
 
 describe('tryInProductUrl', () => {
+  it("names the design team's copy the change lives in, and ignores anything that is not owner/name", () => {
+    expect(tryInProductUrl(`https://${ADMIN}/`, 1, null, 'art-print-shop-co/art-print-shop-design')).toBe(`https://${ADMIN}/?bridge=1&bridge-repo=art-print-shop-co%2Fart-print-shop-design`);
+    expect(tryInProductUrl(`https://${ADMIN}/`, 1, null, 'not a repo')).toBe(`https://${ADMIN}/?bridge=1`);
+  });
+
   it('opens the screen with the toolbar on, in its shop and theme', () => {
     expect(tryInProductUrl(`https://${ADMIN}/`, 101, { label: 'Order edit', route: '/orders/12', tenant: 'northwind', theme: 'light' })).toBe(
       `https://${ADMIN}/?bridge=101&tenant=northwind&theme=light#/orders/12`,
