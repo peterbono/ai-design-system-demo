@@ -1,5 +1,14 @@
 # @bridge-ds/core
 
+## 0.26.2
+
+### Patch Changes
+
+- 59b1406: More fixes from the journey tests. Starting an exploration in a design team's copy hands Claude the copy and the branch, never the developers' repository, and "Open the exploration" opens it in its product. An exploration that cannot be read says so in designer words. Being built reads the pull request of an older Claude fix, so a merged one reads Shipped. A merged change shows no approval rows, and the only owner who made a change is pointed to the owner override. An exploration handed to developers reads "Waiting to be picked up" everywhere, the same words as the Being built tab.
+- 8787292: Third round of fixes from the journey tests. Back to exploring on an exploration from a design team's copy closes the developers' task as not planned, with a word for them, and Done exploring said again reopens that same task instead of filing a second one. The activity reads Bridge's own Done exploring commit as "said done exploring" and shows "took it back to exploring", never a commit subject. Archiving an exploration of a product shows its archived state with Unarchive, not a blank page. Roles say that only leads change the library: Can edit explores products and asks for library changes. The component drawer puts "Open in the Library" and "Open on GitHub" apart, and an email member never sees the GitHub link. A change closed without merging shows no endless "Reading the before and after". Admins can rename a product on their team's own Studio too, not only on a team shell.
+- a7600d2: Fixes from the A-to-Z journey tests. A design copy exploration handed to developers follows their task: waiting to be picked up until someone is assigned, then being built, shipped once the task is closed as done (a Get the latest in the copy no longer reads as developers building). The task links the copy's real preview. Activity rows read commit subjects as sentences ("made a change: ...", Get the latest reads "brought in the latest product"). Settings review rules never show doc links or decision numbers. The empty Library page tells a designer of the team that the leads change the library.
+- 56a4023: Claude finds explorations in a design team's copy by their branch or their name, not only by their number. GitHub's branch filter on pull requests finds nothing in a fork that lives in the same organization as the product, so "Continue Bridge exploration" with the branch said "No open exploration" and Claude fell back to plain git. Bridge now reads the copy's open pull requests when that filter comes back empty. An exploration located in the copy carries the copy's preview pattern, so Continue and Done exploring link the copy's preview, and Done exploring files the task in the developers' repository as Studio does.
+
 ## 0.26.1
 
 ### Patch Changes
