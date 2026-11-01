@@ -481,6 +481,18 @@ export function vercelBranchAlias(project: string, branch: string, scope: string
   return `https://${label}.vercel.app/`;
 }
 
+/**
+ * A branch's preview from a URL template: the filled template, or, when its host is Vercel's branch alias
+ * (`https://<project>-git-{branch}-<scope>.vercel.app`) and too long for one host label, the alias Vercel shortens it
+ * to (vercelBranchAlias). Null when neither works.
+ */
+export function branchPreviewUrl(template: string | undefined, branch: string): string | null {
+  const direct = previewUrl(template, { branch });
+  if (direct || !template) return direct;
+  const m = /^https:\/\/([a-z0-9-]+)-git-\{branch\}-([a-z0-9-]+)\.vercel\.app\/?$/i.exec(template.trim());
+  return m ? vercelBranchAlias(m[1]!, branch, m[2]!) : null;
+}
+
 /** The project of a Vercel inspector URL (https://vercel.com/<scope>/<project>/<deployment id>). */
 function inspectorProject(url: string): string | null {
   const m = /^https:\/\/(?:www\.)?vercel\.com\/[a-z0-9-]+\/([a-z0-9._-]+)\/[A-Za-z0-9]+\/?$/i.exec(url);

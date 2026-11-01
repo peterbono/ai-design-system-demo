@@ -221,7 +221,7 @@ test('Done exploring from a copy opens a from-design task in the product reposit
     return res(404, { message: `no route ${method} ${path}` });
   }) as unknown as ConstructorParameters<typeof GitHubClient>[2];
   const gh = new GitHubClient('acme/shop-design', 't', f, NO_RETRY, { etags: false, protectedBranches: ['main'], branchPrefix: 'explore/' });
-  const r = await doneExploringOnGitHub(gh, 4, { products: PRODUCTS, previewUrl: 'https://shop-design-git-explore-orders.vercel.app', openedBy: 'ann', date: new Date('2026-11-01T10:00:00Z') });
+  const r = await doneExploringOnGitHub(gh, 4, { products: PRODUCTS, openedBy: 'ann', date: new Date('2026-11-01T10:00:00Z') });
   assert.deepEqual(r.task, { number: 7, url: 'https://github.com/acme/shop/issues/7', repo: 'acme/shop' });
   assert.deepEqual(r.take, designCopyTakeCommands('acme/shop-design', 'explore/orders'));
   // In the developers' repository: the label and the task only, never a branch or a pull request.
@@ -234,6 +234,8 @@ test('Done exploring from a copy opens a from-design task in the product reposit
   assert.equal(issue.body.title, 'Design: Orders');
   assert.match(issue.body.body, /src\/pages\/Orders\.tsx/);
   assert.doesNotMatch(issue.body.body, /\.bridge\/explorations/);
+  // No preview passed: the copy's own preview of the branch, never a pointer to a Vercel comment.
+  assert.match(issue.body.body, /\*\*Preview\.\*\* https:\/\/shop-design-git-explore-orders\.vercel\.app\//);
   // The exploration records the task.
   assert.equal(parseExplorationBody(pull.body)?.task, 'https://github.com/acme/shop/issues/7');
   assert.ok(explorationNote(e).length > 0);

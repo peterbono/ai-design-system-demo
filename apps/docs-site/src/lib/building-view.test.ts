@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { assembleBuildRequests, composeBuildRequestIssue, figmaAheadLine, buildSummaryLine, DEFAULT_PRODUCTS, type ProductConfig } from '@bridge-ds/core';
 import { sampleBuildData, SAMPLE_BUILDERS } from './building-sample';
 import { ageLabel, buildDetail, explorationBuildRows, mergeRows, type RestPull, detailFromQuery, detailQuery, filterCounts, jiraLink, listedRows, pageSentence, rowThumb, propLine, rowLine, slimIssue, slimPull, statusTag, timelineSteps, toBuildIssue, toBuildPull, matchesBuildTab, withLifecycle } from './building-view';
+import type { DesignTaskRead } from './review-state';
 
 const NOW = Date.parse('2026-10-24T12:00:00Z');
 const sample = () => {
@@ -213,6 +214,22 @@ describe('Being built: explorations handed to developers', () => {
     const older = rows([pull(13, { done: { doneBy: undefined } })])[0]!;
     expect(older.exploration.line).toMatch(/^Done exploring on \w+ \d+$/);
     expect(older.requestedBy).toBe('ann');
+  });
+
+  it("follows the developers' task of a design copy exploration, not the copy's own head", () => {
+    const task = (n: number) => `https://github.com/acme/shop/issues/${n}`;
+    // The copy got the latest (a new head) and nobody is assigned to the task yet: waiting to be picked up.
+    const copy = (n: number) => ({ ...pull(n, { name: `Screen ${n}`, head: { ref: `explore/screen-${n}`, sha: 'h9' }, done: { task: task(n) } }), product: 'shop' });
+    const reads: Record<string, DesignTaskRead> = {
+      [task(30)]: { assignees: [], state: 'open', stateReason: null, closedAt: null },
+      [task(31)]: { assignees: [{ login: 'theo' }], state: 'open', stateReason: null, closedAt: null },
+      [task(32)]: { assignees: [{ login: 'theo' }], state: 'closed', stateReason: 'completed', closedAt: iso(1) },
+      [task(33)]: { assignees: [], state: 'closed', stateReason: 'not_planned', closedAt: iso(1) },
+    };
+    const list = explorationBuildRows([copy(30), copy(31), copy(32), copy(33), copy(34)], { products, now: NOW, nameOf, task: (u) => reads[u] ?? null });
+    expect(list.map((r) => `${r.number}:${r.status}`)).toEqual(['30:requested', '31:in-progress', '32:shipped', '34:requested']);
+    expect(list[1]!.builders).toEqual(['theo']);
+    expect(list[2]!.exploration.line).toBe('Shop · Shipped 1 day ago');
   });
 
   it('waits more than a week: highlighted, and counted in the sentence and the merged list', () => {

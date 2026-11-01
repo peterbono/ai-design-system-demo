@@ -159,8 +159,13 @@ export function productFacts(product: ProductConfig, ownRepo: string | null, rea
   };
 }
 
-/** The empty product page: why it is worth starting, in one sentence, before the one action (the header says it is empty). */
-export function emptyProductLine(product: ProductConfig, library: boolean): string {
+/**
+ * The empty product page: why it is worth starting, in one sentence, before the one action (the header says it is
+ * empty). The library is a lead's to change (create-branch libraryLead): a designer of the team (`lead` false) gets no
+ * start action there, so the line says where their asks go instead.
+ */
+export function emptyProductLine(product: ProductConfig, library: boolean, lead = true): string {
+  if (library && !lead) return 'The design system leads change the library. To ask for a change, open the component in Components.';
   return library
     ? 'Try a token, a variant or a new component with Claude AI, in a safe copy of the library, before it goes to review.'
     : `Try one of the screens of ${product.name} with Claude AI. Bridge spots what the library does not have, and what works goes to review.`;

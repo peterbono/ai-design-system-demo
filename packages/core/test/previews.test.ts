@@ -119,7 +119,7 @@ test('config: production URLs load and refuse placeholders', () => {
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { GitHubClient, type FetchLike } from '../src/github-client';
-import { appForProject, findVercelComment, isVercelComment, parseVercelComment, previewLinksOf, previewsSettled, projectOfLabel, resolveBranchPreviews, vercelBranchAlias } from '../src/previews';
+import { appForProject, findVercelComment, isVercelComment, parseVercelComment, previewLinksOf, previewsSettled, projectOfLabel, resolveBranchPreviews, vercelBranchAlias, branchPreviewUrl } from '../src/previews';
 import { branchPreviewUrls } from '../src/previews-github';
 import { productPreview } from '../src/try-in-product';
 
@@ -350,4 +350,13 @@ test('resolveBranchPreviews: a repository with one Vercel project reports plain 
   // Another project's plain status names no app of this template.
   const other = [{ ...statuses[0]!, target_url: 'https://vercel.com/peterbonos-projects/someone-else/Ab2C7mytWCNDFWoenZ7kBodVLG2n' }];
   assert.equal(resolveBranchPreviews(apps, ctx, { statuses: other }).find((p) => p.app === 'admin')!.url, null);
+});
+
+test("branchPreviewUrl: a design copy's preview, Vercel's shortened alias when the branch is long", () => {
+  const template = 'https://art-print-shop-design-git-{branch}-peterbonos-projects.vercel.app';
+  // Seen on the real copy: the alias Vercel gave explore/dashboard-orders-waiting-to-ship.
+  assert.equal(branchPreviewUrl(template, 'explore/dashboard-orders-waiting-to-ship'), 'https://art-print-shop-design-git-explore-da-6e68e5-peterbonos-projects.vercel.app/');
+  assert.equal(branchPreviewUrl(template, 'explore/a'), 'https://art-print-shop-design-git-explore-a-peterbonos-projects.vercel.app/');
+  assert.equal(branchPreviewUrl('https://shop.example.com/{pr}', 'explore/a'), null);
+  assert.equal(branchPreviewUrl(undefined, 'explore/a'), null);
 });

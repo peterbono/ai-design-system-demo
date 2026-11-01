@@ -92,6 +92,11 @@ describe('done exploring: status, plan and body', () => {
     expect(explorationStatus({ ...base, headSha: 'aaa', draft: false })).toBe('building');
     expect(explorationStatus({ ...base, state: 'closed', merged_at: '2026-11-01' })).toBe('shipped');
     expect(explorationStatus({ ...base, state: 'closed' })).toBe('closed');
+    // From the design team's copy, with a task in the developers' repository: a Get the latest moves the copy's head
+    // and nobody undrafts it, so the copy says nothing about the developers. Studio reads the task.
+    const copied = withDoneExploring(body, { branch: 'explore/pill-buttons', doneAt: '2026-10-30T09:00:00Z', doneSha: 'aaa', copy: 'acme/app-design', task: 'https://github.com/acme/app/issues/7' });
+    expect(explorationStatus({ ...base, body: copied, headSha: 'bbb' })).toBe('ready');
+    expect(explorationStatus({ ...base, body: copied, headSha: 'bbb', draft: false })).toBe('ready');
     // The label could not be removed (a token without the right to edit labels): done exploring still stands.
     expect(explorationStatus({ ...base, labels: [EXPLORATION_LABEL], headSha: 'aaa' })).toBe('ready');
     // Held out of the review queue while it runs, is archived, or is with the developers as a draft.

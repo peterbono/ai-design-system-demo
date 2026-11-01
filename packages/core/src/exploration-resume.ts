@@ -205,15 +205,15 @@ export function isClaudeCommit(c: BranchCommitLike): boolean {
 export const isStartCommit = (c: BranchCommitLike): boolean => /^chore\(explore\): start /.test(c.commit.message);
 
 /** Git's own subject for a merge ("Merge branch 'main' into explore/x", "Merge pull request #3 from ..."). */
-export const isMergeSubject = (subject: string): boolean => /^Merge (branch|remote-tracking branch|pull request|commit)\b/.test(subject.trim());
+export const isMergeSubject = (subject: string): boolean => /^(Merge (branch|remote-tracking branch|pull request|commit)|Get the latest)\b/.test(subject.trim());
 
 /** What a merge of the latest work into the branch reads as, after the actor: never git's own words. */
 export const MERGE_WORDS = 'brought in the latest product';
 
 /**
  * A commit subject in words after the actor: "feat(orders): add row selection" -> "added row selection". Conventional
- * prefixes go, an imperative first verb turns past, em dashes become commas. A merge reads MERGE_WORDS. Other
- * subjects: "changed things: <subject>".
+ * prefixes go, an imperative first verb turns past, em dashes become commas. A merge (or Bridge's own "Get the
+ * latest") reads MERGE_WORDS. Other subjects keep their words after "made a change:", never a broken sentence.
  */
 export function subjectWords(subject: string): string {
   if (isMergeSubject(subject)) return MERGE_WORDS;
@@ -227,7 +227,7 @@ export function subjectWords(subject: string): string {
   const past = PAST[first!.toLowerCase()];
   if (past) return [past, ...rest].join(' ');
   if (/^(added|built|changed|fixed|made|moved|removed|renamed|replaced|updated|used|tried|swapped|tweaked)$/i.test(first!)) return [first!.toLowerCase(), ...rest].join(' ');
-  return `changed ${/^[A-Z][a-z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s}`;
+  return `made a change: ${s.charAt(0).toUpperCase()}${s.slice(1)}`;
 }
 
 const dateOf = (c: BranchCommitLike) => c.commit.author?.date ?? c.commit.committer?.date ?? '';

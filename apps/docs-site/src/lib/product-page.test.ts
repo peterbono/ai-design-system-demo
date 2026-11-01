@@ -139,7 +139,10 @@ describe('product facts', () => {
   });
 
   it('gives the empty page a reason, never an em dash', () => {
-    for (const line of [emptyProductLine(products[0]!, false), emptyProductLine(products[1]!, true)]) {
+    // A designer of the team cannot start in the library: the line says where their asks go, never "Try".
+    expect(emptyProductLine(products[1]!, true, false)).toMatch(/^The design system leads change the library\./);
+    expect(emptyProductLine(products[0]!, false, false)).toMatch(/^Try one of the screens/);
+    for (const line of [emptyProductLine(products[0]!, false), emptyProductLine(products[1]!, true), emptyProductLine(products[1]!, true, false)]) {
       expect(line).not.toContain('—');
       expect(line.endsWith('.')).toBe(true);
     }

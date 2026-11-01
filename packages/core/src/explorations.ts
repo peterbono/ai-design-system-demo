@@ -419,6 +419,9 @@ export function explorationStatus(p: ExplorationPullLike): ExplorationStatus {
   if (p.state === 'open' && !block?.doneAt && (labelNames(p.labels).includes(EXPLORATION_LABEL) || Boolean(block?.reopenedAt) || isUnlabeledExploration(p))) return 'active';
   if (!isHandedOff(p)) return 'promoted';
   if (merged) return 'shipped';
+  // From the design team's copy, Done exploring sent the developers a task in their own repository: the copy's draft
+  // state and its new commits (a Get the latest) say nothing about them. The task says it (Studio reads it).
+  if (block?.task) return 'ready';
   if (p.draft === false) return 'building';
   const doneSha = block?.doneSha;
   if (doneSha && p.headSha && p.headSha !== doneSha) return 'building';

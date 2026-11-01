@@ -25,6 +25,7 @@ import {
 import { findExplorationOnGitHub } from './explorations-github';
 import { GitHubError, type GitHubClient } from './github-client';
 import { proposePiecesOnGitHub, type ProposedPieces } from './prod-branch-github';
+import { branchPreviewUrl } from './previews';
 import { productCodeRepoOf, productOfDesignCopy, type ProductConfig } from './products';
 import { designTaskBody, designTaskTitle, FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION } from './design-copy-github';
 import type { RequestSource } from './requests';
@@ -118,7 +119,8 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
       body: designTaskBody({
         name,
         purpose: e?.purpose,
-        previewUrl: input.previewUrl,
+        // The copy's own preview of this branch when Studio did not pass one: a real link, not a pointer to a comment.
+        previewUrl: input.previewUrl ?? branchPreviewUrl(copyOf?.design?.preview, p.headRef),
         changes: files.filter((f) => !plan.removeFiles.includes(f.filename)).map((f) => f.filename),
         pieces: out.pieces.proposed.map((x) => ({ title: x.title, url: x.url })),
         copy: gh.fullName,

@@ -66,7 +66,8 @@ import { siteApprovers } from './teams';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
-import { explorationLifecycle, reviewStateOf } from '../lib/review-state';
+import { explorationLifecycle, reviewStateOf, taskStatus } from '../lib/review-state';
+import { readDesignTask } from './design-task';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -129,21 +130,6 @@ async function readyLabelEvent(r: ExplorationRow): Promise<{ login: string; at: 
     const events = (await ghGet<{ event: string; label?: { name?: string }; actor?: { login?: string } | null; created_at: string }[]>(`${own ? `/repos/${own.repo}` : R}/issues/${r.number}/events?per_page=100`)).data;
     const e = [...events].reverse().find((x) => x.event === 'labeled' && x.label?.name === 'ready-for-devs' && x.actor?.login);
     return e ? { login: e.actor!.login!, at: e.created_at } : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * The developers' task Done exploring opened from a design copy (its issue URL in the exploration block): who is
- * assigned, and whether it is closed. Null when it cannot be read.
- */
-async function readTask(url: string): Promise<{ assignees: { login: string }[]; state: string; stateReason: string | null; closedAt: string | null } | null> {
-  const m = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)$/.exec(url.trim());
-  if (!m) return null;
-  try {
-    const i = (await ghGet<{ assignees?: { login: string }[] | null; state: string; state_reason?: string | null; closed_at?: string | null }>(`/repos/${m[1]}/issues/${m[2]}`)).data;
-    return { assignees: i.assignees ?? [], state: i.state, stateReason: i.state_reason ?? null, closedAt: i.closed_at ?? null };
   } catch {
     return null;
   }
@@ -367,8 +353,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const block = parseExplorationBody(pull.body);
   // From the design team's copy, the developers work from their task in their own repository: who is assigned to it,
   // and whether they closed it as done (shipped). One read.
-  const task = inCopy && block?.task ? await readTask(block.task) : null;
-  const status = (task?.state === 'closed' && task.stateReason === 'completed' ? 'shipped' : r.status) as 'ready' | 'building' | 'shipped';
+  const task = inCopy && block?.task ? await readDesignTask(block.task) : null;
+  const fromTask = task ? taskStatus(task) : null;
+  const status = (fromTask ? (fromTask === 'closed' ? 'ready' : fromTask) : r.status) as 'ready' | 'building' | 'shipped';
   const label = doneByOf(commits) ? null : await readyLabelEvent(r);
   const doneLogin = doneByOf(commits) ?? label?.login ?? r.author;
   const doneAt = block?.doneAt ?? label?.at ?? null;
