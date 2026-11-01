@@ -164,7 +164,7 @@ export function designCopyOf(p: ProductConfig | null | undefined, designSystemRe
  * The product as its explorations in the design team's copy see it: the copy's preview pattern stands for `preview`
  * (none when the copy has no preview deploys yet), since every exploration preview is a deploy of the copy.
  */
-function withCopyPreview(p: ProductConfig): ProductConfig {
+export function withCopyPreview(p: ProductConfig): ProductConfig {
   const { preview: _preview, ...rest } = p;
   return p.design?.preview ? { ...rest, preview: p.design.preview } : rest;
 }

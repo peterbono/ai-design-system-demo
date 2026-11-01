@@ -155,6 +155,52 @@ describe('explorations in a product repository', () => {
     expect(ds.issues[0]!.body).not.toContain('shop-git-explore-wishlist-button');
   });
 
+  it("the design team's copy (a fork in the same organization): Continue by number, product ref, branch or name; Done exploring files the task in the developers' repository", async () => {
+    const tree = readTree(REPO, [...REAL_PATHS, 'packages/react/src/components/Badge']);
+    const cfg = JSON.parse(tree['bridge.config.json']!);
+    cfg.products = [
+      { key: 'shop', name: 'Shop', repo: 'acme/shop', design: { repo: 'acme/shop-design', preview: 'https://shop-design-git-{branch}-acme.vercel.app' }, preview: 'https://shop-git-{branch}-acme.vercel.app' },
+      { key: 'library', name: 'Library', default: true },
+    ];
+    const ds = fakeGitHub('acme', 'ds', { ...tree, 'bridge.config.json': `${JSON.stringify(cfg, null, 2)}\n` });
+    const code = fakeGitHub('acme', 'shop', { 'package.json': '{"name":"shop"}' });
+    const copy = fakeGitHub('acme', 'shop-design', { 'package.json': '{"name":"shop"}' });
+    const fetch = ((url: string, init?: RequestInit) => {
+      const u = String(url);
+      // GitHub reads head=acme:<branch> as the network's root (acme/shop) for a fork in the same organization: nothing.
+      if (u.includes('/repos/acme/shop-design/pulls?') && new URL(u).searchParams.get('head')) return Promise.resolve(new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      if (u.includes('/repos/acme/shop-design')) return copy.fetch(url, init);
+      return u.includes('/repos/acme/shop/') || u.endsWith('/repos/acme/shop') ? code.fetch(url, init) : ds.fetch(url, init);
+    }) as typeof globalThis.fetch;
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch });
+    const slug = 'invoices-header';
+    const main = copy.refs.get('main')!;
+    const files = new Map(copy.commits.get(main)!.files);
+    files.set('src/invoices/Invoices.tsx', TSX);
+    files.set(`.bridge/explorations/${slug}.md`, '# Exploration: Invoices header\n');
+    const c = copy.id();
+    copy.commits.set(c, { files, parents: [main] });
+    copy.refs.set(`explore/${slug}`, c);
+    const body = `## Exploration: Invoices header\n\n<!-- bridge-exploration ${JSON.stringify({ name: 'Invoices header', purpose: '', slug, author: 'ann' })} -->`;
+    copy.pulls.push({ number: 1, node_id: 'PR_copy_1', title: 'Exploration: Invoices header', body, state: 'open', draft: true, user: { login: 'ann' }, head: { ref: `explore/${slug}`, sha: c }, base: { ref: 'main' }, labels: [{ name: 'exploration' }, { name: 'product: shop' }], html_url: 'https://github.com/acme/shop-design/pull/1', updated_at: '2026-11-01T00:00:00Z' });
+
+    for (const ref of ['shop#1', `explore/${slug}`, 'Invoices header', slug]) {
+      const r = (await explorations.continueExploration(ctx, { ref, checkout: false })) as any;
+      expect(r, ref).toMatchObject({ ref: 'shop#1', number: 1, repo: 'acme/shop-design', branch: `explore/${slug}` });
+    }
+    const list = await explorations.listExplorations(ctx, {});
+    expect(list.explorations[0]).toMatchObject({ ref: 'shop#1', repo: 'acme/shop-design', previews: [{ url: 'https://shop-design-git-explore-invoices-header-acme.vercel.app/' }] });
+
+    const done = await explorations.doneExploring(ctx, { ref: `explore/${slug}` });
+    expect(done).toMatchObject({ status: 'done-exploring', ref: 'shop#1', repo: 'acme/shop-design' });
+    // The developers get a task in their own repository, with the copy's preview of the branch.
+    expect(code.issues).toHaveLength(1);
+    expect(code.issues[0]!.labels.map((l: any) => (typeof l === 'string' ? l : l.name))).toContain('from-design');
+    expect(code.issues[0]!.body).toContain('https://shop-design-git-explore-invoices-header-acme.vercel.app');
+    expect(code.issues[0]!.body).not.toContain('https://shop-git-explore');
+    expect(code.pulls).toHaveLength(0);
+  });
+
   it('the draft body of a product exploration: the preview row says where the link is, closing does not talk about prereleases', () => {
     const body = explorationPrBody(
       { name: 'Wishlist button on product cards', slug: 'wishlist-button-on-product-cards', purpose: '' },
