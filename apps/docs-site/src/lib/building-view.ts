@@ -30,7 +30,7 @@ import { daysSince, type PillTone } from './home-model';
 import { safeUrl } from './html';
 import { isProductBranch } from './product-branch';
 import { explorationHref } from './explorations-view';
-import { explorationLifecycle, LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, taskStatus, type DesignTaskRead, type LifecycleStage, type PullReviewLike } from './review-state';
+import { DEV_VERSION_READY, LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, taskStage, type DesignTaskRead, type LifecycleStage, type PullReviewLike } from './review-state';
 
 /** The fields of a GitHub issue the page reads (GET /repos/{o}/{r}/issues). */
 export interface RestIssue {
@@ -457,9 +457,9 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
     // From the design team's copy, the developers build from their task: its state, when read, says where it stands.
     const taskUrl = parseExplorationBody(p.body)?.task;
     const task = taskUrl && !merged ? (ctx.task?.(taskUrl) ?? null) : null;
-    const fromTask = task ? taskStatus(task) : null;
+    const fromTask = task ? taskStage(task) : null;
     if (fromTask === 'closed') return [];
-    const stage: LifecycleStage = fromTask ? explorationLifecycle({ status: fromTask }) : lifecycle.stage;
+    const stage: LifecycleStage = fromTask ?? lifecycle.stage;
     const status = STAGE_BUILD_STATUS[stage];
     if (!status) return [];
     const shippedAt = status === 'shipped' ? (task?.closedAt ?? p.merged_at ?? null) : null;
@@ -475,7 +475,8 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
     const stale = status === 'requested' && ageDays > BUILD_STALE_DAYS;
     const done = `Done exploring${doneBy ? ` by ${nameOf(doneBy)}` : ''}${doneAt ? ` on ${shortDate(doneAt)}` : ''}`;
     const s = shippedAt ? daysSince(shippedAt, ctx.now) : 0;
-    const reviewWords = stage === 'in-review' ? reviewLine(review, { viewer: ctx.viewer ?? null, nameOf }) : null;
+    // The developers' version of a design copy exploration waits for the designer's eyes, not for a code review.
+    const reviewWords = stage === 'in-review' ? (task?.devPull ? DEV_VERSION_READY : reviewLine(review, { viewer: ctx.viewer ?? null, nameOf })) : null;
     const where: Record<BuildStatus, string | null> = {
       requested: null,
       'picked-up': null,

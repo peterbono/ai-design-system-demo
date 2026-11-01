@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { explorationLifecycle, explorationNameOf, lastSays, LIFECYCLE_LABEL, needsReviewRead, pullLifecycle, reviewAsked, reviewersAsked, reviewLine, reviewsFromStatus, reviewStateOf, reviewVerdictOf, waitsOnViewer, type LifecyclePull } from './review-state';
+import { designReviewComment, designReviewOf, devPullOfTimeline, taskStage, explorationLifecycle, explorationNameOf, lastSays, LIFECYCLE_LABEL, needsReviewRead, pullLifecycle, reviewAsked, reviewersAsked, reviewLine, reviewsFromStatus, reviewStateOf, reviewVerdictOf, waitsOnViewer, type LifecyclePull } from './review-state';
 import { jargonIn } from './vocabulary';
 
 const r = (login: string, state: string) => ({ user: { login }, state });
@@ -131,5 +131,49 @@ describe('the lifecycle', () => {
     expect(explorationNameOf({ number: 3, body: block({ name: 'denser tables' }) })).toBe('Denser tables');
     expect(explorationNameOf({ number: 3, title: 'Exploration: billing screen' })).toBe('Billing screen');
     expect(explorationNameOf({ number: 3 })).toBe('Exploration #3');
+  });
+});
+
+describe("the developers' version of a design task", () => {
+  const xref = (number: number, repo: string, state = 'open', extra: Record<string, unknown> = {}) => ({
+    event: 'cross-referenced',
+    source: { type: 'issue', issue: { number, html_url: `https://github.com/${repo}/pull/${number}`, state, pull_request: { merged_at: null }, repository: { full_name: repo }, ...extra } },
+  });
+
+  it('finds the newest open pull request of the developers that links the task', () => {
+    const events = [
+      { event: 'labeled' },
+      xref(5, 'acme/shop'),
+      { event: 'cross-referenced', source: { type: 'issue', issue: { number: 6, html_url: 'https://github.com/acme/shop/issues/6', state: 'open', repository: { full_name: 'acme/shop' } } } },
+      xref(7, 'acme/shop-design'),
+      xref(8, 'acme/shop', 'closed'),
+      xref(9, 'Acme/Shop', 'open', { draft: true }),
+    ];
+    expect(devPullOfTimeline(events, 'acme/shop')).toEqual({ number: 9, url: 'https://github.com/Acme/Shop/pull/9', draft: true });
+    expect(devPullOfTimeline(events.slice(0, 4), 'acme/shop')).toEqual({ number: 5, url: 'https://github.com/acme/shop/pull/5' });
+    expect(devPullOfTimeline([xref(10, 'acme/shop', 'open', { pull_request: { merged_at: '2026-10-31T00:00:00Z' } })], 'acme/shop')).toBeNull();
+    expect(devPullOfTimeline([], 'acme/shop')).toBeNull();
+  });
+
+  it('reads the stage from the task and that pull request', () => {
+    const open = { assignees: [], state: 'open', stateReason: null, closedAt: null };
+    expect(taskStage(open)).toBe('waiting-for-code');
+    expect(taskStage({ ...open, assignees: [{ login: 'sam' }] })).toBe('being-built');
+    expect(taskStage({ ...open, devPull: { number: 9, url: 'u' } })).toBe('in-review');
+    expect(taskStage({ ...open, devPull: { number: 9, url: 'u', draft: true } })).toBe('being-built');
+    expect(taskStage({ ...open, state: 'closed', stateReason: 'completed', devPull: { number: 9, url: 'u' } })).toBe('shipped');
+    expect(taskStage({ ...open, state: 'closed', stateReason: 'not_planned' })).toBe('closed');
+  });
+
+  it('posts the answer in developer words and finds the last one again', () => {
+    expect(designReviewComment({ kind: 'looks-right' })).toBe('Design review from Bridge: looks right.');
+    expect(designReviewComment({ kind: 'changes', text: ' Bigger title.  ' })).toBe('Design review from Bridge: needs changes: Bigger title.');
+    const comments = [
+      { body: designReviewComment({ kind: 'changes', text: 'Bigger title.' }), user: { login: 'ann' }, created_at: '2026-10-31T09:00:00Z' },
+      { body: 'Done, have another look.', user: { login: 'sam' }, created_at: '2026-10-31T10:00:00Z' },
+    ];
+    expect(designReviewOf(comments)).toEqual({ kind: 'changes', login: 'ann', text: 'Bigger title.', at: '2026-10-31T09:00:00Z' });
+    expect(designReviewOf([...comments, { body: designReviewComment({ kind: 'looks-right' }), user: { login: 'ann' }, created_at: '2026-10-31T11:00:00Z' }])).toMatchObject({ kind: 'looks-right', text: null });
+    expect(designReviewOf([{ body: 'Looks right to me', user: { login: 'x' } }])).toBeNull();
   });
 });

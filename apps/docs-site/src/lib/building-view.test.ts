@@ -232,6 +232,19 @@ describe('Being built: explorations handed to developers', () => {
     expect(list[2]!.exploration.line).toBe('Shop · Shipped 1 day ago');
   });
 
+  it("reads In review once the developers open their pull request on the task, Being built while it is a draft", () => {
+    const task = (n: number) => `https://github.com/acme/shop/issues/${n}`;
+    const copy = (n: number) => ({ ...pull(n, { name: `Screen ${n}`, head: { ref: `explore/screen-${n}`, sha: 'h9' }, done: { task: task(n) } }), product: 'shop' });
+    const dev = (number: number, draft?: boolean) => ({ number, url: `https://github.com/acme/shop/pull/${number}`, ...(draft === undefined ? {} : { draft }) });
+    const reads: Record<string, DesignTaskRead> = {
+      [task(40)]: { assignees: [], state: 'open', stateReason: null, closedAt: null, devPull: dev(90) },
+      [task(41)]: { assignees: [{ login: 'theo' }], state: 'open', stateReason: null, closedAt: null, devPull: dev(91, true) },
+    };
+    const list = explorationBuildRows([copy(40), copy(41)], { products, now: NOW, nameOf, task: (u) => reads[u] ?? null });
+    expect(list.map((r) => `${r.number}:${r.status}`)).toEqual(['40:in-review', '41:in-progress']);
+    expect(list[0]!.exploration.line).toContain("The developers' version is ready for your eyes");
+  });
+
   it('waits more than a week: highlighted, and counted in the sentence and the merged list', () => {
     const late = rows([pull(14, { done: { doneAt: iso(9) } })]);
     expect(late[0]).toMatchObject({ status: 'requested', stale: true });

@@ -9,7 +9,7 @@
 // reviews once the developers started), and the library part. A product exploration never checked against the
 // library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
 // viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { archiveExplorationOnGitHub, explorationStage, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { archiveExplorationOnGitHub, branchPreviewUrl, explorationStage, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
   reopenedOf,
@@ -67,8 +67,8 @@ import { siteApprovers } from './teams';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
-import { explorationLifecycle, reviewStateOf, taskStatus } from '../lib/review-state';
-import { readDesignTask } from './design-task';
+import { explorationLifecycle, reviewStateOf, taskStage, taskStatus, type DesignAnswer } from '../lib/review-state';
+import { answerDevPull, readDesignTask, readDevPull, taskRef } from './design-task';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -368,8 +368,11 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // From the design team's copy, the developers work from their task in their own repository: who is assigned to it,
   // and whether they closed it as done (shipped). One read.
   const task = inCopy && block?.task ? await readDesignTask(block.task) : null;
+  // The developers' own pull request on that task (their version), with its branch and the designer's last answer.
+  const devRepo = task?.devPull && block?.task ? (taskRef(block.task)?.repo ?? null) : null;
+  const devRead = devRepo && task?.devPull ? await readDevPull(devRepo, task.devPull) : null;
   const fromTask = task ? taskStatus(task) : null;
-  const status = (fromTask ? (fromTask === 'closed' ? 'ready' : fromTask) : r.status) as 'ready' | 'building' | 'shipped';
+  const status = (devRead && fromTask !== 'shipped' ? 'building' : fromTask ? (fromTask === 'closed' ? 'ready' : fromTask) : r.status) as 'ready' | 'building' | 'shipped';
   const label = doneByOf(commits) ? null : await readyLabelEvent(r);
   const doneLogin = doneByOf(commits) ?? label?.login ?? r.author;
   const doneAt = block?.doneAt ?? label?.at ?? null;
@@ -383,8 +386,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // The lifecycle's stage (lib/review-state), the same words as Being built, Changes and the home.
   const library = !own && isLibrary;
   const nextRelease = status === 'shipped' && library ? await waitsForRelease((pull as { merge_commit_sha?: string | null }).merge_commit_sha) : false;
-  const lifecycle = explorationLifecycle({ status, review: reviewStateOf({ draft: pull.draft ?? null, requested, approvers: siteApprovers().design, builders, reviews }), nextRelease });
-  const more = connected() ? await namesOf([...new Set([doneLogin, ...builders, ...asked, ...(verdict ? [verdict.login] : [])])]).catch(() => ({}) as Record<string, string>) : {};
+  const fromTaskStage = task ? taskStage({ ...task, devPull: devRead?.pull ?? task.devPull ?? null }) : null;
+  const lifecycle = fromTaskStage && fromTaskStage !== 'closed' ? fromTaskStage : explorationLifecycle({ status, review: reviewStateOf({ draft: pull.draft ?? null, requested, approvers: siteApprovers().design, builders, reviews }), nextRelease });
+  const answer = devRead?.answer ?? null;
+  const more = connected() ? await namesOf([...new Set([doneLogin, ...builders, ...asked, ...(verdict ? [verdict.login] : []), ...(answer?.login ? [answer.login] : [])])]).catch(() => ({}) as Record<string, string>) : {};
   if (current?.key !== key) return;
   const allNames = { ...names, ...knownNamesOf([...asked, ...(verdict ? [verdict.login] : [])]), ...more };
   const doneBy = faceOf(doneLogin, false, allNames);
@@ -396,7 +401,14 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     verdict: verdict ? { kind: verdict.kind, by: faceOf(verdict.login, false, allNames) } : null,
     viewer,
     compareUrl: v.state === 'branch' ? v.url : null,
+    dev: devRead
+      ? {
+          url: devRead.pull.headRef ? branchPreviewUrl(product.preview, devRead.pull.headRef) : null,
+          answer: answer?.login ? { kind: answer.kind, by: faceOf(answer.login, false, allNames) } : null,
+        }
+      : null,
   };
+  if (devRead) review.draft = devRead.pull.draft === true;
   const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease });
   const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
   // Who may run the check: someone who can write it, signed in with GitHub, in a team that writes branches.
@@ -424,7 +436,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     stage: 'handed-off',
     plate,
     ...shotProps,
-    activity: handoffActivity({ commits, author: r.author, startedAt: pull.created_at ?? null, doneBy: doneLogin, doneAt, names: allNames }),
+    activity: handoffActivity({ commits, author: r.author, startedAt: pull.created_at ?? null, doneBy: doneLogin, doneAt, designAnswer: answer?.login ? answer : null, names: allNames }),
     // Shipped: the product itself, where it lives now.
     ...(status === 'shipped' ? { previewUrl: todayUrl, tryUrl: null, previewNote: null, previewBuilding: false } : {}),
     handoff: {
@@ -435,6 +447,16 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       steps,
       pieces: { state: 'loading' },
       onPiece: writable ? (piece) => act({ id: piece.id, title: piece.title }, piece.action?.kind ?? 'open') : null,
+      // Looks right or Needs changes on the developers' version: a comment on their pull request, as the viewer.
+      onAnswer:
+        devRead && devRepo && connected() && !emailOnProduct && !review.draft
+          ? async (a: DesignAnswer) => {
+              await answerDevPull(devRepo, devRead.pull.number, a);
+              const said = a.kind === 'looks-right' ? 'Sent to the developers: it looks right.' : 'Sent to the developers: your changes.';
+              reopen(said);
+              return said;
+            }
+          : null,
     },
   });
   if (!shot) {

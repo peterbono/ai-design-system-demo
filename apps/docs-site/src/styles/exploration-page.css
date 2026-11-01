@@ -547,6 +547,12 @@
   padding: var(--space-6);
 }
 
+/* The designer's answer on the developers' version, under the steps. */
+.xp-answer {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .xp-h3 {
   font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);

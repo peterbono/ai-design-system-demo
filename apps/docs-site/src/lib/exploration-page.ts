@@ -2,7 +2,7 @@
 // pure view rules over @bridge-ds/core's exploration-resume words. Not started: the Continue in Claude panel and an
 // empty "Your preview" frame. Exploring: the preview, the last activity in words, Done exploring, the last 3 events.
 // Later states keep their own pages. No DOM, no fetch: tested in exploration-page.test.ts.
-import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
+import { DEV_VERSION_READY, LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
 import { changedThings, continueLines, explorationActivity, humanAuthorOf, parseExplorationBody, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
 
 /** A person or Claude on the page: the login (for the face), the name to show, and whether it is Claude. */
@@ -178,6 +178,11 @@ export interface HandoffReview {
   verdict: { kind: 'approved' | 'changes'; by: PageFace } | null;
   viewer?: string | null;
   compareUrl?: string | null;
+  /**
+   * A design copy exploration: the developers' own pull request in their repository, its preview, and the designer's
+   * last answer on it (posted by Bridge). The Review step reads it instead of the copy's reviews.
+   */
+  dev?: { url: string | null; answer: { kind: 'looks-right' | 'changes'; by: PageFace } | null } | null;
 }
 
 /**
@@ -193,19 +198,28 @@ export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | 
   const done: HandoffStep = { status: 'done', title: 'Done exploring', detail: doneWho ? `${doneWho}. ${sentTo}` : sentTo };
   const who = input.builders.length ? names(input.builders) : null;
   const rv = input.review ?? null;
+  const dev = rv?.dev ?? null;
   // Building: still a draft (or nothing read yet), with no decision. Then the developers have asked for a review.
   const stage: 'ready' | 'building' | 'review' | 'changes' | 'approved' | 'shipped' =
     input.status === 'shipped'
       ? 'shipped'
       : input.status === 'ready'
         ? 'ready'
-        : rv?.verdict?.kind === 'approved'
-          ? 'approved'
-          : rv?.verdict?.kind === 'changes'
-            ? 'changes'
-            : rv && !rv.draft
-              ? 'review'
-              : 'building';
+        : dev
+          ? rv!.draft
+            ? 'building'
+            : dev.answer?.kind === 'looks-right'
+              ? 'approved'
+              : dev.answer?.kind === 'changes'
+                ? 'changes'
+                : 'review'
+          : rv?.verdict?.kind === 'approved'
+            ? 'approved'
+            : rv?.verdict?.kind === 'changes'
+              ? 'changes'
+              : rv && !rv.draft
+                ? 'review'
+                : 'building';
   const build: HandoffStep =
     stage === 'ready'
       ? { status: 'waiting', title: 'Developers build it', detail: who ? `Waiting for ${who}` : 'In their task list. You see here when one picks it up.', current: true }
@@ -213,6 +227,12 @@ export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | 
         ? { status: 'waiting', title: 'Developers build it', detail: who ? `${who} ${input.builders.length === 1 ? 'is' : 'are'} building it` : 'Being built', current: true }
         : { status: 'done', title: 'Built', detail: who ? `By ${who}` : 'By your developers' };
   const review = ((): HandoffStep => {
+    if (dev && stage !== 'ready' && stage !== 'building' && stage !== 'shipped') {
+      const open = dev.url ? { link: { label: 'Open their version', href: dev.url } } : {};
+      if (stage === 'approved') return { status: 'done', title: 'Reviewed', detail: `${dev.answer!.by.name} said it looks right`, ...open };
+      if (stage === 'changes') return { status: 'waiting', title: 'Review', detail: `${dev.answer!.by.name} asked for changes`, current: true, ...open };
+      return { status: 'waiting', title: 'Review', detail: DEV_VERSION_READY, current: true, ...open };
+    }
     if (stage === 'ready') return { status: 'waiting', title: 'Review', detail: 'After the developers' };
     if (stage === 'building') return { status: 'waiting', title: 'Review', detail: 'When the developers ask' };
     if (stage === 'changes') return { status: 'waiting', title: 'Review', detail: `Changes requested by ${rv!.verdict!.by.name}`, current: true };
@@ -258,9 +278,12 @@ export function buildersOf(input: { assignees?: readonly { login: string }[] | n
  * The activity after Done exploring: "said done exploring" with the branch's events, newest first, the last 3. The
  * commit before it is the explorer's work, the ones after are the developers'.
  */
-export function handoffActivity(input: { commits: readonly BranchCommitLike[]; author: string; startedAt?: string | null; doneBy: string | null; doneAt: string | null; names?: Record<string, string>; now?: Date }): ActivityRow[] {
+export function handoffActivity(input: { commits: readonly BranchCommitLike[]; author: string; startedAt?: string | null; doneBy: string | null; doneAt: string | null; designAnswer?: { kind: 'looks-right' | 'changes'; login: string; at: string } | null; names?: Record<string, string>; now?: Date }): ActivityRow[] {
   const events = explorationActivity({ commits: input.commits.filter((c) => !isDoneCommit(c)), author: input.author, startedAt: input.startedAt ?? null });
-  const all = input.doneAt ? [...events, { who: input.doneBy ?? input.author, claude: false, text: 'said done exploring', at: input.doneAt }] : events;
+  const done = input.doneAt ? [...events, { who: input.doneBy ?? input.author, claude: false, text: 'said done exploring', at: input.doneAt }] : events;
+  // The designer's answer on the developers' version (posted by Bridge on their pull request).
+  const a = input.designAnswer;
+  const all = a?.login && a.at ? [...done, { who: a.login, claude: false, text: a.kind === 'looks-right' ? 'said it looks right' : 'asked for changes', at: a.at }] : done;
   return all
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, 3)
