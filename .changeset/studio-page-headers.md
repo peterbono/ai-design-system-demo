@@ -1,5 +1,0 @@
----
-"@bridge-ds/docs-site": minor
----
-
-Studio page headers: one pattern on every Studio page (Changes, Being built, Components, Tokens, Quality, Settings, on the team pages and the self-hosted ones). The Fraunces title carries the page's primary action on its line, then one live summary sentence about the state of the page ("2 explorations running, 1 waiting for a developer.", "53 components in 8 families, each with usage guidance.", "119 tokens, light and dark.", what waits and what ships on Being built; Quality keeps its verdict in its lighthouse zone). The team name no longer repeats under every title, and generic explanations sit behind a quiet "How it works" fold. On the end side, each section has its own Field Guide scene that breathes slowly (branching paths, a little crane on scaffolding, stacked blocks, a swatch fan, a ship's wheel; Quality's lighthouse stays in its verdict zone), built on the Home's QuietScene and still under reduced motion; phones show the words only. Every header has the same height, so moving between sections never makes the content jump.

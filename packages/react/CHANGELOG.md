@@ -1,5 +1,11 @@
 # @bridge-ds/react
 
+## 1.8.3
+
+### Patch Changes
+
+- 194c7a1: Select and Combobox: the highlighted option's corners now follow the popup's corners, like Menu items.
+
 ## 1.8.2
 
 ### Patch Changes
