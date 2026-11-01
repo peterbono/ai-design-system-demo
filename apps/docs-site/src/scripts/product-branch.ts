@@ -10,6 +10,7 @@
 import {
   archiveExplorationOnGitHub,
   DEFAULT_PRODUCTS,
+  designCopyOf,
   LayeredTokenSet,
   loadRepoFiles,
   NEEDED_BY_LABEL,
@@ -123,8 +124,18 @@ export function productPreviewOf(r: ExplorationRow, sources: BranchPreviewSource
   return explorationPreviews(r, CFG.apps, sources).find((p) => p.app === app) ?? null;
 }
 
-/** The preview opened with the Bridge toolbar. The URL comes from a comment or a status: React 18 renders a javascript: href as is. */
-export const withToolbar = (r: ExplorationRow) => (url: string) => safeUrl(tryInProductUrl(url, r.number, null)) || null;
+/**
+ * The preview opened with the Bridge toolbar. The URL comes from a comment or a status: React 18 renders a javascript:
+ * href as is. An exploration in the design team's copy names the copy (`bridge-repo`): its number is the copy's.
+ */
+export const withToolbar = (r: ExplorationRow) => (url: string) => safeUrl(tryInProductUrl(url, r.number, null, copyRepoOf(r))) || null;
+
+/** The design team's copy an exploration lives in, else null (the design system's or the developers' own repository). */
+function copyRepoOf(r: Pick<ExplorationRow, 'product'>): string | null {
+  const own = productRepoByKey(r.product);
+  if (!own) return null;
+  return designCopyOf(own.product, `${CFG.owner}/${CFG.repo}`) ?? null;
+}
 
 /**
  * The branch's own build, opened with the Bridge toolbar: only a reported URL, never a template, never a build that

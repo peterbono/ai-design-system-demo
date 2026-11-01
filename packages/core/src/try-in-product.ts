@@ -24,14 +24,17 @@ export function productPreview(apps: PreviewApps, ctx: { branch: string; pr: num
 
 /**
  * The preview with the toolbar on, at that screen (shop and theme in the query, the hash route ra-core reads), else home.
- * Only http(s) previews: anything else (a javascript: or data: URL in a hostile comment) gives ''.
+ * `repo`: the design team's copy the change lives in (products[].design.repo), carried as `bridge-repo` so the toolbar
+ * reads the change there, on This change and on Live product. Only http(s) previews: anything else (a javascript: or
+ * data: URL in a hostile comment) gives ''.
  */
-export function tryInProductUrl(preview: string, pr: number, screen: ProductScreen | null): string {
+export function tryInProductUrl(preview: string, pr: number, screen: ProductScreen | null, repo?: string | null): string {
   const url = new URL(preview);
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
   url.pathname = '/';
   url.search = '';
   url.searchParams.set('bridge', String(pr));
+  if (repo && /^[\w.-]+\/[\w.-]+$/.test(repo)) url.searchParams.set('bridge-repo', repo);
   if (screen) {
     url.searchParams.set('tenant', screen.tenant);
     url.searchParams.set('theme', screen.theme);
