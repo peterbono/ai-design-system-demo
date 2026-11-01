@@ -1,0 +1,26 @@
+/* Add a product (components/ds/studio/AddProduct.tsx): the dialog's form, one column, the DS field rhythm. */
+.addp-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.addp-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.addp-status:empty {
+  display: none;
+}
+
+.addp-error {
+  margin: 0;
+  color: var(--color-feedback-danger-text);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}

@@ -13,6 +13,7 @@
 // the final action opens the GitHub connect dialog. Words and rules: lib/change-intent.ts.
 import { REQUESTS_BRANCH, composeRequestIssue, ensureRequestsBranch, requestImagePath, type GitHubClient } from '@bridge-ds/core';
 import { explorationFromRequest } from '../lib/requests-view';
+import { REQUEST_SENT_EVENT } from '../lib/components-studio';
 import { changeFormCopy, changeFormProblems, changeRequest, COPY_MESSAGE, developerMessage, formModeFor, sentLine, startedLines, type ChangeFormMode, type ChangeIntent } from '../lib/change-intent';
 import { ghAction } from '../lib/gh-wording';
 import { base64Of, figmaFromLink, figmaLinkProblem, imageProblem, MAX_IMAGE_BYTES, requestImageUrl } from '../lib/request-attachments';
@@ -370,6 +371,7 @@ export function initChangeFlow(drawer: HTMLElement) {
       const gh = studioClient(`${repo.owner}/${repo.repo}`, token);
       const { created, request, image } = await sendRequest(gh, drawer, form, mode, values, figmaRaw);
       sent = created.number;
+      document.dispatchEvent(new CustomEvent(REQUEST_SENT_EVENT, { detail: { component: drawer.dataset.component ?? '' } }));
       if (mode !== 'explore') {
         resetChangeFlow(drawer);
         done.innerHTML = `<p><strong>${esc(sentLine(mode, created.number))}</strong></p>

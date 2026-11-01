@@ -153,6 +153,9 @@ export function drawerFacts(input: {
   return out;
 }
 
+/** Sent on document by the drawer's request form once a request is filed, with `{ component }`: the line counts it at once. */
+export const REQUEST_SENT_EVENT = 'bridge:request-sent';
+
 /** The open request part of the drawer line: null while reading, undefined when GitHub could not be read (silent). */
 export function requestFact(n: number | null | undefined): string {
   if (n === null) return 'Reading open requests.';

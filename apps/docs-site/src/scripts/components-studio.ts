@@ -6,7 +6,7 @@
 // line counts open requests (GitHub issues labeled component-change) when they can be read.
 // Teams triage requests where they plan (Jira, GitHub): the drawer links to them on GitHub, not to a Studio list.
 import { REQUEST_LABEL } from '@bridge-ds/core';
-import { openRequestCounts, requestFact } from '../lib/components-studio';
+import { openRequestCounts, REQUEST_SENT_EVENT, requestFact } from '../lib/components-studio';
 import { VOCAB } from '../lib/vocabulary';
 import { currentContributor, onAccess, readRepo } from './github-session';
 import { isChangeIntent } from '../lib/change-intent';
@@ -149,6 +149,17 @@ export function initComponentsStudio() {
     const open = panels.find((p) => !p.hidden);
     if (open && !drawer.hidden) paintDrawerRequests(open);
   }
+
+  // A request just sent from the drawer (scripts/request-form.ts): one more open request for that component, said at once.
+  document.addEventListener(REQUEST_SENT_EVENT, (e) => {
+    const name = ((e as CustomEvent<{ component?: string }>).detail?.component ?? '').toLowerCase();
+    if (!name) return;
+    // Still reading (null) or unreadable (undefined): the read in flight, or the silence, stays.
+    if (!requestCounts) return;
+    requestCounts.set(name, (requestCounts.get(name) ?? 0) + 1);
+    const panel = panels.find((p) => !p.hidden);
+    if (panel && !drawer.hidden) paintDrawerRequests(panel);
+  });
 
   function close() {
     if (drawer.hidden) return;

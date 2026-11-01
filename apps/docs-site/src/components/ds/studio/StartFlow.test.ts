@@ -168,7 +168,7 @@ describe('the demo banner (boards D1, EmptyA2)', () => {
   it("names Bridge's own design system, never sample data, with one action for a guest", async () => {
     const { container } = render(createElement(DemoBanner, { repo: 'peterbono/ai-design-system-demo', back: { href: '/studio/workspace/?setup=library', connect: true } }));
     expect(screen.getByText('Bridge DS, read only.')).toBeInTheDocument();
-    expect(screen.getByText("You're looking at the design system behind Bridge. Nothing here touches your repository.")).toBeInTheDocument();
+    expect(screen.getByText("You're looking at the design system behind Bridge. Nothing here changes your own design system.")).toBeInTheDocument();
     expect(screen.queryByText(/Acme Design|sample/i)).toBeNull();
     expect(screen.getAllByRole('link')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Connect your design system' })).toHaveAttribute('href', '/studio/workspace/?setup=library');

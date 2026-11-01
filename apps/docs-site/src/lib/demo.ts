@@ -97,7 +97,7 @@ export const DEMO_WORDS = {
   getStarted: 'Get started',
   /** The same banner on Bridge's own design system, for a guest: its data is real, so it is not called sample data. */
   ownSampleTitle: `${OWN_TEAM}, read only.`,
-  ownSampleText: "You're looking at the design system behind Bridge. Nothing here touches your repository.",
+  ownSampleText: "You're looking at the design system behind Bridge. Nothing here changes your own design system.",
   backToWorkspace: 'Back to your workspace',
   /** The same banner for someone who has no workspace yet. */
   connectOwn: 'Connect your design system',
