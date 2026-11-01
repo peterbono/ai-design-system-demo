@@ -1,5 +1,12 @@
 # @bridge-ds/docs-site
 
+## 0.26.0
+
+### Minor Changes
+
+- 49dc082: Add a product from Bridge: in Settings > Products and the onboarding Products step, an admin picks the product's code among what Bridge can see on GitHub, names it, and keeps the designers' copy. Bridge reads its previews from Vercel when they exist and sends the new product for review. The Components drawer counts a request as soon as it is sent, and the read-only banner no longer says "repository".
+- b73954d: Review step for explorations from the design team's copy: once the developers open their pull request on the task, the exploration reads In review, "Open their version" opens its preview, and the designer answers Looks right or Needs changes. Bridge posts the answer on the developers' pull request and shows it in the activity.
+
 ## 0.25.1
 
 ### Patch Changes
