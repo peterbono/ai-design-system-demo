@@ -44,7 +44,7 @@ import { COPY_WORDS, madeLine } from '../../../lib/design-copy';
 import { siteConfig } from '../../../scripts/repo-context';
 import { isSampleTeam } from '../../../lib/demo';
 import { useCopy } from './TeamLink';
-import { copilotSetup, connectorUrl, TERMINAL_SETUP_LINE, terminalSetup } from '../../../lib/claude-connector';
+import { copilotSetup, connectorUrl, TERMINAL_SETUP_LINE, TERMINAL_SETUP_LINE_COPY, terminalSetup } from '../../../lib/claude-connector';
 import type { AiTool } from '../../../lib/ai-tools';
 import { TOOL_SAID, ToolAction, ToolPanel, useAiTools, type ClaudeLink, type ToolLines, type ToolSetup } from './AiToolPanel';
 
@@ -257,16 +257,16 @@ export default function StartExploration({ components, appearance = 'menu', prod
       setBlocked(null);
       const { started } = r;
       const ds = `${cfg.owner}/${cfg.repo}`;
-      const prompt = claudePrompt({ sentence, product: t.product, number: started.pr, library: t.library });
+      const prompt = claudePrompt({ sentence, product: t.product, number: started.pr, library: t.library, copy: at ? { repo: at.copy, branch: started.branch } : null });
       setDone({
         prompt,
-        href: featureHref(started.pr),
+        href: featureHref(started.pr, repo ? t.product.key : null),
         name,
         where: t.library ? VOCAB.main : t.product.name,
         // A product with its own repository needs bridge connect once there; the library and a product folder in the
         // design system repository need the server in the tool once.
         setup: {
-          'claude-code': repo ? { label: TERMINAL_SETUP_LINE, command: terminalSetup(ds) } : null,
+          'claude-code': repo ? { label: at ? TERMINAL_SETUP_LINE_COPY : TERMINAL_SETUP_LINE, command: terminalSetup(ds) } : null,
           copilot: copilotSetup(ds, Boolean(repo)),
         },
       });

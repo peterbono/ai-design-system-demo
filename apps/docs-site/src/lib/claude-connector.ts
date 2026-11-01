@@ -70,6 +70,8 @@ export const CONNECT_FIRST = {
 /** Under the Terminal line of a product exploration: Claude Code finds Bridge in the product's folder after this, once. */
 export const terminalSetup = (designSystem: string) => `npx @bridge-ds/cli connect --ds ${designSystem}`;
 export const TERMINAL_SETUP_LINE = "Once, in the product's folder:";
+/** The same line for an exploration in the design team's copy (products[].design): the copy's folder, not the developers'. */
+export const TERMINAL_SETUP_LINE_COPY = "Once, in your folder of the design team's copy:";
 
 /**
  * Under the VS Code (Copilot) line: what Copilot agent mode needs once. In a product: `bridge connect --tool copilot`
@@ -141,6 +143,18 @@ export function elapsedLabel(seconds: number): string {
 /** The review of the fix, when it opened one. */
 export const reviewOf = (s: Session) => [...s.steps].reverse().find((x) => x.review)?.review ?? null;
 
+/** The pull request number a fix session's review link names, else null. */
+export const fixPullNumber = (s: Session): number | null => Number(/pr=(\d+)/.exec(reviewOf(s) ?? '')?.[1]) || null;
+
+/**
+ * The fix pull requests the list read did not return (it reads the 100 last updated): read one by one, so a fix merged
+ * weeks ago reads Shipped and never In review.
+ */
+export const missingFixPulls = (sessions: readonly Session[], pulls: readonly Pick<RestPull, 'number'>[]): number[] => {
+  const have = new Set(pulls.map((p) => Number(p.number)));
+  return [...new Set(sessions.map(fixPullNumber).filter((n): n is number => n !== null && !have.has(n)))];
+};
+
 // --- Being built: one row per fix session ---------------------------------------------------------------------------
 //
 // A fix session is one more row of the Being built list (one queue, settled 2026-10-23), with the list's tag words.
@@ -183,7 +197,7 @@ type PullState = Pick<RestPull, 'number' | 'state' | 'merged_at' | 'updated_at'>
 export function fixRows(sessions: readonly Session[], pulls: readonly PullState[], now: number, nameOf: (login: string) => string = (l) => l): FixRow[] {
   return sessions.map((s, i) => {
     const review = reviewOf(s);
-    const prNumber = review ? Number(/pr=(\d+)/.exec(review)?.[1]) || null : null;
+    const prNumber = fixPullNumber(s);
     const pull = prNumber ? pulls.find((p) => Number(p.number) === prNumber) : undefined;
     const last = s.steps.at(-1);
     const quiet = s.state === 'working' && last?.kind === 'quiet';

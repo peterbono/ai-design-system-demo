@@ -186,7 +186,7 @@ describe('Being built', () => {
     const row = title.closest('li')!;
     // No kind tag: every change starts as an exploration.
     expect([...row.querySelectorAll('*')].some((e) => e.children.length === 0 && e.textContent === 'Exploration')).toBe(false);
-    expect(row.textContent).toContain('Waiting for code');
+    expect(row.textContent).toContain('Waiting to be picked up');
     expect(row.textContent).toContain('Admin demo · Done exploring by Florian on');
     expect(row.querySelector('a')!.getAttribute('href')).toBe('/studio/changes/?exploration=611');
     // What lands here and who picks it up: the header's "How it works" fold, on the self-hosted and the team page.

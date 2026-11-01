@@ -96,7 +96,7 @@ describe('explorationStateLabel: the one status tag of an exploration', () => {
 
   it('reads archived, and where it stands after done exploring', () => {
     expect(explorationStateLabel({ status: 'active', archived: true })).toBe('Archived');
-    expect(explorationStateLabel({ status: 'ready' })).toBe('Waiting for code');
+    expect(explorationStateLabel({ status: 'ready' })).toBe('Waiting to be picked up');
     expect(explorationStateLabel({ status: 'building' })).toBe('Being built');
     expect(explorationStateLabel({ status: 'shipped', archived: true })).toBe('Shipped');
   });

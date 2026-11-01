@@ -291,7 +291,7 @@ describe('ExplorationPage, exploring (X2)', () => {
   });
 });
 
-describe('ExplorationPage, after Done exploring (Waiting for code, Being built, Shipped)', () => {
+describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being built, Shipped)', () => {
   const steps = [
     { status: 'done' as const, title: 'Done exploring', detail: 'Florian, today. Sent to the Admin demo developers.' },
     { status: 'waiting' as const, title: 'Developers build it', detail: 'In their task list. You see here when one picks it up.', current: true },
@@ -312,7 +312,7 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
 
   it('keeps the page family: status tag, who said done and when, the preview with one action, then what happens next', () => {
     handed();
-    expect(screen.getByText('Waiting for code')).toBeTruthy();
+    expect(screen.getByText('Waiting to be picked up')).toBeTruthy();
     expect(screen.getByText(/said done exploring/, { selector: '.xp-meta span' })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://orders-git-explore.vercel.app/?bridge=611');
     expect(screen.queryByRole('link', { name: /Continue in Claude/ })).toBeNull();
@@ -430,7 +430,7 @@ describe('ExplorationPage, after Done exploring (Waiting for code, Being built, 
 });
 
 describe('the "..." menu: Rename, Back to exploring, Archive', () => {
-  it('who sees what: only the keeper; Back to exploring only while waiting for code, never once developers build', () => {
+  it('who sees what: only the keeper; Back to exploring only while waiting to be picked up, never once developers build', () => {
     expect(explorationMenu({ writable: false, status: 'ready' })).toEqual({ rename: false, reopen: false, archive: false });
     expect(explorationMenu({ writable: true, status: 'active' })).toEqual({ rename: true, reopen: false, archive: true });
     expect(explorationMenu({ writable: true, status: 'ready' })).toEqual({ rename: true, reopen: true, archive: true });

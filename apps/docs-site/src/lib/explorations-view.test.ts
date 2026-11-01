@@ -176,7 +176,7 @@ describe('done exploring and archive', () => {
     return { ...base, body, labels: [{ name: 'ready-for-devs' }], ...over };
   };
 
-  it('rows: waiting for code, then being built once developers push, shipped once merged; archived ones out by default', () => {
+  it('rows: waiting to be picked up, then being built once developers push, shipped once merged; archived ones out by default', () => {
     const ready = handed(4);
     const building = handed(5, { head: { ref: 'explore/handed-5', sha: 'newer' } });
     const shipped = handed(6, { state: 'closed', merged_at: '2026-10-31T00:00:00Z' });
@@ -184,7 +184,7 @@ describe('done exploring and archive', () => {
     const rows = explorationRows([ready, building, shipped, archived, pull(1)], cfg);
     expect(rows.map((r) => [r.number, r.status, r.statusLabel])).toEqual([
       [1, 'active', 'Running'],
-      [4, 'ready', 'Waiting for code'],
+      [4, 'ready', 'Waiting to be picked up'],
       [5, 'building', 'Being built'],
       [6, 'shipped', 'Shipped'],
     ]);
@@ -232,10 +232,10 @@ function piece(id: string, title: string): MissingPiece {
 
 describe('unreadableExplorationLine', () => {
   it('tells a signed-out visitor of a product exploration to sign in', () => {
-    expect(unreadableExplorationLine(1, 'Demo shop', { product: true, signedOut: true })).toBe('#1 is not an exploration in Demo shop, or it cannot be read right now. Signed out, Bridge only shows explorations of public products: sign in to see it.');
+    expect(unreadableExplorationLine(1, 'Demo shop', { product: true, signedOut: true })).toBe('Bridge cannot find exploration #1 in Demo shop right now. Open it again from Changes. Signed out, Bridge only shows explorations of public products: sign in to see it.');
   });
   it('says nothing about signing in when signed in or in the design system repository', () => {
-    expect(unreadableExplorationLine(1, 'Demo shop', { product: true, signedOut: false })).toBe('#1 is not an exploration in Demo shop, or it cannot be read right now.');
-    expect(unreadableExplorationLine(12, 'acme/ds', { product: false, signedOut: true })).toBe('#12 is not an exploration in acme/ds, or it cannot be read right now.');
+    expect(unreadableExplorationLine(1, 'Demo shop', { product: true, signedOut: false })).toBe('Bridge cannot find exploration #1 in Demo shop right now. Open it again from Changes.');
+    expect(unreadableExplorationLine(12, 'the library', { product: false, signedOut: true })).toBe('Bridge cannot find exploration #12 in the library right now. Open it again from Changes.');
   });
 });

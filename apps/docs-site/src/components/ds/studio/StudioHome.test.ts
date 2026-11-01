@@ -367,7 +367,7 @@ describe('StudioHome, products', () => {
     const cards = [
       exploration(1, { productKey: 'admin-app', product: 'Product admin' }),
       exploration(2, { productKey: 'admin-app', product: 'Product admin' }),
-      exploration(3, { productKey: 'admin-app', product: 'Product admin', stage: 'with-devs', state: 'Waiting for code' }),
+      exploration(3, { productKey: 'admin-app', product: 'Product admin', stage: 'with-devs', state: 'Waiting to be picked up' }),
       exploration(4, { productKey: 'library', product: null, stage: 'kept', state: 'Shipped' }),
     ];
     const { container } = render(createElement(StudioHome, props({ contributor: false, lead: true, explorations: cards, products })));
@@ -377,7 +377,7 @@ describe('StudioHome, products', () => {
     expect(container.querySelector('[aria-labelledby="sh-explorations"]')!.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const folders = [...section.querySelectorAll('.sh-cards > li')];
     expect(folders.map((f) => f.querySelector('[data-card-primary]')!.textContent)).toEqual(['Product admin', 'Library']);
-    expect(folders[0]!.textContent).toContain('2 exploring · 1 waiting for code');
+    expect(folders[0]!.textContent).toContain('2 exploring · 1 waiting to be picked up');
     expect(folders[1]!.textContent).toContain('1 shipped');
     expect(folders[0]!.querySelector('a')!.getAttribute('href')).toBe('/studio/products/admin-app/');
     // The mosaic: the latest screens, three panes.
@@ -409,11 +409,11 @@ describe('StudioHome, quiet team Home (recent)', () => {
 
   it('keeps Start an exploration on top, then Recent explorations and the product folders, and tells the truth in the greeting', async () => {
     localStorage.setItem('bridge.home.lead-tour', 'done');
-    const waiting = exploration(7, { title: 'Dashboard: orders waiting to ship', productKey: 'admin-app', product: 'Art print shop', stage: 'with-devs', state: 'Waiting for code', preview: { kind: 'screen', src: null } });
+    const waiting = exploration(7, { title: 'Dashboard: orders waiting to ship', productKey: 'admin-app', product: 'Art print shop', stage: 'with-devs', state: 'Waiting to be picked up', preview: { kind: 'screen', src: null } });
     const { container } = render(createElement(StudioHome, quiet({ explorations: [waiting] })));
     expect(screen.getByRole('heading', { level: 1, name: 'What do you want to explore?' })).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Start an exploration' })).toHaveLength(1);
-    expect(container.querySelector('.sh-zone')!.textContent).toContain('Good evening, Florian. Nothing needs you. 1 waiting for code.');
+    expect(container.querySelector('.sh-zone')!.textContent).toContain('Good evening, Florian. Nothing needs you. 1 waiting to be picked up.');
     expect(container.textContent).not.toContain('you have nothing in progress');
     const recent = container.querySelector('[aria-labelledby="sh-explorations"]')!;
     expect(screen.getByRole('heading', { level: 2, name: 'Recent explorations' })).toBeTruthy();
@@ -423,10 +423,10 @@ describe('StudioHome, quiet team Home (recent)', () => {
     expect(recent.querySelector('.sh-create')).toBeNull();
     expect(recent.textContent).toContain('Dashboard: orders waiting to ship');
     expect(screen.queryByRole('link', { name: /See all/ })).toBeNull();
-    // The product with an exploration waiting for code says so; a product without any shows no empty mosaic block.
+    // The product with an exploration waiting to be picked up says so; a product without any shows no empty mosaic block.
     const folders = [...container.querySelectorAll('[aria-labelledby="sh-products"] .sh-cards > li')];
     expect(folders[0]!.textContent).toContain('Art print shop');
-    expect(folders[0]!.textContent).toContain('1 waiting for code');
+    expect(folders[0]!.textContent).toContain('1 waiting to be picked up');
     expect(folders[0]!.textContent).not.toContain('Nothing in progress');
     expect(folders[0]!.querySelectorAll('.pf-pane').length).toBe(1);
     expect(folders[1]!.querySelector('.pf-mosaic')).toBeNull();

@@ -57,7 +57,7 @@ export const EXPLORATION_USE_CASES: { value: ExplorationUseCase; label: string; 
 
 export const EXPLORATION_STATUS_LABEL: Record<ExplorationStatus, string> = {
   active: 'Running',
-  ready: 'Waiting for code',
+  ready: 'Waiting to be picked up',
   building: 'Being built',
   shipped: 'Shipped',
   promoted: 'Promoted to review',

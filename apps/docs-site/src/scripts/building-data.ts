@@ -10,7 +10,7 @@
 // here (no read per row) and, for products with their own repository, from the one read of their open pull requests
 // that Changes and the home make too (scripts/product-repos.ts). They stay out of `views` as well.
 import { assembleBuildRequests, BUILD_REQUEST_LABEL, DEFAULT_PRODUCTS, parseExplorationBody, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient } from '@bridge-ds/core';
-import { fixRows, isLoginLike, parseSession, type FixRow, type Session } from '../lib/claude-connector';
+import { fixRows, isLoginLike, missingFixPulls, parseSession, type FixRow, type Session } from '../lib/claude-connector';
 import { isSampleTeam } from '../lib/demo';
 import { BUILD_CACHE_MS, buildCacheKey, explorationBuildRows, slimIssue, slimPull, toBuildIssue, toBuildPull, withLifecycle, type ExplorationBuildRow, type LifecycleExtra, type RestIssue, type RestPull } from '../lib/building-view';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
@@ -168,12 +168,15 @@ async function read(): Promise<BuildData> {
   });
   // The developers' tasks of the design copy's explorations handed to them (one read each, a few at most).
   const taskUrls = [...new Set(explored.filter((p) => p.state === 'open').map((p) => parseExplorationBody(p.body)?.task).filter((u): u is string => Boolean(u)))];
-  const [names, reviews, tasks] = await Promise.all([
+  // Claude's fixes whose pull request is older than the list read: one read each, so a merged one reads Shipped.
+  const [names, reviews, tasks, olderFixPulls] = await Promise.all([
     lookUpNames([...new Set(logins)]).catch(() => knownNames()),
     readReviews(toRead.filter((x, i, all) => all.findIndex((y) => y.key === x.key) === i)),
     Promise.all(taskUrls.map(async (u) => [u, await readDesignTask(u)] as const)).then((all) => new Map(all)),
+    readFixPulls(R, missingFixPulls(sessions, pulls.data)),
   ]);
   const nameOf = (l: string) => personName(l, names);
+  const fixPulls = [...pulls.data, ...olderFixPulls];
   const releaseBody = pulls.data.find((p) => p.state === 'open' && /^changeset-release\//.test(p.head?.ref ?? ''))?.body ?? null;
   const ids = releaseBody ? libraryRelease(parseReleaseBody(releaseBody), libraryScope()).ids : new Set<string>();
   const nextRelease = (p: RestPull) => inNextRelease(p.merge_commit_sha, ids);
@@ -187,10 +190,16 @@ async function read(): Promise<BuildData> {
     stale: requests.stale || builds.stale || pulls.stale,
     nameOf,
     jiraBase: jiraBase(),
-    fixes: fixRows(sessions, pulls.data, now, nameOf),
-    pulls: pulls.data,
+    fixes: fixRows(sessions, fixPulls, now, nameOf),
+    pulls: fixPulls,
     explorations: explorationBuildRows(explored, { products: (await productRepos)?.configuredProducts() ?? DEFAULT_PRODUCTS, now, approvers: approversNow(), ...lifecycle, task }),
   };
+}
+
+/** The fix pull requests the list did not return, read at once; one GitHub refuses is left out (the row stays In review). */
+async function readFixPulls(R: string, numbers: readonly number[]): Promise<RestPull[]> {
+  const read = await Promise.all(numbers.map((n) => ghGet<RestPull>(`${R}/pulls/${n}`).then((f) => slimPull(f.data), () => null)));
+  return read.filter((p): p is RestPull => p !== null);
 }
 
 /** The design approvers, teams expanded once read (none when the roles cannot be read). */

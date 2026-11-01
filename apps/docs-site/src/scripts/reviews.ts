@@ -1267,7 +1267,8 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     return { person: seat ? { login: `~${author}`, name: nameOf(author), avatarUrl: null, agent: agent && !asked0 } : { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: l.lead, rest: l.rest };
   };
   const rowText = (r: (typeof rows)[number]) => (status.lifecycle === 'draft' && r.state === 'waiting' ? 'Not asked until a review is requested' : r.text);
-  const approvalsNow = (): BranchReviewProps['approvals'] => (sampleSeat && onItsWay ? [] : rows.map((r) => ({ label: r.role === 'approval' ? 'Approval' : `${r.label} approval`, state: r.state, text: named(rowText(r)) })));
+  // Merged or closed: nothing waits on anyone, so no approval rows ("Waiting: ..." on a change already in the library).
+  const approvalsNow = (): BranchReviewProps['approvals'] => ((sampleSeat && onItsWay) || lifecycle === 'merged' || lifecycle === 'closed' ? [] : rows.map((r) => ({ label: r.role === 'approval' ? 'Approval' : `${r.label} approval`, state: r.state, text: named(rowText(r)) })));
   // Profile names for the people these lines name, read after the first paint (never in the demo seat: its aliases).
   renamed = seat ? null : () => ({ approvals: approvalsNow(), who: whoNow(), people: peopleNow() });
   const talkers = peopleUsers.map((u) => u.login).filter((l) => !/\[bot\]$/i.test(l) && !isClaudeLogin(l));

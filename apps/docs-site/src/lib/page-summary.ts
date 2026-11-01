@@ -22,7 +22,7 @@ const cap = (s: string) => s.replace(/^./, (c) => c.toUpperCase());
 export function changesSummary(c: Partial<Record<'exploring' | 'code' | 'building' | 'review', number>>): string {
   const parts = [
     c.exploring ? `${c.exploring} exploring` : '',
-    c.code ? `${c.code} waiting for code` : '',
+    c.code ? `${c.code} waiting to be picked up` : '',
     c.building ? `${c.building} being built` : '',
     c.review ? `${c.review} in review` : '',
   ].filter(Boolean);

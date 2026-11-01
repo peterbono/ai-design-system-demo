@@ -365,7 +365,8 @@ describe('approval rows', () => {
     expect(rows[1]).toMatchObject({ actionLabel: 'Approve tech', text: 'Waiting for you' });
     const both = approvalRows({ tier: 3, approvals: approvals(), people: { owners: { design: ['pat'], tech: ['pat'] }, author: 'ann', viewer: 'pat' }, open: true });
     expect(both.map((r) => r.canAct)).toEqual([true, false]);
-    expect(approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'dana', viewer: 'dana' }, open: true })[0]).toMatchObject({ canAct: false, text: 'Waiting: no other design owner can approve' });
+    expect(approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'dana', viewer: 'dana' }, open: true })[0]).toMatchObject({ canAct: false, text: 'You made it: add it with the owner override, under More' });
+    expect(approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'dana', viewer: 'theo' }, open: true })[0]).toMatchObject({ canAct: false, text: 'Waiting: no other design owner can approve' });
     expect(approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'ann', viewer: 'dana' }, open: false })[0]!.canAct).toBe(false);
   });
 

@@ -112,14 +112,16 @@ export function featureProblems(f: FeatureForm, targets: readonly StartTarget[])
  * then hands control back. No task and no gap report up front: the designer drives the exploration in the terminal,
  * and bridge_missing_pieces lists what the library lacks when they finish.
  */
-export function claudePrompt(x: { sentence: string; product: ProductConfig; number: number; library?: boolean }): string {
+export function claudePrompt(x: { sentence: string; product: ProductConfig; number: number; library?: boolean; copy?: { repo: string; branch: string } | null }): string {
   if (x.library) return `Open Bridge exploration #${x.number} "${featureName(x.sentence)}" in the Bridge library. I'll tell you what to explore.`;
+  // In the design team's copy (products[].design): the copy and the branch, never the developers' repository.
+  if (x.copy) return `Open Bridge exploration ${x.product.key}#${x.number} "${featureName(x.sentence)}" in the design team's copy of ${x.product.name} (${x.copy.repo}, branch ${x.copy.branch}) and use the Bridge library. I'll tell you what to explore.`;
   const where = x.product.path ? ` (${x.product.path})` : x.product.repo ? ` (${x.product.repo})` : '';
   return `Open Bridge exploration #${x.number} "${featureName(x.sentence)}" in ${x.product.name}${where} and use the Bridge library. I'll tell you what to explore.`;
 }
 
-/** Where the person lands once the exploration started: its page in Changes. */
-export const featureHref = (n: number) => studioHref(`changes/?exploration=${n}`);
+/** Where the person lands once the exploration started: its page in Changes, with the product that holds it when it lives in a product's own repository. */
+export const featureHref = (n: number, product?: string | null) => studioHref(`changes/?exploration=${n}${product ? `&product=${encodeURIComponent(product)}` : ''}`);
 
 /**
  * Where a feature's exploration is created: the product's own repository when the team connected one (productRepoOf

@@ -125,7 +125,7 @@ export function explorationTag(status: string, opts: { notStarted?: boolean; sta
   if (opts.stage === 'in-review') return { label: LIFECYCLE_LABEL['in-review'], tone: 'warning', dot: false };
   if (opts.stage === 'next-release') return { label: LIFECYCLE_LABEL['next-release'], tone: 'info', dot: false };
   if (status === 'active') return opts.notStarted ? { label: 'Not started', tone: 'neutral', dot: false } : { label: 'Exploring', tone: 'info', dot: true };
-  if (status === 'ready') return { label: 'Waiting for code', tone: 'warning', dot: false };
+  if (status === 'ready') return { label: 'Waiting to be picked up', tone: 'warning', dot: false };
   if (status === 'building') return { label: 'Being built', tone: 'info', dot: true };
   if (status === 'shipped') return { label: 'Shipped', tone: 'success', dot: false };
   if (status === 'promoted') return { label: 'In review', tone: 'info', dot: false };

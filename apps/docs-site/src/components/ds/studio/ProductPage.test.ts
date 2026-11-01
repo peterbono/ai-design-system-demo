@@ -60,10 +60,10 @@ const data = (over: Partial<ProductPageData> = {}): ProductPageData => ({
 
 describe('ProductPageView', () => {
   it('groups the explorations by where they stand, says it in the header, and counts the archived ones in one line', async () => {
-    const cards = [card(1), card(2), card(3, { stage: 'with-devs', state: 'Waiting for code' }), card(4, { stage: 'kept', state: 'Shipped' })];
+    const cards = [card(1), card(2), card(3, { stage: 'with-devs', state: 'Waiting to be picked up' }), card(4, { stage: 'kept', state: 'Shipped' })];
     const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards, archived: [card(9)] }) }));
     expect(screen.getByRole('heading', { level: 1, name: 'Product admin' })).toBeTruthy();
-    expect(container.querySelector('[data-st-summary]')!.textContent).toBe('2 exploring, 1 waiting for code.');
+    expect(container.querySelector('[data-st-summary]')!.textContent).toBe('2 exploring, 1 waiting to be picked up.');
     expect([...container.querySelectorAll('[data-state-group]')].map((g) => [g.getAttribute('data-state-group'), g.querySelectorAll('.sh-card-item').length])).toEqual([
       ['running', 2],
       ['waiting', 1],
