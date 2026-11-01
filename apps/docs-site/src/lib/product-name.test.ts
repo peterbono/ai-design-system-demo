@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { productNameProblem, productNameProposal, withProductName, PRODUCT_NAME_WORDS } from './product-name';
+import { canRenameProduct, productNameProblem, productNameProposal, withProductName, PRODUCT_NAME_WORDS } from './product-name';
 
 const config = `{
   "version": 1,
@@ -50,5 +50,16 @@ describe('product name', () => {
 
   it('speaks Bridge, no em dash', () => {
     expect(JSON.stringify(PRODUCT_NAME_WORDS) + PRODUCT_NAME_WORDS.rename('Shop')).not.toMatch(/\u2014|pull request|merge(?!d)/i);
+  });
+});
+
+describe('canRenameProduct', () => {
+  it('an admin with GitHub renames, on a team shell or on the team\'s own Studio; never the sample team, never by email', () => {
+    expect(canRenameProduct({ admin: true }, false)).toBe(true);
+    expect(canRenameProduct({ repoAdmin: true }, false)).toBe(true);
+    expect(canRenameProduct({ admin: true }, true)).toBe(false);
+    expect(canRenameProduct({ admin: true, contributor: true }, false)).toBe(false);
+    expect(canRenameProduct({ admin: false }, false)).toBe(false);
+    expect(canRenameProduct(null, false)).toBe(false);
   });
 });

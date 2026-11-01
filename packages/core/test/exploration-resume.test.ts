@@ -147,3 +147,23 @@ describe('time in words', () => {
     expect(startedWhen('2026-10-29T08:00:00', new Date('2026-10-30T14:00:00'))).toBe('yesterday');
   });
 });
+
+describe('explorationActivity: Done exploring and Back to exploring', () => {
+  it("reads Bridge's own Done exploring commit as what the person said, and Back to exploring as its own event", () => {
+    const commits = [
+      commit('a1', 'chore(explore): start Orders', '2026-11-01T09:00:00Z'),
+      commit('a2', 'Orders: friendlier empty state', '2026-11-01T09:10:00Z'),
+      commit('a3', 'chore(explore): done exploring, remove the exploration note', '2026-11-01T09:20:00Z'),
+    ];
+    const ev = explorationActivity({ commits, author: 'florian', startedAt: '2026-11-01T09:00:00Z', reopened: { at: '2026-11-01T09:30:00Z', by: 'ann' } });
+    expect(ev.map((e) => `${e.who} ${e.text}`)).toEqual([
+      'ann took it back to exploring',
+      'florian said done exploring',
+      'florian made a change: Friendlier empty state',
+      'florian started the exploration',
+    ]);
+    expect(ev.some((e) => /exploration note/.test(e.text))).toBe(false);
+    // Nobody named: the person who started it.
+    expect(explorationActivity({ commits, author: 'florian', reopened: { at: '2026-11-01T09:30:00Z' } })[0]).toMatchObject({ who: 'florian', text: 'took it back to exploring' });
+  });
+});

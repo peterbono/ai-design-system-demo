@@ -6,6 +6,16 @@ import { fromPlain, getEntry, parseJson, serializeJson, type JsonArray, type Jso
 
 export const PRODUCT_NAME_MAX = 60;
 
+/**
+ * Who sees the rename pencil: an admin of the team's repository (or of the team) signed in with GitHub, on a team shell
+ * or on the team's own Studio alike. Never the sample team, never an admin signed in by email (the email proxy refuses
+ * GitHub changes, as in Settings).
+ */
+export function canRenameProduct(access: { admin?: boolean; repoAdmin?: boolean; contributor?: boolean } | null | undefined, sample: boolean): boolean {
+  if (sample || !access) return false;
+  return Boolean((access.admin || access.repoAdmin) && !(access.contributor && access.admin));
+}
+
 export const PRODUCT_NAME_WORDS = {
   rename: (name: string) => `Rename ${name}`,
   label: 'Product name',

@@ -43,8 +43,8 @@ export const CHOOSABLE_ROLES: readonly MemberRole[] = ['edit', 'reviewer', 'admi
 /** The roles in words (board I2): each one "Also" adds to the one before. Can view is shown, never offered. */
 export const ROLE_WORDS: Record<MemberRole, { label: string; help: string }> = {
   view: { label: 'Can view', help: 'Sees everything, comments and suggests.' },
-  edit: { label: 'Can edit', help: 'Also explores and changes the library.' },
-  reviewer: { label: 'Reviewer', help: 'Also approves changes before they ship.' },
+  edit: { label: 'Can edit', help: 'Also explores products and asks for library changes.' },
+  reviewer: { label: 'Reviewer', help: 'Also changes the library and approves changes before they ship.' },
   admin: { label: 'Admin', help: 'Also invites people and changes settings.' },
 };
 
@@ -138,7 +138,9 @@ export function memberLine(m: { role: MemberRole; reviews: ReviewAs[] }): string
   if (d) return 'Reviews design';
   if (t) return 'Reviews code';
   if (m.role === 'admin') return 'Invites people and changes settings';
-  if (m.role === 'edit' || m.role === 'reviewer') return 'Explores and changes the library';
+  // Only leads change the library itself (create-branch libraryLead): someone who can edit explores and asks for it.
+  if (m.role === 'reviewer') return 'Changes the library and approves changes';
+  if (m.role === 'edit') return 'Explores products and asks for library changes';
   return 'Sees everything, comments and suggests';
 }
 

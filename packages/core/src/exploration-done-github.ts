@@ -114,9 +114,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
     await dev.ensureLabel(FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION).catch(() => undefined);
     const e = parseExplorationBody(p.body);
     const name = e?.name ?? p.title.replace(/^Exploration:\s*/i, '');
-    const issue = await dev.createIssue({
-      title: designTaskTitle(name),
-      body: designTaskBody({
+    const taskBody = designTaskBody({
         name,
         purpose: e?.purpose,
         // The copy's own preview of this branch when Studio did not pass one: a real link, not a pointer to a comment.
@@ -127,9 +125,12 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
         branch: p.headRef,
         pr: { number: p.number, url: p.url },
         doneBy: input.openedBy,
-      }),
-      labels: [FROM_DESIGN_LABEL],
-    });
+      });
+    // Said again after Back to exploring: the same task comes back, never a second one next to it.
+    const earlier = designTaskRef(e?.task, codeRepo);
+    const issue = earlier
+      ? await dev.updateIssue(earlier.number, { state: 'open', state_reason: 'reopened', body: taskBody })
+      : await dev.createIssue({ title: designTaskTitle(name), body: taskBody, labels: [FROM_DESIGN_LABEL] });
     task = issue.url;
     out.task = { number: issue.number, url: issue.url, repo: codeRepo };
   }
@@ -168,7 +169,7 @@ export interface BackToExploring {
  * then the `exploration` label comes back and `ready-for-devs` goes. A refused label write is a warning, never a
  * failure. Pieces already sent to the library stay sent.
  */
-export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { date?: Date | undefined } = {}): Promise<BackToExploring> {
+export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { date?: Date | undefined; by?: string | null | undefined } = {}): Promise<BackToExploring> {
   if (!gh.canWrite) throw new GitHubError(401, 'Going back to exploring needs a GitHub token (pull requests: write).');
   const p = await findExplorationOnGitHub(gh, ref);
   const status = explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body, headSha: p.headSha, draft: p.draft });
@@ -176,11 +177,34 @@ export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | 
   if (status === 'building') throw new GitHubError(422, `Developers already work on #${p.number}: it stays with them.`);
   if (status !== 'ready') throw new GitHubError(422, `#${p.number} is ${status === 'shipped' ? 'shipped' : status === 'closed' ? 'closed' : 'in review'}: only an exploration waiting for code goes back to exploring.`);
   const out: BackToExploring = { number: p.number, url: p.url, branch: p.headRef, warnings: [] };
-  await gh.updatePullRequest(p.number, { body: withoutDoneExploring(p.body, (opts.date ?? new Date()).toISOString()) });
+  // From a design copy: the developers' task leaves their list first (closed as not planned, with a word), so nobody
+  // picks up what the design team took back. Done exploring said again reopens that same task.
+  const task = designTaskRef(parseExplorationBody(p.body)?.task, null);
+  if (task) {
+    const dev = gh.withBranchPrefix(undefined).forRepo(task.repo);
+    try {
+      await dev.createIssueComment(task.number, DESIGN_TASK_BACK_COMMENT);
+      await dev.updateIssue(task.number, { state: 'closed', state_reason: 'not_planned' });
+    } catch (e) {
+      out.warnings.push(`The developers' task stays open (${(e as Error).message}). Close ${task.url} on GitHub.`);
+    }
+  }
+  await gh.updatePullRequest(p.number, { body: withoutDoneExploring(p.body, (opts.date ?? new Date()).toISOString(), opts.by) });
   const x = gh.withBranchPrefix(EXPLORATION_PREFIX);
   if (!(await x.addLabels(p.number, [EXPLORATION_LABEL]))) out.warnings.push(`The ${EXPLORATION_LABEL} label could not be added back.`);
   await x.removeLabel(p.number, EXPLORATION_READY_LABEL).catch((e: Error) => {
     if (!(e instanceof GitHubError && e.status === 404)) out.warnings.push(`The ${EXPLORATION_READY_LABEL} label is still on (${e.message}).`);
   });
   return out;
+}
+
+/** What the developers' task says when the design team takes the exploration back. */
+export const DESIGN_TASK_BACK_COMMENT = 'The design team took this back to exploring. It comes back here when they say Done exploring again.';
+
+/** The developers' task from its issue URL; null for anything else, or for another repository than `repo` when given. */
+export function designTaskRef(url: string | null | undefined, repo: string | null): { repo: string; number: number; url: string } | null {
+  const m = /^https:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/issues\/(\d+)\/?$/.exec((url ?? '').trim());
+  if (!m) return null;
+  if (repo && m[1]!.toLowerCase() !== repo.toLowerCase()) return null;
+  return { repo: m[1]!, number: Number(m[2]), url: url!.trim() };
 }

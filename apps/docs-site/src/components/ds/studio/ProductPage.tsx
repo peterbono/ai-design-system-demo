@@ -10,7 +10,7 @@
 //     the exploration card of the home (ExplorationCards.tsx); archived ones only counted in one quiet line at the end
 //     ("1 archived. See archived"), which opens Changes' Archived tab for this product.
 //   - Nothing explored yet: a calm Field Guide drawing, shown at once, the reason in one sentence and the one action.
-//   - Rename (admins of the team's repository on a team shell, never the sample team, never self-hosted): a pencil right
+//   - Rename (admins of the team's repository, on a team shell or the team's own Studio, never the sample team): a pencil right
 //     after the title opens the name in place (a DS Input, Save, Escape cancels). Save sends the config pull request
 //     that changes only products[i].name (scripts/roles.ts proposeProductName, lib/product-name.ts), like every
 //     config change from Studio. The title keeps the current name until it merges; the pencil gives way to
@@ -328,7 +328,7 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   const [key] = useState(() => productKey ?? (typeof location !== 'undefined' ? productKeyFromPath(location.pathname) : null) ?? '');
   const [data, setData] = useState<ProductPageData | null>(null);
   const [comps, setComps] = useState<HomeComponent[]>(components);
-  /** An admin of the team's repository, on a team shell, in a real team: may rename a product its settings list. */
+  /** An admin of the team's repository, in a real team (lib/product-name canRenameProduct): may rename a product its settings list. */
   const [canRename, setCanRename] = useState(false);
   const [sent, setSent] = useState(false);
   /** The keys the team's own bridge.config.json lists (not the defaults Bridge shows without a list). */
@@ -358,18 +358,17 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   useEffect(() => {
     let live = true;
     void (async () => {
-      const [{ isHosted }, { isSampleTeam }, { onAccess }, { repoContext }] = await Promise.all([
-        import('../../../lib/team-path'),
+      const [{ isSampleTeam }, { onAccess }, { repoContext }, { canRenameProduct }] = await Promise.all([
         import('../../../lib/demo'),
         import('../../../scripts/github-session'),
         import('../../../scripts/repo-context'),
+        import('../../../lib/product-name'),
       ]);
-      if (!isHosted()) return;
+      // On a team shell and on the team's own Studio alike (the config pull request goes to the team's repository).
       onAccess((a) => {
         if (!live) return;
         const r = repoContext();
-        // An admin signed in by email cannot send GitHub changes (the email proxy refuses them): read only, as in Settings.
-        setCanRename(Boolean((a?.admin || a?.repoAdmin) && !(a?.contributor && a.admin)) && !isSampleTeam(`${r.owner}/${r.repo}`));
+        setCanRename(canRenameProduct(a, isSampleTeam(`${r.owner}/${r.repo}`)));
       });
     })();
     return () => {

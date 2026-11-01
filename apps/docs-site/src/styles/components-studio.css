@@ -191,6 +191,24 @@
   line-height: var(--typography-body-line-height);
 }
 
+.cm-d-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-block-start: var(--space-1);
+}
+
+.cm-d-gh {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.cm-d-gh[hidden] {
+  display: none;
+}
+
 /* The facts in one line of words; a badge leads only when something waits for someone. */
 .cm-d-facts {
   color: var(--color-text-muted);
