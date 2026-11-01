@@ -12563,7 +12563,7 @@
           ]
         }
       },
-      "hash": "8ed62203",
+      "hash": "3977cd1a",
       "source": [
         "packages/react/src/components/Combobox/Combobox.tsx",
         "packages/react/src/components/Combobox/Combobox.module.css",
@@ -12709,7 +12709,7 @@
             },
             "list": {},
             "item": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": "space.1",
               "paddingRight": "space.2",
               "paddingBottom": "space.1",
@@ -12724,7 +12724,7 @@
               "lineHeight": "font.line-height.snug"
             },
             "item-2": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": "space.1",
               "paddingRight": "space.2",
               "paddingBottom": "space.1",
@@ -12739,7 +12739,7 @@
               "lineHeight": "font.line-height.snug"
             },
             "item-3": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": "space.1",
               "paddingRight": "space.2",
               "paddingBottom": "space.1",
@@ -29501,7 +29501,7 @@
           "defaultValue": "dark"
         }
       },
-      "hash": "ec9e0627",
+      "hash": "26f40784",
       "source": [
         "packages/react/src/components/Select/Select.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -29707,7 +29707,7 @@
             },
             "list": {},
             "item": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": "space.1",
               "paddingRight": "space.2",
               "paddingBottom": "space.1",
@@ -29724,7 +29724,7 @@
               "lineHeight": "font.line-height.snug"
             },
             "item-2": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": "space.1",
               "paddingRight": "space.2",
               "paddingBottom": "space.1",
@@ -29741,7 +29741,7 @@
               "lineHeight": "font.line-height.snug"
             },
             "item-3": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": "space.1",
               "paddingRight": "space.2",
               "paddingBottom": "space.1",
