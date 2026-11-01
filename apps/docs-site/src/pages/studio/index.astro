@@ -273,7 +273,8 @@ const onboarding = {
           createElement(Onboarding, {
             key: stepsAt ?? 'first-run',
             steps,
-            name: shortName(v.name) ?? v.login,
+            // The first name, as the Home greeting says it: never the GitHub login, which reads as a handle.
+            name: shortName(v.name) ?? null,
             initial: stepsAt ?? undefined,
             ctx: { ...onb.ctx, quickStart: workspace.storybook, team: team() },
             actions: {
