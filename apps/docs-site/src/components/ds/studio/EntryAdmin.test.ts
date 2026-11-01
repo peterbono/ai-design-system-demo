@@ -102,10 +102,10 @@ describe('Create your team (E6, E7a)', () => {
     const field = screen.getByRole('textbox', { name: 'Team name' });
     expect(field).toHaveValue('Lumen');
     await user.clear(field);
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Create the team' }));
     expect(screen.getByText('Type a name for your team.')).toBeInTheDocument();
     await user.type(field, 'Lumen Studio');
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Create the team' }));
     expect(createTeam).toHaveBeenCalledWith('Lumen Studio', true);
     // On to step 2: GitHub comes back only to link the repository.
     expect(screen.getByText('Step 2 of 6')).toBeInTheDocument();
@@ -128,7 +128,7 @@ describe('Create your team (E6, E7a)', () => {
     expect(screen.getByText('Teammates join by invite. Once the team exists, invite them from the team menu.')).toBeInTheDocument();
     const user = userEvent.setup();
     await user.type(screen.getByRole('textbox', { name: 'Team name' }), 'Acme Design');
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Create the team' }));
     expect(createTeam).toHaveBeenCalledWith('Acme Design', false);
     // GitHub signed in here already: step 2 picks the repository.
     expect(screen.getByRole('textbox', { name: 'GitHub repository' })).toBeInTheDocument();

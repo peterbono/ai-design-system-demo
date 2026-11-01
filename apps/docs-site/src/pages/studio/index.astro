@@ -90,7 +90,7 @@ const onboarding = {
     repo: repoName,
     repoUrl: GITHUB_URL,
     storybook: rawCfg.storybook?.url ?? PRODUCTION_APPS.storybook ?? null,
-    products: (Array.isArray(rawCfg.products) ? rawCfg.products : []).filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ name: p.name, path: typeof p.path === 'string' ? p.path : undefined })),
+    products: (Array.isArray(rawCfg.products) ? rawCfg.products : []).filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ name: p.name, path: typeof p.path === 'string' ? p.path : undefined, key: typeof p.key === 'string' ? p.key : undefined, design: Boolean(p.design && typeof p.design.repo === 'string') })),
     mcpCommand: bridgeMcpInstallCommand(repoName),
     figmaHref: '/install/#figma-plugin',
     claudeHref: '/agents/#claude-code',

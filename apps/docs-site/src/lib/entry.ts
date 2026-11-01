@@ -418,6 +418,8 @@ export const ENTRY_WORDS = {
   createTeam: 'Create a team',
   // E6 and E7a
   createTitle: 'Create your team',
+  /** Step 1's button: it creates the team on the server, then step 2 opens. */
+  createButton: 'Create the team',
   createLead: 'Your teammates see this name in their invite. You can change it later.',
   teamName: 'Team name',
   teamNameMissing: 'Type a name for your team.',

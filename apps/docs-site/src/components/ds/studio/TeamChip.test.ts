@@ -18,6 +18,8 @@ const page = vi.hoisted(() => ({
   team: { owner: 'acme', repo: 'ds' },
   site: {} as { name?: string },
   viewer: null as { login: string; name?: string } | null,
+  /** The GitHub session has not answered yet (a cold first visit). */
+  pending: false,
   listeners: [] as ((a: { state: RepoAccessState } | null) => void)[],
 }));
 
@@ -28,7 +30,7 @@ vi.mock('../../../scripts/repo-context', () => ({
 
 vi.mock('../../../scripts/github-session', () => ({
   prefersSignIn: () => true,
-  initGitHubConnect: (fn: (v: { login: string; name?: string } | null) => void) => fn(page.viewer),
+  initGitHubConnect: (fn: (v: { login: string; name?: string } | null) => void) => (page.pending ? undefined : fn(page.viewer)),
   currentAccess: () => null,
   onAccess: (fn: (a: { state: RepoAccessState } | null) => void) => void page.listeners.push(fn),
   resolveAccess: async () => null,
@@ -49,6 +51,7 @@ beforeEach(() => {
   localStorage.clear();
   page.listeners = [];
   page.viewer = null;
+  page.pending = false;
   page.team = { owner: 'acme', repo: 'ds' };
   page.site = {};
 });
@@ -110,6 +113,15 @@ describe('TeamChip recent teams', () => {
 });
 
 describe('TeamChip names the team', () => {
+  it('while the session has not answered, says Checking, never Guest', async () => {
+    page.pending = true;
+    page.site = { name: 'Acme Studio' };
+    render(createElement(TeamChip, { launcher: true }));
+    expect(await screen.findByRole('button', { name: 'Acme Studio, Checking, team menu' })).toBeInTheDocument();
+    expect(screen.queryByText('Guest')).toBeNull();
+  });
+
+
   it("goes by the team's name from bridge.config.json, owner/repo in its title, and remembers it for the recent teams", async () => {
     page.site = { name: 'Acme Studio' };
     render(createElement(TeamChip, { launcher: true }));
