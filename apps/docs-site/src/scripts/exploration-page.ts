@@ -40,7 +40,7 @@ import { pieceRows, type PieceRowView } from '../lib/product-branch';
 import { checkPieces } from './connector-api';
 import { forgetClaudeLink, knownClaudeLink, viewerClaudeLink } from './claude-link';
 import { connectorUrl, copilotSetup, terminalSetup } from '../lib/claude-connector';
-import { ARCHIVED_LINE, BACK_TO_EXPLORING_LINE, explorationKey, RENAMED_LINE, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
+import { ARCHIVED_LINE, BACK_TO_EXPLORING_LINE, UNARCHIVED_LINE, explorationKey, RENAMED_LINE, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { developerLines, productCrumbs, productProduction, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
 import { touchesVisuals } from '../lib/visual-impact';
 import { jiraKeyOf } from '../lib/vocabulary';
@@ -123,6 +123,9 @@ export const runsHere = (r: Pick<ExplorationRow, 'status' | 'archived'>) => r.st
 
 /** True after Done exploring (Waiting for code, Being built, Shipped): the same page, in its hand-off state. */
 export const handedOffHere = (r: Pick<ExplorationRow, 'status' | 'archived'>) => isHandoffStatus(r.status) && !r.archived;
+
+/** Archived, not closed nor shipped: the same page, its preview and activity, with the Archived tag and Unarchive. */
+export const archivedHere = (r: Pick<ExplorationRow, 'status' | 'archived'>) => Boolean(r.archived) && r.status !== 'closed' && r.status !== 'shipped';
 
 /** Who added the ready-for-devs label, and when: Done exploring said without Bridge's note commit. */
 async function readyLabelEvent(r: ExplorationRow): Promise<{ login: string; at: string } | null> {
@@ -265,7 +268,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
             return RENAMED_LINE;
           }
         : null,
-      onReopen: menu.reopen
+      onReopen: menu.reopen && !r.archived
         ? async () => {
             const back = await reopenExplorationOnGitHub(gh, r.number, { by: currentViewer()?.login ?? null });
             // A token without the right to edit labels: the body says it runs again, designers never read why.
@@ -274,7 +277,16 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
             return BACK_TO_EXPLORING_LINE;
           }
         : null,
-      onArchive: menu.archive
+      archived: Boolean(r.archived),
+      onUnarchive:
+        menu.archive && r.archived
+          ? async () => {
+              await archiveExplorationOnGitHub(gh, r.number, { archived: false });
+              reopen(UNARCHIVED_LINE);
+              return UNARCHIVED_LINE;
+            }
+          : null,
+      onArchive: menu.archive && !r.archived
         ? async () => {
             await archiveExplorationOnGitHub(gh, r.number, { archived: true });
             reopen(ARCHIVED_LINE);
@@ -307,7 +319,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const [files, commits, sources, shot] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r), previewShotOf(r).catch(() => null)]);
   reported = sources;
   if (current?.key !== key) return;
-  const stage = explorationStage({ status: r.status, archived: r.archived, files });
+  // Archived: the page of the state it was archived in (not started or exploring), with the Archived tag.
+  const stage = explorationStage({ status: r.archived ? 'active' : r.status, files });
   const app = own ? undefined : isLibrary ? (libraryPreviewApp(files, CFG.apps) ?? 'docs') : (product.key as 'admin');
   const todayRaw = isLibrary ? (app ? (CFG.production?.[app] ?? null) : null) : productTodayUrl(product, { production: own ? null : CFG.production, defaultBranch: own ? (pull.base?.ref ?? 'main') : CFG.defaultBranch });
   const todayUrl = todayRaw ? safeUrl(todayRaw) || null : null;

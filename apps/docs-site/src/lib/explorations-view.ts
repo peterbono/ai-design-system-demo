@@ -458,6 +458,8 @@ export function takeItLines(branch: string, copy?: string | null): { branch: str
 
 /** Archived, in one line next to its action. */
 export const ARCHIVED_LINE = 'Archived: hidden from the lists, its preview still works.';
+/** Said after Unarchive: the exploration is listed again. */
+export const UNARCHIVED_LINE = 'Back in the lists.';
 
 /** Renamed, in one line: the link and the preview keep their address. */
 export const RENAMED_LINE = 'Renamed. Its link and preview stay the same.';

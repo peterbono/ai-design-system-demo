@@ -35,7 +35,7 @@ import {
   type ProductConfig,
 } from '@bridge-ds/core';
 import { ASK_CLAUDE, developerLines, failedPreviewLine, pieceRows, productCrumbs, productTodayUrl, tryInProductView, whyItShows, type PieceActionKind, type PieceRowView } from '../lib/product-branch';
-import { ARCHIVED_LINE, explorationKey, explorationPreviews, explorationStateLine, productPreviews, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
+import { ARCHIVED_LINE, UNARCHIVED_LINE, explorationKey, explorationPreviews, explorationStateLine, productPreviews, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { productClient, productRepoByKey } from './product-repos';
 import { touchesVisuals } from '../lib/visual-impact';
 import { ghAction, sendButton, suggestionSentLine } from '../lib/gh-wording';
@@ -317,7 +317,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       onArchive: writable
         ? async () => {
             await archiveExplorationOnGitHub(gh, r.number, { archived: !r.archived });
-            const line = r.archived ? 'Back in the lists.' : ARCHIVED_LINE;
+            const line = r.archived ? UNARCHIVED_LINE : ARCHIVED_LINE;
             reopen(line);
             return line;
           }

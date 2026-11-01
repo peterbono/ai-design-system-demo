@@ -15,6 +15,7 @@ import {
 } from '@bridge-ds/core';
 import {
   ARCHIVED_LINE,
+  UNARCHIVED_LINE,
   branchFor,
   explorationHref,
   explorationKey,
@@ -574,6 +575,17 @@ async function rowFor(n: number, product: string | null, fresh = false): Promise
   }
 }
 
+/** Unmounts the exploration page and the product branch page when either is open (their modules are loaded then). */
+async function leavePages() {
+  if (!pagesOpened) return;
+  const [xp, pb] = await Promise.all([import('./exploration-page'), import('./product-branch')]);
+  xp.closeExplorationPage();
+  pb.closeProductBranch();
+}
+
+/** True once a React page (exploration page, product branch page) was opened in the detail. */
+let pagesOpened = false;
+
 /**
  * Opens an exploration in place (?exploration=N, &product=<key> when it lives in a product's own repository).
  * `after`: a write just changed it. `fresh` reads it again, `said` is the line the page it lands on shows.
@@ -581,6 +593,9 @@ async function rowFor(n: number, product: string | null, fresh = false): Promise
 export async function openExploration(n: number, push = true, product: string | null = null, after: { fresh?: boolean; said?: string } = {}) {
   if (push) history.pushState({ exploration: n, product }, '', explorationHref({ number: n, product }));
   const d = $('rv-detail');
+  // The page of the state it just left (React) leaves first: writing over its nodes and unmounting it later threw,
+  // and the detail stayed blank after Archive until a reload.
+  await leavePages();
   d.hidden = false;
   d.innerHTML = `${crumbs(n, product)}<p class="rv-loading">Loading exploration #${n}</p>`;
   window.scrollTo({ top: 0 });
@@ -595,6 +610,7 @@ export async function openExploration(n: number, push = true, product: string | 
   if (r && pull) void repairLabel(r, pull);
   if (r && pull) {
     const pb = await import('./product-branch');
+    pagesOpened = true;
     const products = pb.siteProducts();
     const of = productRepoByKey(r.product)?.product ?? isProductBranch(pull.labels, products);
     // While it runs (boards X1 and X2): not started or exploring, for a product or the library. After Done exploring
@@ -602,7 +618,8 @@ export async function openExploration(n: number, push = true, product: string | 
     const xp = await import('./exploration-page');
     // After a write: read again, and the page it lands on says what happened.
     const reopen = (said?: string) => void openExploration(n, false, product, { fresh: true, ...(said ? { said } : {}) });
-    if (xp.runsHere(r) || xp.handedOffHere(r)) {
+    // Archived (not closed nor shipped): the same page, with the Archived tag and Unarchive.
+    if (xp.runsHere(r) || xp.handedOffHere(r) || xp.archivedHere(r)) {
       pb.closeProductBranch();
       return xp.openExplorationPage(d, r, pull, of ?? defaultProduct(products), products, reopen, after.said);
     }
@@ -670,7 +687,7 @@ async function archive(btn: HTMLButtonElement) {
     await archiveExplorationOnGitHub(clientFor(r), r.number, { archived });
     if (r.product) void readProductPulls(true);
     void loadExplorations(undefined, true);
-    await repaintDetail(r, archived ? ARCHIVED_LINE : 'Back in the lists.');
+    await repaintDetail(r, archived ? ARCHIVED_LINE : UNARCHIVED_LINE);
   } catch (err) {
     actionError((err as Error).message, err, 'archive explorations');
     setButtonBusy(btn, false, archived ? 'Archive' : 'Unarchive');

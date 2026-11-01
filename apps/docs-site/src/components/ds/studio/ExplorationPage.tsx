@@ -57,6 +57,8 @@ import { Who } from './faces';
 import type { LifecycleStage } from '../../../lib/review-state';
 import { explorationTag, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
 import { studioHref } from '../../../lib/team-path';
+import { ARCHIVED_LINE } from '../../../lib/explorations-view';
+import { EXPLORATION_STAGE_LABEL } from '@bridge-ds/core';
 import { plateDrawing } from '../../../lib/branch-thumb';
 import { capturedLine } from '../../../lib/preview-shots';
 import { TERMINAL_SETUP_LINE } from '../../../lib/claude-connector';
@@ -123,6 +125,13 @@ export interface ExplorationPageProps {
   onReopen?: (() => Promise<string | void>) | null;
   /** Archive in the "..." menu; null when not offered. */
   onArchive: (() => Promise<string | void>) | null;
+  /**
+   * Archived: hidden from the lists, its preview still works. The page keeps its layout (the preview, the activity),
+   * the tag reads Archived, one line says so with Unarchive, and nothing offers Done exploring.
+   */
+  archived?: boolean;
+  /** Unarchive, beside the archived line; null when this viewer cannot. */
+  onUnarchive?: (() => Promise<string | void>) | null;
   /** Copies a line (clipboard, else a selection fallback). */
   onCopy: (text: string) => Promise<void>;
   developer: { label: string; value: string }[];
@@ -194,7 +203,7 @@ function ContinueButton({ p, tool, line, say, variant, children, size = 'lg' }: 
 
 function DoneCard({ p }: { p: ExplorationPageProps }) {
   const d = p.done;
-  if (!d) return null;
+  if (!d || p.archived) return null;
   return (
     <section className="xp-done zone" aria-labelledby="xp-done-h">
       <h2 className="xp-h2" id="xp-done-h">
@@ -451,6 +460,15 @@ function ExplorationBody(p: ExplorationPageProps) {
       .then((r) => setSaid(r ?? ''))
       .catch((err: Error) => setSaid(err.message));
   };
+  const [unarchiving, setUnarchiving] = useState(false);
+  const unarchive = () => {
+    setSaid('');
+    setUnarchiving(true);
+    p.onUnarchive?.()
+      .then((r) => setSaid(r ?? ''))
+      .catch((err: Error) => setSaid(err.message))
+      .finally(() => setUnarchiving(false));
+  };
   const reopenIt = () => {
     setSaid('');
     setReopening(true);
@@ -476,7 +494,14 @@ function ExplorationBody(p: ExplorationPageProps) {
           <h1 className="xp-pagetitle" tabIndex={-1}>
             {p.title}
           </h1>
-          {p.stage !== 'loading' && <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} stage={handoff?.stage ?? null} />}
+          {p.stage !== 'loading' &&
+            (p.archived ? (
+              <Badge tone="neutral" size="md">
+                {EXPLORATION_STAGE_LABEL.archived}
+              </Badge>
+            ) : (
+              <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} stage={handoff?.stage ?? null} />
+            ))}
           <span className="xp-spacer" />
           {(p.onRename || p.onReopen || p.onArchive) && (
             <Menu>
@@ -523,6 +548,16 @@ function ExplorationBody(p: ExplorationPageProps) {
           </p>
         )}
       </div>
+      {p.archived && p.stage !== 'loading' && (
+        <div className="xp-archived">
+          <p className="xp-muted">{ARCHIVED_LINE}</p>
+          {p.onUnarchive && (
+            <Button variant="secondary" size="md" disabled={unarchiving} onClick={unarchive}>
+              {unarchiving ? 'Unarchiving' : 'Unarchive'}
+            </Button>
+          )}
+        </div>
+      )}
       {p.stage === 'loading' && <Skeleton variant="rect" className="xp-skel" />}
       {notStarted && (
         <section className="xp-start" aria-labelledby="xp-start-h">
@@ -723,7 +758,13 @@ export function paintExplorationPage(el: HTMLElement, props: ExplorationPageProp
 }
 
 export function unmountExplorationPage() {
-  root?.unmount();
+  // The detail may have been written over already (a loading line): React then throws removing nodes that are gone,
+  // which left the detail blank after Archive. The effects still clean up; the next paint starts a new root.
+  try {
+    root?.unmount();
+  } catch {
+    // Its nodes were already replaced.
+  }
   root = null;
   host = null;
 }

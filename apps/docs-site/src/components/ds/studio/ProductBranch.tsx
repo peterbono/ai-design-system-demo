@@ -286,7 +286,12 @@ export function paintProductBranch(el: HTMLElement, props: ProductBranchProps) {
 }
 
 export function unmountProductBranch() {
-  root?.unmount();
+  // The detail may have been written over already: React then throws removing nodes that are gone.
+  try {
+    root?.unmount();
+  } catch {
+    // Its nodes were already replaced.
+  }
   root = null;
   host = null;
 }
