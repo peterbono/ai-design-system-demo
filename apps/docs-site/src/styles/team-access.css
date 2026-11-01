@@ -233,6 +233,16 @@
   color: var(--color-text-muted);
 }
 
+/* "Request sent. An admin lets you in.": where Ask to join the team was, a quiet confirmation with its check. */
+.na-sent {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-default);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
 /* Sign in with your email, unfolded under the block's text (EmailLinkForm, styles/library-access.css). */
 .na-email,
 .na-email-dialog .lgt-form {

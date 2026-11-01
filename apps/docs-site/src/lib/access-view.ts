@@ -61,6 +61,12 @@ export type AccessAction =
   /** Continue with email: the one sign-in screen of Bridge (pages/signin.astro), back to this page afterwards. */
   | { kind: 'email'; label: string }
   | { kind: 'copy'; label: string; text: string; copied: string }
+  /**
+   * Ask to join the team inside Bridge (POST /api/entry action 'ask'): the request lands in the admins' join rows. When
+   * Bridge cannot send it for this person (no account it can attach it to, or the team cannot be asked from here),
+   * `fallback` is copied instead, and the page says so.
+   */
+  | { kind: 'ask'; label: string; repo: string; fallback: { text: string; copied: string } }
   | { kind: 'link'; label: string; href: string; external?: boolean };
 
 export interface AccessScreen {
@@ -91,7 +97,23 @@ export interface AccessScreenInput {
   email?: boolean;
   /** The team's configured name when this browser knows it (bridge.config.json `name`, kept by the server). */
   name?: string | null;
+  /**
+   * This site sends join requests inside Bridge (the hosted one, with accounts): "Ask to join the team" asks the admins
+   * there instead of copying a message.
+   */
+  asks?: boolean;
+  /** Signed in to a Bridge account that is not on this team (no GitHub sign-in needed to ask). */
+  account?: boolean;
 }
+
+/** The words around "Ask to join the team" once clicked (components/ds/studio/NoAccess.tsx). */
+export const ASK_WORDS = {
+  label: 'Ask to join the team',
+  sending: 'Asking',
+  sent: 'Request sent. An admin lets you in.',
+  sentTitle: 'Request sent',
+  fallback: 'Bridge could not send the request from here, so the message is copied: paste it to your lead.',
+} as const;
 
 const EMAIL_ACTION: AccessAction = { kind: 'email', label: CONTRIBUTE_WORDS.continueWithEmail };
 /** The quiet way in for people invited with their email, under Sign in with GitHub: the one sign-in screen of Bridge. */
@@ -131,6 +153,15 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
         note: 'GitHub signs you in with the account open in this browser. To use another one, switch accounts on github.com first.',
       };
     case 'anonymous-public':
+      // Signed in to Bridge with an account that is not on this team: one click asks the admins.
+      if (f.asks && f.account)
+        return {
+          layout: 'banner',
+          tone: 'info',
+          title: 'Can view',
+          body: 'You are not on this team yet. You can look around; ask to join and an admin lets you in.',
+          primary: { kind: 'ask', label: ASK_WORDS.label, repo, fallback: { text: askJoinMessage(f.login, repo, f.link), copied: 'Message copied. Paste it to your lead.' } },
+        };
       return {
         layout: 'banner',
         tone: 'info',
@@ -160,8 +191,12 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
         layout: 'banner',
         tone: 'info',
         title: 'Can view',
-        body: `${who(f.login)} is not on this team on GitHub. You can look around and still send suggestions: the team reviews them.`,
-        primary: { kind: 'copy', label: 'Ask to join the team', text: askJoinMessage(f.login, repo, f.link), copied: 'Message copied. Paste it to your lead.' },
+        body: f.asks
+          ? 'You are not on this team yet. You can look around and still send suggestions: the team reviews them.'
+          : `${who(f.login)} is not on this team on GitHub. You can look around and still send suggestions: the team reviews them.`,
+        primary: f.asks
+          ? { kind: 'ask', label: ASK_WORDS.label, repo, fallback: { text: askJoinMessage(f.login, repo, f.link), copied: 'Message copied. Paste it to your lead.' } }
+          : { kind: 'copy', label: ASK_WORDS.label, text: askJoinMessage(f.login, repo, f.link), copied: 'Message copied. Paste it to your lead.' },
       };
     default:
       return null;

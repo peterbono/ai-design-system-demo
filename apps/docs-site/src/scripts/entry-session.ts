@@ -103,6 +103,26 @@ export async function requestJoin(team: string): Promise<{ requested: true } | (
   return { requested: true };
 }
 
+/**
+ * Asks to join a team from its own address (any work domain): the GitHub sign-in goes along so a private team can be
+ * asked by someone GitHub lets read it. An invite for it is accepted instead (`joined`).
+ */
+export async function askToJoin(repo: string): Promise<{ requested: true } | ({ joined: true } & Accepted)> {
+  const r = await call<Record<string, unknown>>('POST', '', { action: 'ask', repo }, true);
+  if (r.joined === true) return { joined: true, status: r.status === 'accept-on-github' ? 'accept-on-github' : 'joined', repo: String(r.repo ?? repo), role: String(r.role ?? 'edit'), next: typeof r.next === 'string' ? r.next : '', ...(typeof r.acceptUrl === 'string' ? { acceptUrl: r.acceptUrl } : {}) };
+  return { requested: true };
+}
+
+/** Whether the account's own request to join that team waits (false on any error: the button stays). */
+export async function askedToJoin(repo: string): Promise<boolean> {
+  try {
+    const r = await call<{ asked?: unknown }>('GET', `?asked=${encodeURIComponent(repo)}`);
+    return r.asked === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Takes back the account's own pending request to join a team. A request already gone (404) counts as cancelled. */
 export async function cancelJoinRequest(team: string): Promise<void> {
   try {

@@ -35,6 +35,14 @@
 //   POST { action: 'request', team }        asks to join a team open to their work domain, by its opaque id (`repo`
 //                                           works too); an invite for that team is accepted instead: { joined: true,
 //                                           ... }; { requested: true, expiresAt }; 409 already { repo } for a member
+//   POST { action: 'ask', repo }            asks to join a team from its own address (/studio/<owner>/<repo>/), any
+//                                           work domain: the person found the team, so discovery is not needed. Only a
+//                                           repository the Bridge app is installed on, and that the person can read on
+//                                           GitHub: public, or private with their linked GitHub account's own token
+//                                           (Bearer) reading it. Anything else answers the same 404 as a team that does
+//                                           not exist. Same answers, limits and admin emails as `request`.
+//   GET  /api/entry?asked=owner/name        whether the account's own request to join that team waits:
+//                                           { asked: true, expiresAt } or { asked: false } (never about anyone else)
 //   POST { action: 'cancel-request', team }  the requester takes back their own pending request (keyed by the
 //                                           account email, so nobody else's); { cancelled: true }, 404 when none waits
 //   POST { action: 'approve', repo, id }    admin: the requester joins with Can edit; { member: { name, role }, repo }
@@ -616,7 +624,7 @@ async function adminEmails(ctx: Ctx, repo: string): Promise<string[]> {
 export function requestEmail(x: { to: string; name: string; email: string; team: string; link: string }): EmailMessage {
   const subject = `${x.name} asked to join ${x.team} on Bridge`;
   const text = [
-    `${x.name} (${x.email}) asked to join the ${x.team} design system on Bridge, with their work email.`,
+    `${x.name} (${x.email}) asked to join the ${x.team} design system on Bridge.`,
     '',
     `Review the request in Settings, Members: ${x.link}`,
     '',
@@ -624,7 +632,7 @@ export function requestEmail(x: { to: string; name: string; email: string; team:
     'If you do not know this person, decline it.',
   ].join('\n');
   const html = [
-    `<p>${escHtml(x.name)} (${escHtml(x.email)}) asked to join the <strong>${escHtml(x.team)}</strong> design system on Bridge, with their work email.</p>`,
+    `<p>${escHtml(x.name)} (${escHtml(x.email)}) asked to join the <strong>${escHtml(x.team)}</strong> design system on Bridge.</p>`,
     `<p><a href="${escHtml(x.link)}">Review the request</a></p>`,
     '<p>If you approve, they join with Can edit. The request expires in 14 days.</p>',
     '<p>If you do not know this person, decline it.</p>',
@@ -707,6 +715,56 @@ async function onRequest(ctx: Ctx, req: Request, a: Account, body: Record<string
   const domain = workDomain(email);
   const d = domain ? await getDiscovery(ctx.svc.redis, full) : null;
   if (!domain || !d || !d.enabled || d.domain !== domain) return fail(404, 'not_found', NOT_OPEN);
+  return placeRequest(ctx, req, a, full);
+}
+
+/**
+ * Whether the person may ask to join this repository's team from its address: the Bridge app is installed on it (a
+ * team Bridge serves), and they can read it on GitHub (public, or their linked account's own token reads it). False
+ * says nothing more: the caller answers like a team that does not exist.
+ */
+async function canAskFromAddress(ctx: Ctx, req: Request, a: Account, owner: string, repo: string): Promise<boolean> {
+  if (!ctx.svc.app) return false;
+  const token = await ctx.svc.app.installationToken(owner, repo);
+  if (!token) return false;
+  const r = await gh(ctx.f, token, `/repos/${owner}/${repo}`);
+  if (r.status !== 200) return false;
+  if (r.data?.private !== true) return true;
+  const bearer = /^Bearer\s+(\S+)$/i.exec(req.headers.get('authorization') ?? '')?.[1];
+  if (!a.github || !bearer || !GH_TOKEN.test(bearer)) return false;
+  const user = await gh(ctx.f, bearer, '/user');
+  if (user.status !== 200 || user.data?.id !== a.github.id) return false;
+  return (await gh(ctx.f, bearer, `/repos/${owner}/${repo}`)).status === 200;
+}
+
+/** "Ask to join the team" from the team's own address: no work domain needed, the person found the team. */
+async function onAsk(ctx: Ctx, req: Request, a: Account, body: Record<string, unknown>): Promise<Response> {
+  const t = await resolveTeam(ctx, body.repo);
+  // A team made in Bridge has no address to find it by; only a repository's team.
+  if (t.id) return fail(404, 'not_found', NOT_OPEN);
+  const email = a.email.toLowerCase();
+  if (await ctx.svc.members.get(t.full, email)) return json(409, { error: 'already', message: ALREADY, repo: t.full });
+  if (!(await canAskFromAddress(ctx, req, a, t.owner, t.repo))) return fail(404, 'not_found', NOT_OPEN);
+  const inv = (await ctx.svc.invites.byEmail(email)).find((i) => i.repo.toLowerCase() === t.full);
+  if (inv) return acceptInvite(ctx, req, a, inv);
+  return placeRequest(ctx, req, a, t.full);
+}
+
+/** Whether the account's own request to join a team waits; never says anything about another person or the team. */
+async function onAsked(ctx: Ctx, a: Account, repoArg: string): Promise<Response> {
+  let full: string;
+  try {
+    full = parseRepo(repoArg).full;
+  } catch {
+    return json(200, { asked: false }, { 'Cache-Control': 'private, no-store' });
+  }
+  const r = await getRequest(ctx.svc.redis, full, a.email.toLowerCase(), ctx.now());
+  return json(200, r ? { asked: true, expiresAt: r.expiresAt } : { asked: false }, { 'Cache-Control': 'private, no-store' });
+}
+
+/** The request itself, once the caller checked the person may ask: one per person and team, within the day's limits. */
+async function placeRequest(ctx: Ctx, req: Request, a: Account, full: string): Promise<Response> {
+  const email = a.email.toLowerCase();
   const now = ctx.now();
   const pending = await getRequest(ctx.svc.redis, full, email, now);
   if (pending) return json(200, { requested: true, already: true, expiresAt: pending.expiresAt });
@@ -995,6 +1053,8 @@ async function onAction(ctx: Ctx, req: Request, a: Account, body: Record<string,
     }
     case 'request':
       return onRequest(ctx, req, a, body);
+    case 'ask':
+      return onAsk(ctx, req, a, body);
     case 'cancel-request':
       return onCancel(ctx, a, body);
     case 'approve':
@@ -1133,6 +1193,8 @@ export async function handleEntry(req: Request, env: EntryEnv, deps: EntryDeps):
       const list = await listRequests(svc.redis, admin.full, ctx.now());
       return json(200, { requests: list.map(({ id, name, email, createdAt, expiresAt }) => ({ id, name, email, createdAt, expiresAt })) }, noStore);
     }
+    const askedOf = params.get('asked');
+    if (askedOf !== null) return await onAsked(ctx, a, askedOf);
     const aiToolsOf = params.get('ai-tools');
     if (aiToolsOf !== null) return await onGetTeamAiTools(ctx, a, aiToolsOf);
     const teamOf = params.get('team');
