@@ -2,7 +2,21 @@
 // studioHref (multi-team plan, section 4.1): self-hosted and build-time addresses stay byte for byte what they were;
 // a team shell keeps its team. The literal scan lives in no-studio-literals.test.ts.
 import { afterEach, describe, expect, it } from 'vitest';
-import { canonicalTeamPath, isReservedTeam, isTeamKey, isTeamName, pageTeamFromPath, parseTeamInput, reservedFromFiles, studioBase, studioHref, studioHrefAt, teamHref, teamKeyId, teamKeyOf } from './team-path';
+import { canonicalTeamPath, isReservedTeam, isTeamKey, isTeamName, pageTeamFromPath, parseTeamInput, reservedFromFiles, studioBase, studioHref, studioHrefAt, teamHref, teamKeyId, teamKeyOf, teamShareBase } from './team-path';
+
+describe('teamShareBase', () => {
+  const reserved = reservedFromFiles([]);
+  it('is the team shell itself on a team page', () => {
+    expect(teamShareBase('/studio/acme/ds/settings/', { hosted: true, hostedSite: true }, 'acme', 'ds', reserved)).toBe('/studio/acme/ds/');
+  });
+  it("is the team's address on the hosted site's root, never the showcase at /studio/", () => {
+    expect(teamShareBase('/studio/', { hosted: false, hostedSite: true }, 'peterbono', 'ai-design-system-demo', reserved)).toBe('/studio/peterbono/ai-design-system-demo/');
+    expect(teamShareBase('/studio/settings/', { hosted: false, hostedSite: true }, 'acme', 'ds', null)).toBe('/studio/~/acme/ds/');
+  });
+  it('is /studio/ on a self-hosted Studio, which is that team', () => {
+    expect(teamShareBase('/studio/settings/', { hosted: false, hostedSite: false }, 'acme', 'ds', reserved)).toBe('/studio/');
+  });
+});
 
 describe('studioHref', () => {
   it('returns the self-hosted path unchanged outside a team shell (build time, no data-hosted)', () => {

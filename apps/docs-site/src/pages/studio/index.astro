@@ -125,7 +125,7 @@ const onboarding = {
     import { currentAccess, currentContributor, currentViewer, getToken, initGitHubConnect, onAccess, prefersSignIn } from '../../scripts/github-session';
     import { siteConfig } from '../../scripts/repo-context';
     import { teamLink } from '../../lib/access-view';
-    import { STUDIO_ROOT } from '../../lib/team-path';
+    import { isHosted, isHostedSite, teamShareBase } from '../../lib/team-path';
     import { setReviewCount } from '../../scripts/shell';
     import { rememberMine } from '../../scripts/needs-you';
     import { loadHome, type HomeData, type HomeStatic } from '../../scripts/home-data';
@@ -202,10 +202,11 @@ const onboarding = {
     // Once open, the steps stay until the viewer leaves them (a proposal sent on step 4 must not close them).
     let stepsOpen = false;
 
-    // Step "Invite your team": this Studio's own address is the team link.
+    // The team's own address (never the hosted site's showcase at /studio/), for the messages people copy to an admin.
     const team = () => {
       const [owner = '', name = ''] = onb.ctx.repo.split('/');
-      return { owner, repo: name, link: teamLink(location.origin, STUDIO_ROOT), access: currentAccess()?.state ?? null, changes: onb.changes, owners: siteConfig().owners };
+      const base = teamShareBase(location.pathname, { hosted: isHosted(), hostedSite: isHostedSite() }, owner, name, null);
+      return { owner, repo: name, link: teamLink(location.origin, base), access: currentAccess()?.state ?? null, changes: onb.changes, owners: siteConfig().owners };
     };
 
     function health(): HealthLine | null {

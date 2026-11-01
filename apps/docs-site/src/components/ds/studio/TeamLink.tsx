@@ -1,13 +1,14 @@
-// "Invite your team" (multi-team plan 7.2): the team link in a read-only field with Copy link as the largest target,
-// then "Who can do what" collapsed (GitHub access mapped to what each person can do in Bridge), and for admins only
-// "Manage access on GitHub". One component in two places: onboarding step "Invite your team" (Onboarding.tsx) and
-// Settings > Your team (TeamLinkLive, which reads the session itself). Words and rules: lib/access-view.ts.
+// The team link (multi-team plan 7.2): the team's own address in a read-only field with Copy link as the largest
+// target, then "Who can do what" collapsed (GitHub access mapped to what each person can do in Bridge), and for admins
+// only "Manage access on GitHub". Settings > Your team (TeamLinkLive, which reads the session itself). The address is
+// the team's Studio (lib/team-path teamShareBase), never the hosted site's showcase at /studio/. Onboarding's "Invite
+// your team" step invites by email instead (InviteDialog). Words and rules: lib/access-view.ts.
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { Accordion, AccordionItem, Badge, Button, Input, Link } from '@bridge-ds/react';
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { accessBadge, accessSummary, chipIdentity, manageAccessUrl, NO_ACCESS_LINE, orgTeamsUrl, teamLink, viewerRow, whoCanDoWhat } from '../../../lib/access-view';
-import { STUDIO_ROOT, studioBase } from '../../../lib/team-path';
+import { isHostedSite, teamShareBase } from '../../../lib/team-path';
 import { isSampleTeam } from '../../../lib/demo';
 
 /** Copies text, then says so for 2 s. `said` is the line for a screen reader (or how to copy by hand). */
@@ -131,12 +132,18 @@ export function TeamLinkLive(props: TeamLinkLiveProps) {
   useEffect(() => {
     let live = true;
     void (async () => {
-      const [{ repoContext, siteConfig }, session] = await Promise.all([import('../../../scripts/repo-context'), import('../../../scripts/github-session')]);
+      const hostedSite = isHostedSite();
+      const [{ repoContext, siteConfig }, session, reserved] = await Promise.all([
+        import('../../../scripts/repo-context'),
+        import('../../../scripts/github-session'),
+        // The hosted site's root is Bridge's showcase: the link is the team's own address, spelled as this build serves it.
+        hostedSite ? import('../../../lib/team-open').then((m) => m.loadReserved()) : Promise.resolve(null),
+      ]);
       if (!live) return;
       const read = () => {
         const r = repoContext();
         const cfg = siteConfig();
-        const base = r.hosted ? studioBase(location.pathname, true) : STUDIO_ROOT;
+        const base = teamShareBase(location.pathname, { hosted: r.hosted, hostedSite }, r.owner, r.repo, reserved);
         setCtx({
           owner: r.owner,
           repo: r.repo,
@@ -192,7 +199,7 @@ export function TeamLinkLive(props: TeamLinkLiveProps) {
         id="set-team-link"
         owner={owner}
         repo={repo}
-        link={ctx?.link ?? STUDIO_ROOT}
+        link={ctx?.link ?? ''}
         access={login ? access : null}
         changes={ctx?.changes ?? props.changes ?? null}
         owners={demo ? undefined : (ctx?.owners ?? props.owners)}

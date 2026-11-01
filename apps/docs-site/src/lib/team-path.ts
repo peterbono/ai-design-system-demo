@@ -92,6 +92,12 @@ export function pageTeamFromPath(pathname: string, hosted: boolean): { owner: st
 export const isHosted = (): boolean => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-hosted');
 
 /**
+ * True on every page of the hosted deployment (BRIDGE_HOSTED), the root /studio/ included: there /studio/ is Bridge's
+ * own showcase and each team has its own address. The layout sets <html data-hosted-site>. False at build time.
+ */
+export const isHostedSite = (): boolean => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-hosted-site');
+
+/**
  * The Studio root for a page: '/studio/' in self-hosted mode, '/studio/<owner>/<repo>/' (or '/studio/~/<owner>/<repo>/')
  * on a team shell. `hosted` is the <html data-hosted> flag; a hosted page whose address is not a team keeps '/studio/'.
  */
@@ -219,4 +225,15 @@ export function teamHref(owner: string, repo: string, reserved: ReservedPaths | 
   if (owner === TEAM_KEY_OWNER) return `${STUDIO_ROOT}workspace/?team=${encodeURIComponent(repo)}`;
   const escaped = !reserved || isReservedTeam(owner, repo, reserved);
   return `${STUDIO_ROOT}${escaped ? '~/' : ''}${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/`;
+}
+
+/**
+ * The address to share with a teammate: the team's own Studio, never Bridge's showcase. On a team shell, its base; on
+ * the hosted site's root /studio/ (the showcase), the team address of `owner/repo`; on a self-hosted Studio,
+ * '/studio/', which is that team's own Bridge. `site` is the <html data-hosted> and <html data-hosted-site> flags.
+ */
+export function teamShareBase(pathname: string, site: { hosted: boolean; hostedSite: boolean }, owner: string, repo: string, reserved: ReservedPaths | null): string {
+  if (site.hosted && teamAddress(pathname)) return studioBase(pathname, true);
+  if (site.hostedSite && owner && repo) return teamHref(owner, repo, reserved);
+  return STUDIO_ROOT;
 }
