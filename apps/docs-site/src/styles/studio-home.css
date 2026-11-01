@@ -542,20 +542,23 @@
   line-height: var(--typography-h3-line-height);
 }
 
-/* The Home's one way to start: the drawing beside the title and its line, one card across the zone. */
+/* The Home's one way to start: the drawing beside the title and its line, one card across the zone. The title and
+   its line read as one block, centered on the drawing. */
 .sh-choice-one .sh-choice-body {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   column-gap: var(--space-6);
 }
 
-.sh-choice-one .sh-choice-body > .ill {
-  grid-row: span 2;
+.sh-choice-text {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 /* "Start an exploration" as a way to start: a button that opens the start flow, set like the other choices' titles.
    Static, so its card-wide click area (Card's data-card-primary ::after) spans the card, not only the button. */
-.sh-choice-btn {
+.sh-choice .sh-choice-btn {
   position: static;
   justify-self: start;
   height: auto;
@@ -630,7 +633,6 @@
   }
 
   .sh-choice-body > .ill {
-    grid-row: span 2;
     width: var(--size-16);
     height: auto;
   }
