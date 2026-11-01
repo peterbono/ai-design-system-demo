@@ -243,15 +243,18 @@ describe('reads through Bridge', () => {
     expect(await r!.json()).toEqual([{ number: 2 }]);
   });
 
-  it("an email member reads a product repository through the team's proxy and never writes there through it", async () => {
+  it("an email member calls a product repository through the team's proxy, which decides what it allows there", async () => {
     signIn();
     answer = () => json(200, [{ number: 3 }]);
     const r = await contributeFetch('acme/ds', 'https://api.github.com/repos/acme/shop/pulls', { headers: {} }, ['acme/shop']);
     expect(await r.json()).toEqual([{ number: 3 }]);
     expect(calls.some((c) => c.url === `/api/contribute?repo=acme%2Fds&gh=${encodeURIComponent('/repos/acme/shop/pulls')}`)).toBe(true);
-    answer = () => json(401, { message: 'Requires authentication' });
-    await contributeFetch('acme/ds', 'https://api.github.com/repos/acme/shop/issues/1/labels', { method: 'POST', headers: {}, body: '{}' }, ['acme/shop']);
-    expect(calls.at(-1)!.url).toBe('https://api.github.com/repos/acme/shop/issues/1/labels');
+    answer = () => json(201, { ok: true });
+    await contributeFetch('acme/ds', 'https://api.github.com/repos/acme/shop-design/issues/1/labels', { method: 'POST', headers: {}, body: '{}' }, ['acme/shop', 'acme/shop-design']);
+    expect(calls.at(-1)!.url).toBe(`/api/contribute?repo=acme%2Fds&gh=${encodeURIComponent('/repos/acme/shop-design/issues/1/labels')}`);
+    // Never a repository the team does not list.
+    await contributeFetch('acme/ds', 'https://api.github.com/repos/other/repo/issues', { method: 'POST', headers: {}, body: '{}' }, ['acme/shop']);
+    expect(calls.at(-1)!.url).toBe('https://api.github.com/repos/other/repo/issues');
   });
 
   it("a guest's read of a demo team in Studio goes through Bridge, and GitHub's limit elsewhere never says to add a token", async () => {

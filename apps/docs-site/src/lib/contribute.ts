@@ -48,8 +48,9 @@ export interface ContributeMember {
 
 /**
  * The product repositories of a team ("owner/name", bridge.config.json products[].repo, and the design team's copy,
- * products[].design.repo) other than the team's own: Studio reads them through the team's proxy (GET only,
- * api/_lib/team-read.ts productReadAllowed).
+ * products[].design.repo) other than the team's own: Studio calls them through the team's proxy, reads under its
+ * allow-list (api/_lib/team-read.ts productReadAllowed) and an email designer's exploration writes under its policy
+ * (api/contribute planProductCall).
  */
 export function productReposOfConfig(products: readonly { repo?: string | undefined; design?: { repo?: string | undefined } | undefined }[] | null | undefined, team: string): string[] {
   const t = team.toLowerCase();
@@ -59,8 +60,9 @@ export function productReposOfConfig(products: readonly { repo?: string | undefi
 /**
  * The proxy address of a GitHub REST call made for `repo` ("owner/name"), or null when the call is not the team's
  * (another host, another repository, the account itself): those go to GitHub as a guest. Case-insensitive on the
- * repository, the path and its query are kept as they are. `products`: a read of one of the team's product
- * repositories (productReposOfConfig) also goes to the team's proxy (`repo` stays the team); pass them for GET only.
+ * repository, the path and its query are kept as they are. `products`: a call in one of the team's product
+ * repositories (productReposOfConfig) also goes to the team's proxy (`repo` stays the team), which decides what it
+ * allows there.
  */
 export function proxyUrl(url: string, repo: string, products: readonly string[] = []): string | null {
   if (!url.startsWith(GITHUB_API)) return null;

@@ -86,7 +86,9 @@ function github(w: World): FetchLike {
       return files ? res(200, { files }) : res(404, { message: 'Not Found' });
     }
     if (m === 'GET' && path === '/repos/acme/design/contents/bridge.config.json') {
-      expect(u.searchParams.get('ref')).toBe('main');
+      // The design paths read the default branch by name; the product list (a write in another repository) reads the
+      // default branch as GitHub serves it.
+      expect([null, 'main']).toContain(u.searchParams.get('ref'));
       expect(init.headers.Accept).toBe('application/vnd.github.raw');
       return w.config === null ? res(404, { message: 'Not Found' }) : new Response(w.config, { status: 200 });
     }

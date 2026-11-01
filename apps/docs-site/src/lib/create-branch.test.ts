@@ -118,13 +118,21 @@ describe('where a feature starts', () => {
 
   it('says plainly when Bridge cannot reach the product, with the admin action and no technical words', () => {
     const line = productRepoBlockedLine('Shop', 'not-connected');
-    expect(line).toBe('Bridge is not connected to Shop yet. Ask an admin to connect it, or start it in the library for now.');
-    expect(productRepoBlockedLine('Shop', 'read-only')).toMatch(/^You can look at Shop but not start work in it yet\./);
+    // The library is the leads' (#704): only a lead is offered it.
+    expect(line).toBe('Bridge is not connected to Shop yet. Ask an admin to connect it.');
+    expect(productRepoBlockedLine('Shop', 'not-connected', true)).toBe('Bridge is not connected to Shop yet. Ask an admin to connect it, or start it in the library for now.');
+    expect(productRepoBlockedLine('Shop', 'read-only')).toBe('You can look at Shop but not explore it yet. Ask an admin to let you in.');
+    expect(productRepoBlockedLine('Shop', 'read-only', true)).toBe('You can look at Shop but not explore it yet. Ask an admin to let you in, or start it in the library for now.');
     for (const l of [line, productRepoBlockedLine('Shop', 'read-only')]) expect(l).not.toMatch(/token|repository|GitHub|404|403|\u2014/);
     const ask = askAdmin('Shop', 'acme/shop', 'not-connected', 'https://github.com/apps/bridge/installations/new');
     expect(ask.label).toBe('Ask an admin to connect Shop');
     expect(ask.message).toContain('Install Bridge on github.com/acme/shop (https://github.com/apps/bridge/installations/new, pick shop)');
     expect(askAdmin('Shop', 'acme/shop', 'read-only', 'x').label).toBe('Ask an admin for access');
+    // Someone who joined with their email gets in through a design copy, never GitHub access.
+    const email = askAdmin('Shop', 'acme/shop', 'read-only', 'x', true);
+    expect(email.label).toBe('Ask an admin to let you in');
+    expect(email.message).toBe('Hi, can you set up a design copy of Shop in Bridge? I joined with my email and want to explore Shop there.');
+    expect(email.message).not.toMatch(/github|\u2014/i);
     expect(ask.message).not.toMatch(/\u2014/);
   });
 });

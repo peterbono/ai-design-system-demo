@@ -130,15 +130,23 @@ export const featureHref = (n: number, product?: string | null) => studioHref(`c
  */
 export const featureRepo = (p: ProductConfig, designSystemRepo: string): string | null => productRepoOf(p, designSystemRepo);
 
-/** Why the feature cannot start in its product's repository, in designer words: no GitHub detail, one way forward. */
-export function productRepoBlockedLine(product: string, reason: 'not-connected' | 'read-only'): string {
-  return reason === 'read-only'
-    ? `You can look at ${product} but not start work in it yet. Ask an admin to give you access, or start it in the library for now.`
-    : `Bridge is not connected to ${product} yet. Ask an admin to connect it, or start it in the library for now.`;
+/**
+ * Why the feature cannot start in its product's repository, in designer words: no GitHub detail, one way forward. The
+ * library is offered only to a lead (`lead`): since the library became the leads' (StartExploration), a designer is
+ * never sent there.
+ */
+export function productRepoBlockedLine(product: string, reason: 'not-connected' | 'read-only', lead = false): string {
+  const library = lead ? ', or start it in the library for now' : '';
+  return reason === 'read-only' ? `You can look at ${product} but not explore it yet. Ask an admin to let you in${library}.` : `Bridge is not connected to ${product} yet. Ask an admin to connect it${library}.`;
 }
 
-/** The admin action: its button label and the message it copies (install Bridge on the repository, or give access). */
-export function askAdmin(product: string, repo: string, reason: 'not-connected' | 'read-only', installLink: string): { label: string; message: string } {
+/**
+ * The admin action: its button label and the message it copies (install Bridge on the repository, or give access).
+ * `email`: the person joined with their email, so the way in is a design copy of the product (they explore there
+ * through Bridge), never GitHub access.
+ */
+export function askAdmin(product: string, repo: string, reason: 'not-connected' | 'read-only', installLink: string, email = false): { label: string; message: string } {
+  if (reason === 'read-only' && email) return { label: 'Ask an admin to let you in', message: `Hi, can you set up a design copy of ${product} in Bridge? I joined with my email and want to explore ${product} there.` };
   if (reason === 'read-only') return { label: 'Ask an admin for access', message: `Hi, can you give me write access to github.com/${repo}? I want to start ${product} explorations from Bridge.` };
   return {
     label: `Ask an admin to connect ${product}`,

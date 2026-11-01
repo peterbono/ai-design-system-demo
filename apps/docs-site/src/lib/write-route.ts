@@ -37,6 +37,18 @@ export function canKeepExploration(x: { viewer: string | null | undefined; autho
 }
 
 /**
+ * Whether an email member started this exploration in the design team's copy: Bridge opened its pull request for them
+ * (api/contribute), so its body carries "Requested by <name> (<email>) through Bridge." (the email only on a private
+ * repository). Bridge's proxy decides again on every write; this only shows them their own Done exploring.
+ */
+export function startedByEmailMember(body: string | null | undefined, member: { name: string; email: string } | null | undefined): boolean {
+  if (!body || !member?.name) return false;
+  const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = new RegExp(`Requested by ${esc(member.name)}(?: \\(([^)]+)\\))? through Bridge\\.`).exec(body);
+  return Boolean(m && (!m[1] || m[1].toLowerCase() === member.email.toLowerCase()));
+}
+
+/**
  * The line in place of Done exploring and Archive on an exploration in a product's own repository, for someone who
  * signed in with their email: Bridge writes for them in the design system only.
  */
