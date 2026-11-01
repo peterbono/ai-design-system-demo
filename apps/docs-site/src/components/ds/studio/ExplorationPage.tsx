@@ -101,6 +101,8 @@ export interface ExplorationPageProps {
   lines: { app: string; terminal: string };
   /** The product as it is today (X1's quiet link); null when not set up. */
   todayUrl: string | null;
+  /** "See the library today" for a library exploration, else "See the product today". */
+  todayLabel?: string;
   /** X2: who changed what, when. Null while unread or when nothing reads. */
   headline: ActivityRow | null;
   /** X2: the branch's own build; null while it has none (the note says why in words). */
@@ -112,6 +114,11 @@ export interface ExplorationPageProps {
    */
   tryUrl?: string | null;
   previewNote: string | null;
+  /**
+   * A running exploration of the design team's copy that misses changes the product made since it started: the quiet
+   * line and "Bring it in" (merges the copy's main into it). Null when it is up to date or Bridge cannot say.
+   */
+  latest?: { line: string; onBring: () => Promise<string> } | null;
   /** X2: the preview is building: the button reads "Preview is building" with a spinner, at full contrast. */
   previewBuilding?: boolean;
   /**
@@ -459,8 +466,33 @@ function DevAnswer({ onAnswer, say }: { onAnswer: NonNullable<HandoffView['onAns
   );
 }
 
+/** "Art print shop changed since this exploration started. Bring it in": quiet, one link-sized action. */
+function LatestLine({ latest, say }: { latest: NonNullable<ExplorationPageProps['latest']>; say: (s: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <p className="xp-muted xp-note xp-latest">
+      {latest.line}{' '}
+      <Button
+        variant="link"
+        size="sm"
+        loading={busy}
+        onClick={() => {
+          setBusy(true);
+          latest
+            .onBring()
+            .then(say)
+            .finally(() => setBusy(false));
+        }}
+      >
+        Bring it in
+      </Button>
+    </p>
+  );
+}
+
 /** The one Harbor zone after Done exploring: the hand-off in four steps, then the library part. */
 function HandoffCard({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void }) {
+  const version = h.steps.find((s) => s.link)?.link ?? null;
   return (
     <section className="xp-next zone" aria-labelledby="xp-next-h">
       <h2 className="xp-h2" id="xp-next-h">
@@ -475,16 +507,18 @@ function HandoffCard({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
             detail={s.detail}
             statusLabel={s.status === 'done' ? 'Done' : s.current ? 'Now' : 'Next'}
             aria-current={s.current ? 'step' : undefined}
-            action={
-              s.link ? (
-                <Link href={s.link.href} target="_blank" rel="noopener">
-                  {s.link.label}
-                </Link>
-              ) : undefined
-            }
           />
         ))}
       </Checklist>
+      {/* The developers' version opens under the steps, not inside a row: a row action squeezed every detail to a word. */}
+      {version && (
+        <p className="xp-version">
+          <Link href={version.href} target="_blank" rel="noopener">
+            {version.label}
+            <ExternalLink aria-hidden="true" size={14} />
+          </Link>
+        </p>
+      )}
       {h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && <DevAnswer onAnswer={h.onAnswer} say={say} />}
       <LibraryPart h={h} p={p} say={say} />
     </section>
@@ -632,7 +666,7 @@ function ExplorationBody(p: ExplorationPageProps) {
               <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="primary" />
               {p.todayUrl && (
                 <Link href={p.todayUrl} target="_blank" rel="noopener" className="xp-today">
-                  See the product today
+                  {p.todayLabel ?? 'See the product today'}
                 </Link>
               )}
             </div>
@@ -670,6 +704,7 @@ function ExplorationBody(p: ExplorationPageProps) {
                 {p.previewNote}
               </p>
             )}
+            {!handoff && p.latest && <LatestLine latest={p.latest} say={setSaid} />}
           </section>
           <div className="xp-side">
             {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} /> : <DoneCard p={p} />}

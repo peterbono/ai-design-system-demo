@@ -5,6 +5,7 @@
 // explorations-github.ts) with the viewer's token, the same code the MCP server and the CLI run. Reads stay inside the
 // anonymous budget: the open pull requests In review already read, plus the request list the Requests view caches.
 // Pure rules: lib/explorations-view.ts.
+import { designTaskStages, taskUrlOf } from './design-task';
 import {
   type BranchPreview,
   type BranchPreviewSources,
@@ -35,6 +36,7 @@ import {
   purposeLine,
   unreadableExplorationLine,
   useCaseHint,
+  withTaskRow,
 } from '../lib/explorations-view';
 import { touchesVisuals } from '../lib/visual-impact';
 import { askDoneExploring } from './exploration-done';
@@ -135,7 +137,11 @@ async function readRows(): Promise<ExplorationRow[]> {
   const requests = await loadRequestRows({ openPulls: pulls as unknown as PullLike[], closed: false }).catch(() => []);
   pullsBy = new Map([...pulls.map((p) => [explorationKey(p), p] as const), ...products.flatMap((x) => (x.pulls ?? []).map((p) => [explorationKey(p), p] as const))]);
   requestRowsRead = requests;
-  return mergeExplorationRows(explorationRows(pulls, CFG, { requests }), ...products.map((x) => (x.pulls ? explorationRows(x.pulls, CFG, { inProduct: x.at }) : [])));
+  const all = mergeExplorationRows(explorationRows(pulls, CFG, { requests }), ...products.map((x) => (x.pulls ? explorationRows(x.pulls, CFG, { inProduct: x.at }) : [])));
+  // A design copy exploration handed to the developers: its row says what its task says, as Being built and its page.
+  const handed = products.flatMap((x) => x.pulls ?? []);
+  const stages = handed.length ? await designTaskStages(handed).catch(() => null) : null;
+  return stages?.size ? all.map((r) => withTaskRow(r, stages.get(taskUrlOf(pullsBy.get(explorationKey(r))?.body) ?? ''))) : all;
 }
 
 /** Loads (once per page, or again after a write) and paints the Explorations view. */

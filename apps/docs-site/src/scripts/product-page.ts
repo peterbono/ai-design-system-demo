@@ -10,6 +10,8 @@
 import { findProduct, requesterOf, type ProductConfig } from '@bridge-ds/core';
 import { currentViewer, ghGet, limitLine, readRepo, RateLimitError } from './github-session';
 import { configuredProducts, productRepoByKey } from './product-repos';
+import { designTaskStages, taskUrlOf } from './design-task';
+import type { LifecycleStage } from '../lib/review-state';
 import { homeExplorations, type ExplorationCard, type ExplorationPull } from '../lib/home-explorations';
 import { productPullsPath, tagProductPulls, type ExplorationPullLike } from '../lib/explorations-view';
 import { cardProductKey } from '../lib/product-page';
@@ -94,7 +96,13 @@ export async function loadProductPage(key: string, onUpdate: (d: ProductPageData
   const viewer = currentViewer()?.login ?? null;
   const all = (): ExplorationPull[] => [...open, ...closed].map((p) => ({ ...p, user: p.user ?? { login: 'unknown' } }));
   const mineOnly = (cards: ExplorationCard[]) => cards.filter((c) => cardProductKey(c, products) === product.key.toLowerCase());
-  const cardsOf = (archived: 'exclude' | 'only') => mineOnly(homeExplorations(all(), { products, viewer, archived, author, preview: (p) => shots.get(shotKey(p)) }));
+  // A design copy exploration handed to the developers: its card says what its task says (Being built's words).
+  let taskStages = new Map<string, LifecycleStage>();
+  const taskStage = (p: ExplorationPull) => {
+    const u = taskUrlOf(p.body);
+    return u ? taskStages.get(u) : null;
+  };
+  const cardsOf = (archived: 'exclude' | 'only') => mineOnly(homeExplorations(all(), { products, viewer, archived, author, taskStage, preview: (p) => shots.get(shotKey(p)) }));
   let loading = true;
   const paint = () => onUpdate({ ...base, reached, loading, cards: cardsOf('exclude'), archived: cardsOf('only') });
 
@@ -107,6 +115,8 @@ export async function loadProductPage(key: string, onUpdate: (d: ProductPageData
   }
   loading = false;
   paint();
+  taskStages = await designTaskStages(open).catch(() => taskStages);
+  if (taskStages.size) paint();
 
   // Display names, once per person (the home's cache), then the screens.
   const listed = [...cardsOf('exclude'), ...cardsOf('only')];

@@ -229,6 +229,20 @@ export interface DevPull {
   /** Its branch, once the pull request itself was read: its preview is built from it. */
   headRef?: string | null;
   draft?: boolean;
+  /** The deployment GitHub lists for its head (environment_url), when Vercel reported one. */
+  deployedUrl?: string | null;
+  /** The designer's last answer Bridge posted on it (designReviewOf), when it was read. */
+  answer?: { kind: 'looks-right' | 'changes'; login: string } | null;
+}
+
+/**
+ * Where the developers' version opens: the deployment GitHub lists for their head first, else the product's own preview
+ * pattern (the developers' repository, never the design team's copy) filled with their branch.
+ */
+export function devVersionUrl(pull: Pick<DevPull, 'headRef' | 'deployedUrl'>, productPreview: string | undefined, fill: (template: string | undefined, branch: string) => string | null): string | null {
+  const deployed = pull.deployedUrl?.trim();
+  if (deployed && /^https:\/\//.test(deployed)) return deployed;
+  return pull.headRef ? fill(productPreview, pull.headRef) : null;
 }
 
 /** One event of an issue's timeline, the fields devPullOfTimeline reads (GitHub's cross-referenced shape). */
@@ -272,6 +286,13 @@ export function taskStage(t: DesignTaskRead): LifecycleStage {
 
 /** The Review step of a design copy exploration, while the developers' version waits for the designer's eyes. */
 export const DEV_VERSION_READY = "The developers' version is ready for your eyes";
+
+/** The Review line of a design copy exploration in lists: the designer's answer once given, else the version waits. */
+export function devReviewLine(pull: Pick<DevPull, 'answer'>, nameOf: (login: string) => string): string {
+  const a = pull.answer;
+  if (!a?.login) return DEV_VERSION_READY;
+  return `${nameOf(a.login)} ${a.kind === 'looks-right' ? 'said it looks right' : 'asked for changes'}`;
+}
 
 /** The designer's answer on the developers' version, as Bridge posts it on their pull request. */
 export type DesignAnswer = { kind: 'looks-right' } | { kind: 'changes'; text: string };

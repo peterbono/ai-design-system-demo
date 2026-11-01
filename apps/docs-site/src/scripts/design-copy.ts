@@ -13,7 +13,7 @@ import {
 } from '@bridge-ds/core';
 import type { CopyView } from '../lib/design-copy';
 import { explorationsConfig } from './exploration-start';
-import { getToken, studioClient } from './github-session';
+import { getToken, ghWrite, GitHubError, studioClient } from './github-session';
 
 /** The copy and the developers' repository of a product, when the team set a design copy for it. */
 export function copyRepos(p: ProductConfig | null | undefined): { copy: string; code: string } | null {
@@ -59,6 +59,33 @@ export async function getLatest(p: ProductConfig): Promise<'ok' | 'conflict' | '
     return r.ok ? 'ok' : 'conflict';
   } catch (err) {
     console.warn('Bridge: the copy could not be brought up to date.', err);
+    return 'failed';
+  }
+}
+
+/**
+ * How many changes of the copy's main a running exploration does not have yet (the product moved after it started):
+ * 0 when it is up to date, null when GitHub could not say. One or two reads.
+ */
+export async function explorationBehind(copy: string, branch: string): Promise<number | null> {
+  try {
+    const c = studioClient(copy);
+    const main = (await c.getRepo()).defaultBranch;
+    return (await c.compare(branch, main)).aheadBy;
+  } catch {
+    return null;
+  }
+}
+
+/** "Bring it in": merges the copy's main into the exploration's branch (GitHub's merges API). Conflict: a developer. */
+export async function bringLatestIntoExploration(copy: string, branch: string): Promise<'ok' | 'conflict' | 'failed'> {
+  try {
+    const main = (await studioClient(copy, getToken() ?? '').getRepo()).defaultBranch;
+    await ghWrite('POST', `/repos/${copy}/merges`, { base: branch, head: main, commit_message: `Bring the latest ${main} into ${branch}` });
+    return 'ok';
+  } catch (err) {
+    if (err instanceof GitHubError && err.status === 409) return 'conflict';
+    console.warn('Bridge: the latest could not be brought into the exploration.', err);
     return 'failed';
   }
 }

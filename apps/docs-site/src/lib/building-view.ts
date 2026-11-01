@@ -30,7 +30,7 @@ import { daysSince, type PillTone } from './home-model';
 import { safeUrl } from './html';
 import { isProductBranch } from './product-branch';
 import { explorationHref } from './explorations-view';
-import { DEV_VERSION_READY, LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, taskStage, type DesignTaskRead, type LifecycleStage, type PullReviewLike } from './review-state';
+import { devReviewLine, LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, taskStage, type DesignTaskRead, type LifecycleStage, type PullReviewLike } from './review-state';
 
 /** The fields of a GitHub issue the page reads (GET /repos/{o}/{r}/issues). */
 export interface RestIssue {
@@ -476,7 +476,7 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
     const done = `Done exploring${doneBy ? ` by ${nameOf(doneBy)}` : ''}${doneAt ? ` on ${shortDate(doneAt)}` : ''}`;
     const s = shippedAt ? daysSince(shippedAt, ctx.now) : 0;
     // The developers' version of a design copy exploration waits for the designer's eyes, not for a code review.
-    const reviewWords = stage === 'in-review' ? (task?.devPull ? DEV_VERSION_READY : reviewLine(review, { viewer: ctx.viewer ?? null, nameOf })) : null;
+    const reviewWords = stage === 'in-review' ? (task?.devPull ? devReviewLine(task.devPull, nameOf) : reviewLine(review, { viewer: ctx.viewer ?? null, nameOf })) : null;
     const where: Record<BuildStatus, string | null> = {
       requested: null,
       'picked-up': null,

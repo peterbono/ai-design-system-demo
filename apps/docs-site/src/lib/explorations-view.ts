@@ -39,6 +39,7 @@ import {
   type PullRequestSummary,
 } from '@bridge-ds/core';
 import { tierLabel, type StatusTone } from './changes';
+import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
 import type { Tier } from './review-rules';
 import { requestRows, type IssueLike, type PullLike as RequestPullLike, type RequestRow } from './requests-view';
 
@@ -475,4 +476,14 @@ export const BACK_TO_EXPLORING_LINE = 'Back to exploring. Say Done exploring aga
 export function unreadableExplorationLine(n: number, where: string, opts: { product: boolean; signedOut: boolean }): string {
   const line = `Bridge cannot find exploration #${n} in ${where} right now. Open it again from Changes.`;
   return opts.product && opts.signedOut ? `${line} Signed out, Bridge only shows explorations of public products: sign in to see it.` : line;
+}
+
+/**
+ * A handed-off design copy exploration's row from its task's stage (taskStage): Waiting to be picked up, Being built,
+ * In review or Shipped, the words of Being built and its page. Running, archived or taken back rows stay as read.
+ */
+export function withTaskRow<R extends Pick<ExplorationRow, 'status' | 'statusLabel' | 'archived'>>(r: R, stage: LifecycleStage | null | undefined): R {
+  if (!stage || r.archived || r.status === 'active' || r.status === 'closed') return r;
+  const status: ExplorationStatus | null = stage === 'waiting-for-code' ? 'ready' : stage === 'being-built' || stage === 'in-review' ? 'building' : stage === 'shipped' ? 'shipped' : null;
+  return status ? { ...r, status, statusLabel: LIFECYCLE_LABEL[stage] } : r;
 }

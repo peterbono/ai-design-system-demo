@@ -547,6 +547,17 @@
   padding: var(--space-6);
 }
 
+/* The developers' version, under the steps (a row action squeezed every detail to one word a line). */
+.xp-version {
+  margin: 0;
+}
+
+.xp-version a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 /* The designer's answer on the developers' version, under the steps. */
 .xp-answer {
   display: grid;
