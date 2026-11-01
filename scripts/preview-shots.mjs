@@ -6,7 +6,7 @@
 //   node scripts/preview-shots.mjs capture --url <preview url> --out <file.webp> [--marker-crawl]
 //
 // `run` reads the open explorations of this repository and of each product repository in bridge.config.json
-// products[] that has a `repo` and a `preview`, captures the preview of every head commit not captured yet, and writes
+// products[] that has a `repo` and a `preview` (its design copy instead, products[].design with a `preview`), captures the preview of every head commit not captured yet, and writes
 // into <dir> (a checkout of the orphan branch bridge-shots):
 //   <owner>/<repo>/<pr>.webp   800 px wide, from a 1440 by 900 window (the changed screen when Bridge finds it)
 //   <owner>/<repo>/<pr>.json   { repo, pr, sha, url, route, screen, title, branch, capturedAt, image, ... }
@@ -306,11 +306,18 @@ async function launch() {
 // ---------------------------------------------------------------------------------------------------------------
 // Run.
 
-function targetsOf(config, hostRepo) {
+export function targetsOf(config, hostRepo) {
   const products = config.products ?? [];
   const out = [{ repo: hostRepo, ds: true, products }];
   for (const p of products) {
-    if (!p.repo || !p.preview || p.repo.toLowerCase() === hostRepo.toLowerCase()) continue;
+    if (!p.repo || p.repo.toLowerCase() === hostRepo.toLowerCase()) continue;
+    // Explored in the design team's copy (products[].design): its explorations, on the copy's previews.
+    const copy = p.design?.repo && p.design.repo.toLowerCase() !== p.repo.toLowerCase() ? p.design : null;
+    if (copy) {
+      if (copy.preview) out.push({ repo: copy.repo, ds: false, product: { ...p, preview: copy.preview } });
+      continue;
+    }
+    if (!p.preview) continue;
     out.push({ repo: p.repo, ds: false, product: p });
   }
   return out;

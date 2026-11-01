@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { buildIndex, crawlTargets, isOpenExploration, labelledProduct, libraryApp, PRUNE_AFTER_MS, pruneDecision, shotDecision, shotKey, shotPaths } from './preview-shots.mjs';
+import { buildIndex, crawlTargets, isOpenExploration, labelledProduct, libraryApp, PRUNE_AFTER_MS, pruneDecision, shotDecision, shotKey, shotPaths, targetsOf } from './preview-shots.mjs';
+
+describe('preview-shots: which repositories', () => {
+  it("captures a product explored in the design team's copy in the copy, on the copy's previews", () => {
+    const shop = { key: 'shop', name: 'Shop', repo: 'acme/shop', preview: 'https://shop-git-{branch}.vercel.app' };
+    const t = targetsOf({ products: [{ ...shop, design: { repo: 'acme/shop-design', preview: 'https://shop-design-git-{branch}.vercel.app' } }] }, 'acme/ds');
+    expect(t.map((x) => [x.repo, x.product?.preview ?? null])).toEqual([
+      ['acme/ds', null],
+      ['acme/shop-design', 'https://shop-design-git-{branch}.vercel.app'],
+    ]);
+    // A copy without previews yet: nothing to capture, never the developers' repository.
+    expect(targetsOf({ products: [{ ...shop, design: { repo: 'acme/shop-design' } }] }, 'acme/ds').map((x) => x.repo)).toEqual(['acme/ds']);
+    expect(targetsOf({ products: [shop] }, 'acme/ds').map((x) => x.repo)).toEqual(['acme/ds', 'acme/shop']);
+  });
+});
 
 const pull = (o = {}) => ({ number: 2, state: 'open', labels: [], head: { ref: 'feat/x', sha: 'a1' }, body: '', ...o });
 
