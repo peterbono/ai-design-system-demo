@@ -12,12 +12,25 @@ export const memberRef = (email: string): string => sha256(`member:${email.trim(
 
 const isEmail = (v: unknown) => typeof v === 'string' && v.includes('@');
 
+/** The exploration block of a pull request body as an object, or null (no block, or not one Bridge can read). */
+export function explorationBlockOf(body: unknown): Record<string, unknown> | null {
+  const m = typeof body === 'string' ? BLOCK.exec(body) : null;
+  if (!m) return null;
+  try {
+    const e = JSON.parse(m[1]!) as unknown;
+    return e && typeof e === 'object' && !Array.isArray(e) ? (e as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The body with the member named in its exploration block: `member` and `memberName` for who started it (kept once
  * set), `doneByMember` once it says Done exploring with no GitHub login for it; any email in `author`, `doneBy` or
- * `reopenedBy` is dropped. A body without a block comes back as it is.
+ * `reopenedBy` is dropped. A body without a block comes back as it is. With `owner`, `member` and `memberName` are
+ * that member whatever the body says: the proxy names who started the exploration, the browser never does.
  */
-export function withMemberInBlock(body: string, who: { ref: string; name: string }): string {
+export function withMemberInBlock(body: string, who: { ref: string; name: string }, owner?: { ref: string; name: string }): string {
   const m = BLOCK.exec(body);
   if (!m) return body;
   let e: Record<string, unknown>;
@@ -28,7 +41,10 @@ export function withMemberInBlock(body: string, who: { ref: string; name: string
   }
   if (!e || typeof e !== 'object' || typeof e.name !== 'string') return body;
   for (const k of ['author', 'doneBy', 'reopenedBy']) if (isEmail(e[k])) delete e[k];
-  if (typeof e.member !== 'string') {
+  if (owner) {
+    e.member = owner.ref;
+    e.memberName = owner.name.trim().slice(0, 80);
+  } else if (typeof e.member !== 'string') {
     e.member = who.ref;
     e.memberName = who.name.trim().slice(0, 80);
   }
