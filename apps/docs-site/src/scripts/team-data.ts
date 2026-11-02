@@ -18,6 +18,7 @@ import { loadTeamModel, type SnapshotReader, type TeamModelSource } from './repo
 import { isHosted, pageTeamFromPath } from '../lib/team-path';
 import { libraryFromPath } from '../lib/library-shells';
 import type { ProductAudit } from '../lib/components-studio';
+import { githubBusy, type GitHubBusy } from '../lib/github-busy';
 import { TEAM_PROGRESS_START, teamProgress, type TeamLoadEvent, type TeamProgress } from '../lib/load-progress';
 
 export interface TeamData {
@@ -46,6 +47,8 @@ export interface TeamData {
   published?: string;
   /** A private Library this site served after the reader's session check (api/library-access), not GitHub. */
   servedBy?: 'bridge';
+  /** GitHub is busy for the viewer: the team as this browser last read it, and when Bridge is back (lib/github-busy). */
+  busy?: GitHubBusy;
 }
 
 /** The team in this page's address (a Studio or a Library team address), null off a team address. */
@@ -231,7 +234,7 @@ export function loadTeamData(): Promise<TeamData> {
     } catch (err) {
       // A guest past GitHub's hourly limit: the published snapshot still opens the team (it costs no API request),
       // as the Library reads it. The views that need GitHub say so on their own.
-      const published = !client.canWrite && (err as { status?: number }).status === 429 ? await readPublishedSnapshot(client, team) : null;
+      const published = !client.canWrite && githubBusy(err) ? await readPublishedSnapshot(client, team) : null;
       if (!published) throw err;
       report({ step: 'snapshot' });
       snapshot ??= Promise.resolve(published);
@@ -252,7 +255,9 @@ export function loadTeamData(): Promise<TeamData> {
       source: read.source,
       storybook: storybookUrl(read.model.config),
       client,
-      canEdit: await editRight(team, client),
+      // GitHub busy: the right as GitHub last said it is unknown now; the page reads again after the reset.
+      canEdit: read.busy ? false : await editRight(team, client),
+      ...(read.busy ? { busy: read.busy } : {}),
     };
   })();
   pending.catch(() => {

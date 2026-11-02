@@ -12,6 +12,7 @@ import {
   type ProductConfig,
 } from '@bridge-ds/core';
 import type { CopyView } from '../lib/design-copy';
+import { githubBusy } from '../lib/github-busy';
 import { explorationsConfig } from './exploration-start';
 import { getToken, ghWrite, GitHubError, studioClient } from './github-session';
 
@@ -24,15 +25,19 @@ export function copyRepos(p: ProductConfig | null | undefined): { copy: string; 
   return copy && code ? { copy, code } : null;
 }
 
-/** Where the copy stands: none (no design copy set), missing, or ready with how far behind. Null when GitHub could not say. */
+/**
+ * Where the copy stands: none (no design copy set), missing, ready with how far behind, or busy (GitHub busy for the
+ * viewer: when it is back, never "missing"). Null when GitHub could not say for another reason.
+ */
 export async function readCopyView(p: ProductConfig | null | undefined): Promise<CopyView | null> {
   const at = copyRepos(p);
   if (!at) return { kind: 'none' };
   try {
     const s = await designCopyStateOnGitHub(studioClient(at.copy), studioClient(at.code));
     return s.kind === 'missing' ? { kind: 'missing' } : { kind: 'ready', behind: s.behind };
-  } catch {
-    return null;
+  } catch (err) {
+    const busy = githubBusy(err);
+    return busy ? { kind: 'busy', busy } : null;
   }
 }
 

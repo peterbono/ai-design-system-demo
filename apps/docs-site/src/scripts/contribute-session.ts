@@ -637,8 +637,11 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
     const body = (await res
       .clone()
       .json()
-      .catch(() => null)) as { error?: unknown; message?: unknown } | null;
-    if (body && typeof body.error === 'string' && typeof body.message === 'string' && body.message) throw new GitHubError(res.status, body.message, `${CONTRIB_REFUSAL}${body.error}`);
+      .catch(() => null)) as { error?: unknown; message?: unknown; retryAfter?: unknown } | null;
+    // Bridge busy: when it is back (retryAfter), so the page says the time and reads again then (lib/github-busy).
+    const wait = body?.error === 'busy' ? (typeof body.retryAfter === 'number' ? body.retryAfter : Number(res.headers.get('retry-after'))) : NaN;
+    const busy = Number.isFinite(wait) && wait > 0 ? { resetsAt: new Date(Date.now() + wait * 1000) } : {};
+    if (body && typeof body.error === 'string' && typeof body.message === 'string' && body.message) throw new GitHubError(res.status, body.message, `${CONTRIB_REFUSAL}${body.error}`, busy);
   }
   return res;
 }

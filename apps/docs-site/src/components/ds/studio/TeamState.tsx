@@ -15,6 +15,7 @@ import { TEAM_PROGRESS_START, teamProgressView, type TeamProgress } from '../../
 import { commitUrl, SNAPSHOT_TEMPLATE_URL, sourceLine, teamFailure, type TeamFailure } from '../../../lib/team-load';
 import { isDemoRepo } from '../../../lib/demo';
 import { signedInWithGitHub } from '../../../scripts/github-session';
+import { useBusyRetry } from './BusyNotice';
 
 /** Whether the viewer signed in with GitHub, kept in step with sign-in and sign-out on this page. */
 function useGitHubSignIn(): boolean {
@@ -88,10 +89,12 @@ export const signInHereHref = () => signInHref(typeof location === 'undefined' ?
 
 /**
  * What went wrong, and Try again (Sign in when the session ended). A repository too large to read also gets the
- * snapshot workflow to copy. `compact`: under content the page shows anyway (Home's greeting and join requests), so
+ * snapshot workflow to copy. A wait (GitHub busy) reads again once on its own after the reset. `compact`: under content the page shows anyway (Home's greeting and join requests), so
  * the failure of the design system read is one calm block among others, not the whole page.
  */
 export function TeamLoadError({ failure, onRetry, compact = false }: { failure: TeamFailure; onRetry: () => void; compact?: boolean }) {
+  // GitHub busy: the page reads again once on its own, just after the reset (Try again stays for sooner).
+  useBusyRetry(failure.busy, onRetry);
   return (
     <EmptyState
       className="tp-error"

@@ -2,8 +2,13 @@
 // card while there is none ("Make my copy"), the quiet line when the product moved on ("Get the latest"), and what
 // each outcome says. Designers never read "fork", "branch" or "repository" here. Pure: tested in design-copy.test.ts.
 
-/** Where the copy stands for the page: none needed (no design copy set), missing, or there (with how far behind). */
-export type CopyView = { kind: 'none' } | { kind: 'missing' } | { kind: 'ready'; behind: number | null };
+import type { GitHubBusy } from './github-busy';
+
+/**
+ * Where the copy stands for the page: none needed (no design copy set), missing, there (with how far behind), or not
+ * known now because GitHub is busy for the viewer (never "missing": the page offers no "Make my copy" then).
+ */
+export type CopyView = { kind: 'none' } | { kind: 'missing' } | { kind: 'ready'; behind: number | null } | { kind: 'busy'; busy: GitHubBusy };
 
 export const COPY_WORDS = {
   intro: (product: string) => `Get your own copy of ${product} to explore in. The developers' code stays untouched.`,

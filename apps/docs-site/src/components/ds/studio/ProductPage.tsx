@@ -10,6 +10,10 @@
 //     the exploration card of the home (ExplorationCards.tsx); archived ones only counted in one quiet line at the end
 //     ("1 archived. See archived"), which opens Changes' Archived tab for this product.
 //   - Nothing explored yet: a calm Field Guide drawing, shown at once, the reason in one sentence and the one action.
+//   - GitHub busy for the viewer (lib/github-busy): what was last read stays, with one calm line ("GitHub is busy for
+//     your account. Bridge is back at 13:52.") and Try again; nothing kept: the same sentence as a calm moment in place
+//     of the list. Never "Product not found", "Make my copy" or "Nothing explored here yet" while busy. The page reads
+//     again once on its own after the reset (BusyNotice).
 //   - Rename (admins of the team's repository, on a team shell or the team's own Studio, never the sample team): a pencil right
 //     after the title opens the name in place (a DS Input, Save, Escape cancels). Save sends the config pull request
 //     that changes only products[i].name (scripts/roles.ts proposeProductName, lib/product-name.ts), like every
@@ -31,7 +35,9 @@ import { studioHref } from '../../../lib/team-path';
 import { PRODUCT_NAME_MAX, PRODUCT_NAME_WORDS, productNameProblem } from '../../../lib/product-name';
 import { COPY_WORDS, latestLine, madeLine, showsBehind } from '../../../lib/design-copy';
 import type { ProductPageData } from '../../../scripts/product-page';
+import type { GitHubBusy } from '../../../lib/github-busy';
 import type { HomeComponent } from './StudioHome';
+import { BusyNotice } from './BusyNotice';
 
 /** Renaming the product, for an admin: what can be done now, and how to send it. Absent: read only. */
 export interface ProductRename {
@@ -51,6 +57,10 @@ export interface ProductPageViewProps {
   copy?: CopyActions | null;
   /** Whether the viewer may change the library (create-branch libraryLead): false for a designer of the team. */
   lead?: boolean;
+  /** Reads the page again (GitHub busy: Try again, and once on its own after the reset). */
+  onRetry?: () => void;
+  /** Signed in: GitHub's wait is "for your account". */
+  signedIn?: boolean;
 }
 
 /** The pencil after the title, the name in place while editing, or the rename waiting for review. */
@@ -237,10 +247,19 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
 }
 
 /** The page, painted from what is read so far. Pure render: tested in ProductPage.test.ts. */
-export function ProductPageView({ productKey, data, components, rename, copy, lead = true }: ProductPageViewProps) {
+export function ProductPageView({ productKey, data, components, rename, copy, lead = true, onRetry = () => location.reload(), signedIn = true }: ProductPageViewProps) {
   const product = data?.product ?? null;
   const head = useRenameTitle(product?.name ?? '', product?.key ?? productKey, data?.products ?? [], product ? rename : null);
   const loading = !data || data.loading;
+  const busy = data?.busy ?? null;
+  // GitHub busy before the team's list was ever read here: a wait, never "Product not found".
+  if (data && !data.loading && !product && busy) {
+    return (
+      <div className="pp" data-product-page={productKey}>
+        <BusyNotice busy={busy} onRetry={onRetry} signedIn={signedIn} />
+      </div>
+    );
+  }
   if (data && !data.loading && !product) {
     return (
       <>
@@ -256,7 +275,9 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
   const archived = data?.archived ?? [];
   // No copy of the product yet (products[].design): the card to make one stands for the list and the start action.
   const noCopy = !loading && data?.copy?.kind === 'missing';
-  const empty = !loading && !data?.failed && !noCopy && cards.length === 0;
+  const empty = !loading && !data?.failed && !busy && !noCopy && cards.length === 0;
+  // GitHub busy with nothing kept: the calm moment stands for the list.
+  const busyAlone = Boolean(busy) && !loading && !noCopy && cards.length === 0;
   const library = Boolean(product?.default);
   const start = (appearance: 'menu' | 'button') => (
     <span className="cg-create" data-greet="">
@@ -268,7 +289,7 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
       <StudioHead
         title={head.title}
         titleAfter={head.after}
-        summary={loading && !cards.length ? '' : data?.failed ? '' : productSummary(cards)}
+        summary={loading && !cards.length ? '' : data?.failed || busyAlone ? '' : productSummary(cards)}
         // One primary action: on the title's line, or in the empty moment when there is nothing yet.
         actions={product && !empty && !noCopy ? start('menu') : null}
       >
@@ -278,6 +299,7 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
         </p>
       </StudioHead>
       {data?.failed && <p className="t-body t-muted">{data.failed}</p>}
+      {busy && !busyAlone && <BusyNotice busy={busy} onRetry={onRetry} signedIn={signedIn} kept />}
       {loading && !cards.length ? (
         <ul className="sh-cards" aria-hidden="true">
           {[0, 1, 2].map((i) => (
@@ -288,6 +310,8 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
         </ul>
       ) : noCopy && product ? (
         <CopyCard product={product} copy={copy ?? null} />
+      ) : busyAlone && busy ? (
+        <BusyNotice busy={busy} onRetry={onRetry} signedIn={signedIn} />
       ) : empty ? (
         <section className="zone pp-empty" aria-label={`Nothing explored in ${name} yet`}>
           <Drawing name="paint" width={160} />
@@ -355,6 +379,7 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   const [reload, setReload] = useState(0);
   /** May change the library, as the start action reads it (StartExploration): a designer of the team may not. */
   const [lead, setLead] = useState(true);
+  const [signedIn, setSignedIn] = useState(true);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -396,21 +421,28 @@ export default function ProductPage({ productKey, components = [] }: { productKe
     let live = true;
     void (async () => {
       const { isHosted } = await import('../../../lib/team-path');
+      // GitHub busy for the team's read: the team as last kept here (team.busy), or nothing yet (the error's wait).
+      let teamBusy: GitHubBusy | null = null;
       if (isHosted()) {
         // A team's products and components come from its own bridge.config.json and design system.
-        const { loadTeamData } = await import('../../../scripts/team-data');
+        const [{ loadTeamData, resetTeamData }, { githubBusy }] = await Promise.all([import('../../../scripts/team-data'), import('../../../lib/github-busy')]);
+        // Try again after a wait reads the team again, not the copy kept from the busy read.
+        if (reload > 0) resetTeamData();
         try {
           const team = await loadTeamData();
+          teamBusy = team.busy ?? null;
           if (live) setComps((team.model.components?.list ?? []).map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)));
-        } catch {
-          /* the products fall back to the defaults; the start flow still opens */
+        } catch (err) {
+          // The products fall back to the defaults; the start flow still opens. GitHub busy: the page says so.
+          teamBusy = githubBusy(err);
         }
       }
       const { siteConfig } = await import('../../../scripts/repo-context');
       if (live) setListedKeys(((siteConfig() as { products?: ProductConfig[] }).products ?? []).map((p) => p.key.toLowerCase()));
       const { loadProductPage } = await import('../../../scripts/product-page');
-      await loadProductPage(key, (d) => live && setData(d));
-      const { currentContributor } = await import('../../../scripts/github-session');
+      await loadProductPage(key, (d) => live && setData(d), { teamBusy });
+      const { currentContributor, currentViewer } = await import('../../../scripts/github-session');
+      if (live) setSignedIn(Boolean(currentViewer()));
       // Making the copy and getting the latest write on GitHub: never through an email member's session.
       if (live) setCanCopy(!currentContributor());
     })();
@@ -461,5 +493,5 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           },
         }
       : null;
-  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} copy={copy} lead={lead} />;
+  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} copy={copy} lead={lead} onRetry={() => setReload((n) => n + 1)} signedIn={signedIn} />;
 }

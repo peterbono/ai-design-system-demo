@@ -104,14 +104,25 @@ export function accessFromCheck(
 export const accessStorageKey = (slot: string, login: string, repo: string) => `bridge.github.access:${slot}:${login.toLowerCase()}:${repo.toLowerCase()}`;
 
 /** A stored access, when it is still fresh. */
-export function freshAccess(raw: string | null, now: number): RepoAccess | null {
+export function freshAccess(raw: string | null, now: number, maxAge = ACCESS_MAX_AGE_MS): RepoAccess | null {
   if (!raw) return null;
   try {
     const v = JSON.parse(raw) as { at?: unknown; access?: RepoAccess };
-    return typeof v.at === 'number' && now - v.at < ACCESS_MAX_AGE_MS && v.access && typeof v.access.state === 'string' ? v.access : null;
+    return typeof v.at === 'number' && now - v.at < maxAge && v.access && typeof v.access.state === 'string' ? v.access : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The access as last read, whatever its age, for a page GitHub will not answer now (busy for the viewer's account):
+ * this tab's kept read (`raw`, freshAccess's form), else the token check's last state for this repository. Null when
+ * nothing was ever read here: the badge then reads neutral, never "Checking" for the whole wait.
+ */
+export function lastKnownAccess(raw: string | null, check: { repo: string; state: RepoAccessState } | null | undefined, repo: string, app: boolean): RepoAccess | null {
+  const kept = freshAccess(raw, Date.now(), Number.POSITIVE_INFINITY);
+  if (kept) return kept;
+  return check && check.repo.toLowerCase() === repo.toLowerCase() ? accessView({ state: check.state, private: undefined, installationId: undefined }, app) : null;
 }
 
 /** The badge text of an access ('' when signed out, 'Unknown' until read). */

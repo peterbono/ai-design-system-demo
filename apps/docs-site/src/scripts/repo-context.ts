@@ -23,7 +23,8 @@ import {
   type RepoSnapshot,
   type SiteRepo,
 } from '@bridge-ds/core';
-import { blobCacheFor, getCachedModel, putCachedModel } from './repo-cache';
+import { blobCacheFor, getCachedModel, getLatestCachedModel, putCachedModel } from './repo-cache';
+import { githubBusy, type GitHubBusy } from '../lib/github-busy';
 import { isHosted, repoFromPath } from '../lib/team-path';
 import type { TeamLoadEvent } from '../lib/load-progress';
 
@@ -123,6 +124,11 @@ export interface TeamModel {
   source: TeamModelSource;
   /** The snapshot the model was computed from, when it was (source "snapshot"). */
   snapshot?: RepoSnapshot;
+  /**
+   * GitHub was busy for the viewer's account: the model is the last one this browser kept (source "cache"), and the
+   * page says when Bridge is back instead of an empty or missing team.
+   */
+  busy?: GitHubBusy;
 }
 
 /**
@@ -136,15 +142,18 @@ export interface ModelCache {
   get(repo: string, sha: string): Promise<RepoModel | undefined>;
   put(repo: string, sha: string, model: RepoModel, opts: { private: boolean }): Promise<void>;
   blobs: typeof blobCacheFor;
+  /** The model read most recently, whatever its head (GitHub busy): absent, a busy GitHub is thrown as is. */
+  latest?(repo: string): Promise<{ model: RepoModel; sha: string; private: boolean } | undefined>;
 }
 
-const indexedDbCache: ModelCache = { get: getCachedModel, put: putCachedModel, blobs: blobCacheFor };
+const indexedDbCache: ModelCache = { get: getCachedModel, put: putCachedModel, blobs: blobCacheFor, latest: getLatestCachedModel };
 
 /**
  * The repo model of `client`'s repository at its default branch head. Signed in, the client carries the visitor's
  * token and bodies come from the API; anonymous (no token), from the raw host of a public repository. Costs two API
  * calls (GET /repos, the branch head) when the head is cached, one more (the tree) plus the bodies when not.
- * GitHub errors (404, rate limit, a rejected token) are thrown for the caller to show (access states, stale data).
+ * GitHub errors (404, a rejected token) are thrown for the caller to show (access states). GitHub busy for the viewer
+ * (its hourly limit): the last model this browser kept, marked `busy`, else the error is thrown as well.
  */
 export async function loadTeamModel(
   client: GitHubClient,
@@ -159,8 +168,21 @@ export async function loadTeamModel(
   const { cache = indexedDbCache, snapshot: readSnapshot, onProgress, batch, ...modelOptions } = opts;
   const repo = `${client.owner}/${client.name}`;
   onProgress?.({ step: 'head' });
-  const info = await client.getRepo();
-  const sha = await client.getBranchSha(info.defaultBranch);
+  let info: Awaited<ReturnType<GitHubClient['getRepo']>>;
+  let sha: string | undefined;
+  try {
+    info = await client.getRepo();
+    sha = await client.getBranchSha(info.defaultBranch);
+  } catch (err) {
+    // GitHub busy: the team's settings and design system as last read here, never an empty team ("Product not found").
+    const busy = githubBusy(err);
+    const kept = busy ? await (cache.latest?.(repo) ?? Promise.resolve(undefined)).catch(() => undefined) : undefined;
+    if (!busy || !kept) throw err;
+    onProgress?.({ step: 'cache' });
+    const defaultBranch = kept.model.site?.defaultBranch || 'main';
+    rememberRepo(client.owner, client.name, { defaultBranch, site: { ...kept.model.site, owner: client.owner, repo: client.name, defaultBranch } });
+    return { model: kept.model, sha: kept.sha, defaultBranch, private: kept.private, cached: true, source: 'cache', busy };
+  }
   if (!sha) throw new GitHubError(404, `${repo} has no library on ${info.defaultBranch}.`);
   const remember = (model: RepoModel) =>
     rememberRepo(client.owner, client.name, { defaultBranch: info.defaultBranch, site: { ...model.site, owner: client.owner, repo: client.name, defaultBranch: info.defaultBranch } });

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { RepoAccessState } from '@bridge-ds/core';
 import {
   accessBadge,
+  busyBadge,
   chipIdentity,
   isDemoTeam,
   accessScreen,
@@ -233,5 +234,13 @@ describe('roleBadge: a GitHub reviewer reads Reviewer', () => {
     expect(roleBadge('writer', false, true).label).toBe('Can edit');
     expect(memberRole('writer', true, true)).toBe('Reviewer');
     expect(memberRole('writer', true)).toBe('Can edit');
+  });
+});
+
+describe('busyBadge (GitHub busy before the access was read)', () => {
+  it('the role last noted for the team, else a neutral word; never "Checking"', () => {
+    expect(busyBadge('Admin')).toEqual({ label: 'Admin', tone: 'neutral' });
+    expect(busyBadge(null)).toEqual({ label: 'Signed in', tone: 'neutral' });
+    expect(busyBadge('  ').label).toBe('Signed in');
   });
 });

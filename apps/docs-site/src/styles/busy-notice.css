@@ -1,0 +1,36 @@
+/* GitHub is busy for the viewer (components/ds/studio/BusyNotice.tsx): a quiet line above the content kept on screen,
+   or, with nothing kept, one calm Field Guide moment in the Harbor zone where the content would be. */
+
+.busy-line {
+  margin: 0;
+}
+
+.busy-moment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6) var(--space-10);
+}
+
+.busy-moment-text {
+  display: grid;
+  flex: 1 1 var(--size-60);
+  justify-items: start;
+  gap: var(--space-4);
+  max-width: var(--size-120);
+}
+
+.busy-moment-text > p {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .busy-moment {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .busy-moment-text {
+    justify-items: center;
+  }
+}

@@ -155,6 +155,34 @@ describe("a GitHub sign-in's reads in the Studio", () => {
     expect(toGitHub()).toHaveLength(2);
   });
 
+  it('Bridge busy on a library read, then GitHub busy for their own token: a wait with GitHub’s reset (lib/github-busy)', async () => {
+    const { githubBusy } = await import('../lib/github-busy');
+    bridge = () => json({ error: 'busy', message: 'Bridge is busy, try again in 5 min.', retryAfter: 300 }, { status: 429 });
+    const reset = Math.floor(Date.now() / 1000) + 1200;
+    vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, method: (init?.method ?? 'GET').toUpperCase(), headers: { ...((init?.headers as Record<string, string> | undefined) ?? {}) } });
+      if (url.startsWith('/api/contribute')) return bridge(url, calls.at(-1)!);
+      return json({ message: 'API rate limit exceeded for user ID 1.' }, { status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(reset) } });
+    });
+    const s = await load();
+    // The core client (team loads, the copy state) and the cached reads (lists) both say GitHub's wait, never a 403.
+    const viaClient = await s.studioClient('acme/ds', TOKEN).getRepo().catch((e: unknown) => e);
+    expect(githubBusy(viaClient)).toEqual({ resetsAt: new Date(reset * 1000), source: 'github' });
+    const viaGet = await s.ghGet('/repos/acme/ds/pulls?state=open').catch((e: unknown) => e);
+    expect(githubBusy(viaGet)).toEqual({ resetsAt: new Date(reset * 1000), source: 'github' });
+    expect(toBridge().length).toBeGreaterThan(0);
+  });
+
+  it('Bridge busy on a product read: a wait, Bridge’s own (never "not found")', async () => {
+    const { githubBusy } = await import('../lib/github-busy');
+    bridge = () => json({ error: 'busy', message: 'Bridge is busy, try again in 5 min.', retryAfter: 300 }, { status: 429 });
+    const s = await load();
+    const err = await s.studioClient('acme/shop', TOKEN).getRepo().catch((e: unknown) => e);
+    expect(githubBusy(err)?.source).toBe('bridge');
+    expect(githubBusy(err)?.resetsAt).toBeInstanceOf(Date);
+  });
+
   it('reads a path Bridge does not read on GitHub, and keeps asking Bridge for the rest', async () => {
     bridge = (url) => (url.includes('hooks') ? json({ error: 'not-allowed', message: 'Bridge does not read this from GitHub.' }, { status: 403 }) : json([]));
     const s = await load();

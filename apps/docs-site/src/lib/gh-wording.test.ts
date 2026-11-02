@@ -23,15 +23,15 @@ describe('gh-wording', () => {
     expect(rateLimitedLine(false)).toMatch(/Connect GitHub, or try again later\.$/);
   });
 
-  it('signed in, says the account limit and when it resets, never anonymous nor Sign in', () => {
+  it('signed in, says GitHub is busy for the account and when Bridge is back, never anonymous, Sign in nor "limit"', () => {
     const now = Date.UTC(2026, 9, 31, 14, 9);
     const at = new Date(now + 23 * 60_000);
     const lines = [rateLimitedLine(true, { signedIn: true, resetAt: at, now }), rateLimitedLine(false, { signedIn: true, resetAt: null, now }), accountLimitLine(at, now, 'Explorations')];
-    expect(lines[0]).toBe(`GitHub's hourly limit for your account is reached. It resets at ${resetClock(at)} (in 23 min), then reload the page.`);
-    expect(lines[1]).toBe("GitHub's hourly limit for your account is reached. It resets within the hour, then reload the page.");
-    expect(lines[2]).toBe(`Explorations cannot be shown right now: GitHub's hourly limit for your account is reached. It resets at ${resetClock(at)} (in 23 min), then reload the page.`);
+    expect(lines[0]).toBe(`GitHub is busy for your account. Bridge is back at ${resetClock(at)}.`);
+    expect(lines[1]).toBe('GitHub is busy for your account. Bridge is back within the hour.');
+    expect(lines[2]).toBe(`Explorations cannot be shown right now. GitHub is busy for your account. Bridge is back at ${resetClock(at)}.`);
     for (const line of lines) {
-      expect(line).not.toMatch(/anonymous|sign in|connect github|\u2014/i);
+      expect(line).not.toMatch(/anonymous|sign in|connect github|limit|API|\u2014/i);
     }
   });
 });

@@ -127,6 +127,23 @@ export function getCachedModel(repo: string, sha: string): Promise<RepoModel | u
   });
 }
 
+/**
+ * The model of `repo` read most recently, whatever its head, for a page GitHub will not answer now (busy for the
+ * viewer's account): the last known design system stays on screen instead of an empty team. Not counted as a use.
+ */
+export function getLatestCachedModel(repo: string): Promise<{ model: RepoModel; sha: string; private: boolean } | undefined> {
+  return withDb(undefined, async (d) => {
+    const all = (await done(d.transaction(MODELS).objectStore(MODELS).index('repo').getAll(IDBKeyRange.only(repoKey(repo))))) as ModelEntry[];
+    const hit = latestEntry(all);
+    return hit ? { model: hit.model, sha: hit.sha, private: hit.private } : undefined;
+  });
+}
+
+/** The most recently used entry that still carries a full model (the rule of getCachedModel). Pure. */
+export function latestEntry<E extends Pick<ModelEntry, 'at' | 'model'>>(entries: readonly E[]): E | undefined {
+  return [...entries].filter((e) => e.model && 'styles' in e.model).sort((a, b) => b.at - a.at)[0];
+}
+
 /** Keeps `model` for `repo` at `sha`, then drops what is over the limits (with the bodies of dropped repositories). */
 export function putCachedModel(repo: string, sha: string, model: RepoModel, opts: { private: boolean }): Promise<void> {
   return withDb(undefined, async (d) => {

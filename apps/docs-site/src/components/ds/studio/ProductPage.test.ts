@@ -55,6 +55,7 @@ const data = (over: Partial<ProductPageData> = {}): ProductPageData => ({
   cards: [],
   archived: [],
   copy: null,
+  busy: null,
   ...over,
 });
 
@@ -151,6 +152,53 @@ describe('ProductPageView', () => {
   it('says when the team lists no such product', () => {
     render(createElement(ProductPageView, { productKey: 'shop', components: [], data: data({ product: null }) }));
     expect(screen.getByRole('heading', { level: 1, name: 'Product not found' })).toBeTruthy();
+  });
+});
+
+describe('ProductPageView while GitHub is busy', () => {
+  const busy = { resetsAt: new Date(Date.now() + 20 * 60_000), source: 'github' as const };
+  const LINE = /^GitHub is busy for your account\. Bridge is back at \d{1,2}:\d{2}/;
+
+  it('the team list never read: the wait, never "Product not found"', async () => {
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ product: null, busy }), onRetry: () => undefined }));
+    expect(screen.queryByText('Product not found')).toBeNull();
+    expect(screen.getByRole('status').textContent).toMatch(LINE);
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+    expect(container.textContent).not.toMatch(/rate limit|API/i);
+    await expectNoAxeViolations(container);
+  });
+
+  it('nothing kept: one calm moment in place of the list, no "Make my copy", no "Nothing explored here yet"', () => {
+    const retry = vi.fn();
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ busy }), onRetry: retry }));
+    expect(container.querySelector('[data-busy="alone"]')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Make my copy' })).toBeNull();
+    expect(container.querySelector('[data-st-summary]')?.textContent ?? '').toBe('');
+    expect(container.textContent).not.toContain('Nothing explored');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the explorations as last read, with one quiet line above them', () => {
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ busy, cards: [card(1)] }), onRetry: () => undefined }));
+    expect(container.querySelector('[data-busy="kept"]')!.textContent).toMatch(LINE);
+    expect(container.querySelectorAll('.sh-card-item')).toHaveLength(1);
+  });
+
+  it('reads again once on its own, just after the reset', () => {
+    vi.useFakeTimers();
+    try {
+      const retry = vi.fn();
+      render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ busy: { resetsAt: new Date(Date.now() + 60_000), source: 'github' } }), onRetry: retry }));
+      vi.advanceTimersByTime(59_000);
+      expect(retry).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(4_000);
+      expect(retry).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(60 * 60_000);
+      expect(retry).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
