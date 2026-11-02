@@ -1,5 +1,18 @@
 # @bridge-ds/docs-site
 
+## 0.26.8
+
+### Patch Changes
+
+- 69b26e4: A member's email never goes into GitHub: the developers' task says "From Dino, through Bridge.", the "Requested by" line names them without their email, and their commits carry Bridge's stand-in address on private repositories too. The library check of an exploration runs on its own for members who joined by email (Bridge's server runs it with their Bridge session), so "Check in Claude" is only a fallback.
+- 884ab6a: A designer's exploration opened by Bridge's app (email members, and designers who write through Bridge) shows on the Home again: in "Your explorations" with its task stage, in the greeting's count, and in the product card's count.
+- a847b51: One face per email member everywhere: the account menu, the header, Members, the invite dialog, exploration cards and rows, the review page and an exploration's activity all draw the face of the member's name (`~name`), never their email, a row index, the Bridge app's avatar or a GitHub account that happens to share their name.
+
+  Home product folders: each screen of the mosaic shows who explores it (that same face, top-left, ringed), the screens are tiles concentric with the card, "Captured 1 h ago" is a compact chip in the bottom-left corner, and narrow tiles no longer show a truncated caption ("I.. A.").
+
+- Updated dependencies [69b26e4]
+  - @bridge-ds/core@0.26.4
+
 ## 0.26.7
 
 ### Patch Changes
