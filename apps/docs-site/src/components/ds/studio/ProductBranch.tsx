@@ -29,7 +29,9 @@ import {
   Tooltip,
 } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
-import type { PieceActionKind, PieceRowView } from '../../../lib/product-branch';
+import { TRY_UNAVAILABLE_NOTE, type PieceActionKind, type PieceRowView } from '../../../lib/product-branch';
+import { explorationTag } from '../../../lib/exploration-page';
+import { ScreenPlate } from './ExplorationPage';
 import { studioHref } from '../../../lib/team-path';
 import { sampleVisitor } from '../../../scripts/demo-gate';
 
@@ -72,6 +74,10 @@ export interface ProductBranchProps {
   archived?: boolean;
   /** Where it stands once done exploring, in one sentence (lib/explorations-view explorationStateLine); null while it runs. */
   state?: string | null;
+  /** The exploration's status (lib/explorations-view): the tag before that sentence, the same words as the lists. */
+  status?: string | null;
+  /** The key of the exploration: the plate's drawing matches its card on the home. */
+  seed?: string | null;
   /** Why Done exploring and Archive are not offered to this viewer, and who can (lib/write-route keepExplorationLine). */
   keepNote?: string | null;
   developer: { label: string; value: string }[];
@@ -141,9 +147,10 @@ export function ProductBranch(p: ProductBranchProps) {
       .then((r) => setSaid(r ?? ''))
       .catch((err: Error) => setSaid(err.message));
   };
-  const twoRegions = p.visual !== 'none';
   // While exploring and never checked: nothing about the library, nothing to ask Claude yet.
   const showPieces = p.checked || !p.exploring;
+  const nothingMissing = p.checked && p.rows !== null && p.rows.length === 0;
+  const tag = p.status ? (p.archived ? { label: 'Archived', tone: 'neutral' as const, dot: false } : explorationTag(p.status)) : null;
   return (
     <div className="pb">
       <Breadcrumb items={p.crumbs} className="pb-crumbs" />
@@ -169,11 +176,15 @@ export function ProductBranch(p: ProductBranchProps) {
               Try it in the product
             </Button>
           ) : (
-            <Tooltip content="The preview appears a few minutes after each update to the feature.">
-              <Button variant="primary" size="lg" className="pb-try" disabled>
+            // No build and nothing to say about it: the reason in words beside the button, never a grey button alone.
+            <>
+              <p className="pb-try-note" id="pb-try-note">
+                {TRY_UNAVAILABLE_NOTE}
+              </p>
+              <Button variant="primary" size="lg" className="pb-try" disabled aria-describedby="pb-try-note">
                 Try it in the product
               </Button>
-            </Tooltip>
+            </>
           )}
           {(p.onDone || p.onArchive) && (
             <Menu>
@@ -189,23 +200,33 @@ export function ProductBranch(p: ProductBranchProps) {
           )}
         </div>
       </header>
-      {/* Never checked: the card says it once, the sentence above it would only repeat it. */}
-      {showPieces && p.checked && (
+      {/* Where it stands, once done exploring: its tag and one sentence, like the title row of every other state. */}
+      {p.state && (
+        <p className="pb-status">
+          {tag && (
+            <Badge tone={tag.tone} size="md" dot={tag.dot}>
+              {tag.label}
+            </Badge>
+          )}
+          <span>{p.state}</span>
+        </p>
+      )}
+      {/* Never checked, or nothing missing: the Harbor zone says it once, the sentence above it would only repeat it. */}
+      {showPieces && p.checked && !nothingMissing && (
         <p className="pb-lead">
           {p.sentence.lead}
           {p.sentence.strong && <strong>{p.sentence.strong}</strong>}
           {p.sentence.rest}
         </p>
       )}
-      {p.state && <p className="pb-keep-note">{p.state}</p>}
       {p.keepNote && <p className="pb-keep-note">{p.keepNote}</p>}
-      <div className={twoRegions && showPieces ? 'pb-grid' : 'pb-grid is-one'} hidden={!twoRegions && !showPieces}>
-        {twoRegions && (
-          <section className="pb-screen" aria-label={`Your screen in ${p.product}`}>
-            {p.visual === 'loading' && <Skeleton variant="rect" className="pb-skel" />}
-            <div id="pb-visual" aria-live="polite" />
-          </section>
-        )}
+      <div className={showPieces ? 'pb-grid' : 'pb-grid is-one'}>
+        <section className="pb-screen" aria-label={`Your screen in ${p.product}`}>
+          {p.visual === 'loading' && <Skeleton variant="rect" className="pb-skel" />}
+          {/* No before and after to show: the Field Guide plate of the product, as on the exploration page. */}
+          {p.visual === 'none' && <ScreenPlate product={p.product} screen={null} seed={p.seed ?? String(p.number)} />}
+          <div id="pb-visual" aria-live="polite" />
+        </section>
         {showPieces && (
           <section className="pb-missing zone" aria-labelledby="pb-missing-h">
             <h2 className="pb-h2" id="pb-missing-h">

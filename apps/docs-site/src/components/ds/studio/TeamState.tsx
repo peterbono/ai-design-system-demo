@@ -15,7 +15,7 @@ import { TEAM_PROGRESS_START, teamProgressView, type TeamProgress } from '../../
 import { commitUrl, SNAPSHOT_TEMPLATE_URL, sourceLine, teamFailure, type TeamFailure } from '../../../lib/team-load';
 import { isDemoRepo } from '../../../lib/demo';
 import { signedInWithGitHub } from '../../../scripts/github-session';
-import { useBusyRetry } from './BusyNotice';
+import { BusyNotice, useBusyRetry } from './BusyNotice';
 
 /** Whether the viewer signed in with GitHub, kept in step with sign-in and sign-out on this page. */
 function useGitHubSignIn(): boolean {
@@ -93,7 +93,14 @@ export const signInHereHref = () => signInHref(typeof location === 'undefined' ?
  * the failure of the design system read is one calm block among others, not the whole page.
  */
 export function TeamLoadError({ failure, onRetry, compact = false }: { failure: TeamFailure; onRetry: () => void; compact?: boolean }) {
-  // GitHub busy: the page reads again once on its own, just after the reset (Try again stays for sooner).
+  // GitHub busy: the same calm notice as every other page (BusyNotice, which reads again once after the reset). Under
+  // content the page shows anyway (compact: Home's greeting keeps the screen's one Harbor zone), its quiet line.
+  if (failure.kind === 'rate-limit' && failure.busy) return <BusyNotice busy={failure.busy} onRetry={onRetry} kept={compact} />;
+  return <TeamFailureState failure={failure} onRetry={onRetry} compact={compact} />;
+}
+
+function TeamFailureState({ failure, onRetry, compact }: { failure: TeamFailure; onRetry: () => void; compact: boolean }) {
+  // A wait without its reset time still reads again once on its own (Try again stays for sooner).
   useBusyRetry(failure.busy, onRetry);
   return (
     <EmptyState

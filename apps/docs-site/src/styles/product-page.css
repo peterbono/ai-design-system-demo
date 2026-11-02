@@ -29,6 +29,19 @@
   gap: var(--space-1);
 }
 
+/* The line's actions (Open the live product, Get the latest, Send the update): never a target under 24px. */
+.pp-facts a,
+.pp-facts button {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--size-6);
+}
+
+/* "Bridge could not send the update.": a failure reads as one, not as one more quiet fact. */
+.pp-error {
+  color: var(--color-feedback-danger-text);
+}
+
 .pp-conn.is-off::before {
   content: '';
   display: inline-block;

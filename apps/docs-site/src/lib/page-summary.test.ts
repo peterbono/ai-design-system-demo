@@ -8,6 +8,8 @@ describe('page summary', () => {
   it('says what is open on Changes, by where it stands', () => {
     expect(changesSummary({ exploring: 2, code: 1 })).toBe('2 exploring, 1 waiting to be picked up.');
     expect(changesSummary({ exploring: 1, review: 3, building: 2 })).toBe('1 exploring, 2 being built, 3 in review.');
+    // Not planned has no tab, but the sentence counts every open row the list shows.
+    expect(changesSummary({ code: 1, review: 2, notPlanned: 1 })).toBe('1 waiting to be picked up, 2 in review, 1 not planned.');
     expect(changesSummary({})).toBe('Nothing in progress right now.');
   });
 

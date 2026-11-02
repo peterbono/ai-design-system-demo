@@ -482,6 +482,17 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
       await expectNoAxeViolations(next);
     });
 
+    it('waiting on the viewer: the question leads the zone, its answer is the one primary action', () => {
+      handed({ steps: asking, question: { text: 'Red or orange?', by: sam, when: 'today', answered: false, onReply: async () => undefined } });
+      const next = screen.getByRole('region', { name: 'What happens next' });
+      const q = within(next).getByRole('region', { name: "Sam Lee's question" });
+      // Before the steps, and who asked before their words.
+      expect(q.compareDocumentPosition(next.querySelector('ol, ul')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(q.querySelector('figcaption')!.compareDocumentPosition(q.querySelector('blockquote')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(within(q).getByRole('button', { name: 'Send to Sam' }).className).toMatch(/primary/);
+      expect(screen.getByRole('link', { name: /Open the preview/ }).className).not.toMatch(/primary/);
+    });
+
     it('answered: one quiet line, no reply box', () => {
       handed({ question: { text: 'Red or orange?', by: sam, when: 'today', answered: true, onReply: null } });
       expect(screen.getByText('Answered. The work goes on from here.')).toBeTruthy();

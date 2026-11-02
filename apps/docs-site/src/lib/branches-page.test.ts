@@ -89,6 +89,7 @@ describe('state tabs and the address', () => {
     expect(stateOf({ lifecycle: 'exploration', pill: { label: 'In review' } })).toBe('review');
     // The stage, once read, decides over the tag.
     expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Being built' }, stage: 'in-review' })).toBe('review');
+    expect(stateOf({ lifecycle: 'exploration', pill: { label: 'Approved, waiting to ship' }, stage: 'approved' })).toBe('review');
     expect(stateOf({ lifecycle: 'exploration', pill: null, stage: 'archived' })).toBeNull();
     expect(stateOf({ lifecycle: 'draft', pill: { label: 'Being built' } })).toBe('building');
     expect(stateOf({ lifecycle: 'draft', pill: { label: 'Waiting to be picked up' } })).toBe('code');
