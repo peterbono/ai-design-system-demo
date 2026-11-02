@@ -139,3 +139,34 @@ test('resolveBranchPreviews: Vercel sources are read exactly as before', () => {
   assert.equal(p!.url, 'https://bridge-admin-git-explore-x-peterbonos-projects.vercel.app/');
   assert.equal(p!.state, 'ready');
 });
+
+// The check run Cloudflare Pages posted on art-print-shop-co/art-print-shop main (an HTML table, no branch alias on
+// the production branch), and the same table on a preview branch, where Cloudflare adds its Branch Preview URL row.
+const REAL_MAIN = "<table><tr><td><strong>Latest commit:</strong> </td><td>\n<code>ee20562</code>\n</td></tr>\n<tr><td><strong>Status:</strong></td><td>&nbsp;✅&nbsp; Deploy successful!</td></tr>\n<tr><td><strong>Preview URL:</strong></td><td>\n<a href='https://725046a6.art-print-shop.pages.dev'>https://725046a6.art-print-shop.pages.dev</a>\n</td></tr>\n</table>\n\n[View logs](https://dash.cloudflare.com/?to=/1606eed0cc5fc32fff864fa84e3b3be7/pages/view/art-print-shop/725046a6-5f5a-45e9-ad9c-852274f46d51)\n";
+const REAL_BRANCH = REAL_MAIN.replace(
+  '</td></tr>\n</table>',
+  "</td></tr>\n<tr><td><strong>Branch Preview URL:</strong></td><td>\n<a href='https://explore-add-a-toast-alert.art-print-shop.pages.dev'>https://explore-add-a-toast-alert.art-print-shop.pages.dev</a>\n</td></tr>\n</table>",
+);
+
+test("Cloudflare's real HTML check run: the hash URL on main, the branch alias first on a preview branch", () => {
+  assert.deepEqual(parseCloudflareCheck({ summary: REAL_MAIN }), { branchUrl: null, commitUrl: 'https://725046a6.art-print-shop.pages.dev/' });
+  assert.deepEqual(parseCloudflareCheck({ summary: REAL_BRANCH }), {
+    branchUrl: 'https://explore-add-a-toast-alert.art-print-shop.pages.dev/',
+    commitUrl: 'https://725046a6.art-print-shop.pages.dev/',
+  });
+  const apps = { admin: 'https://{branch}.art-print-shop.pages.dev' };
+  const run = { name: 'Cloudflare Pages', status: 'completed', conclusion: 'success', app: 'cloudflare-workers-and-pages' };
+  const [onBranch] = resolveBranchPreviews(apps, { branch: 'explore/add-a-toast-alert', pr: 4, sha: 'ee20562' }, { checkRuns: [{ ...run, summary: REAL_BRANCH }] });
+  assert.equal(onBranch!.url, 'https://explore-add-a-toast-alert.art-print-shop.pages.dev/');
+  assert.equal(onBranch!.source, 'check');
+  assert.equal(onBranch!.state, 'ready');
+  // Only the hash URL: still this branch's build, a working link.
+  const [hashOnly] = resolveBranchPreviews(apps, { branch: 'explore/x', pr: 5, sha: 'ee20562' }, { checkRuns: [{ ...run, summary: REAL_MAIN }] });
+  assert.equal(hashOnly!.url, 'https://725046a6.art-print-shop.pages.dev/');
+  // The Vercel status the product repo still gets does not take a Cloudflare product's preview.
+  const [mixed] = resolveBranchPreviews(apps, { branch: 'explore/add-a-toast-alert', pr: 4, sha: 'ee20562' }, {
+    statuses: [{ context: 'Vercel', state: 'success', target_url: 'https://vercel.com/peterbonos-projects/bridge-product-admin/AbC123' }],
+    checkRuns: [{ ...run, summary: REAL_BRANCH }],
+  });
+  assert.equal(mixed!.url, 'https://explore-add-a-toast-alert.art-print-shop.pages.dev/');
+});
