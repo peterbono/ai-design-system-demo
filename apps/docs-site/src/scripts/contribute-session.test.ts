@@ -398,6 +398,27 @@ describe('a member reads through Bridge with fewer requests', () => {
     expect(proxied()).toBe(2);
   });
 
+  it('sends the status batch once per page: the nav badge and Home share it, and kept changes are not asked again', async () => {
+    signIn();
+    const sha = 'c'.repeat(40);
+    const reads = (n: number) => ({ [`/pulls/${n}`]: { status: 200, body: '{}' }, [`/commits/${sha}/status`]: { status: 200, body: '{}' } });
+    answer = (url) => (url.includes('changes=') ? json(200, { changes: { '5': reads(5), '6': reads(6) } }) : json(200, {}));
+    const list = [{ number: 5, head: { sha } }, { number: 6, head: { sha } }];
+    const batches = () => calls.filter((c) => c.url.includes('changes=')).length;
+    // The badge and Home at once: one request.
+    await Promise.all([prefetchChangeStatuses('acme/ds', list), prefetchChangeStatuses('acme/ds', list)]);
+    expect(batches()).toBe(1);
+    // Asked again while its reads are kept: no request; a change not kept yet is asked alone.
+    await prefetchChangeStatuses('acme/ds', list);
+    expect(batches()).toBe(1);
+    await prefetchChangeStatuses('acme/ds', [...list, { number: 7, head: { sha } }]);
+    expect(calls.filter((c) => c.url.includes('changes=')).map((c) => c.url).pop()).toBe(`/api/contribute?repo=acme%2Fds&changes=7:${sha}`);
+    // A write forgets them: asked again.
+    forgetRecent('acme/ds');
+    await prefetchChangeStatuses('acme/ds', list);
+    expect(batches()).toBe(3);
+  });
+
   it('asks nothing for someone who is not a member, and a refusal leaves each read to the proxy', async () => {
     const sha = 'b'.repeat(40);
     await prefetchChangeStatuses('acme/ds', [{ number: 1, head: { sha } }]);

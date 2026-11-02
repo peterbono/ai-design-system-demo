@@ -1,5 +1,6 @@
 // Installation tokens of the Bridge GitHub App, scoped to one repository and to the permissions a feature needs,
-// minted per request and never stored. Shared by api/invites, api/library-access and api/contribute.
+// minted per request and never stored here. Shared by api/invites, api/library-access and api/contribute (whose
+// read-only token of team reads is shared by every function, sealed in Redis: api/_lib/shared-token.ts).
 
 import { createSign } from 'node:crypto';
 import { noteInstallationToken } from './github-quota.js';

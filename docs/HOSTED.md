@@ -571,24 +571,37 @@ instead of one request per file.
 ### Cache and limits
 
 - **Cache** (Upstash Redis): an answer is fresh 30 seconds (10 minutes while GitHub's webhooks arrive, see "Changes
-  pushed by GitHub" below), then revalidated with its `ETag` (GitHub does not count a `304`), kept 20 minutes to stand
-  in when GitHub says slow down. A write made through Bridge
-  (`bridge:read:wrote:<repo>`) makes older answers be checked again at once. Answers that never change (a blob, a tree
-  or a commit by its sha, contents at a full sha) are kept a day (blobs a week) and in the function's memory. Keys:
-  `bridge:read:get:<repo>:<hash>`, `bridge:read:blob:<repo>:<sha>`. Bodies of private repositories land there: access
-  is checked on every request, never by the key. A member's read with `X-Bridge-Fresh: 1` (Studio sends it for 90
-  seconds after the page wrote to GitHub itself) is checked with GitHub again at once, with the kept `ETag`, and the
-  answer is kept for the team; a visitor's is ignored.
-- **Limits** per 10 minutes: 1,200 requests per signed-in member (counted by a hash of their email, so a whole
-  office behind one address is not one budget), 400 per address for a signed-out visitor of a demo team, 6,000 per
-  team (`READ_MAX_IP` sets the member limit, `READ_MAX_GUEST`, `READ_MAX_TEAM`, optional; a blob batch counts 1 per
-  20 blobs). Each reader (member or address) may also cost the app at most 300 GitHub calls per 10 minutes
-  (`READ_MAX_UPSTREAM`; cache misses only, a `304` is free), about a third of the app's 5,000 an hour, so one viewer
-  never spends the limit the whole team reads on: past it, what is kept answers, however old, else 429 `busy` (a
-  library read of someone signed in with GitHub then goes to GitHub with their token for a while). Studio keeps a member's answers 30 seconds in the tab (an answer by commit sha 10 minutes), forgotten on
-  any write or sign-out, so moving between pages reads again only what changed. Over a limit, or
-  when GitHub says slow down and nothing is kept: 429 `busy`, `Retry-After`, `{ "message": "Bridge is busy, try again
-  in N min.", "retryAfter": <seconds> }`. Studio shows that sentence, never "add a GitHub token".
+  pushed by GitHub" below), then revalidated with its `ETag` (GitHub does not count a
+  `304`). It is kept a day so an answer read long ago is still revalidated for free instead of read again, but it
+  stands in without GitHub (GitHub says slow down, is down, or a budget below is spent) only within 20 minutes of
+  GitHub last confirming it. A write made through Bridge (`bridge:read:wrote:<repo>`) makes older answers be checked
+  again at once. Answers that never change (a blob, a tree or a commit by its sha, contents at a full sha) are kept a
+  day (blobs a week) and in the function's memory. Keys: `bridge:read:get:<repo>:<hash>`,
+  `bridge:read:blob:<repo>:<sha>`. Bodies of private repositories land there: access is checked on every request,
+  never by the key. A member's read with `X-Bridge-Fresh: 1` (Studio sends it for 90 seconds after the page wrote to
+  GitHub itself) is checked with GitHub again at once, with the kept `ETag`, and the answer is kept for the team; a
+  visitor's is ignored.
+- **One GitHub call per answer at a time**: concurrent misses of the same answer (a burst of people opening Home) wait
+  for the one call made, in each function, and a function has at most 20 GitHub calls in flight (the others wait their
+  turn), far from GitHub's 100 concurrent requests.
+- **One read token for every function**: the read-only installation token of a repository is minted by one function
+  (a 10 second lock in Redis), kept in Redis sealed (AES-256-GCM, a key derived from `LIBRARY_SESSION_SECRET` for this
+  purpose, `bridge:app:token:<hash>`, the key names neither the token nor the repository) and used by every function
+  for 50 minutes; each function looks again at least every minute. A kept `ETag` then stays valid whichever function
+  revalidates it, even if GitHub ties ETags to the token (`api/_lib/shared-token.ts`, docs/QUOTA-LOADTEST.md C3).
+- **Limits** per 10 minutes. The team's budget protects GitHub, not Bridge: a team's reads may cost the app at most
+  500 GitHub calls (`READ_MAX_TEAM`; cache misses only, a `304` and a cached answer are free), 60 % of the app's 5,000
+  an hour, and each reader (member or address) at most 300 (`READ_MAX_UPSTREAM`), so one viewer never spends the limit
+  the whole team reads on. Past either, what is kept answers (confirmed within 20 minutes), else 429 `busy` (a library
+  read of someone signed in with GitHub then goes to GitHub with their token for a while). Requests themselves are
+  limited only against abuse: 3,000 per signed-in member (counted by a hash of their email, so a whole office behind
+  one address is not one budget), 400 per address for a signed-out visitor of a demo team (`READ_MAX_IP` sets the
+  member limit, `READ_MAX_GUEST`, optional; a blob batch counts 1 per 20 blobs). Studio keeps a member's answers 30
+  seconds in the tab (an answer by commit sha 10 minutes), forgotten on any write or sign-out, so moving between pages
+  reads again only what changed; the status batch of the open changes goes out once per page, shared by the nav badge
+  and Home. Over a limit, or when GitHub says slow down and nothing is kept: 429 `busy`, `Retry-After`,
+  `{ "message": "Bridge is busy, try again in N min.", "retryAfter": <seconds> }`. Studio shows that sentence, never
+  "add a GitHub token".
 - **Fallback**: when the server answers that it cannot read (not set up, the app not on the repository), a demo
   team's visitor reads GitHub directly for the rest of the page, as before.
 

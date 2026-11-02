@@ -431,16 +431,31 @@ async function recentRead(repo: string, target: string, path: string, headers: R
 // files, the check runs and commit status of its head). For a member, the page asks the server once for all its open
 // changes (api/_lib/team-read.ts onChanges, which reads each change once and shares it with the team's members for
 // 30 s), then those five reads are answered here, for RECENT_MS, in this page's memory only. Forgotten with the rest
-// on any write to the team.
+// on any write to the team. The nav badge and Home ask for the same changes: one request per batch is in flight per
+// page and shared, and a change whose reads are still kept here is not asked again.
 
 const STATUS_ACCEPT = 'application/vnd.github+json';
 /** Change reads answered by the server: `<team>|<path under the repository, with its query>`. */
 const changeReads = new Map<string, { at: number; status: number; body: string }>();
 const CHANGES_PER_REQUEST = 20;
+/** Status batches in flight: `<team>|<number:sha,...>`, the request's promise (false: stop asking for this page load). */
+const changeBatches = new Map<string, Promise<boolean>>();
 
 function forgetChangeReads(repo: string | null) {
-  if (repo === null) return changeReads.clear();
-  for (const k of [...changeReads.keys()]) if (k.startsWith(`${key(repo)}|`)) changeReads.delete(k);
+  if (repo === null) {
+    changeBatches.clear();
+    return changeReads.clear();
+  }
+  for (const m of [changeReads, changeBatches]) for (const k of [...m.keys()]) if (k.startsWith(`${key(repo)}|`)) m.delete(k);
+}
+
+/** Whether the server's reads of change `c` (at its head) are still kept on this page. */
+function changeKept(repo: string, c: { number: number; head: { sha: string } }): boolean {
+  const recent = (path: string) => {
+    const kept = changeReads.get(`${key(repo)}|${path}`);
+    return Boolean(kept && Date.now() - kept.at <= RECENT_MS);
+  };
+  return recent(`/pulls/${c.number}`) && recent(`/commits/${c.head.sha.toLowerCase()}/status`);
 }
 
 /** The path of a call under /repos/<repo> (with its query), or null when it is not the team's repository. */
@@ -468,24 +483,39 @@ export async function prefetchChangeStatuses(repo: string, changes: readonly { n
   const email = Boolean(contributorFor(repo));
   const auth = email ? null : auth0;
   if (!email && !auth) return;
-  const list = changes.filter((c) => /^[0-9a-f]{40}$/.test(c.head.sha));
+  const list = changes.filter((c) => /^[0-9a-f]{40}$/.test(c.head.sha) && !changeKept(repo, c));
   for (let i = 0; i < list.length; i += CHANGES_PER_REQUEST) {
     const part = list.slice(i, i + CHANGES_PER_REQUEST);
-    try {
-      const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&changes=${part.map((c) => `${c.number}:${c.head.sha}`).join(',')}`, { headers: { Accept: 'application/json', ...(auth ? { Authorization: auth } : {}) }, credentials: 'same-origin' });
-      if (res.status === 401 && email) endedEmailSession(repo);
-      if (!res.ok || !/json/i.test(res.headers.get('content-type') ?? '')) return;
-      const data = (await res.json()) as { changes?: Record<string, Record<string, { status?: unknown; body?: unknown }>> };
-      const at = Date.now();
-      for (const reads of Object.values(data.changes ?? {})) {
-        for (const [path, r] of Object.entries(reads ?? {})) {
-          if (!path.startsWith('/') || (r?.status !== 200 && r?.status !== 404) || typeof r.body !== 'string') continue;
-          changeReads.set(`${key(repo)}|${path.toLowerCase()}`, { at, status: r.status, body: r.body });
-        }
-      }
-    } catch {
-      return;
+    const id = `${key(repo)}|${part.map((c) => `${c.number}:${c.head.sha}`).join(',')}`;
+    let going = changeBatches.get(id);
+    if (!going) {
+      const p: Promise<boolean> = sendChangeBatch(repo, part, auth, email).finally(() => {
+        if (changeBatches.get(id) === p) changeBatches.delete(id);
+      });
+      changeBatches.set(id, p);
+      going = p;
     }
+    if (!(await going)) return;
+  }
+}
+
+/** One status request; false when the server said no (the page then reads each change on its own). Never throws. */
+async function sendChangeBatch(repo: string, part: readonly { number: number; head: { sha: string } }[], auth: string | null, email: boolean): Promise<boolean> {
+  try {
+    const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&changes=${part.map((c) => `${c.number}:${c.head.sha}`).join(',')}`, { headers: { Accept: 'application/json', ...(auth ? { Authorization: auth } : {}) }, credentials: 'same-origin' });
+    if (res.status === 401 && email) endedEmailSession(repo);
+    if (!res.ok || !/json/i.test(res.headers.get('content-type') ?? '')) return false;
+    const data = (await res.json()) as { changes?: Record<string, Record<string, { status?: unknown; body?: unknown }>> };
+    const at = Date.now();
+    for (const reads of Object.values(data.changes ?? {})) {
+      for (const [path, r] of Object.entries(reads ?? {})) {
+        if (!path.startsWith('/') || (r?.status !== 200 && r?.status !== 404) || typeof r.body !== 'string') continue;
+        changeReads.set(`${key(repo)}|${path.toLowerCase()}`, { at, status: r.status, body: r.body });
+      }
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 

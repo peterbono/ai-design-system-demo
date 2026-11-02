@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/account';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
-import { clearReadMemory, FRESH_MS, immutable, MAX_BATCH, MAX_CHANGES, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
+import { clearReadMemory, FRESH_MS, immutable, KEEP_S, MAX_BATCH, MAX_CHANGES, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
 import { restoreMissing } from './contribute';
 import { type ContribDeps, cookieName, type FetchLike, handleContribute, signSession } from '../../api/contribute/index';
 
@@ -291,6 +291,37 @@ describe('team reads: the cache', () => {
     expect(JSON.stringify(body)).not.toMatch(/token/i);
   });
 
+  it('keeps the ETag a day: an answer read long ago is revalidated (free 304), never answered without GitHub past KEEP_S', async () => {
+    const s = setup();
+    const cookie = await s.member();
+    await s.read(`${P}/pulls`, cookie);
+    s.tick(6 * 3600 * 1000);
+    const again = await s.read(`${P}/pulls`, cookie);
+    expect(again.headers.get('x-bridge-cache')).toBe('revalidated');
+    expect(s.w.calls.filter((c) => c.path === `${P}/pulls`).pop()!.headers['If-None-Match']).toBe('"p1"');
+    const kept = s.redis.snapshot().find((k) => k.key.startsWith(`bridge:read:get:${TEAM}:`))!;
+    expect(kept.until! - (T0 + 6 * 3600 * 1000)).toBeGreaterThan(KEEP_S * 1000);
+    // GitHub slows down: confirmed KEEP_S ago or less stands in; older is busy, not a stale answer.
+    s.w.limited = true;
+    s.tick(FRESH_MS + 1);
+    expect((await s.read(`${P}/pulls`, cookie)).headers.get('x-bridge-cache')).toBe('stale');
+    s.tick(KEEP_S * 1000);
+    expect((await s.read(`${P}/pulls`, cookie)).status).toBe(429);
+  });
+
+  it('makes one GitHub call for concurrent misses of the same answer', async () => {
+    const s = setup();
+    const cookies = await Promise.all(['a', 'b', 'c', 'd'].map((x) => s.member(`${x}@acme.design`)));
+    const rs = await Promise.all(cookies.map((c) => s.read(`${P}/pulls`, c)));
+    expect(rs.every((r) => r.status === 200)).toBe(true);
+    expect(gets(s.w, `${P}/pulls`)).toBe(1);
+    // Only the call made counts: on the team's GitHub calls once.
+    expect(Number(await s.redis.cmd('GET', `bridge:read:count:team:${TEAM}:${Math.floor(T0 / 1000 / 600)}`))).toBe(1);
+    const bs = await Promise.all(cookies.map((c) => s.blobs([SHA('e')], c)));
+    expect(bs.every((r) => r.status === 200)).toBe(true);
+    expect(s.w.calls.filter((c) => c.path.endsWith(`/git/blobs/${SHA('e')}`))).toHaveLength(1);
+  });
+
   it('keeps answers that never change in memory: a tree by its sha costs one GitHub call', async () => {
     const s = setup();
     const cookie = await s.member();
@@ -345,15 +376,34 @@ describe('team reads: limits', () => {
     expect((await s.read(`${D}/pulls`, '', DEMO, { 'x-real-ip': '198.51.100.9' })).status).toBe(200);
   });
 
-  it('visitors of a demo team have a lower limit per address, and every team its own cap', async () => {
+  it('visitors of a demo team have a lower limit per address', async () => {
     expect(READ_LIMITS.guest).toBeLessThan(READ_LIMITS.ip);
-    const s = setup({}, { READ_MAX_GUEST: '2', READ_MAX_TEAM: '4' });
+    const s = setup({}, { READ_MAX_GUEST: '2' });
     expect((await s.read(`${D}/pulls`, '', DEMO)).status).toBe(200);
     expect((await s.read(`${D}/pulls`, '', DEMO)).status).toBe(200);
     expect((await s.read(`${D}/pulls`, '', DEMO)).status).toBe(429);
     expect((await s.read(`${D}/pulls`, '', DEMO, { 'x-real-ip': '198.51.100.2' })).status).toBe(200);
-    expect((await s.read(`${D}/pulls`, '', DEMO, { 'x-real-ip': '198.51.100.3' })).status).toBe(429);
     expect(READ_WORDS.busy(30)).toBe('Bridge is busy, try again in 1 min.');
+  });
+
+  it("every team has its own cap of GitHub calls, never of cached answers: many readers of kept answers are never busy", async () => {
+    const s = setup({}, { READ_MAX_TEAM: '2' });
+    const people = await Promise.all(Array.from({ length: 30 }, (_, i) => s.member(`p${i}@acme.design`)));
+    // Two misses spend the team's two GitHub calls.
+    expect((await s.read(`${P}/pulls`, people[0])).status).toBe(200);
+    expect((await s.read(`${P}/issues`, people[0])).status).toBe(200);
+    // Thirty people reading what is kept: hits, never busy.
+    for (const c of people) for (let i = 0; i < 5; i++) expect((await s.read(`${P}/pulls`, c)).headers.get('x-bridge-cache')).toBe('hit');
+    // A third answer would cost GitHub a call: busy until the window turns.
+    const r = await s.read(`${P}/labels`, people[1]);
+    expect(r.status).toBe(429);
+    expect((await r.json()).error).toBe('busy');
+    // Past the fresh window, what is kept stands in.
+    s.tick(FRESH_MS + 1);
+    expect((await s.read(`${P}/pulls`, people[2])).headers.get('x-bridge-cache')).toBe('stale');
+    // Another team is not touched.
+    const other = await s.member('zoe@other.design', 'other/ds');
+    expect((await s.read('/repos/other/ds/labels', other, 'other/ds')).status).toBe(200);
   });
 });
 
