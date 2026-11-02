@@ -91,4 +91,12 @@ describe('preview-shots: index.json', () => {
     expect(idx.shots['peterbono/alpha#3']).toMatchObject({ sha: 's3', screen: 'Orders alert', closed: { merged: true } });
     expect(idx.version).toBe(1);
   });
+
+  it('keeps the last capture of a branch while its new head (an empty commit too) has none yet, or failed', () => {
+    const last = { repo: 'acme/shop-design', pr: 4, sha: 'old1', capturedAt: '2026-11-02T07:36:41Z', image: 'acme/shop-design/4.webp' };
+    // The new head is tried, and until it is captured the index still lists the last one, with its date.
+    expect(shotDecision({ sha: 'new2', stored: last }).action).toBe('capture');
+    expect(buildIndex([last]).shots['acme/shop-design#4']).toMatchObject({ sha: 'old1', capturedAt: '2026-11-02T07:36:41Z', image: 'acme/shop-design/4.webp' });
+    expect(buildIndex([{ ...last, failed: { sha: 'new2', tries: 1 } }]).shots['acme/shop-design#4']).toMatchObject({ sha: 'old1', image: 'acme/shop-design/4.webp' });
+  });
 });

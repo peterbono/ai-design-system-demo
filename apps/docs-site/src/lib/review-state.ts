@@ -289,6 +289,31 @@ export function devQuestionOf(t: Pick<DesignTaskRead, 'state' | 'labels' | 'comm
 }
 
 /**
+ * The asker's part on the team, when Bridge knows it from the team's settings: a design lead (governance.owners.design)
+ * or a tech lead (owners.tech), teams expanded by the caller (scripts/teams siteApprovers). Null otherwise: Bridge never
+ * guesses a role from where someone wrote, so a question on the developers' task is not "the developers'" by default.
+ */
+export function askerRole(login: string | null | undefined, owners: { design?: readonly string[]; tech?: readonly string[] } | null | undefined): 'design lead' | 'tech lead' | null {
+  if (!login || !owners) return null;
+  const k = lower(login.trim());
+  const has = (list?: readonly string[]) => (list ?? []).some((e) => !e.includes('/') && lower(e.trim()) === k);
+  if (has(owners.design)) return 'design lead';
+  if (has(owners.tech)) return 'tech lead';
+  return null;
+}
+
+/**
+ * The line for a question on a design task, naming who asked: "Florian, design lead, asked a question" when Bridge
+ * knows their part, "Florian asked a question" otherwise. A `needs-design` label alone names nobody: "Your input is
+ * needed". Never "the developers" by default: the asker may be anyone on the team.
+ */
+export function questionLine(by: { name: string } | null | undefined, role?: string | null): string {
+  const name = by?.name?.trim();
+  if (!name) return 'Your input is needed';
+  return role ? `${name}, ${role}, asked a question` : `${name} asked a question`;
+}
+
+/**
  * The developers' last word on a task they closed without building it: their latest comment that is neither Bridge's
  * nor the designer's (plain text, who and when). Null when they closed it without a word.
  */

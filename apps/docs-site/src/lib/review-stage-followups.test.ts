@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { branchPreviewUrl } from '@bridge-ds/core';
-import { devReviewLine, devVersionUrl, DEV_VERSION_READY } from './review-state';
+import { askerRole, devReviewLine, devVersionUrl, DEV_VERSION_READY, questionLine } from './review-state';
 import { withTaskRow } from './explorations-view';
 import { cardTag, withTaskStage } from './home-explorations';
-import { clipQuote, explorationTag, libraryTodayRoute, todayLinkLabel } from './exploration-page';
+import { changedScreenOf, clipQuote, explorationTag, libraryTodayRoute, questionWords, todayLinkLabel } from './exploration-page';
 import { badgeRows, devQuestionNeed, type Person } from './home-model';
 import { jargonIn } from './vocabulary';
 import { COPY_WORDS } from './design-copy';
@@ -82,6 +82,50 @@ describe('the Needs you row for a question', () => {
     expect(row).toMatchObject({ key: 'dev-question-shop#12', kind: 'own', title: 'Checkout flow', line: 'Sam asked a question', waitsOnYou: true, action: 'Answer', question: true });
     expect(badgeRows([row, { ...row, key: 'x', question: false }])).toBe(1);
     expect(jargonIn(`${row.title} ${row.line}`)).toEqual([]);
+  });
+
+  it("names a lead who asks with their part, and nobody when only the label asks: never 'the developers' by default", () => {
+    const florian = { login: 'peterbono', name: 'Florian', avatar: null } as unknown as Person;
+    const row = devQuestionNeed({ key: 'shop#4', name: 'Add a toast alert', href: '/x', asker: florian, role: 'design lead', since: null, thumb: { kind: 'icon', icon: 'branch' } }, Date.now());
+    expect(row.line).toBe('Florian, design lead, asked a question');
+    expect(devQuestionNeed({ key: 'shop#4', name: 'x', href: '/x', asker: null, since: null, thumb: { kind: 'icon', icon: 'branch' } }, Date.now()).line).toBe('Your input is needed');
+  });
+});
+
+describe("who asked a question, and their part on the team", () => {
+  const owners = { design: ['peterbono', 'acme/design-team'], tech: ['PeterBono', 'ana'] };
+  it('a design owner is the design lead, a tech owner the tech lead, anyone else has no part said', () => {
+    expect(askerRole('peterbono', owners)).toBe('design lead');
+    expect(askerRole('@Ana', owners)).toBe('tech lead');
+    expect(askerRole('sam', owners)).toBeNull();
+    // A GitHub team entry never matches a login; nothing known, nothing said.
+    expect(askerRole('design-team', owners)).toBeNull();
+    expect(askerRole(null, owners)).toBeNull();
+    expect(askerRole('peterbono', null)).toBeNull();
+  });
+
+  it('the line names the person, with their part only when Bridge knows it', () => {
+    expect(questionLine({ name: 'Florian' }, 'design lead')).toBe('Florian, design lead, asked a question');
+    expect(questionLine({ name: 'Florian' })).toBe('Florian asked a question');
+    expect(questionLine(null)).toBe('Your input is needed');
+  });
+
+  it('the reply words are neutral about where the answer goes, and name the asker', () => {
+    expect(questionWords({ name: 'Florian Gouloubi' })).toMatchObject({ hint: 'They read your answer where they work.', send: 'Send to Florian', sent: 'Sent to Florian Gouloubi.' });
+    expect(questionWords(null)).toMatchObject({ send: 'Send your answer', sent: 'Your answer is sent.' });
+    const all = JSON.stringify([questionWords({ name: 'Florian' }), questionWords(null)]);
+    expect(all).not.toMatch(/developers|—/i);
+    expect(jargonIn(all)).toEqual([]);
+  });
+});
+
+describe('the screen an exploration plate names', () => {
+  it("a screen the exploration changed, else the product alone: a component or a translation is no screen", () => {
+    expect(changedScreenOf(['src/i18n/en.ts', 'src/resources/orders/OrderList.tsx'])).toBe('Order list');
+    expect(changedScreenOf(['apps/shop/src/pages/ProfilePage.tsx'])).toBe('Profile page');
+    expect(changedScreenOf(['src/components/Toast.tsx', 'src/i18n/fr.ts'])).toBeNull();
+    // A library exploration explores its components.
+    expect(changedScreenOf(['packages/react/src/components/Toast/Toast.tsx'], { library: true })).toBe('Toast');
   });
 });
 

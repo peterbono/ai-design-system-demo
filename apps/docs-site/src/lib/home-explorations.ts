@@ -284,7 +284,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
         tone: tag.tone,
         dot: tag.dot,
         updated: p.updated_at,
-        preview: previewOf(opts.preview?.(p), { product: product ?? 'Library', screen: changedScreenOf(files?.(p)), seed: keyOf(p) }),
+        preview: previewOf(opts.preview?.(p), { product: product ?? 'Library', screen: changedScreenOf(files?.(p), { library: !product }), seed: keyOf(p) }),
         own: isOwnExploration(p, opts.viewer, opts.viewerRef),
       };
     })

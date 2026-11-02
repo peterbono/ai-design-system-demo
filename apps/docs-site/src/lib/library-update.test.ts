@@ -204,13 +204,15 @@ describe('the product page’s words', () => {
     expect(libraryLine('Art print shop', behind, { update: null, canSend: true, github: true })).toEqual({ text: 'Art print shop uses the library from 1.8.3. The latest is 1.8.4.', send: true, sent: false, link: null });
   });
 
-  it('behind, for a designer: the line only', () => {
-    expect(libraryLine('Art print shop', behind, { update: null, canSend: false, github: false })).toEqual({ text: 'Art print shop uses the library from 1.8.3. The latest is 1.8.4.', send: false, sent: false, link: null });
+  it('for anyone who cannot send the update (a designer): no line at all, a fact they cannot act on', () => {
+    expect(libraryLine('Art print shop', behind, { update: null, canSend: false, github: false })).toBeNull();
+    expect(libraryLine('Art print shop', behind, { update: pr, canSend: false, github: true })).toBeNull();
+    expect(libraryLine('Art print shop', current, { update: null, canSend: false, github: true })).toBeNull();
   });
 
-  it('sent: "Update sent to the developers." and the link only for people with GitHub', () => {
+  it('sent: "Update sent to the developers." and the link only for people with GitHub (an email admin has none)', () => {
     expect(libraryLine('Art print shop', behind, { update: pr, canSend: true, github: true })).toMatchObject({ send: false, sent: true, link: pr.url });
-    expect(libraryLine('Art print shop', behind, { update: pr, canSend: false, github: false })).toMatchObject({ send: false, sent: true, link: null });
+    expect(libraryLine('Art print shop', behind, { update: pr, canSend: true, github: false })).toMatchObject({ send: false, sent: true, link: null });
   });
 
   it('an update open for an older version: a lead sends the newer one (in place)', () => {

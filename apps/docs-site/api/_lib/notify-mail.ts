@@ -40,7 +40,7 @@ export function linesOf(i: Pick<NotifyItem, 'kind' | 'title' | 'actor'>): { subj
     case 'changes':
       return { subject: `${actor} asked for changes on ${title}`, sentence: `${actor} left a few notes on your library suggestion. Send a new version when you are ready.`, button: `See ${actor}'s notes` };
     case 'declined':
-      return { subject: `${title} will not be built for now`, sentence: 'The developers decided not to build it this time and left a note.', button: 'Read the note' };
+      return { subject: `${title} will not be built for now`, sentence: `${actor} decided not to build it this time and left a note.`, button: 'Read the note' };
     case 'shipped':
       return { subject: `${title} shipped`, sentence: 'What you designed is now in the product. Nice work.', button: 'See it' };
     case 'suggestion-declined':

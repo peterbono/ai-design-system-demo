@@ -2,7 +2,7 @@
 // pure view rules over @bridge-ds/core's exploration-resume words. Not started: the Continue in Claude panel and an
 // empty "Your preview" frame. Exploring: the preview, the last activity in words, Done exploring, the last 3 events.
 // Later states keep their own pages. No DOM, no fetch: tested in exploration-page.test.ts.
-import { DEV_VERSION_READY, LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
+import { DEV_VERSION_READY, LIFECYCLE_LABEL, questionLine, type LifecycleStage } from './review-state';
 import { changedThings, continueLines, explorationActivity, humanAuthorOf, parseExplorationBody, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
 import { emailMemberFace, isEmailAddress, nameFace } from './people';
 import { isNameAuthor, nameOfAuthor } from './author';
@@ -263,8 +263,11 @@ export function handoffSteps(input: {
   library?: boolean;
   review?: HandoffReview | null;
   nextRelease?: boolean;
-  /** The developers asked the designer something on their task (lib/review-state devQuestionOf), answered or not. */
-  question?: { answered: boolean } | null;
+  /**
+   * Someone asked the designer something on the task (lib/review-state devQuestionOf), answered or not: who asked
+   * (`by`), and their part on the team when Bridge knows it (`role`, lib/review-state askerRole).
+   */
+  question?: { answered: boolean; by?: { name: string } | null; role?: string | null } | null;
   /** The developers closed their task without building it. */
   declined?: boolean;
   now?: Date;
@@ -309,7 +312,7 @@ export function handoffSteps(input: {
   // A question the designer has not answered yet: the developers wait on them before they build on.
   const asks = Boolean(input.question && !input.question.answered) && (stage === 'ready' || stage === 'building');
   const build: HandoffStep = asks
-    ? { status: 'warning', title: 'Developers build it', detail: DEV_QUESTION_LINE, current: true }
+    ? { status: 'warning', title: 'Developers build it', detail: questionLine(input.question!.by, input.question!.role), current: true }
     : stage === 'ready'
       ? { status: 'waiting', title: 'Developers build it', detail: who ? `Waiting for ${who}` : 'In their task list. You see here when one picks it up.', current: true }
       : stage === 'building'
@@ -347,12 +350,23 @@ export function handoffSteps(input: {
   return [done, build, review, ship];
 }
 
-/** The "Developers build it" step when the developers asked the designer something on their task. */
-export const DEV_QUESTION_LINE = 'Developers asked a question';
 /** The "Developers build it" step when they closed their task without building it (core's Not planned sentence). */
 export const DECLINED_LINE = 'Developers closed it without building it.';
-/** Said after the designer's reply went to the developers. */
-export const REPLY_SENT_LINE = 'Sent to the developers.';
+/**
+ * The words around a question on the task, naming who asked (never "the developers" by default: a lead may ask). The
+ * reply hint says where the answer goes in neutral words, the button and the sent line name the asker when known.
+ */
+export function questionWords(by: { name: string } | null | undefined): { hint: string; send: string; sent: string; answered: string; needsInput: string } {
+  const name = by?.name?.trim() || null;
+  const first = name?.split(/\s+/)[0] ?? null;
+  return {
+    hint: 'They read your answer where they work.',
+    send: first ? `Send to ${first}` : 'Send your answer',
+    sent: name ? `Sent to ${name}.` : 'Your answer is sent.',
+    answered: 'Answered. The work goes on from here.',
+    needsInput: 'Your input is needed before it is built.',
+  };
+}
 
 /** How much of a quoted comment shows before "Show more". */
 export const QUOTE_CLIP = 280;
@@ -444,8 +458,18 @@ export function requestPieces(requests: readonly { number: number; title: string
 /** The line to paste in Claude to check an exploration against the library, when Bridge cannot run it itself. */
 export const checkInClaudeLine = (name: string, ref: string) => `Check what the exploration "${name}" (${ref}) adds that the library does not have, and record it in Bridge.`;
 
-/** The screen a fallback preview names: the first changed screen or component, else null. */
-export const changedScreenOf = (files: readonly string[] | null | undefined): string | null => changedThings(files ?? [])[0] ?? null;
+/** Where an app keeps its screens (pages, routes, screens, views, app, react-admin's resources): a file there is one. */
+const SCREEN_FOLDER = /(^|\/)(pages|routes|screens|views|app|resources)\//;
+
+/**
+ * The screen a fallback preview names: the first changed file that is a screen (it sits in a screens folder), else
+ * null, and the plate names the product alone. In a product, a changed component, a hook or a translation is no
+ * screen: naming it would read as a guess. A library exploration explores its components: the first one changed.
+ */
+export function changedScreenOf(files: readonly string[] | null | undefined, opts: { library?: boolean } = {}): string | null {
+  const all = files ?? [];
+  return changedThings(all.filter((f) => SCREEN_FOLDER.test(f)))[0] ?? (opts.library ? (changedThings(all)[0] ?? null) : null);
+}
 
 /**
  * The Library route a library exploration's "See the library today" opens: the component it asks about (its first

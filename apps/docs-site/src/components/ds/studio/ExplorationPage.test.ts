@@ -446,50 +446,53 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
     await expectNoAxeViolations(container);
   });
 
-  describe("the developers' question", () => {
-    const sam = { login: 'sam', name: 'Sam', agent: false, avatar: null };
-    const asking = [steps[0]!, { status: 'warning' as const, title: 'Developers build it', detail: 'Developers asked a question', current: true }, steps[2]!, steps[3]!];
+  describe('a question on the task', () => {
+    const sam = { login: 'sam', name: 'Sam Lee', agent: false, avatar: null };
+    const asking = [steps[0]!, { status: 'warning' as const, title: 'Developers build it', detail: 'Sam Lee, design lead, asked a question', current: true }, steps[2]!, steps[3]!];
     const long = `Should the empty state use the illustration from the old page? ${'We want to match the rest of the shop. '.repeat(12)}Thanks!`;
 
     it('quotes their words as plain text, who and when, with the reply box; long words fold behind Show more', async () => {
-      const onReply = vi.fn(async () => 'Sent to the developers.');
+      const onReply = vi.fn(async () => 'Sent to Sam Lee.');
       handed({ steps: asking, question: { text: `<img src=x onerror=alert(1)> ${long}`, by: sam, when: 'today', answered: false, onReply } });
       const next = screen.getByRole('region', { name: 'What happens next' });
-      expect(within(next).getByText('Developers asked a question').closest('li')!.getAttribute('aria-current')).toBe('step');
-      const q = within(next).getByRole('region', { name: "The developers' question" });
+      expect(within(next).getByText('Sam Lee, design lead, asked a question').closest('li')!.getAttribute('aria-current')).toBe('step');
+      const q = within(next).getByRole('region', { name: "Sam Lee's question" });
       // Escaped, never HTML: the tag reads as text, no image is made.
       expect(q.querySelector('img:not([class*="avatar"] img)')).toBeNull();
       expect(q.querySelector('blockquote')!.textContent).toContain('Should the empty state');
       expect(q.querySelector('blockquote')!.textContent!.endsWith('…')).toBe(true);
-      expect(within(q).getByText('Sam, today')).toBeTruthy();
+      expect(within(q).getByText('Sam Lee, today')).toBeTruthy();
+      // Where the answer goes, in neutral words: the asker may not be a developer.
+      expect(within(q).getByText('They read your answer where they work.')).toBeTruthy();
       const more = within(q).getByRole('button', { name: 'Show more' });
       expect(more.getAttribute('aria-expanded')).toBe('false');
       fireEvent.click(more);
       expect(q.querySelector('blockquote')!.textContent).toContain('Thanks!');
       expect(within(q).getByRole('button', { name: 'Show less' })).toBeTruthy();
       // The reply goes out once there are words, through the viewer's own route.
-      const send = within(q).getByRole('button', { name: 'Send to the developers' });
+      const send = within(q).getByRole('button', { name: 'Send to Sam' });
       expect((send as HTMLButtonElement).disabled).toBe(true);
       fireEvent.change(within(q).getByLabelText('Your answer'), { target: { value: 'Yes, the old illustration.' } });
       await act(async () => {
         fireEvent.click(send);
       });
       expect(onReply).toHaveBeenCalledWith('Yes, the old illustration.');
-      await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Sent to the developers.'));
-      expect(document.body.textContent).not.toMatch(/\bissue\b|pull request|state_reason|—/i);
+      await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Sent to Sam Lee.'));
+      expect(document.body.textContent).not.toMatch(/\bissue\b|pull request|state_reason|—|the developers read|send to the developers/i);
       await expectNoAxeViolations(next);
     });
 
     it('answered: one quiet line, no reply box', () => {
       handed({ question: { text: 'Red or orange?', by: sam, when: 'today', answered: true, onReply: null } });
-      expect(screen.getByText('Answered. The developers build on from here.')).toBeTruthy();
+      expect(screen.getByText('Answered. The work goes on from here.')).toBeTruthy();
       expect(screen.queryByLabelText('Your answer')).toBeNull();
     });
 
-    it('a needs-design label with no words: says they need input', () => {
+    it('a needs-design label with no words: says their input is needed, names nobody', () => {
       handed({ steps: asking, question: { text: null, by: null, when: '', answered: false, onReply: async () => undefined } });
-      expect(screen.getByText('The developers need your input before they build on.')).toBeTruthy();
+      expect(screen.getByText('Your input is needed before it is built.')).toBeTruthy();
       expect(screen.getByLabelText('Your answer')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Send your answer' })).toBeTruthy();
     });
   });
 

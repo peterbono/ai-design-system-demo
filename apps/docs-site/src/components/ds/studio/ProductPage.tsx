@@ -4,11 +4,13 @@
 //     flow, StartExploration). No drawing in the header: the action owns the end of the line.
 //   - One quiet line under the header: "Open the live product", a warning only when Bridge cannot reach it, and, for a
 //     product explored in the design team's copy (products[].design), "Art print shop changed since your copy. Get the
-//     latest" only when the product moved on (scripts/design-copy.ts, lib/design-copy.ts). For a product with its own
-//     repository, on the same line, which library it uses ("Art print shop uses the library from 1.8.3. The latest is
-//     1.8.4.") and, for a lead or an admin, "Send the update to the developers"; once sent, "Update sent to the
-//     developers." with "Open their update" for people signed in with GitHub (lib/library-update.ts,
-//     scripts/library-update.ts). Never on the sample team.
+//     latest" only when the product moved on and the viewer can get it (anyone who can edit the team: GitHub write, or
+//     an email member through Bridge, api/contribute merge-upstream); never the sentence without its action
+//     (scripts/design-copy.ts, lib/design-copy.ts). For a product with its own repository, and only for a lead or an
+//     admin (who can act on it), on the same line, which library it uses ("Art print shop uses the library from 1.8.3.
+//     The latest is 1.8.4.") and "Send the update to the developers"; once sent, "Update sent to the developers." with
+//     "Open their update" for people signed in with GitHub (lib/library-update.ts, scripts/library-update.ts). Nobody
+//     else reads it, so nobody else reads the product's library either. Never on the sample team.
 //   - No copy of such a product yet: one calm card in place of the list, "Make my copy" its one action.
 //   - Its explorations, grouped by where they stand (Exploring, Waiting for code, Being built, In review, Shipped: the lifecycle's words), each
 //     the exploration card of the home (ExplorationCards.tsx); archived ones only counted in one quiet line at the end
@@ -181,10 +183,13 @@ function useRenameTitle(name: string, productKey: string, products: readonly { k
   };
 }
 
-/** The two copy actions of the island (scripts/design-copy.ts), each answering the sentence to show. */
+/**
+ * The two copy actions of the island (scripts/design-copy.ts), each answering the sentence to show. Each is absent
+ * when the viewer may not: making the copy needs a GitHub sign-in, getting the latest anyone who can edit the team.
+ */
 export interface CopyActions {
-  make: () => Promise<{ line: string; ready: boolean }>;
-  latest: () => Promise<string>;
+  make?: (() => Promise<{ line: string; ready: boolean }>) | null;
+  latest?: (() => Promise<string>) | null;
 }
 
 /**
@@ -234,13 +239,13 @@ function Facts({ product, data, copy, library }: { product: ProductConfig; data:
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   // Only what a designer acts on: the live product, the connection only when Bridge cannot reach it, and "Get the
-  // latest" only when the product moved on since the team's copy. The repository and a healthy "Connected" are
-  // developer facts and noise here (Settings has them).
+  // latest" only when the product moved on since the team's copy and the viewer can get it (never the sentence alone).
+  // The repository and a healthy "Connected" are developer facts and noise here (Settings has them).
   const off = f.connection && !f.connection.ok && !data.copy ? f.connection.text : null;
-  const behind = showsBehind(data.copy) && !said;
+  const behind = showsBehind(data.copy) && !said && Boolean(copy?.latest);
   if (!f.production && !off && !behind && !said && !library) return null;
   const latest = async () => {
-    if (!copy || busy) return;
+    if (!copy?.latest || busy) return;
     setBusy(true);
     try {
       setSaid(await copy.latest());
@@ -259,11 +264,9 @@ function Facts({ product, data, copy, library }: { product: ProductConfig; data:
       {behind && (
         <span className="pp-behind" data-copy-behind="">
           {COPY_WORDS.behind(product.name)}{' '}
-          {copy && (
-            <Button variant="link" size="sm" loading={busy} onClick={() => void latest()}>
-              {COPY_WORDS.getLatest}
-            </Button>
-          )}
+          <Button variant="link" size="sm" loading={busy} onClick={() => void latest()}>
+            {COPY_WORDS.getLatest}
+          </Button>
         </span>
       )}
       {copy && <span aria-live="polite">{said}</span>}
@@ -277,7 +280,7 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ line: string; ready: boolean } | null>(null);
   const make = async () => {
-    if (!copy || busy) return;
+    if (!copy?.make || busy) return;
     setBusy(true);
     setSaid(null);
     try {
@@ -291,7 +294,7 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
       <Drawing name="paint" width={160} />
       <div className="pp-empty-text">
         <p className="t-body">{COPY_WORDS.intro(product.name)}</p>
-        {copy && (
+        {copy?.make && (
           <Button variant="primary" size="lg" loading={busy} onClick={() => void make()}>
             {COPY_WORDS.make}
           </Button>
@@ -432,8 +435,13 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   const [sent, setSent] = useState(false);
   /** The keys the team's own bridge.config.json lists (not the defaults Bridge shows without a list). */
   const [listedKeys, setListedKeys] = useState<string[]>([]);
-  /** Signed in with GitHub: may make the team's copy of the product and get the latest into it. */
-  const [canCopy, setCanCopy] = useState(false);
+  /** Not an email member: may make the team's copy of the product (GitHub's fork needs a GitHub sign-in). */
+  const [canMake, setCanMake] = useState(false);
+  /**
+   * May get the latest into the copy: anyone who can edit the team, an email member too (Bridge's server syncs the
+   * copy for them, api/contribute merge-upstream). Without it, "changed since your copy" stays hidden.
+   */
+  const [canLatest, setCanLatest] = useState(false);
   const [reload, setReload] = useState(0);
   /** May change the library, as the start action reads it (StartExploration): a designer of the team may not. */
   const [lead, setLead] = useState(true);
@@ -446,7 +454,8 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   const [withGitHub, setWithGitHub] = useState(false);
   useEffect(() => {
     const p = data?.product;
-    if (!realTeam || !p || p.default) return;
+    // The library line is a lead's or an admin's (they send the update): nobody else reads the product's library.
+    if (!realTeam || !canSend || !p || p.default) return;
     let live = true;
     void (async () => {
       const [{ readLibraryView }, { signedInWithGitHub }] = await Promise.all([import('../../../scripts/library-update'), import('../../../scripts/github-session')]);
@@ -457,7 +466,7 @@ export default function ProductPage({ productKey, components = [] }: { productKe
     return () => {
       live = false;
     };
-  }, [realTeam, data?.product?.key, reload]);
+  }, [realTeam, canSend, data?.product?.key, reload]);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -472,6 +481,7 @@ export default function ProductPage({ productKey, components = [] }: { productKe
       setRealTeam(true);
       onAccess((a) => {
         if (!live) return;
+        setCanLatest(a?.write === true);
         setLead(libraryLead(a) && !designerRoute());
         // Leads and admins (an email admin too) send the library update; the server checks again.
         setCanSend((libraryLead(a) && !designerRoute()) || Boolean(a?.admin));
@@ -527,37 +537,41 @@ export default function ProductPage({ productKey, components = [] }: { productKe
       await loadProductPage(key, (d) => live && setData(d), { teamBusy });
       const { currentContributor, currentViewer } = await import('../../../scripts/github-session');
       if (live) setSignedIn(Boolean(currentViewer()));
-      // Making the copy and getting the latest write on GitHub: never through an email member's session.
-      if (live) setCanCopy(!currentContributor());
+      // Making the copy forks on GitHub: never through an email member's session (getting the latest is, canLatest).
+      if (live) setCanMake(!currentContributor());
     })();
     return () => {
       live = false;
     };
   }, [key, reload]);
   const copy: CopyActions | null =
-    canCopy && data?.product && data.copy
+    (canMake || canLatest) && data?.product && data.copy
       ? {
-          make: async () => {
-            const session = await import('../../../scripts/github-session');
-            if (!session.hasWorkingToken()) {
-              const { ghAction } = await import('../../../lib/gh-wording');
-              return { line: `${ghAction('make your copy', session.prefersSignIn())}.`, ready: false };
-            }
-            const { makeCopy } = await import('../../../scripts/design-copy');
-            const r = await makeCopy(data.product!);
-            // Made: the page reads the copy again, and shows the explorations and the start action.
-            if (r === 'ready') setReload((n) => n + 1);
-            return { line: madeLine(data.product!.name, r), ready: r === 'ready' };
-          },
-          latest: async () => {
-            const session = await import('../../../scripts/github-session');
-            if (!session.hasWorkingToken()) {
-              const { ghAction } = await import('../../../lib/gh-wording');
-              return `${ghAction('get the latest', session.prefersSignIn())}.`;
-            }
-            const { getLatest } = await import('../../../scripts/design-copy');
-            return latestLine(await getLatest(data.product!));
-          },
+          make: canMake
+            ? async () => {
+                const session = await import('../../../scripts/github-session');
+                if (!session.hasWorkingToken()) {
+                  const { ghAction } = await import('../../../lib/gh-wording');
+                  return { line: `${ghAction('make your copy', session.prefersSignIn())}.`, ready: false };
+                }
+                const { makeCopy } = await import('../../../scripts/design-copy');
+                const r = await makeCopy(data.product!);
+                // Made: the page reads the copy again, and shows the explorations and the start action.
+                if (r === 'ready') setReload((n) => n + 1);
+                return { line: madeLine(data.product!.name, r), ready: r === 'ready' };
+              }
+            : null,
+          latest: canLatest
+            ? async () => {
+                const session = await import('../../../scripts/github-session');
+                if (!session.hasWorkingToken()) {
+                  const { ghAction } = await import('../../../lib/gh-wording');
+                  return `${ghAction('get the latest', session.prefersSignIn())}.`;
+                }
+                const { getLatest } = await import('../../../scripts/design-copy');
+                return latestLine(await getLatest(data.product!));
+              }
+            : null,
         }
       : null;
   useEffect(() => {

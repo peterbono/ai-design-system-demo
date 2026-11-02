@@ -525,7 +525,7 @@ export interface OpenUpdate {
 
 export interface LibraryLine {
   text: string;
-  /** "Send the update to the developers": a lead or an admin, the product behind, no update open for the latest. */
+  /** "Send the update to the developers": the product behind, no update open for the latest. */
   send: boolean;
   /** "Update sent to the developers." */
   sent: boolean;
@@ -534,12 +534,13 @@ export interface LibraryLine {
 }
 
 /**
- * The product page's library line: how far behind the product is, and what the viewer may do. Null when the product
- * asks for no library package or the latest version is not known.
+ * The product page's library line: how far behind the product is, and what the viewer may do. Only for the people
+ * who can send the update (a lead or an admin, `canSend`): for everyone else it is a fact they cannot act on, so null.
+ * Null too when the product asks for no library package or the latest version is not known.
  */
 export function libraryLine(product: string, state: LibraryState | null, x: { update: OpenUpdate | null; canSend: boolean; github: boolean }): LibraryLine | null {
   const h = state?.headline;
-  if (!state || !h?.latest) return null;
+  if (!x.canSend || !state || !h?.latest) return null;
   const behind = state.behind.length > 0;
   // Without an npm lockfile, the range only: behind for sure when it cannot take the latest, else not known.
   const rangeOnly = h.installed === null;
@@ -548,6 +549,5 @@ export function libraryLine(product: string, state: LibraryState | null, x: { up
   const from = h.installed ?? rangeFloor(h.range);
   const text = knownBehind && from ? LIBRARY_UPDATE_WORDS.behind(product, from, h.latest) : rangeOnly ? LIBRARY_UPDATE_WORDS.unknown(product, h.latest) : LIBRARY_UPDATE_WORDS.current(product, h.installed!);
   const latestSent = Boolean(x.update && (x.update.version === null || compareVersions(x.update.version, h.latest) !== -1));
-  const sent = Boolean(x.update) && (latestSent || !x.canSend);
-  return { text, send: knownBehind && x.canSend && !latestSent, sent: knownBehind && sent, link: knownBehind && sent && x.github && x.update ? x.update.url : null };
+  return { text, send: knownBehind && !latestSent, sent: knownBehind && latestSent, link: knownBehind && latestSent && x.github && x.update ? x.update.url : null };
 }
