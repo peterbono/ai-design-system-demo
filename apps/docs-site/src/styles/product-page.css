@@ -75,8 +75,12 @@
   min-height: var(--size-60);
 }
 
-/* Nothing explored yet: the drawing beside the reason and the one action, in the page's Harbor zone. */
-.pp-empty {
+/* Nothing explored yet: the page's one Harbor zone, the Home hero's own (.zone.sh-zone: same radius, padding and phone
+   values), holding the Home's choice cards (StudioHome Start, .sh-choice) at the Home card's radius and inset: one card
+   to start, or a designer's two asks on the library side by side (.sh-choices: two columns, one on a phone). */
+
+/* No copy yet (CopyCard): the drawing beside the reason and the one action. */
+.pp-copy {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -95,37 +99,49 @@
   margin: 0;
 }
 
-/* A designer on the library's page: the two ways to ask, side by side, each card going to its page. */
-.pp-asks {
-  display: grid;
-  width: 100%;
-  grid-template-columns: repeat(auto-fit, minmax(var(--size-60), 1fr));
-  gap: var(--space-4);
-  justify-self: stretch;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pp-asks > li {
+.pp-empty > .sh-choices > li {
+  display: flex;
   margin: 0;
 }
 
-.pp-ask {
-  height: 100%;
+.pp-choice {
+  flex: 1;
 }
 
-.pp-ask-body {
-  display: grid;
-  gap: var(--space-1);
+/* Drawing, then the title and its line, then the chevron that says the whole card goes somewhere. */
+.pp-choice-body {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-6);
 }
 
-.pp-ask-title {
+.pp-choice .sh-choice-text > .t-muted {
+  max-width: 65ch;
+}
+
+.pp-choice-go {
+  color: var(--color-text-muted);
+  transition-property: color, transform;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+.pp-choice:has([data-card-primary]:focus-visible) .pp-choice-go {
   color: var(--color-text-link);
-  font-family: var(--typography-h3-family);
-  font-size: var(--typography-h3-size);
-  font-weight: var(--typography-h3-weight);
-  line-height: var(--typography-h3-line-height);
+  transform: translateX(var(--space-1));
+}
+
+@media (hover: hover) {
+  .pp-choice:hover .pp-choice-go {
+    color: var(--color-text-link);
+    transform: translateX(var(--space-1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-choice .pp-choice-go {
+    transform: none;
+  }
 }
 
 .pp-archived {
@@ -138,14 +154,24 @@
 }
 
 @media (max-width: 640px) {
-  /* One fact per line on a phone: no separator left leading a wrapped line. */
-  .pp-empty {
+  .pp-copy {
     justify-content: center;
     text-align: center;
   }
 
-  .pp-empty-text {
+  .pp-copy .pp-empty-text {
     justify-items: center;
+  }
+
+  /* The Home's phone choice (studio-home.css: the drawing above the text), the chevron beside both, centered. */
+  .pp-choice .pp-choice-body {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pp-choice .pp-choice-go {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    align-self: center;
   }
 }
 

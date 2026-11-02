@@ -28,12 +28,13 @@
 // Self-hosted (pages/studio/products/[key].astro) the key comes from the build; on a team shell
 // (pages/team-shell/products/item.astro) from the address, once the team's settings are read. Reads:
 // scripts/product-page.ts.
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Pencil } from 'lucide-react';
-import { Badge, Button, Card, CardBody, IconButton, Input, Link, Skeleton, Tooltip } from '@bridge-ds/react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { ChevronRight, Pencil } from 'lucide-react';
+import { Badge, Button, Card, CardBody, Icon, IconButton, Input, Link, Skeleton, Tooltip } from '@bridge-ds/react';
 import type { ProductConfig } from '@bridge-ds/core';
 import { StudioHead } from './StudioHead';
 import { Drawing } from './Drawing';
+import type { IllustrationName } from '../../../brand/illustrations';
 import StartExploration from './StartExploration';
 import { ExplorationCardItem } from './ExplorationCards';
 import { LIBRARY_ASKS, archivedHref, archivedLine, emptyProductLine, productFacts, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
@@ -291,7 +292,7 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
     }
   };
   return (
-    <section className="zone pp-empty pp-copy" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
+    <section className="zone sh-zone pp-empty pp-copy" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
       <Drawing name="paint" width={160} />
       <div className="pp-empty-text">
         <p className="t-body">{COPY_WORDS.intro(product.name)}</p>
@@ -346,12 +347,28 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
       <StartExploration components={components} product={product?.key ?? productKey} appearance={appearance} />
     </span>
   );
+  // A designer of the team on the library's page, with nothing yet: no start there, the page's lead says where asks go.
+  const asks = empty && library && !lead;
+  // The Home's way to start (StudioHome Start): a white card in the zone, the drawing, the title in Harbor and one line;
+  // the whole card is the link, and the chevron says so on hover and focus.
+  const choice = (drawing: IllustrationName, title: ReactNode, line: string) => (
+    <Card interactive className="sh-choice pp-choice">
+      <CardBody className="sh-choice-body pp-choice-body">
+        <Drawing name={drawing} width={88} />
+        <span className="sh-choice-text">
+          {title}
+          <span className="t-ui t-muted">{line}</span>
+        </span>
+        <Icon icon={ChevronRight} size="md" className="pp-choice-go" />
+      </CardBody>
+    </Card>
+  );
   return (
     <div className="pp" data-product-page={product?.key ?? productKey}>
       <StudioHead
         title={head.title}
         titleAfter={head.after}
-        summary={loading && !cards.length ? '' : data?.failed || busyAlone ? '' : productSummary(cards)}
+        summary={loading && !cards.length ? '' : data?.failed || busyAlone ? '' : asks && product ? emptyProductLine(product, true, false) : productSummary(cards)}
         // One primary action: on the title's line, or in the empty moment when there is nothing yet.
         actions={product && !empty && !noCopy ? start('menu') : null}
       >
@@ -375,29 +392,29 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
       ) : busyAlone && busy ? (
         <BusyNotice busy={busy} onRetry={onRetry} signedIn={signedIn} />
       ) : empty ? (
-        <section className="zone pp-empty" aria-label={`Nothing explored in ${name} yet`}>
-          <Drawing name="paint" width={160} />
-          <div className="pp-empty-text">
-            <p className="t-body">{product ? emptyProductLine(product, library, lead) : ''}</p>
-            {product && library && !lead ? (
-              <ul className="pp-asks">
-                {LIBRARY_ASKS.map((a) => (
-                  <li key={a.key}>
-                    <Card interactive className="pp-ask">
-                      <CardBody className="pp-ask-body">
-                        <Link href={studioHref(a.path)} className="pp-ask-title" data-card-primary="">
-                          {a.title}
-                        </Link>
-                        <span className="t-ui t-muted">{a.line}</span>
-                      </CardBody>
-                    </Card>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              product && start('menu')
-            )}
-          </div>
+        <section className="zone sh-zone pp-empty" aria-label={asks ? 'Ask for a library change' : `Nothing explored in ${name} yet`}>
+          {product && asks ? (
+            <ul className="sh-choices">
+              {LIBRARY_ASKS.map((a) => (
+                <li key={a.key}>
+                  {choice(
+                    a.drawing,
+                    <Link href={studioHref(a.path)} className="sh-choice-btn" data-card-primary="">
+                      <span className="sh-choice-title">{a.title}</span>
+                    </Link>,
+                    a.line,
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            product &&
+            choice(
+              'paint',
+              <StartExploration components={components} product={product.key} appearance="choice" />,
+              emptyProductLine(product, library, lead),
+            )
+          )}
         </section>
       ) : (
         productGroups(cards).map((g) => (
