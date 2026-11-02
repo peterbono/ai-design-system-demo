@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GitHubClient, resolveRepoAccess, type FetchLike } from '@bridge-ds/core';
-import { accessFromCheck, accessLabel, accessStorageKey, accessView, ACCESS_MAX_AGE_MS, contributorAccess, freshAccess, pillState } from './access';
+import { accessFromCheck, accessLabel, accessStorageKey, accessView, ACCESS_MAX_AGE_MS, contributorAccess, freshAccess, lastKnownAccess, pillState } from './access';
 
 const TOKEN = 'test-token-not-real';
 const noSleep = { attempts: 1, baseDelayMs: 0, sleep: async () => {} };
@@ -127,5 +127,21 @@ describe('pillState', () => {
     expect(pillState(contributorAccess(false), 'admin')).toBe('admin');
     expect(pillState(contributorAccess(true), 'edit')).toBe('writer');
     expect(pillState({ state: 'reader', admin: false }, 'admin')).toBe('reader');
+  });
+});
+
+describe('lastKnownAccess (GitHub busy)', () => {
+  const writer = accessView({ state: 'writer', private: true, installationId: undefined }, true);
+
+  it('keeps the access this tab last read, whatever its age', () => {
+    const old = JSON.stringify({ at: Date.now() - 5 * ACCESS_MAX_AGE_MS, access: writer });
+    expect(freshAccess(old, Date.now())).toBeNull();
+    expect(lastKnownAccess(old, null, 'acme/ds', true)).toEqual(writer);
+  });
+
+  it('else the state the token check last noted for this repository, else nothing', () => {
+    expect(lastKnownAccess(null, { repo: 'acme/ds', state: 'admin' }, 'Acme/DS', false)).toMatchObject({ state: 'admin', admin: true, write: true });
+    expect(lastKnownAccess(null, { repo: 'acme/other', state: 'admin' }, 'acme/ds', false)).toBeNull();
+    expect(lastKnownAccess('{broken', null, 'acme/ds', false)).toBeNull();
   });
 });

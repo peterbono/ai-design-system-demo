@@ -105,7 +105,7 @@ describe('a signed-in read', () => {
 describe("GitHub's hourly limit", () => {
   const limited = () => json({ message: 'API rate limit exceeded' }, { status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 23 * 60) } });
 
-  it('signed in: the account limit and when it resets, never anonymous nor Sign in', async () => {
+  it('signed in: GitHub busy for the account and when Bridge is back, never anonymous nor Sign in', async () => {
     signIn(60 * 60_000);
     answer = limited;
     const s = await load();
@@ -114,8 +114,8 @@ describe("GitHub's hourly limit", () => {
     expect(err.signedIn).toBe(true);
     expect(reads().every((c) => c.auth === 'Bearer old-token')).toBe(true);
     const line = s.limitLine(err, 'Changes added to the library or closed')!;
-    expect(line).toMatch(/^Changes added to the library or closed cannot be shown right now: GitHub's hourly limit for your account is reached\. It resets at .+ \(in 23 min\), then reload the page\.$/);
-    expect(line).not.toMatch(/anonymous|sign in/i);
+    expect(line).toMatch(/^Changes added to the library or closed cannot be shown right now\. GitHub is busy for your account\. Bridge is back at \d{1,2}:\d{2}.*\.$/);
+    expect(line).not.toMatch(/anonymous|sign in|limit/i);
   });
 
   it('signed out: no account line, the caller keeps its anonymous words', async () => {

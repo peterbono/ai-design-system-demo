@@ -102,6 +102,12 @@ test('where the copy stands: missing, up to date, or behind the product', async 
   assert.deepEqual(await designCopyStateOnGitHub(client('acme/shop-design', unknown), client('acme/shop', unknown)), { kind: 'ready', branch: 'main', behind: null });
 });
 
+test('GitHub busy is a wait, never a missing copy', async () => {
+  // GitHub's limit said only in words (no x-ratelimit headers on the answer): thrown, never { kind: 'missing' }.
+  const busy = fakeGitHub({ routes: { 'GET /repos/acme/shop-design': { status: 403, body: { message: 'API rate limit exceeded for user ID 1.' } } } });
+  await assert.rejects(designCopyStateOnGitHub(client('acme/shop-design', busy), client('acme/shop', busy)), (err: unknown) => (err as { status?: number }).status === 403);
+});
+
 test('Make my copy asks GitHub for a fork in the organization, with every branch', async () => {
   const f = fakeGitHub({
     routes: {

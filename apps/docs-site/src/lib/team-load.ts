@@ -3,6 +3,7 @@
 
 import { teamDisplayName } from './demo';
 import { knownTeamName } from './recent-teams';
+import { busyLine, githubBusy, type GitHubBusy } from './github-busy';
 /** Where the team's data came from (scripts/repo-context.ts TeamModelSource). */
 export type TeamDataSource = 'cache' | 'snapshot' | 'live';
 
@@ -13,6 +14,8 @@ export interface TeamFailure {
   kind: TeamFailureKind;
   title: string;
   body: string;
+  /** For a wait ('rate-limit'): when the page reads again on its own (lib/github-busy busyRetryDelay). */
+  busy?: GitHubBusy;
 }
 
 /** The workflow a team copies to publish its snapshot (docs/HOSTED.md). */
@@ -57,11 +60,13 @@ export function teamFailure(err: unknown, full: string): TeamFailure {
   }
   // The session ended (signed out in another tab, or on another device): a way back in, never the server's sentence.
   if (status === 401) return SIGNED_OUT_FAILURE(repo);
-  // A limit (Bridge's own, or GitHub's): Bridge's words and when to come back, never "add a GitHub token".
-  if (status === 429 || (status === 403 && /rate limit/i.test(message))) {
-    const resetsAt = (err as { resetsAt?: unknown } | null)?.resetsAt;
-    const wait = resetsAt instanceof Date ? (resetsAt.getTime() - Date.now()) / 1000 : busyWait(message);
-    return { kind: 'rate-limit', title: busyText(wait), body: 'Bridge reads this design system again then. Nothing you changed is lost.' };
+  // A wait (GitHub busy for the viewer's account, or Bridge's own limit): when Bridge is back, never "add a GitHub
+  // token" nor "not found". GitHub's wait says its clock time; Bridge's own keeps its "try again in N min".
+  const busy = githubBusy(err);
+  if (busy) {
+    const wait = busy.resetsAt ? (busy.resetsAt.getTime() - Date.now()) / 1000 : busyWait(message);
+    const title = busy.source === 'github' && busy.resetsAt ? busyLine(busy) : busyText(wait);
+    return { kind: 'rate-limit', title, body: 'Bridge reads this design system again then. Nothing you changed is lost.', busy };
   }
   if (status === 404) {
     return {

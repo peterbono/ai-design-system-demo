@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { busyText, commitUrl, fileUrl, sourceLine, teamFailure } from './team-load';
+import { resetClock } from './github-busy';
 
 const err = (status: number, message = '') => Object.assign(new Error(message), { status });
 
@@ -15,10 +16,13 @@ describe('teamFailure', () => {
     expect(teamFailure('weird', 'acme/ds').kind).toBe('unknown');
   });
 
-  it('on any limit says Bridge is busy and when to come back, never to add a GitHub token', () => {
+  it('on any limit says when Bridge is back, never to add a GitHub token', () => {
     const tokenWords = "GitHub's hourly limit for requests without a token (60 an hour) is used up. To keep going now, add a GitHub token: a token gets 5,000 requests an hour.";
-    const github = teamFailure(Object.assign(err(429, tokenWords), { resetsAt: new Date(Date.now() + 4 * 60 * 1000 + 5000) }), 'acme/ds');
-    expect(github.title).toBe('Bridge is busy, try again in 5 min.');
+    const resetsAt = new Date(Date.now() + 4 * 60 * 1000 + 5000);
+    const github = teamFailure(Object.assign(err(429, tokenWords), { resetsAt }), 'acme/ds');
+    // GitHub busy for the viewer's account: when Bridge is back on the viewer's clock, and the wait for the one retry.
+    expect(github.title).toBe(`GitHub is busy for your account. Bridge is back at ${resetClock(resetsAt)}.`);
+    expect(github.busy).toEqual({ resetsAt, source: 'github' });
     expect(`${github.title} ${github.body}`).not.toMatch(/token/i);
     expect(teamFailure(err(429, 'Bridge is busy, try again in 3 min.'), 'acme/ds').title).toBe('Bridge is busy, try again in 3 min.');
     expect(busyText(20)).toBe('Bridge is busy, try again in 1 min.');

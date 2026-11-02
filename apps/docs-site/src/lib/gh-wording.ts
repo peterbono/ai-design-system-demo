@@ -1,6 +1,7 @@
 // The words of the one way in to GitHub, in one place. With a GitHub App (GITHUB_APP_CLIENT_ID at build) the site
 // says "Sign in"; without one (forks, local dev) the token paste is the way in and the site says "Connect GitHub".
 // Callers pass whether sign-in is configured: signInConfig() at build, prefersSignIn() in the browser.
+import { busyLine, resetClock } from './github-busy';
 
 /** The bare verb, for a sentence: "Sign in" or "Connect GitHub"; again: "Sign in again" or "Reconnect GitHub". */
 export function ghVerb(signIn: boolean, again = false): string {
@@ -28,17 +29,15 @@ export function rateLimitedLine(signIn: boolean, opts: { signedIn?: boolean; res
 }
 
 /** The time a limit resets, as the viewer's clock shows it ("14:32"). */
-export const resetClock = (at: Date): string => at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+export { resetClock };
 
 /**
- * A signed-in viewer reached GitHub's hourly limit (every Bridge tab and tool on their account shares it): what
- * happened and when it comes back, in plain words. `what`: what could not be shown ("Recent changes").
+ * A signed-in viewer reached GitHub's hourly limit (every Bridge tab and tool on their account shares it): the calm
+ * busy sentence (lib/github-busy busyLine), never "limit" nor "API". `what`: what could not be shown ("Recent changes").
  */
 export function accountLimitLine(resetAt: Date | null, now = Date.now(), what?: string): string {
-  const head = what ? `${what} cannot be shown right now: GitHub's hourly limit for your account is reached.` : "GitHub's hourly limit for your account is reached.";
-  if (!resetAt || !Number.isFinite(resetAt.getTime())) return `${head} It resets within the hour, then reload the page.`;
-  const min = Math.max(1, Math.ceil((resetAt.getTime() - now) / 60000));
-  return `${head} It resets at ${resetClock(resetAt)} (in ${min} min), then reload the page.`;
+  const line = busyLine({ resetsAt: resetAt && Number.isFinite(resetAt.getTime()) ? resetAt : null, source: 'github' }, { now });
+  return what ? `${what} cannot be shown right now. ${line}` : line;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

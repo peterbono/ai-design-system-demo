@@ -98,7 +98,8 @@ async function installed(client: GitHubClient, owner: string, repo: string): Pro
     const found = await client.findInstallation(owner, repo);
     return found ? { installed: true, id: found.id } : { installed: false };
   } catch (err) {
-    if (err instanceof GitHubError && (err.status === 401 || err.status === 429)) throw err;
+    // A rejected token, and GitHub busy (429, or a 403 in its limit's words): thrown, never "not installed".
+    if (err instanceof GitHubError && (err.status === 401 || err.status === 429 || (err.status === 403 && /rate limit/i.test(`${err.message} ${err.detail ?? ''}`)))) throw err;
     return { installed: null };
   }
 }

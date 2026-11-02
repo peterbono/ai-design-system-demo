@@ -257,6 +257,14 @@ export function roleBadge(state: RepoAccessState | null, signedIn: boolean, revi
   return accessBadge(state, signedIn);
 }
 
+/**
+ * The badge while GitHub is busy for the viewer and their access was never read here: the role this browser last
+ * noted for the team (lib/recent-teams), else a neutral "Signed in". Never "Checking" for the whole wait.
+ */
+export function busyBadge(lastRole: string | null | undefined): { label: string; tone: ChipTone } {
+  return { label: lastRole?.trim() || 'Signed in', tone: 'neutral' };
+}
+
 /** The design system the self-hosted site shows to everyone: Bridge's own. */
 export const DEMO_TEAM = 'peterbono/ai-design-system-demo';
 

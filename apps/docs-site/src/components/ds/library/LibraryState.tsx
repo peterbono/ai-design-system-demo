@@ -16,6 +16,7 @@ import { isSampleTeam } from '../../../lib/demo';
 import { teamOfPage, type TeamData } from '../../../scripts/team-data';
 import type { IllustrationName } from '../../../brand/illustrations';
 import LibraryGate, { emailFallback, useLibraryGate } from './LibraryGate';
+import { useBusyRetry } from '../studio/BusyNotice';
 import '../../../styles/library-team.css';
 
 /**
@@ -84,10 +85,13 @@ const FAILURE_ICON = { 'rate-limit': Timer, 'not-found': SearchX, 'too-large': F
 
 /**
  * What went wrong, and Try again. A repository GitHub does not show this visitor (missing, or private) offers its
- * Studio, where they sign in; a repository too large to read live offers the snapshot workflow.
+ * Studio, where they sign in; a repository too large to read live offers the snapshot workflow. A wait reads again
+ * once on its own after the reset.
  */
 export function LibraryLoadError({ failure, onRetry }: { failure: TeamFailure; onRetry: () => void }) {
   const team = usePageTeam();
+  // GitHub busy: read again once on its own, just after the reset (Try again stays for sooner).
+  useBusyRetry(failure.busy, onRetry);
   return (
     <EmptyState
       className="tp-error"

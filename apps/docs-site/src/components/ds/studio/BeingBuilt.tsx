@@ -14,6 +14,8 @@
 //   - Explorations handed to developers (Done exploring) are rows of the same list too, with an "Exploration" tag: the
 //     product, who said Done exploring and when. Such a row opens the exploration in Studio.
 //   - Nothing sent yet: what a build request is, where it comes from, who picks it up.
+//   - GitHub busy for the viewer with nothing kept: one calm notice with when Bridge is back (BusyNotice), never
+//     "Nothing sent yet"; it reads again once on its own after the reset.
 // Read only: developers split and track the work in GitHub or Jira. Repo content goes in as React text only, links
 // through safeUrl.
 import {
@@ -43,6 +45,8 @@ import {
   type BuildRequestView,
 } from "@bridge-ds/core";
 import { BranchRow } from "./BranchRow";
+import { BusyNotice } from "./BusyNotice";
+import { githubBusy, type GitHubBusy } from "../../../lib/github-busy";
 import { Drawing } from "./Drawing";
 import { Who } from "./faces";
 import { person } from "../../../lib/home-model";
@@ -452,6 +456,8 @@ function Detail({
 export default function BeingBuilt() {
   const [data, setData] = useState<BuildData | null>(null);
   const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState<GitHubBusy | null>(null);
+  const [run, setRun] = useState(0);
   const [filter, setFilter] = useState<BuildTab>("all");
   const [open, setOpen] = useState<{
     kind: "issue" | "pull";
@@ -483,16 +489,26 @@ export default function BeingBuilt() {
 
   useEffect(() => {
     let live = true;
-    loadBuildData()
-      .then((d) => live && setData(d))
-      .catch(() => live && setFailed(true));
+    loadBuildData(run > 0 ? { fresh: true } : {})
+      .then((d) => {
+        if (!live) return;
+        setBusy(null);
+        setData(d);
+      })
+      .catch((err: unknown) => {
+        if (!live) return;
+        // GitHub busy: a wait with when Bridge is back, not a failure.
+        const b = githubBusy(err);
+        if (b) setBusy(b);
+        else setFailed(true);
+      });
     const pop = () => setOpen(detailFromQuery(location.search));
     window.addEventListener("popstate", pop);
     return () => {
       live = false;
       window.removeEventListener("popstate", pop);
     };
-  }, []);
+  }, [run]);
 
   // The page header's summary sentence (lib/page-summary): what waits for a developer and what is being built.
   const summary = data
@@ -515,6 +531,8 @@ export default function BeingBuilt() {
     window.scrollTo({ top: 0 });
   }, []);
 
+  if (busy && !data)
+    return <BusyNotice busy={busy} onRetry={() => setRun((n) => n + 1)} />;
   if (failed)
     return (
       <Alert tone="warning" title="Build requests could not be read right now.">

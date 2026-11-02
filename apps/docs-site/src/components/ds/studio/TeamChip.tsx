@@ -23,7 +23,7 @@ import { Check, ChevronsUpDown, LogIn, Plus, UserPlus, X } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger, VisuallyHidden } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
-import { chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName, roleBadge } from '../../../lib/access-view';
+import { busyBadge, chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName, roleBadge } from '../../../lib/access-view';
 import { forgetRecentTeam, knownTeamName, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
 import { pillState } from '../../../lib/access';
 import { isHosted, pageTeamFromPath, teamHref } from '../../../lib/team-path';
@@ -86,6 +86,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const [viewerName, setViewerName] = useState<string | null>(null);
   const [facts, setFacts] = useState<StartFacts | null>(null);
   const [access, setAccess] = useState<RepoAccessState | null>(null);
+  // GitHub busy for the viewer before their access was ever read here: the last noted role or a neutral word.
+  const [accessBusy, setAccessBusy] = useState(false);
   // A GitHub account with write access who holds a review right reads "Reviewer", never "Can edit" (scripts/needs-you).
   const [reviewer, setReviewer] = useState(false);
   const [ghSignedIn, setSignedIn] = useState(false);
@@ -162,6 +164,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
       };
       document.addEventListener('bridge:team-model', () => void readReviewer());
       session.onAccess((a) => {
+        setAccessBusy(!a && session.accessBusy() !== null);
         setAccess(pillState(a));
         void readReviewer();
         void contributeRole(a).then((role) => live && a && setAccess(pillState(a, role)));
@@ -207,7 +210,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     : // The settings' name, else the account's name for this team, else the one this browser knows (the server keeps
       // it), before and after the settings are read: settings without a `name` never flip it to the repository in words.
       chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.name ?? (name ? (accountTeamName(name) ?? knownTeamName(name)) : null) });
-  const badge = !sessionKnown && !account && chip.kind !== 'workspace' ? { label: 'Checking', tone: 'neutral' as const } : chip.kind === 'team' ? roleBadge(access, ghSignedIn, reviewer) : chip.badge;
+  const shownBadge = !sessionKnown && !account && chip.kind !== 'workspace' ? { label: 'Checking', tone: 'neutral' as const } : chip.kind === 'team' ? roleBadge(access, ghSignedIn, reviewer) : chip.badge;
+  const badge = accessBusy && sessionKnown && !access && shownBadge.label === 'Checking' ? busyBadge(name ? roles[name.toLowerCase()] : null) : shownBadge;
   const offerTeams = launcher || hosted;
   // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first
   // with a check and your role. The browser workspace shows only while you are in it or have no team of your own; from

@@ -134,6 +134,30 @@ describe('loadTeamModel', () => {
     expect(steps).toEqual([{ step: 'head' }, { step: 'cache' }]);
   });
 
+  it('GitHub busy: the team as this browser last read it, its settings known, with when Bridge is back', async () => {
+    page({ hosted: true, path: '/studio/acme/ds/products/admin-app/' });
+    const files = { 'bridge.config.json': JSON.stringify({ ...JSON.parse(CONFIG), products: [{ key: 'admin-app', name: 'Product admin' }] }) };
+    const { client } = fakeRepo(files);
+    const cache = memoryCache();
+    const first = await loadTeamModel(client, { cache, components: false });
+    // Next page: GitHub answers 403 with no reads left on the viewer's account.
+    const reset = Math.floor(Date.now() / 1000) + 1200;
+    const busyFetch = (async () => ({
+      ok: false,
+      status: 403,
+      headers: { get: (n: string) => ({ 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(reset) })[n.toLowerCase()] ?? null },
+      json: async () => ({ message: 'API rate limit exceeded for user ID 1.' }),
+      text: async () => '',
+    })) as unknown as FetchLike;
+    const busyClient = new GitHubClient('acme/ds', 't', busyFetch, { attempts: 1, baseDelayMs: 0, sleep: async () => {} }, { etags: false });
+    const latest = async () => ({ model: first.model, sha: SHA, private: false });
+    const kept = await loadTeamModel(busyClient, { cache: { ...cache, latest }, components: false });
+    expect(kept).toMatchObject({ sha: SHA, cached: true, source: 'cache', busy: { resetsAt: new Date(reset * 1000), source: 'github' } });
+    expect((siteConfig() as { products?: { key: string }[] }).products?.map((p) => p.key)).toEqual(['admin-app']);
+    // Nothing kept: the wait is thrown for the page to say (lib/team-load teamFailure), never an empty team.
+    await expect(loadTeamModel(busyClient, { cache: memoryCache(), components: false })).rejects.toMatchObject({ status: 429 });
+  });
+
   it('gives a team shell its settings and default branch', async () => {
     page({ hosted: true, path: '/studio/acme/ds/' });
     const { client } = fakeRepo({ 'bridge.config.json': CONFIG });

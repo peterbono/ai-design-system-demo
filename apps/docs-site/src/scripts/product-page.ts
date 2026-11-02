@@ -8,7 +8,7 @@
 // Then, once per person, their display name (the home's personOf), and each card's screen from the preview captures
 // (one raw file for all, no API call). Rules: lib/product-page.ts and lib/home-explorations.ts.
 import { findProduct, requesterOf, type ProductConfig } from '@bridge-ds/core';
-import { currentViewer, ghGet, limitLine, readRepo, RateLimitError } from './github-session';
+import { currentViewer, ghGet, readRepo } from './github-session';
 import { configuredProducts, productRepoByKey } from './product-repos';
 import { designTaskStages, taskUrlOf } from './design-task';
 import type { LifecycleStage } from '../lib/review-state';
@@ -17,9 +17,9 @@ import { productPullsPath, tagProductPulls, type ExplorationPullLike } from '../
 import { cardProductKey } from '../lib/product-page';
 import { person, requesterPerson, type Person } from '../lib/home-model';
 import type { ThumbSpec } from '../lib/branch-thumb';
-import { busyText } from '../lib/team-load';
 import type { CopyView } from '../lib/design-copy';
 import { copyRepos, readCopyView } from './design-copy';
+import { githubBusy, type GitHubBusy } from '../lib/github-busy';
 
 export interface ProductPageData {
   product: ProductConfig | null;
@@ -37,6 +37,17 @@ export interface ProductPageData {
    * my copy" instead of the list), or ready with how far behind the product it is. Null otherwise, or while unknown.
    */
   copy: CopyView | null;
+  /**
+   * GitHub is busy for the viewer (lib/github-busy): when Bridge is back. The page keeps what it could show (the
+   * team's settings and explorations as last read) and says so in one calm line; never "Product not found", "Make my
+   * copy" or "Nothing explored here yet" while it is set. Null otherwise.
+   */
+  busy: GitHubBusy | null;
+}
+
+/** What the page knows from the team's read (team shells): GitHub busy, with or without the team as last kept. */
+export interface ProductPageOptions {
+  teamBusy?: GitHubBusy | null;
 }
 
 type Pull = ExplorationPullLike & { user: { login: string; avatar_url?: string; type?: string } | null };
@@ -44,24 +55,27 @@ type Pull = ExplorationPullLike & { user: { login: string; avatar_url?: string; 
 const closedPath = (repo: string) => `/repos/${repo}/pulls?state=closed&sort=updated&direction=desc&per_page=30`;
 const avatarOf = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=64`;
 
-const failure = (err: unknown) =>
-  err instanceof RateLimitError ? (limitLine(err) ?? busyText(err.resetAt ? (err.resetAt.getTime() - Date.now()) / 1000 : null)) : 'GitHub could not be reached. Reload the page to try again.';
+/** Any failure but a wait (GitHub busy has its own calm notice, ProductPageData.busy). */
+const FAILED = 'GitHub could not be reached. Reload the page to try again.';
 
 /** Reads the product `key`'s explorations and paints through `onUpdate` as they come. */
-export async function loadProductPage(key: string, onUpdate: (d: ProductPageData) => void): Promise<void> {
+export async function loadProductPage(key: string, onUpdate: (d: ProductPageData) => void, opts: ProductPageOptions = {}): Promise<void> {
   const products = configuredProducts();
   const product = findProduct(products, key) ?? null;
   const own = product ? productRepoByKey(product.key) : null;
-  const base: ProductPageData = { product, products, ownRepo: own?.repo ?? null, reached: null, loading: true, failed: null, cards: [], archived: [], copy: null };
+  const base: ProductPageData = { product, products, ownRepo: own?.repo ?? null, reached: null, loading: true, failed: null, cards: [], archived: [], copy: null, busy: opts.teamBusy ?? null };
   onUpdate(base);
+  // Not in the team's list: missing only when the list was read. GitHub busy before it ever was: a wait, not a miss.
   if (!product) {
     onUpdate({ ...base, loading: false });
     return;
   }
   // A product explored in the design team's copy: where the copy stands first. No copy yet: the page offers to make it.
+  // GitHub busy: not known now, so no "Make my copy"; the explorations as last read still show below.
   if (copyRepos(product)) {
     const copy = await readCopyView(product);
-    base.copy = copy && copy.kind !== 'none' ? copy : null;
+    if (copy?.kind === 'busy') base.busy = copy.busy;
+    base.copy = copy && copy.kind !== 'none' && copy.kind !== 'busy' ? copy : null;
     if (copy?.kind === 'missing') {
       onUpdate({ ...base, loading: false });
       return;
@@ -72,16 +86,25 @@ export async function loadProductPage(key: string, onUpdate: (d: ProductPageData
   let open: Pull[];
   let reached: boolean | null = null;
   try {
-    const read = (await ghGet<Pull[]>(own ? productPullsPath(own.repo) : `/repos/${repo}/pulls?state=open&per_page=100`)).data;
+    const fetched = await ghGet<Pull[]>(own ? productPullsPath(own.repo) : `/repos/${repo}/pulls?state=open&per_page=100`);
+    const read = fetched.data;
     open = own ? (tagProductPulls(read, own) as Pull[]) : read;
     if (own) reached = true;
+    // The list as this browser last read it, GitHub busy meanwhile: shown, with when Bridge is back.
+    if (fetched.stale && fetched.resetAt instanceof Date) base.busy ??= { resetsAt: fetched.resetAt, source: 'github' };
   } catch (err) {
+    // GitHub busy: a wait, never "cannot reach the product" nor an empty list.
+    const busy = githubBusy(err);
+    if (busy) {
+      onUpdate({ ...base, loading: false, busy });
+      return;
+    }
     // A product repository Bridge cannot read: the page says so in its facts, quietly (Settings says why).
-    if (own && !(err instanceof RateLimitError)) {
+    if (own) {
       onUpdate({ ...base, reached: false, loading: false });
       return;
     }
-    onUpdate({ ...base, loading: false, failed: failure(err) });
+    onUpdate({ ...base, loading: false, failed: FAILED });
     return;
   }
   let closed: Pull[] = [];

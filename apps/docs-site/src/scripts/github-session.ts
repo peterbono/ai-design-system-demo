@@ -7,7 +7,8 @@
 
 import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
-import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
+import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, lastKnownAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
+import { busyRetryDelay, githubBusy, type GitHubBusy } from '../lib/github-busy';
 import { repoContext, siteConfig } from './repo-context';
 import { productRouteFor, teamReadRoute } from '../lib/write-route';
 import { clearPrivateRepoCaches, clearRepoCache } from './repo-cache';
@@ -1087,7 +1088,9 @@ async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { ac
     if (res.status === 403 || res.status === 429) {
       const remaining = res.headers.get('x-ratelimit-remaining');
       const reset = res.headers.get('x-ratelimit-reset');
-      if (remaining === '0' || res.status === 429) throw new RateLimitError(reset ? new Date(Number(reset) * 1000) : null, Boolean(sentAuth));
+      // GitHub's limit said only in words (a 403 "API rate limit exceeded" without the header): a wait as well.
+      const worded = res.status === 403 && remaining !== '0' && /rate limit/i.test(await Promise.resolve().then(() => res.clone().text()).catch(() => ''));
+      if (remaining === '0' || res.status === 429 || worded) throw new RateLimitError(reset ? new Date(Number(reset) * 1000) : null, Boolean(sentAuth));
     }
     if (!res.ok) throw new GitHubError(res.status, `GitHub answered ${res.status} for ${path}`);
     const data = (opts.raw ? await res.text() : await res.json()) as T;
@@ -1589,6 +1592,11 @@ const repoName = (r: { owner: string; repo: string }) => `${r.owner}/${r.repo}`.
 /** The access to this page's repository, null until known (or signed out on the self-hosted site). */
 export const currentAccess = (): RepoAccess | null => accessByRepo.get(repoName(readRepo())) ?? null;
 
+/** GitHub was busy when the access to a repository was last asked: when it is back. Cleared by the next read. */
+const accessBusyByRepo = new Map<string, GitHubBusy>();
+/** GitHub is busy for this page's repository's access read (the team chip reads neutral, not "Checking"), else null. */
+export const accessBusy = (): GitHubBusy | null => accessBusyByRepo.get(repoName(readRepo())) ?? null;
+
 /** Forgets every access read on this page and in this tab (sign-out, another token, a rejected token). */
 let accessEpoch = 0;
 function forgetAccess() {
@@ -1650,6 +1658,7 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
     if (epoch !== accessEpoch) return accessByRepo.get(name) ?? null;
     // The token may have been refused while reading (studioFetch marks it): nothing to keep then.
     if (signedIn && tokenRejected()) return null;
+    accessBusyByRepo.delete(name);
     // A repository this visitor can no longer see: drop what this browser kept of it.
     if (!opts.probe && (read.state === 'no-access' || read.state === 'anonymous-unknown')) void clearRepoCache(name);
     accessByRepo.set(name, read);
@@ -1663,8 +1672,28 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
       writeCheck({ ...last, write: read.write, reach: typeof read.reach === 'boolean' ? read.reach : null, access: { repo: name, state: read.state } });
     }
     return read;
-  } catch {
-    return null;
+  } catch (err) {
+    // GitHub busy for the viewer: the role as last read here (whatever its age), never "Checking" for the whole wait,
+    // and one read again just after the reset.
+    const busy = githubBusy(err);
+    if (!busy || opts.probe || epoch !== accessEpoch) return null;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(storageKey);
+    } catch {
+      /* storage blocked */
+    }
+    const kept = lastKnownAccess(raw, signedIn ? currentCheck()?.access : null, name, app);
+    if (kept) accessByRepo.set(name, kept);
+    if (!accessBusyByRepo.has(name)) {
+      setTimeout(() => {
+        accessBusyByRepo.delete(name);
+        if (kept && accessByRepo.get(name) === kept) accessByRepo.delete(name);
+        void readAccess().then(paintAccess);
+      }, busyRetryDelay(busy));
+    }
+    accessBusyByRepo.set(name, busy);
+    return kept;
   }
 }
 

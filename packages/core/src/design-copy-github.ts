@@ -20,7 +20,10 @@ export const FROM_DESIGN_LABEL_DESCRIPTION = 'Sent by the design team from Bridg
  */
 export type DesignCopyState = { kind: 'missing' } | { kind: 'ready'; branch: string; behind: number | null };
 
-const isMissing = (err: unknown) => err instanceof GitHubError && (err.status === 404 || err.status === 403) && err.auth !== 'rejected' && !err.resetsAt;
+/** GitHub's words for its hourly limits: such a 403 is a wait, never a missing copy ("Make my copy"). */
+const LIMIT_WORDS = /rate limit/i;
+const isMissing = (err: unknown) =>
+  err instanceof GitHubError && (err.status === 404 || (err.status === 403 && !LIMIT_WORDS.test(`${err.message} ${err.detail ?? ''}`))) && err.auth !== 'rejected' && !err.resetsAt;
 
 /**
  * Reads the copy and the product: two or three reads. The copy's default branch is compared with the head of the same
