@@ -39,7 +39,7 @@ import {
   type PullReviewLike,
   type SentPiece,
   libraryTodayRoute,
-  REPLY_SENT_LINE,
+  questionWords,
   todayLinkLabel,
 } from '../lib/exploration-page';
 import { libraryHref } from '../lib/library-shells';
@@ -75,7 +75,7 @@ import { siteApprovers } from './teams';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
-import { declineNoteOf, devQuestionOf, explorationLifecycle, reviewStateOf, taskDeclined, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
+import { askerRole, declineNoteOf, devQuestionOf, explorationLifecycle, reviewStateOf, taskDeclined, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
 import { answerDevPull, forgetQuestion, readDesignTask, readDevPull, replyOnTask, taskRef } from './design-task';
 
 const CFG = explorationsConfig();
@@ -380,7 +380,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     previewBuilding,
     ...(inCopy ? { claudeCodeUrl: codeUrl(v.state === 'branch' ? v.url : null) } : {}),
   });
-  const plate = { product: isLibrary ? 'Library' : product.name, screen: changedScreenOf(files) ?? shot?.screen ?? null, seed: key };
+  // The screen the capture found its change on comes first (the real one), else a changed screen, else the product.
+  const plate = { product: isLibrary ? 'Library' : product.name, screen: shot?.screen ?? changedScreenOf(files, { library: isLibrary }), seed: key };
   const shotProps = shot ? { thumb: shot.src, thumbCapturedAt: shot.capturedAt } : {};
   if (!handedOff) {
     repaint(d, key, { plate, ...shotProps });
@@ -472,7 +473,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
         : null,
   };
   if (devRead) review.draft = devRead.pull.draft === true;
-  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease, question, declined });
+  // Who asked, by name, and their part on the team when its settings say (a lead): never "the developers" by default.
+  const askedBy = question?.login ? faceOf(question.login, false, allNames) : null;
+  const questionOn = question ? { ...question, by: askedBy, role: askerRole(question.login, siteApprovers()) } : null;
+  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease, question: questionOn, declined });
   const taskUrl = block?.task ?? null;
   const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
   // Who may run the check: someone who can write it, in a team that writes branches. Bridge's server runs it for them:
@@ -526,7 +530,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       question: question
         ? {
             text: question.text,
-            by: question.login ? faceOf(question.login, false, allNames) : null,
+            by: askedBy,
             when: question.at ? startedWhen(question.at) : '',
             answered: question.answered,
             onReply:
@@ -534,8 +538,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
                 ? async (text: string) => {
                     await replyOnTask(gh, taskUrl, text);
                     forgetQuestion(viewer, taskUrl);
-                    reopen(REPLY_SENT_LINE);
-                    return REPLY_SENT_LINE;
+                    const sent = questionWords(askedBy).sent;
+                    reopen(sent);
+                    return sent;
                   }
                 : null,
           }

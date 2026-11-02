@@ -3,12 +3,12 @@
 // of the task or suggestion, never anyone named on GitHub) and sends or keeps it.
 //
 // Phase 1, the five things an email designer is blind to today (docs/HOSTED.md, "Notifications"):
-//   question             a developer commented on their open task (an issue they filed through Bridge),
+//   question             someone commented on their open task (an issue they filed through Bridge),
 //                        or labeled it needs-design (the rule of Studio's devQuestionOf)                 needs them
 //   look                 the developers' version of their task is ready for a design look (a pull
 //                        request that closes the task, opened ready or marked ready)                    needs them
 //   changes              a lead asked for changes on their library suggestion                            needs them
-//   declined             the developers closed their task as not planned                                 news
+//   declined             someone closed their task as not planned                                       news
 //   shipped              their task was closed as done, or a pull request that closes it was merged      news
 //   suggestion-declined  their library suggestion was closed without being added                         news
 // Anything Bridge itself did for a member (the Bridge app's bot, a "(via Bridge)" comment) and anything another bot

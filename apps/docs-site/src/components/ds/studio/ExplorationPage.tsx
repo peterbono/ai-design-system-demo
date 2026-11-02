@@ -56,7 +56,7 @@ import ButtonLink from '../ButtonLink';
 import { Drawing } from './Drawing';
 import { Who } from './faces';
 import type { DesignAnswer, LifecycleStage } from '../../../lib/review-state';
-import { clipQuote, explorationTag, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
+import { clipQuote, explorationTag, questionWords, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
 import { studioHref } from '../../../lib/team-path';
 import { ARCHIVED_LINE } from '../../../lib/explorations-view';
 import { EXPLORATION_STAGE_LABEL } from '@bridge-ds/core';
@@ -88,7 +88,7 @@ export interface HandoffView {
    */
   onAnswer?: ((a: DesignAnswer) => Promise<string | void>) | null;
   /**
-   * The developers asked the designer something on their task: their words (plain text; null when only a label asks),
+   * Someone asked the designer something on the task: their words (plain text; null when only a label asks),
    * who and when, whether the designer answered since, and the reply when this viewer can write it.
    */
   question?: {
@@ -515,8 +515,8 @@ function DevQuote({ text, by, when }: { text: string; by: PageFace | null; when:
 }
 
 /**
- * The developers' question, under the steps: their words, and the reply box when this viewer can answer. Once the
- * designer answered, one quiet line says so and their words stay for reference.
+ * The question on the task, under the steps: the asker's words (named, never "the developers" by default), and the
+ * reply box when this viewer can answer. Once the designer answered, one quiet line says so and the words stay.
  */
 function DevQuestion({ q, say }: { q: NonNullable<HandoffView['question']>; say: (s: string) => void }) {
   const [text, setText] = useState('');
@@ -530,17 +530,18 @@ function DevQuestion({ q, say }: { q: NonNullable<HandoffView['question']>; say:
       .catch((err: Error) => say(err.message))
       .finally(() => setBusy(false));
   };
+  const w = questionWords(q.by);
   return (
-    <section className="xp-question" aria-label="The developers' question">
-      {q.text ? <DevQuote text={q.text} by={q.by} when={q.when} /> : !q.answered && <p>The developers need your input before they build on.</p>}
+    <section className="xp-question" aria-label={q.by ? `${q.by.name}'s question` : 'A question for you'}>
+      {q.text ? <DevQuote text={q.text} by={q.by} when={q.when} /> : !q.answered && <p>{w.needsInput}</p>}
       {q.answered ? (
-        <p className="xp-muted">Answered. The developers build on from here.</p>
+        <p className="xp-muted">{w.answered}</p>
       ) : (
         q.onReply && (
           <form className="xp-answer xp-reply" onSubmit={send}>
-            <Textarea label="Your answer" hint="The developers read it where they work." rows={3} value={text} onChange={(e) => setText(e.target.value)} />
+            <Textarea label="Your answer" hint={w.hint} rows={3} value={text} onChange={(e) => setText(e.target.value)} />
             <Button type="submit" variant="secondary" size="md" loading={busy} disabled={!text.trim()}>
-              Send to the developers
+              {w.send}
             </Button>
           </form>
         )

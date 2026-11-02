@@ -16,6 +16,7 @@ import { isDocsProposalBranch, PUBLISH_ROUTE_COPY } from '@bridge-ds/core';
 import { STATUS_WORDS, VOCAB } from './vocabulary';
 import { isClaudeLogin, nameFace } from './people';
 import { studioHref } from './team-path';
+import { questionLine } from './review-state';
 
 /** Rows of the Needs you list before the grouped row. */
 export const NEEDS_SHOWN = 3;
@@ -391,17 +392,18 @@ export function explorationReviewNeed(c: Omit<ChangeFacts, 'task' | 'title'> & {
 }
 
 /**
- * One Needs you row for the developers' question on an exploration the viewer handed off (lib/waiting-on
- * 'dev-question'): the developers wait for their answer, so it counts in the nav badge too (`question`).
+ * One Needs you row for a question on the task of an exploration the viewer handed off (lib/waiting-on
+ * 'dev-question'): the asker by name, with their part when Bridge knows it (`role`, lib/review-state askerRole). They
+ * wait for the answer, so it counts in the nav badge too (`question`).
  */
-export function devQuestionNeed(c: { key: string; name: string; href: string; asker: Person | null; since: string | null; thumb: ThumbSpec }, now: number): NeedRow {
+export function devQuestionNeed(c: { key: string; name: string; href: string; asker: Person | null; role?: string | null; since: string | null; thumb: ThumbSpec }, now: number): NeedRow {
   return {
     key: `dev-question-${c.key}`,
     kind: 'own',
     title: c.name,
     href: c.href,
     person: c.asker,
-    line: `${c.asker?.name ?? 'The developers'} asked a question`,
+    line: questionLine(c.asker, c.role),
     since: c.since,
     waitsOnYou: true,
     pill: c.since ? { label: waitingLabel(c.since, now), tone: 'warning' } : null,

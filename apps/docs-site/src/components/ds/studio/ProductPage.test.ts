@@ -3,7 +3,7 @@
 // with the one action. The sidebar's Products group: one link per configured product, the current one marked.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import type { ProductConfig } from '@bridge-ds/core';
@@ -142,6 +142,23 @@ describe('ProductPageView', () => {
     expect(fresh.container.querySelector('[data-copy-behind]')).toBeNull();
   });
 
+  it('never "changed since your copy" without the action: a viewer who cannot get the latest reads nothing', () => {
+    const behind = data({ cards: [card(1)], copy: { kind: 'ready', behind: 2 } });
+    const none = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: behind }));
+    expect(none.container.querySelector('[data-copy-behind]')).toBeNull();
+    expect(none.container.textContent).not.toContain('changed since your copy');
+    none.unmount();
+    // Making a copy only (no right to get the latest): still nothing.
+    const makeOnly = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: behind, copy: { make: vi.fn(), latest: null } }));
+    expect(makeOnly.container.querySelector('[data-copy-behind]')).toBeNull();
+    makeOnly.unmount();
+    // An email designer may get the latest (Bridge syncs the copy for them) but not make one: the sentence with its action.
+    const email = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: behind, copy: { make: null, latest: vi.fn(async () => 'Your copy is up to date.') } }));
+    const line = email.container.querySelector('[data-copy-behind]')!;
+    expect(line.textContent).toContain('Product admin changed since your copy.');
+    expect(within(line as HTMLElement).getByRole('button', { name: 'Get the latest' })).toBeTruthy();
+  });
+
   it('says "2 archived." in the plural, and nothing at all without archived ones', () => {
     const { container, unmount } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)], archived: [card(8), card(9)] }) }));
     expect(container.querySelector('[data-archived-line]')!.textContent).toBe('2 archived. See archived');
@@ -181,7 +198,7 @@ describe('ProductPageView, the library line', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('a designer without GitHub: the line and "Update sent to the developers." only, no link, no tech words', () => {
+  it('a lead without GitHub (an email admin): the line and "Update sent to the developers." only, no link, no tech words', () => {
     const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }), library: { line: line({ sent: true }) } }));
     const text = container.querySelector('[data-library-line]')!.textContent!;
     expect(text).toContain('Update sent to the developers.');

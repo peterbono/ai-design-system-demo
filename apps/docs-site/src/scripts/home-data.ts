@@ -8,12 +8,12 @@
 import { isGuardedExploration, isHandedOff, isToolingPull, productsOf, requesterOf, type ProductConfig, type ToolingConfig } from '@bridge-ds/core';
 import { siteConfig } from './repo-context';
 import { designTaskReads, rememberQuestions, taskUrlOf } from './design-task';
-import { devQuestionOf, taskStage, type DesignTaskRead } from '../lib/review-state';
+import { askerRole, devQuestionOf, taskStage, type DesignTaskRead } from '../lib/review-state';
 import { parseExplorationBody } from '@bridge-ds/core';
 import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, limitLine, readRepo, RateLimitError, resolveAccess } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
-import { loadTeams } from './teams';
+import { loadTeams, siteApprovers } from './teams';
 import { loadOwnSuggestions, loadSuggestionNeeds } from './suggestions';
 import { todoChange, viewerRole, type QueuePullFull } from './needs-you';
 import { reviewQueue } from '../lib/review-queue';
@@ -451,8 +451,8 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       const asker = pick(p.user.login)!;
       needs.push(explorationReviewNeed({ number: p.number, product: p.product ?? null, author: asker, asker, since: null, thumb: { kind: 'icon', icon: 'branch' }, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`) }, now));
     }
-    // The developers asked a question on the task of an exploration the viewer handed off: theirs to answer (the one
-    // rule, lib/waiting-on). Remembered for the nav badge on the other pages.
+    // Someone asked a question on the task of an exploration the viewer handed off (named, never "the developers" by
+    // default): theirs to answer (the one rule, lib/waiting-on). Remembered for the nav badge on the other pages.
     const questions: string[] = [];
     for (const p of productOpen) {
       const u = taskUrlOf(p.body);
@@ -463,7 +463,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       const mine = isOwnExploration(p, viewer, viewerRef);
       if (!q || waitingOn({ author: mine ? (viewer ?? '') : p.user.login, devQuestion: q, who: null }, { login: viewer, role: reviewer ? 'reviewer' : 'contributor' }) !== 'dev-question') continue;
       questions.push(u);
-      needs.push(devQuestionNeed({ key: `${p.product ?? ''}#${p.number}`, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`), asker: q.login ? pick(q.login) : null, since: q.at, thumb: { kind: 'icon', icon: 'branch' } }, now));
+      needs.push(devQuestionNeed({ key: `${p.product ?? ''}#${p.number}`, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`), asker: q.login ? pick(q.login) : null, role: askerRole(q.login, siteApprovers()), since: q.at, thumb: { kind: 'icon', icon: 'branch' } }, now));
     }
     if (taskReads.size) rememberQuestions(viewer, questions);
     // A guidance draft whose change already has its own row (a review waits on you) shows once, as that change.

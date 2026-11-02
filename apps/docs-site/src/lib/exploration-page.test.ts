@@ -288,13 +288,18 @@ describe('after Done exploring (Waiting to be picked up, Being built, Shipped)',
       expect(handoffSteps({ ...base, status: 'shipped', review: { draft: false, asked: [], verdict: null, dev: null } })[2]!.detail).toBe('Before it shipped');
     });
 
-    it('a question of the developers: the build step says they asked, until the designer answers', () => {
-      const asked = handoffSteps({ ...base, status: 'ready', builders: [], question: { answered: false } });
-      expect(row(asked, 1)).toEqual(['warning', 'Developers build it', 'Developers asked a question', true]);
-      const building = handoffSteps({ ...base, status: 'building', question: { answered: false } });
-      expect(row(building, 1)).toEqual(['warning', 'Developers build it', 'Developers asked a question', true]);
-      const answered = handoffSteps({ ...base, status: 'building', question: { answered: true } });
+    it('a question on the task: the build step names who asked (and their part when known), until the designer answers', () => {
+      const florian = { name: 'Florian' };
+      const asked = handoffSteps({ ...base, status: 'ready', builders: [], question: { answered: false, by: florian, role: 'design lead' } });
+      expect(row(asked, 1)).toEqual(['warning', 'Developers build it', 'Florian, design lead, asked a question', true]);
+      // No part known: the name alone, never "the developers" by default.
+      const building = handoffSteps({ ...base, status: 'building', question: { answered: false, by: florian } });
+      expect(row(building, 1)).toEqual(['warning', 'Developers build it', 'Florian asked a question', true]);
+      // A needs-design label alone names nobody.
+      expect(handoffSteps({ ...base, status: 'building', question: { answered: false } })[1]!.detail).toBe('Your input is needed');
+      const answered = handoffSteps({ ...base, status: 'building', question: { answered: true, by: florian } });
       expect(row(answered, 1)).toEqual(['waiting', 'Developers build it', 'Sam is building it', true]);
+      expect(JSON.stringify([asked, building])).not.toMatch(/developers asked/i);
       expect(JSON.stringify([asked, answered])).not.toMatch(/issue|pull request|state_reason|—/i);
     });
 
