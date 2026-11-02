@@ -85,6 +85,10 @@
 // package files or guardrails, because CI runs what a pull request contains. On a public repository the member's email
 // is never published: commits carry <hash>@contributors.bridge.invalid and the "Requested by" line names them without
 // the email.
+// Whose exploration is whose in a copy: a branch is theirs when Bridge keeps them as its owner (they started it
+// through here), else, with no owner kept, when its open pull request says so (opened by their GitHub account, or its
+// exploration block names their login or their member reference); a pull request is whoever owns its branch, read on
+// GitHub, never an owner kept by number (a copy made again starts its numbers over). ownsExploration, ownedCopyPull.
 // Every call other than GET counts against a daily cap per member (CONTRIB_MAX_WRITES, 300 by default): over it,
 // 429 { error: 'limit' }.
 //
@@ -114,7 +118,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
-import { memberRef, withMemberInBlock } from '../_lib/exploration-member.js';
+import { explorationBlockOf, memberRef, withMemberInBlock } from '../_lib/exploration-member.js';
 import { branchKey, issueKey, mineKey } from '../_lib/former-member.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { handleGithubWebhook } from '../_lib/github-webhook.js';
@@ -811,11 +815,11 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
   // A member's email never goes into GitHub content, public or private repository: their name names them.
   const line = async () => `Requested by ${c.member.name}${c.member.login ? ` (@${c.member.login})` : ''} through Bridge.`;
   /** The text with the "Requested by" line at the end, unless it already carries it (attribution is never edited away). */
-  const requested = async (text: unknown) => {
+  const requested = async (text: unknown, owner?: { ref: string; name: string }) => {
     const l = await line();
     // A member without GitHub is named in the exploration block by their member reference and name, never their email.
     const raw = typeof text === 'string' ? text : '';
-    const t = c.member.login ? raw : withMemberInBlock(raw, { ref: memberRef(c.member.email), name: c.member.name });
+    const t = c.member.login ? raw : withMemberInBlock(raw, { ref: memberRef(c.member.email), name: c.member.name }, owner);
     if (t.includes(l)) return t;
     return `${t.trim() ? `${t}\n\n` : ''}${l}`;
   };
@@ -1163,9 +1167,88 @@ interface PlanHelpers {
   ownsIssue: (n: string | undefined) => Promise<boolean>;
   recordIssue: (data: any) => Promise<void>;
   author: () => Promise<{ name: string; email: string }>;
-  requested: (text: unknown) => Promise<string>;
+  /** With `owner`, the exploration block names that member whatever the body says (withMemberInBlock). */
+  requested: (text: unknown, owner?: { ref: string; name: string }) => Promise<string>;
   checkPaths: (paths: string[]) => Promise<void>;
   checkCommit: (sha: unknown) => Promise<void>;
+}
+
+/** A repository of a product, as the proxy calls it. */
+interface RepoAt {
+  owner: string;
+  repo: string;
+  /** owner/name, lower case. */
+  full: string;
+}
+
+/**
+ * Whether an open pull request of the copy, from a branch of the copy itself, says it is the member's: for a designer
+ * signed in with GitHub, their own account opened it or its exploration block names their login as `author`; for an
+ * email member, its exploration block names their member reference (exploration-member.ts). Only asked when Bridge
+ * keeps no owner for the branch: an exploration started on GitHub, or a copy made again (a migration re-opens every
+ * pull request under the lead's account and the owners Bridge kept by number no longer match).
+ */
+function pullClaimedBy(p: any, m: ProxyMember, copy: RepoAt, b: string): boolean {
+  if (p?.state !== 'open' || p?.head?.ref !== b || typeof p?.head?.repo?.full_name !== 'string' || p.head.repo.full_name.toLowerCase() !== copy.full) return false;
+  const block = explorationBlockOf(p.body);
+  if (m.login) {
+    const login = m.login.toLowerCase();
+    if (typeof p.user?.login === 'string' && p.user.login.toLowerCase() === login) return true;
+    return typeof block?.author === 'string' && block.author.toLowerCase() === login;
+  }
+  return typeof block?.member === 'string' && block.member === memberRef(m.email);
+}
+
+/**
+ * Whether `b` is one of the member's explorations in the design copy: an explore/* branch, never the default one,
+ * that Bridge keeps as theirs (they started it through here), or, when Bridge keeps no owner for it, whose open pull
+ * request says it is theirs (pullClaimedBy), kept as theirs from then on. A branch Bridge keeps for someone else is
+ * never theirs, whatever a pull request says. `pull`: the pull request already read, else the open ones are listed.
+ */
+async function ownsExploration(ctx: Ctx, m: ProxyMember, copy: RepoAt, token: string, isDefault: (b: string) => Promise<boolean>, b: unknown, pull?: any): Promise<boolean> {
+  if (typeof b !== 'string' || !validBranch(b) || !b.startsWith(EXPLORATION_PREFIX) || (await isDefault(b))) return false;
+  const owner = await ctx.svc.redis.cmd('GET', branchKey(copy.full, b));
+  if (owner === m.email) return true;
+  if (owner) return false;
+  let claimed = pull !== undefined && pullClaimedBy(pull, m, copy, b);
+  if (!claimed) {
+    const pulls = await ghApp(ctx, token, 'GET', `/repos/${copy.owner}/${copy.repo}/pulls?state=open&per_page=100`);
+    claimed = Array.isArray(pulls.data) && pulls.data.some((p: any) => pullClaimedBy(p, m, copy, b));
+  }
+  if (!claimed) return false;
+  await ctx.svc.redis.cmd('SET', branchKey(copy.full, b), m.email, 'EX', OWNERSHIP_TTL_S);
+  await rememberMine(ctx, copy.full, m.email, `b:${b}`);
+  return true;
+}
+
+/**
+ * Pull request `n` of the design copy when it is the member's: read on GitHub, from a branch of the copy that is
+ * their exploration (ownsExploration). A pull request belongs to whoever owns its branch, never to a number kept
+ * from before: when a copy is made again its numbers start over, and an owner kept by number would hand one
+ * designer's exploration to another. What Bridge keeps by number follows what GitHub says. Null when not theirs.
+ */
+async function ownedCopyPull(ctx: Ctx, m: ProxyMember, copy: RepoAt, token: string, isDefault: (b: string) => Promise<boolean>, n: string | undefined): Promise<any | null> {
+  if (n === undefined || !NUMBER.test(n)) return null;
+  const key = issueKey(copy.full, n);
+  const p = await ghApp(ctx, token, 'GET', `/repos/${copy.owner}/${copy.repo}/pulls/${n}`);
+  const head = p.data?.head;
+  const mine =
+    p.status === 200 &&
+    typeof head?.ref === 'string' &&
+    typeof head?.repo?.full_name === 'string' &&
+    head.repo.full_name.toLowerCase() === copy.full &&
+    (await ownsExploration(ctx, m, copy, token, isDefault, head.ref, p.data));
+  const kept = await ctx.svc.redis.cmd('GET', key);
+  if (mine) {
+    if (kept !== m.email) {
+      await ctx.svc.redis.cmd('SET', key, m.email, 'EX', OWNERSHIP_TTL_S);
+      await rememberMine(ctx, copy.full, m.email, `i:${n}`);
+    }
+    return p.data;
+  }
+  // A number kept for them that GitHub says is someone else's now (a copy made again): forgotten.
+  if (kept === m.email && p.status === 200) await ctx.svc.redis.pipe([['DEL', key], ['SREM', mineKey(copy.full, m.email), `i:${n}`]]);
+  return null;
 }
 
 /**
@@ -1182,22 +1265,13 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
   const scope = c.scope!;
   const r = c.target.rest;
   const { at, body } = h;
-  const ownedExplore = async (b: unknown): Promise<boolean> => {
-    if (typeof b !== 'string' || !validBranch(b) || !b.startsWith(EXPLORATION_PREFIX) || (await h.isDefault(b))) return false;
-    const owner = await ctx.svc.redis.cmd('GET', branchKey(c.full, b));
-    if (owner === c.member.email) return true;
-    // An exploration a designer started on GitHub before Bridge wrote for them (no owner kept): theirs when its pull
-    // request in the copy was opened by their own GitHub account. Kept from then on.
-    if (owner || !c.member.login || scope.kind !== 'copy') return false;
-    const pulls = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/pulls?state=open&per_page=100`);
-    const mine = Array.isArray(pulls.data) && pulls.data.some((p: any) => p?.head?.ref === b && p?.head?.repo?.full_name?.toLowerCase() === c.full && typeof p?.user?.login === 'string' && p.user.login.toLowerCase() === c.member.login!.toLowerCase());
-    if (!mine) return false;
-    await ctx.svc.redis.cmd('SET', branchKey(c.full, b), c.member.email, 'EX', OWNERSHIP_TTL_S);
-    await rememberMine(ctx, c.full, c.member.email, `b:${b}`);
-    return true;
-  };
+  const me = { ref: memberRef(c.member.email), name: c.member.name };
 
   if (scope.kind === 'copy') {
+    const copy: RepoAt = { owner: c.owner, repo: c.repo, full: c.full };
+    // Their explorations and their pull requests: by branch, never by a number kept from before (ownedCopyPull).
+    const ownedExplore = (b: unknown) => ownsExploration(ctx, c.member, copy, c.token, h.isDefault, b);
+    const ownedPull = (n: string | undefined) => ownedCopyPull(ctx, c.member, copy, c.token, h.isDefault, n);
     /** Every path a sandbox path (isSandboxPath): their own exploration may hold prototype code, never CI or hosting. */
     const checkSandbox = (paths: string[]) => {
       if (!paths.length || paths.some((p) => !isSandboxPath(p))) throw new HttpError(403, 'not-allowed', SANDBOX_ONLY);
@@ -1253,16 +1327,16 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
           if (i >= 0 && body.head.slice(0, i).toLowerCase() !== c.owner.toLowerCase()) throw notAllowed();
           const head = i >= 0 ? body.head.slice(i + 1) : body.head;
           if (!(await ownedExplore(head)) || !(await h.isDefault(body.base))) throw notAllowed();
-          // Always a draft: an exploration is never offered for merging in the copy.
-          return { body: { ...pick(body, ['title']), head, base: body.base, draft: true, body: await h.requested(body.body) }, after: h.recordIssue };
+          // Always a draft: an exploration is never offered for merging in the copy. Its block names who started it.
+          return { body: { ...pick(body, ['title']), head, base: body.base, draft: true, body: await h.requested(body.body, me) }, after: h.recordIssue };
         }
         if (at('issues', '*', 'comments')) {
-          if (!(await h.ownsIssue(r[1])) || typeof body.body !== 'string') throw notAllowed();
+          if (typeof body.body !== 'string' || !(await ownedPull(r[1]))) throw notAllowed();
           return { body: { body: `**${c.member.name}** (via Bridge):\n\n${body.body}` } };
         }
         if (at('issues', '*', 'labels')) {
           const labels = body.labels;
-          if (!(await h.ownsIssue(r[1])) || !Array.isArray(labels) || !labels.length || !labels.every(copyLabel)) throw notAllowed();
+          if (!Array.isArray(labels) || !labels.length || !labels.every(copyLabel) || !(await ownedPull(r[1]))) throw notAllowed();
           return { body: { labels } };
         }
         if (at('merge-upstream')) {
@@ -1285,8 +1359,13 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
           return { body: { sha: body.sha, force: false } };
         }
         if (at('pulls', '*')) {
-          if (!onlyKeys(body, ['title', 'body', 'state']) || (body.state !== undefined && body.state !== 'open' && body.state !== 'closed') || !(await h.ownsIssue(r[1]))) throw notAllowed();
-          return { body: 'body' in body ? { ...body, body: await h.requested(body.body) } : body };
+          if (!onlyKeys(body, ['title', 'body', 'state']) || (body.state !== undefined && body.state !== 'open' && body.state !== 'closed')) throw notAllowed();
+          const pull = await ownedPull(r[1]);
+          if (!pull) throw notAllowed();
+          // Who started it stays named in its block: the one it names already, else them.
+          const was = explorationBlockOf(pull.body);
+          const owner = typeof was?.member === 'string' ? { ref: was.member, name: typeof was.memberName === 'string' ? was.memberName : c.member.name } : me;
+          return { body: 'body' in body ? { ...body, body: await h.requested(body.body, owner) } : body };
         }
         throw notAllowed();
       }
@@ -1299,7 +1378,7 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
           return { body: { ...pick(body, keys), author: await h.author() } };
         }
         if (c.method === 'DELETE' && at('issues', '*', 'labels', '*')) {
-          if (!(await h.ownsIssue(r[1])) || !copyLabel(r[3])) throw notAllowed();
+          if (!copyLabel(r[3]) || !(await ownedPull(r[1]))) throw notAllowed();
           return { body: null };
         }
         throw notAllowed();
@@ -1311,12 +1390,26 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
 
   // The developers' repository: their task, and nothing else.
   const copy = scope.pair.copy;
-  /** A pull request of theirs in the copy that `text` links. */
+  /** A pull request of theirs in the copy that `text` links, as GitHub says it now (ownedCopyPull). */
   const linksOwnedExploration = async (text: unknown) => {
     if (typeof text !== 'string') return false;
     const [owner, name] = copy.split('/');
     const re = new RegExp(`https://github\\.com/${owner!.replace(/[.]/g, '\\.')}/${name!.replace(/[.]/g, '\\.')}/pull/(\\d+)`, 'gi');
-    for (const m of text.matchAll(re)) if ((await ctx.svc.redis.cmd('GET', issueKey(copy, m[1]!))) === c.member.email) return true;
+    const numbers = [...new Set([...text.matchAll(re)].map((m) => m[1]!))].slice(0, 5);
+    if (!numbers.length) return false;
+    const copyToken = await ctx.svc.app.installationToken(owner!, name!);
+    if (!copyToken) return false;
+    const at: RepoAt = { owner: owner!, repo: name!, full: copy };
+    let copyDefault: string | null = null;
+    const isCopyDefault = async (b: string) => {
+      if (copyDefault === null) {
+        const r = await ghApp(ctx, copyToken, 'GET', `/repos/${owner}/${name}`);
+        if (r.status !== 200 || typeof r.data?.default_branch !== 'string') throw notAllowed();
+        copyDefault = r.data.default_branch as string;
+      }
+      return b.toLowerCase() === copyDefault.toLowerCase();
+    };
+    for (const n of numbers) if (await ownedCopyPull(ctx, c.member, at, copyToken, isCopyDefault, n)) return true;
     return false;
   };
   /** Their task: opened through here, or a from-design task that links one of their explorations in the copy. */

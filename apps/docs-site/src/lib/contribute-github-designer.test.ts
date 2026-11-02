@@ -71,7 +71,7 @@ function github(w: World): FetchLike {
     if (m === 'GET' && path === '/repos/acme/design/contents/bridge.config.json') return new Response(CONFIG, { status: 200 });
     if (m === 'GET' && (path === '/repos/acme/shop-design' || path === '/repos/acme/shop')) return res(200, { default_branch: 'main', private: true });
     if (m === 'GET' && path.startsWith('/repos/acme/shop-design/contents/bridge.config.json')) return res(404, { message: 'Not Found' });
-    if (m === 'GET' && path === '/repos/acme/shop-design/pulls') return res(200, w.pulls.map((p) => ({ number: p.number, head: { ref: p.ref, repo: { full_name: 'acme/shop-design' } }, user: { login: p.login } })));
+    if (m === 'GET' && path === '/repos/acme/shop-design/pulls') return res(200, w.pulls.map((p) => ({ number: p.number, state: 'open', head: { ref: p.ref, repo: { full_name: 'acme/shop-design' } }, user: { login: p.login } })));
     if (m === 'GET' && (x = /^\/repos\/acme\/shop-design\/compare\/([^.]+)\.\.\.([0-9a-f]{40})$/.exec(path))) {
       const [, from, to] = x;
       if (from === 'main' && to === NOTE) return res(200, { status: 'ahead', files: [{ filename: '.bridge/explorations/orders.md' }] });

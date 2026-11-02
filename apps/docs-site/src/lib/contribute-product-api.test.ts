@@ -78,6 +78,11 @@ function github(w: World): FetchLike {
       if (from === HEAD) return res(200, { status: 'diverged', files: [] });
       return res(404, { message: 'Not Found' });
     }
+    if (m === 'GET' && (x = /^\/repos\/acme\/shop-design\/pulls\/(\d+)$/.exec(path))) {
+      // #3 is the member's exploration (explore/theirs), #4 someone else's (explore/other).
+      const ref = ({ 3: 'explore/theirs', 4: 'explore/other' } as Record<string, string>)[x[1]!];
+      return ref ? res(200, { number: Number(x[1]), state: 'open', head: { ref, repo: { full_name: 'acme/shop-design' } }, user: { login: 'bridge-app[bot]' }, body: '' }) : res(404, { message: 'Not Found' });
+    }
     if (m === 'GET' && (x = /^\/repos\/acme\/shop\/issues\/(\d+)$/.exec(path))) {
       const i = w.issues[Number(x[1])];
       return i ? res(200, { number: Number(x[1]), body: i.body, labels: i.labels.map((name) => ({ name })) }) : res(404, { message: 'Not Found' });
