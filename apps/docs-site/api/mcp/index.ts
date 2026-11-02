@@ -35,7 +35,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { BridgeContext, handleHttp, maskEmail, pieces, type WhoAmI } from '@bridge-ds/mcp';
-import { cookieName, designerProductsFor, handleContribute, ownedWorkFor, signSession, type ContribEnv } from '../contribute/index.js';
+import { contributorOf, cookieName, designerProductsFor, handleContribute, ownedWorkFor, signSession, type ContribEnv } from '../contribute/index.js';
 import { displayName, sessionAccount } from '../_lib/account.js';
 import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/fix-sessions.js';
 import type { AppTokens } from '../_lib/github-app.js';
@@ -110,7 +110,7 @@ export interface ConnectorDeps {
 
 /** What Studio reads when the library check cannot run: the page then offers the line to paste in Claude. */
 export const PIECES_WORDS = {
-  github: 'Bridge checks the library with your GitHub sign-in.',
+  github: 'Sign in to Bridge so it can check the library.',
   failed: 'Bridge could not check it against the library this time.',
 } as const;
 
@@ -583,11 +583,21 @@ async function onView(view: string, req: Request, env: ConnectorEnv, deps: Conne
     const t = parseRepo(body.repo);
     const pr = typeof body.pr === 'string' || typeof body.pr === 'number' ? String(body.pr).trim() : '';
     if (!/^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,99}#)?\d{1,7}$/.test(pr)) return fail(400, 'bad_request', 'Say which exploration, by its number.');
-    const token = bearerOf(req);
-    if (!token) return fail(401, 'signin', PIECES_WORDS.github);
+    // Anyone on the team who can explore runs it, as the connector would act for them: a lead with their own GitHub
+    // token, a designer signed in with GitHub through Bridge's proxy for the team's products, an email member (the
+    // Studio session cookie) through the proxy for everything. The result is recorded on their own exploration.
+    const bearer = bearerOf(req);
     const who = await teamCaller(req, { ...t, need: 'edit' }, env, callerDeps);
     if (!who.canEdit) return fail(403, 'forbidden', CALLER_WORDS.notOnTeam);
-    const ctx = deps.context ? await deps.context({ repo: t.full, token }) : await BridgeContext.create({ repo: t.full, token, surface: 'mcp', fetch: deps.fetch as unknown as typeof fetch });
+    const member = bearer ? null : await contributorOf(req, t.full, env, { fetch: deps.fetch, ...(deps.now ? { now: deps.now } : {}), redis: svc.redis, ...(deps.members ? { members: deps.members } : {}), ...(deps.app ? { app: deps.app } : {}) });
+    if (!bearer && !member) return fail(401, 'signin', PIECES_WORDS.github);
+    const token = bearer ?? 'bridge-email-member';
+    const designerProducts = bearer ? await designerProductsFor(bearer, t.full, env, deps).catch(() => null) : null;
+    const ghFetch = member ? proxyFetchFor(member, t.full, env, deps, svc) : designerProducts?.length ? designerFetchFor(token, t.full, designerProducts, env, deps, svc) : deps.fetch;
+    const routed = Boolean(member || designerProducts?.length);
+    const ctx = deps.context
+      ? await deps.context({ repo: t.full, token, ...(routed ? { fetch: ghFetch } : {}) })
+      : await BridgeContext.create({ repo: t.full, token, surface: 'mcp', fetch: ghFetch as unknown as typeof fetch });
     try {
       const r = await (deps.checkPieces ?? ((c, n) => pieces.missingPiecesOp(c, { pr: n, record: true })))(ctx, /^\d+$/.test(pr) ? Number(pr) : pr);
       return json(200, { checked: r.recorded, pieces: r.pieces.length }, NO_STORE);

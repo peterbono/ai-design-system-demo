@@ -27,7 +27,7 @@ import { GitHubError, type GitHubClient } from './github-client';
 import { proposePiecesOnGitHub, type ProposedPieces } from './prod-branch-github';
 import { branchPreviewUrl } from './previews';
 import { productCodeRepoOf, productOfDesignCopy, type ProductConfig } from './products';
-import { designTaskBody, designTaskTitle, FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION } from './design-copy-github';
+import { designTaskBody, designTaskTitle, githubLoginOf, FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION } from './design-copy-github';
 import type { RequestSource } from './requests';
 
 export interface DoneExploringInput {
@@ -39,6 +39,8 @@ export interface DoneExploringInput {
   previewUrl?: string | null | undefined;
   /** Who said it, and the AI agent behind it ("claude"). */
   openedBy?: string | undefined;
+  /** Who said it when they have no GitHub account (an email member): their display name. Never an email. */
+  openedByName?: string | undefined;
   agent?: string | undefined;
   source?: RequestSource | undefined;
   date?: Date | undefined;
@@ -90,14 +92,14 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   const codeRepo = copyOf ? productCodeRepoOf(copyOf, null) : null;
   const files = fresh ? await gh.listPullRequestFiles(p.number) : [];
   const plan = fresh
-    ? doneExploringPlan({ body: p.body, branch: p.headRef, files: files.map((f) => ({ path: f.filename, status: f.status })), date: input.date, doneBy: input.openedBy, ...(codeRepo ? { copy: gh.fullName } : {}) })
+    ? doneExploringPlan({ body: p.body, branch: p.headRef, files: files.map((f) => ({ path: f.filename, status: f.status })), date: input.date, doneBy: doneByOfInput(input), ...(codeRepo ? { copy: gh.fullName } : {}) })
     : null;
   const take = plan?.take ?? (codeRepo ? designCopyTakeCommands(gh.fullName, p.headRef) : (['git fetch origin', `git checkout ${p.headRef}`] as [string, string]));
   // The checks of the head the developers start from, so the note says truthfully whether anything ran or passed.
   const checks: ExplorationChecks | null = p.headSha ? await Promise.resolve(p.headSha).then((sha) => gh.getChecks(sha, { exploration: isGuardedExploration({ state: p.state, draft: p.draft, labels: p.labels, headRef: p.headRef, body: p.body }) })).then((c) => c.state, () => null) : null;
   const out: DoneExploring = { number: p.number, url: p.url, branch: p.headRef, status: fresh ? 'ready' : status, handedOff: fresh, plan, pieces: { proposed: [], already: [], unknown: [], warnings: [] }, take, checks, note: codeRepo ? DESIGN_COPY_STARTING_POINT : explorationStartingPoint(checks), warnings: [] };
   const products = input.products ?? [];
-  const ask = { pieces: input.pieces ?? [], products, previewUrl: input.previewUrl, openedBy: input.openedBy, agent: input.agent, source: input.source, library: input.library };
+  const ask = { pieces: input.pieces ?? [], products, previewUrl: input.previewUrl, openedBy: doneByOfInput(input), agent: input.agent, source: input.source, library: input.library };
   if (input.dryRun) {
     out.pieces = await proposePiecesOnGitHub(gh, p.number, { ...ask, dryRun: true }).catch((e: Error) => ({ proposed: [], already: [], unknown: [], warnings: [e.message] }));
     return out;
@@ -125,6 +127,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
         branch: p.headRef,
         pr: { number: p.number, url: p.url },
         doneBy: input.openedBy,
+        doneByName: input.openedByName,
       });
     // Said again after Back to exploring: the same task comes back, never a second one next to it.
     const earlier = designTaskRef(e?.task, codeRepo);
@@ -151,7 +154,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   // The pieces wrote their links into the body: read it again before the developer section goes in.
   const latest = await gh.getPullRequest(p.number).catch(() => p);
   const doneAt = parseExplorationBody(plan.body)?.doneAt ?? (input.date ?? new Date()).toISOString();
-  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneBy: input.openedBy, doneSha, checks, ...(codeRepo ? { copy: gh.fullName } : {}), ...(task ? { task } : {}) }) });
+  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneBy: doneByOfInput(input), doneSha, checks, ...(codeRepo ? { copy: gh.fullName } : {}), ...(task ? { task } : {}) }) });
   return out;
 }
 
@@ -189,7 +192,7 @@ export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | 
       out.warnings.push(`The developers' task stays open (${(e as Error).message}). Close ${task.url} on GitHub.`);
     }
   }
-  await gh.updatePullRequest(p.number, { body: withoutDoneExploring(p.body, (opts.date ?? new Date()).toISOString(), opts.by) });
+  await gh.updatePullRequest(p.number, { body: withoutDoneExploring(p.body, (opts.date ?? new Date()).toISOString(), githubLoginOf(opts.by)) });
   const x = gh.withBranchPrefix(EXPLORATION_PREFIX);
   if (!(await x.addLabels(p.number, [EXPLORATION_LABEL]))) out.warnings.push(`The ${EXPLORATION_LABEL} label could not be added back.`);
   await x.removeLabel(p.number, EXPLORATION_READY_LABEL).catch((e: Error) => {
@@ -207,4 +210,13 @@ export function designTaskRef(url: string | null | undefined, repo: string | nul
   if (!m) return null;
   if (repo && m[1]!.toLowerCase() !== repo.toLowerCase()) return null;
   return { repo: m[1]!, number: Number(m[2]), url: url!.trim() };
+}
+
+/**
+ * Who said Done exploring, as GitHub content may record it (the exploration's note, the library requests): a GitHub
+ * login only. A member without GitHub is named by Bridge's own attribution line and their commits, never by an email
+ * and never by a bare name that could @mention someone else on GitHub.
+ */
+function doneByOfInput(input: { openedBy?: string | undefined }): string | undefined {
+  return githubLoginOf(input.openedBy) ?? undefined;
 }

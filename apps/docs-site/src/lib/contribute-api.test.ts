@@ -367,7 +367,7 @@ describe('proxy: what is allowed', () => {
     const { call } = await ready();
     const { r, sent } = await call('POST', `${P}/git/commits`, { message: 'm', tree: 't', parents: ['p'], author: { name: 'Boss', email: 'boss@acme.design', date: '2026-10-22T09:00:00Z' }, committer: { name: 'Boss', email: 'boss@acme.design' } });
     expect(r.status).toBe(201);
-    expect(sent!.body).toEqual({ message: 'm', tree: 't', parents: ['p'], author: { name: 'Mia Chen', email: 'mia@acme.design', date: '2026-10-22T09:00:00Z' } });
+    expect(sent!.body).toEqual({ message: 'm', tree: 't', parents: ['p'], author: { name: 'Mia Chen', email: publicEmail(SECRET, REPO, 'mia@acme.design'), date: '2026-10-22T09:00:00Z' } });
   });
 
   it('POST git/refs: a new branch, not the default, not existing; it becomes theirs', async () => {
@@ -395,10 +395,10 @@ describe('proxy: what is allowed', () => {
     await branch('bridge/mia-1');
     const put = await call('PUT', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', content: 'e30=', sha: 'old', branch: 'bridge/mia-1', committer: { name: 'Boss', email: 'boss@acme.design' } });
     expect(put.r.status).toBe(200);
-    expect(put.sent!.body).toEqual({ message: 'm', content: 'e30=', sha: 'old', branch: 'bridge/mia-1', author: { name: 'Mia Chen', email: 'mia@acme.design' } });
+    expect(put.sent!.body).toEqual({ message: 'm', content: 'e30=', sha: 'old', branch: 'bridge/mia-1', author: { name: 'Mia Chen', email: publicEmail(SECRET, REPO, 'mia@acme.design') } });
     const del = await call('DELETE', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', sha: 'old', branch: 'bridge/mia-1' });
     expect(del.r.status).toBe(200);
-    expect(del.sent!.body.author).toEqual({ name: 'Mia Chen', email: 'mia@acme.design' });
+    expect(del.sent!.body.author).toEqual({ name: 'Mia Chen', email: publicEmail(SECRET, REPO, 'mia@acme.design') });
     for (const b of [undefined, 'main', 'theirs']) {
       expect((await call('PUT', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', content: 'e30=', ...(b ? { branch: b } : {}) })).r.status, String(b)).toBe(403);
       expect((await call('DELETE', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', sha: 'old', ...(b ? { branch: b } : {}) })).r.status, String(b)).toBe(403);
@@ -411,7 +411,7 @@ describe('proxy: what is allowed', () => {
     await branch('bridge/mia-2');
     const { r, sent } = await call('POST', `${P}/pulls`, { title: 'Ocean brand', head: 'acme:bridge/mia-1', base: 'main', body: 'Why', maintainer_can_modify: true, issue: 3 });
     expect(r.status).toBe(201);
-    expect(sent!.body).toEqual({ title: 'Ocean brand', head: 'bridge/mia-1', base: 'main', body: 'Why\n\nRequested by Mia Chen (mia@acme.design) through Bridge.' });
+    expect(sent!.body).toEqual({ title: 'Ocean brand', head: 'bridge/mia-1', base: 'main', body: 'Why\n\nRequested by Mia Chen through Bridge.' });
     expect(await s.redis.cmd('GET', `bridge:contrib:issue:${REPO}:40`)).toBe('mia@acme.design');
     expect((await call('POST', `${P}/pulls`, { title: 't', head: 'bridge/mia-2', base: 'bridge/mia-1' })).r.status).toBe(201);
     for (const b of [
@@ -462,7 +462,7 @@ describe('proxy: what is allowed', () => {
     const { s, call } = await ready();
     const { r, sent } = await call('POST', `${P}/issues`, { title: 'Add a chip', labels: ['request'], assignees: ['dana'] });
     expect(r.status).toBe(201);
-    expect(sent!.body).toEqual({ title: 'Add a chip', labels: ['request'], body: 'Requested by Mia Chen (mia@acme.design) through Bridge.' });
+    expect(sent!.body).toEqual({ title: 'Add a chip', labels: ['request'], body: 'Requested by Mia Chen through Bridge.' });
     expect(await s.redis.cmd('GET', `bridge:contrib:issue:${REPO}:40`)).toBe('mia@acme.design');
     expect((await call('PATCH', `${P}/issues/40`, { state: 'closed', labels: [] })).r.status).toBe(200);
     expect((await call('PATCH', `${P}/issues/40`, { assignees: ['dana'] })).r.status).toBe(403);
@@ -477,7 +477,7 @@ describe('proxy: what is allowed', () => {
     const body = sent!.body as { title: string; body: string; labels: string[] };
     expect(body.labels).toEqual(expect.arrayContaining(['component-change', 'bridge-build', 'request: new-variant', 'source: studio']));
     expect(parseBuildRequestIssue(body.body)?.title).toBe('A danger ghost variant');
-    expect(body.body.endsWith('Requested by Mia Chen (mia@acme.design) through Bridge.')).toBe(true);
+    expect(body.body.endsWith('Requested by Mia Chen through Bridge.')).toBe(true);
   });
 
   it('POST issues/<n>/comments on any issue or pull request, with their name first; labels on theirs only', async () => {
@@ -621,17 +621,17 @@ describe('privacy on a public repository', () => {
     expect(all).not.toContain('mia@acme.design');
   });
 
-  it('keeps the real email on a private repository', async () => {
+  it('never publishes it on a private repository either', async () => {
     const { call } = await readyAt({ private: true });
-    expect((await call('POST', `${P}/git/commits`, { message: 'm', tree: 't', parents: [] })).sent!.body.author.email).toBe('mia@acme.design');
-    expect((await call('POST', `${P}/issues`, { title: 't' })).sent!.body.body).toBe('Requested by Mia Chen (mia@acme.design) through Bridge.');
+    expect((await call('POST', `${P}/git/commits`, { message: 'm', tree: 't', parents: [] })).sent!.body.author.email).toBe(publicEmail(SECRET, REPO, 'mia@acme.design'));
+    expect((await call('POST', `${P}/issues`, { title: 't' })).sent!.body.body).toBe('Requested by Mia Chen through Bridge.');
   });
 });
 
 describe('attribution stays', () => {
   it('a new body of their pull request or issue gets the Requested by line back, once', async () => {
     const { call, branch } = await readyAt();
-    const line = 'Requested by Mia Chen (mia@acme.design) through Bridge.';
+    const line = 'Requested by Mia Chen through Bridge.';
     await branch('bridge/mia-1');
     await call('POST', `${P}/pulls`, { title: 't', head: 'bridge/mia-1', base: 'main' });
     expect((await call('PATCH', `${P}/pulls/40`, { body: 'Edited, no line' })).sent!.body).toEqual({ body: `Edited, no line\n\n${line}` });

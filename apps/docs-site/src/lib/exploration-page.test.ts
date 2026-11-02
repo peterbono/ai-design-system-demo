@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BranchCommitLike } from '@bridge-ds/core';
 import {
+  canRunCheck,
   activityRows,
   avatarOf,
   buildersOf,
@@ -259,5 +260,22 @@ describe('after Done exploring (Waiting to be picked up, Being built, Shipped)',
     expect(changedScreenOf(['.bridge/exploration.md'])).toBeNull();
     expect(changedScreenOf(null)).toBeNull();
     expect(checkInClaudeLine('Dashboard', '#admin-app#2')).toBe('Check what the exploration "Dashboard" (#admin-app#2) adds that the library does not have, and record it in Bridge.');
+  });
+});
+
+describe('the library check runs on its own', () => {
+  const base = { github: false, emailInCopy: false, direct: true, emailOnProduct: false, keeper: true, write: false };
+  it('for a member who joined by email, on their exploration in the design team copy', () => {
+    expect(canRunCheck({ ...base, emailInCopy: true })).toBe(true);
+  });
+  it('for someone signed in with GitHub who may write it', () => {
+    expect(canRunCheck({ ...base, github: true })).toBe(true);
+    expect(canRunCheck({ ...base, github: true, keeper: false, write: true })).toBe(true);
+  });
+  it('never for someone who may not write it, signed out, or outside direct mode', () => {
+    expect(canRunCheck({ ...base, github: true, keeper: false })).toBe(false);
+    expect(canRunCheck(base)).toBe(false);
+    expect(canRunCheck({ ...base, github: true, direct: false })).toBe(false);
+    expect(canRunCheck({ ...base, emailInCopy: true, emailOnProduct: true })).toBe(false);
   });
 });

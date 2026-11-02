@@ -101,6 +101,15 @@ export async function getLatestDesignCopyOnGitHub(copy: GitHubClient, branch?: s
  * The developers' task Done exploring opens in the product's own repository: what the prototype is, its preview, what
  * changes, the library pieces it needed, and where its code is if they want it. Markdown for GitHub.
  */
+/**
+ * A GitHub login, or null for anything else (an email, a display name with spaces): a member's email never goes
+ * into GitHub content, even when a caller passes one by mistake.
+ */
+export function githubLoginOf(s: string | null | undefined): string | null {
+  const v = s?.trim().replace(/^@/, '') ?? '';
+  return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(v) ? v : null;
+}
+
 export function designTaskBody(t: {
   name: string;
   purpose?: string | null | undefined;
@@ -110,10 +119,15 @@ export function designTaskBody(t: {
   copy: string;
   branch: string;
   pr: { number: number; url: string };
+  /** The GitHub login of who said Done exploring: "From @login." */
   doneBy?: string | null | undefined;
+  /** Who said it when they have no GitHub account (a member who joined by email): their display name, never an email. */
+  doneByName?: string | null | undefined;
 }): string {
+  const login = githubLoginOf(t.doneBy);
+  const by = login ? ` From @${login}.` : t.doneByName?.trim() ? ` From ${t.doneByName.trim()}, through Bridge.` : '';
   const lines = [
-    `The design team explored this in Bridge and sends it to you to build.${t.doneBy ? ` From @${t.doneBy}.` : ''}`,
+    `The design team explored this in Bridge and sends it to you to build.${by}`,
     '',
     ...(t.purpose?.trim() ? [`**Purpose.** ${t.purpose.trim()}`, ''] : []),
     `**Preview.** ${t.previewUrl ?? `In the Vercel comment of the prototype: ${t.pr.url}`}`,

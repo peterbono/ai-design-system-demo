@@ -12,6 +12,7 @@
 import { archiveExplorationOnGitHub, branchPreviewUrl, explorationStage, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
+  canRunCheck,
   reopenedOf,
   buildersOf,
   changedScreenOf,
@@ -266,7 +267,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
           products,
           focus,
           // A product exploration never checked: Bridge checks it while the dialog is open, then offers the pieces.
-          check: !isLibrary && connected() && direct && !emailOnProduct ? { repo: `${CFG.owner}/${CFG.repo}`, ref: r.product ? `${r.product}#${r.number}` : String(r.number), body: () => ghGet<ExplorationPullLike>(`${own ? `/repos/${own.repo}` : R}/pulls/${r.number}`).then((f) => f.data.body) } : null,
+          check: !isLibrary && (connected() || Boolean(member && inCopy)) && direct && !emailOnProduct ? { repo: `${CFG.owner}/${CFG.repo}`, ref: r.product ? `${r.product}#${r.number}` : String(r.number), body: () => ghGet<ExplorationPullLike>(`${own ? `/repos/${own.repo}` : R}/pulls/${r.number}`).then((f) => f.data.body) } : null,
           after: (line) => {
             repaint(d, key, { said: line });
             reopen(line);
@@ -281,7 +282,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
         : null,
       onReopen: menu.reopen && !r.archived
         ? async () => {
-            const back = await reopenExplorationOnGitHub(gh, r.number, { by: currentViewer()?.login ?? null });
+            const back = await reopenExplorationOnGitHub(gh, r.number, { by: currentViewer()?.email ? null : (currentViewer()?.login ?? null) });
             // A token without the right to edit labels: the body says it runs again, designers never read why.
             if (back.warnings.length) console.warn('Back to exploring:', back.warnings.join(' '));
             reopen(BACK_TO_EXPLORING_LINE);
@@ -446,8 +447,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   if (devRead) review.draft = devRead.pull.draft === true;
   const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease });
   const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
-  // Who may run the check: someone who can write it, signed in with GitHub, in a team that writes branches.
-  const canCheck = connected() && direct && !emailOnProduct && (keeper || currentAccess()?.write === true);
+  // Who may run the check: someone who can write it, in a team that writes branches. Bridge's server runs it for them:
+  // with their GitHub sign-in, or for an email member in the design team's copy with their Bridge session.
+  const canCheck = canRunCheck({ github: connected(), emailInCopy: Boolean(member && inCopy), direct, emailOnProduct, keeper, write: currentAccess()?.write === true });
   const claudeLine = connected() ? checkInClaudeLine(r.name, `#${ref}`) : null;
   const mode: ChangesMode = sendModeFor(currentAccess(), changesModeOnPage());
   const lib = dsClient();

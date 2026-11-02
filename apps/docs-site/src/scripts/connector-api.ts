@@ -3,7 +3,7 @@
 // and the session cookie. Every rule is checked by the server.
 import { CONTRIBUTE_HEADER } from '../lib/contribute';
 import type { Connection } from '../lib/claude-connector';
-import { getToken, noteWrite, signedInWithGitHub } from './github-session';
+import { currentContributor, getToken, noteWrite, signedInWithGitHub } from './github-session';
 
 export const CONNECTOR_API = '/api/mcp';
 
@@ -52,11 +52,12 @@ export async function listFixSessions(repo: string): Promise<unknown[]> {
 
 /**
  * Bridge's library check of an exploration (the adoption audit on its changes, recorded on it), run by the server with
- * the viewer's GitHub sign-in. `ref`: "12", or "shop#12" in a product's own repository. Throws ConnectorUnavailable
+ * the viewer's GitHub sign-in or, for an email member, their Bridge session. `ref`: "12", or "shop#12" in a product's own repository. Throws ConnectorUnavailable
  * when the site cannot run it (a local `astro dev`, a fork), else an Error with a sentence for designers.
  */
 export async function checkPieces(repo: string, ref: string): Promise<{ checked: boolean; pieces: number }> {
-  if (!signedInWithGitHub()) throw new ConnectorUnavailable();
+  // GitHub sign-in or an email member's Bridge session: the server routes each through Bridge as the connector does.
+  if (!signedInWithGitHub() && !currentContributor()) throw new ConnectorUnavailable();
   const r = await call<{ checked?: boolean; pieces?: number }>('POST', '?view=pieces', { repo, pr: ref });
   // The server wrote the result on the pull request: the reads that follow ask GitHub, not the browser's copy.
   noteWrite();

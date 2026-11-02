@@ -54,7 +54,7 @@
 //   PUT    contents/<path>             a design file; branch required and theirs; the author is set to the member
 //   DELETE contents/<path>             same
 //   POST   pulls                       head is their branch, base the default branch or their branch; the body gets
-//                                      "Requested by <name> (<email>) through Bridge."; the pull request becomes theirs
+//                                      "Requested by <name> through Bridge." (never their email); the pull request becomes theirs
 //   PATCH  pulls/<n>                   theirs only; only title, body, state, draft; a new body keeps the line
 //   PUT    pulls/<n>/update-branch     theirs only
 //   POST   issues                      the same "Requested by" line; the issue becomes theirs
@@ -789,8 +789,9 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
   const author = async () =>
     c.member.login
       ? { name: c.member.name, email: `${c.member.githubId ? `${c.member.githubId}+` : ''}${c.member.login}@users.noreply.github.com` }
-      : { name: c.member.name, email: (await info()).private ? c.member.email : publicEmail(ctx.svc.secret, c.full, c.member.email) };
-  const line = async () => `Requested by ${c.member.name}${c.member.login ? ` (@${c.member.login})` : (await info()).private ? ` (${c.member.email})` : ''} through Bridge.`;
+      : { name: c.member.name, email: publicEmail(ctx.svc.secret, c.full, c.member.email) };
+  // A member's email never goes into GitHub content, public or private repository: their name names them.
+  const line = async () => `Requested by ${c.member.name}${c.member.login ? ` (@${c.member.login})` : ''} through Bridge.`;
   /** The text with the "Requested by" line at the end, unless it already carries it (attribution is never edited away). */
   const requested = async (text: unknown) => {
     const l = await line();
