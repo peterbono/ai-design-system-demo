@@ -250,7 +250,9 @@ export function initReviewQueue() {
     if (!row) return;
     outcomes.set(row.key, outcome);
     decided.set(row.key, row);
-    setReviewCount(rows.filter((r) => r.kind === 'review' && !outcomes.has(r.key)).length);
+    // In the lead's seat on the sample team, the badge counts the guidance drafts too, as its home line and Waiting on
+    // me do (lib/demo-home leadWaitingCount).
+    setReviewCount(rows.filter((r) => (r.kind === 'review' || (onSampleTeam() && r.kind === 'guidance')) && !outcomes.has(r.key)).length);
     return { i, row };
   }
 

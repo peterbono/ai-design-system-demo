@@ -83,6 +83,7 @@ import { backToDraft, detailStatus, statusActionFor, takeSaid, type StatusAction
 import { ACTION_LABEL } from '../lib/change-status';
 import { ownedBy, PRODUCTS } from '../lib/branches-page';
 import { waitsOnMe } from '../lib/waiting-on';
+import { waitsOnLead } from '../lib/demo-home';
 import { LIFECYCLE_LABEL, needsReviewRead, pullLifecycle, reviewLine, waitsOnViewer, type LifecyclePull, type LifecycleStage, type PullReviewLike } from '../lib/review-state';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
 import { readReviews } from './review-reads';
@@ -411,19 +412,22 @@ function listRow(r: Row): ListRow {
   // changes requested wait on them.
   const contributor = Boolean(currentContributor());
   const own = contributor ? ownedBy({ author: r.user.login, number: r.number, headRef: r.head?.ref ?? null, product: r.product ?? null }, listViewer(), contribMine, `${repo.owner}/${repo.repo}`) : undefined;
-  // Waiting on me: the one rule of every surface (lib/waiting-on), the lead's seat on the demo included (every branch in
-  // review waits on the lead, as on its home). An email contributor's own branches come from the server's list.
+  // Waiting on me: the one rule of every surface (lib/waiting-on). In the lead's seat on the demo, the very predicate of
+  // its home and its Changes badge (lib/demo-home waitsOnLead), so the three counts agree. An email contributor's own
+  // branches come from the server's list.
   const seat = demoSeat();
   // Approve tried on the sample team during this visit (scripts/demo-approvals.ts): no longer waiting, and says so.
   const demoApproved = seat !== null && isSampleTeam(`${repo.owner}/${repo.repo}`) && demoApprovals().has(r.number);
   const turn =
     !demoApproved &&
-    (lifecycle === 'exploration' ? Boolean(r.reviewWaits) : true) &&
-    (lifecycle === 'exploration' ||
-    waitsOnMe(
-      { author: own ? (listViewer() ?? r.user.login) : r.user.login, draft: r.draft, labels: r.labels, nature: r.nature, guidance: r.guidance, lifecycle, who: rowWho(r.kind, facts(r)), requested: r.requested, changesRequested: r.changesRequested },
-      { login: seat ?? listViewer(), role: seat ? 'reviewer' : contributor ? 'contributor' : viewerRole(), seat: seat !== null },
-    ));
+    (seat !== null
+      ? !r.product && waitsOnLead(r)
+      : (lifecycle === 'exploration' ? Boolean(r.reviewWaits) : true) &&
+        (lifecycle === 'exploration' ||
+          waitsOnMe(
+            { author: own ? (listViewer() ?? r.user.login) : r.user.login, draft: r.draft, labels: r.labels, nature: r.nature, guidance: r.guidance, lifecycle, who: rowWho(r.kind, facts(r)), requested: r.requested, changesRequested: r.changesRequested },
+            { login: listViewer(), role: contributor ? 'contributor' : viewerRole() },
+          )));
   return {
     number: r.number,
     title: humanTitle(mdTitleText(withoutJiraKey(r.title))),

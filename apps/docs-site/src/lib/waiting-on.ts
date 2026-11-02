@@ -132,3 +132,9 @@ export const waitsOnMe = (c: WaitChange, v: WaitViewer): boolean => waitingOn(c,
 
 /** How many changes wait on the viewer's review (not their own branches): the review count of the nav badge. */
 export const reviewCount = (changes: WaitChange[], v: WaitViewer): number => changes.filter((c) => isReviewTask(waitingOn(c, v))).length;
+
+/**
+ * What a screen reader hears after "Changes" for the nav badge: ", 17 waiting for a review", or nothing at all when no
+ * count is shown (never the clause without its number).
+ */
+export const reviewBadgeLabel = (n: number | null | undefined): string => (n && n > 0 ? `, ${n} waiting for a review` : '');

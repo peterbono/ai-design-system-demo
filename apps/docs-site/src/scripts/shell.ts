@@ -2,13 +2,14 @@
 // the theme (light, dark or System, picked in Settings), copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the view of a change (scripts/view-change), the nav counts and the GitHub connection.
 import { bindCodeBlocks, bindDialogs, bindTooltips, closeDialog, isDialogOpen, openDialog } from '@bridge-ds/react/dom';
-import { getToken, initGitHubConnect } from './github-session';
+import { currentViewer, getToken, initGitHubConnect } from './github-session';
 import { loadReviewNeedsYou, rememberedMine, type QueuePullFull } from './needs-you';
 import { initMaintainer } from './maintainer';
 import { pointLinksAtTeam } from './team-links';
 import { initVanillaControls } from './vanilla-controls';
 import { initViewChange, readOpenPulls } from './view-change';
 import { followThemePref } from '../lib/theme-pref';
+import { reviewBadgeLabel } from '../lib/waiting-on';
 import { navGroupOpen, readNavGroup, writeNavGroup } from '../lib/nav-groups';
 
 interface SearchItem {
@@ -615,11 +616,14 @@ export function draftCount(): number {
 export const setReviewCount = (n: number | null) => setCount('reviews', n);
 
 function setCount(kind: 'drafts' | 'reviews', n: number | null) {
-  // The nav shows one number, on Changes: the changes in review that wait on the viewer (hidden at 0).
+  // The nav shows one number, on Changes: the changes in review that wait on the viewer (hidden at 0). Its link reads
+  // "Changes, 17 waiting for a review", never the clause without its number.
   document.querySelectorAll<HTMLElement>(`[data-nav-count="${kind}"]`).forEach((el) => {
     el.hidden = !n;
     const v = el.querySelector('[data-nav-count-value]');
     if (v) v.textContent = n ? String(n) : '';
+    const said = el.querySelector('[data-nav-count-label]');
+    if (said) said.textContent = reviewBadgeLabel(n);
   });
   // The Drafts counter in the Studio header always shows its number, zero included.
   if (kind === 'drafts')
@@ -674,10 +678,16 @@ function initStudio() {
   readOpenPulls()
     .then((f) => {
       // What waits on the viewer in the review queue (the same list as the In review tab and the Overview), with the
-      // Overview's rule (lib/overview-todo reviewNeedsYou). Signed out nothing waits on you: no badge.
+      // Overview's rule (lib/overview-todo reviewNeedsYou).
       if (!pageCounts)
         initGitHubConnect((v) => {
-          if (!v) return setCount('reviews', null);
+          // Signed out nothing waits on you, except in the lead's seat on a demo team: the count of its home line and
+          // Changes > Waiting on me (scripts/demo-home demoLeadCount).
+          if (!v) {
+            setCount('reviews', null);
+            void import('./demo-home').then((m) => m.demoLeadCount()).then((n) => n !== null && !currentViewer() && setCount('reviews', n), () => undefined);
+            return;
+          }
           void loadReviewNeedsYou(f.data.map((p) => ({ ...p, state: p.state ?? 'open' })) as unknown as QueuePullFull[])
             .then((n) => setCount('reviews', n))
             .catch(() => undefined);

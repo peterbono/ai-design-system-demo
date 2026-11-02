@@ -9,7 +9,7 @@ import { productsOf } from '@bridge-ds/core';
 import { currentContributor, currentViewer } from './github-session';
 import { siteConfig } from './repo-context';
 import { isDemoRepo } from '../lib/demo';
-import { askerOf } from '../lib/demo-home';
+import { askerOf, leadSuggestions } from '../lib/demo-home';
 import { guidanceNeed } from '../lib/home-model';
 import { guidanceExtra, suggestionExtra, type WaitingExtra } from '../lib/review-categories';
 import { shortTitle, suggestionNeed } from '../lib/suggestions-view';
@@ -24,12 +24,10 @@ export async function readWaitingExtras(x: { owner: string; repo: string; guidan
   if (seat) {
     const { readDemoActivity } = await import('./demo-home');
     const { suggestions } = await readDemoActivity({ owner: x.owner, repo: x.repo }).catch(() => ({ suggestions: [] }));
-    const asked = suggestions
-      .filter((s) => !s.pull_request)
-      .map((s) => {
-        const need = suggestionNeed({ number: s.number, title: shortTitle(s.title), createdAt: s.created_at }, askerOf({ user: s.user, body: s.body ?? null, labels: null }), now);
-        return suggestionExtra({ ...need, number: s.number }, s.number, (s.labels ?? []).map((l) => (typeof l === 'string' ? l : l.name)), products);
-      });
+    const asked = leadSuggestions(suggestions).map((s) => {
+      const need = suggestionNeed({ number: s.number, title: shortTitle(s.title), createdAt: s.created_at }, askerOf({ user: s.user, body: s.body ?? null, labels: null }), now);
+      return suggestionExtra({ ...need, number: s.number }, s.number, (s.labels ?? []).map((l) => (typeof l === 'string' ? l : l.name)), products);
+    });
     return [...asked, ...guidance];
   }
   const [{ loadSuggestionQueue }, { personOf }] = await Promise.all([import('./suggestions'), import('./home-data')]);
