@@ -106,6 +106,13 @@ export interface Exploration {
   reopenedAt?: string | undefined;
   /** GitHub login of who said "Back to exploring", when known (the activity names them). */
   reopenedBy?: string | undefined;
+  /**
+   * A member who joined by email (no GitHub login), as Bridge's server names them: a stable member reference (16 hex
+   * characters, never their email) and their display name. Who started it, and who said Done exploring.
+   */
+  member?: string | undefined;
+  memberName?: string | undefined;
+  doneByMember?: string | undefined;
 }
 
 const MARK = 'bridge-exploration';
@@ -318,6 +325,9 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
   return lines.join('\n');
 }
 
+/** A member reference as Bridge's server writes it (16 hex characters), else null. */
+const memberRefOf = (v: string | undefined): string | null => (typeof v === 'string' && /^[0-9a-f]{16}$/.test(v) ? v : null);
+
 /** The hidden block tools read: the exploration as JSON. */
 function explorationBlock(e: Exploration): string {
   // Who started, said done or took it back, as GitHub content may hold it: GitHub logins only, never a member's email.
@@ -341,6 +351,9 @@ function explorationBlock(e: Exploration): string {
     ...(e.task ? { task: e.task } : {}),
     ...(e.reopenedAt ? { reopenedAt: e.reopenedAt } : {}),
     ...(e.reopenedAt && reopenedBy ? { reopenedBy } : {}),
+    ...(memberRefOf(e.member) ? { member: e.member } : {}),
+    ...(memberRefOf(e.member) && e.memberName && !e.memberName.includes('@') ? { memberName: e.memberName.trim().slice(0, 80) } : {}),
+    ...(e.doneAt && memberRefOf(e.doneByMember) ? { doneByMember: e.doneByMember } : {}),
   };
   return `<!-- ${MARK} ${JSON.stringify(data).replace(/-->/g, '--\\u003e')} -->`;
 }
@@ -624,7 +637,7 @@ export function withoutDoneExploring(body: string | null | undefined, reopenedAt
   const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
   const kept = (body ?? '').replace(/### For developers[\s\S]*?(?=### |<!-- |$)/, '');
   if (!e || !block.test(kept)) return kept.trim();
-  const { doneAt: _doneAt, doneSha: _doneSha, reopenedBy: _by, ...rest } = e;
+  const { doneAt: _doneAt, doneSha: _doneSha, reopenedBy: _by, doneByMember: _byMember, ...rest } = e;
   const at = kept.search(block);
   const after = kept.slice(at).replace(block, () => explorationBlock({ ...rest, reopenedAt, ...(reopenedBy ? { reopenedBy } : {}) }));
   return `${kept.slice(0, at).trim()}\n\n${after.trim()}`.trim();

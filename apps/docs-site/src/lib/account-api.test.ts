@@ -573,7 +573,7 @@ describe('the contributor proxy accepts the account session', () => {
     await s.members.put(REPO, member('mia@acme.design'));
     const { cookie } = await signInWithCode(s);
     expect((await handleContribute(gh(cookie), ENV, contrib(s))).status).toBe(200);
-    expect(await (await handleContribute(status(cookie), ENV, contrib(s))).json()).toEqual({ available: true, member: { email: 'mia@acme.design', name: 'Mia', role: 'edit' } });
+    expect(await (await handleContribute(status(cookie), ENV, contrib(s))).json()).toEqual({ available: true, member: { email: 'mia@acme.design', name: 'Mia', role: 'edit', ref: expect.stringMatching(/^[0-9a-f]{16}$/) } });
     const { cookie: other } = await signInWithCode(s, 'boss@acme.design');
     expect((await handleContribute(gh(other), ENV, contrib(s))).status).toBe(401);
   });

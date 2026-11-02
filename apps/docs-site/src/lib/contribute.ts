@@ -44,6 +44,8 @@ export interface ContributeMember {
   name: string;
   /** 'admin' only in `npm run dev:full`, for a member seeded as admin (api/_lib/local-admin.ts). */
   role: 'edit' | 'admin';
+  /** Their stable member reference (api/_lib/exploration-member memberRef): how exploration blocks name them, never by email. */
+  ref?: string;
 }
 
 /**
@@ -104,7 +106,8 @@ export function parseMember(v: unknown, local = localDevHost()): ContributeMembe
   const m = v as Record<string, unknown>;
   if (typeof m.email !== 'string' || !m.email.includes('@')) return null;
   const name = typeof m.name === 'string' && m.name.trim() ? m.name.trim() : m.email;
-  return { email: m.email, name, role: local && m.role === 'admin' ? 'admin' : 'edit' };
+  const ref = typeof m.ref === 'string' && /^[0-9a-f]{16}$/.test(m.ref) ? m.ref : null;
+  return { email: m.email, name, role: local && m.role === 'admin' ? 'admin' : 'edit', ...(ref ? { ref } : {}) };
 }
 
 /** Every designer-facing sentence of the email path, in one place. */

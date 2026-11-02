@@ -109,6 +109,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
+import { memberRef, withMemberInBlock } from '../_lib/exploration-member.js';
 import { branchKey, issueKey, mineKey } from '../_lib/former-member.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
@@ -393,7 +394,7 @@ export async function contributorOf(req: Request, repoFull: string, env: Contrib
   return sessionMember({ f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env }, req, repoFull);
 }
 
-const publicMember = (m: EmailMember) => ({ email: m.email, name: m.name, role: m.role });
+const publicMember = (m: EmailMember) => ({ email: m.email, name: m.name, role: m.role, ref: memberRef(m.email) });
 
 // ---------------------------------------------------------------------------------------------------------------
 // Small helpers
@@ -795,7 +796,9 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
   /** The text with the "Requested by" line at the end, unless it already carries it (attribution is never edited away). */
   const requested = async (text: unknown) => {
     const l = await line();
-    const t = typeof text === 'string' ? text : '';
+    // A member without GitHub is named in the exploration block by their member reference and name, never their email.
+    const raw = typeof text === 'string' ? text : '';
+    const t = c.member.login ? raw : withMemberInBlock(raw, { ref: memberRef(c.member.email), name: c.member.name });
     if (t.includes(l)) return t;
     return `${t.trim() ? `${t}\n\n` : ''}${l}`;
   };

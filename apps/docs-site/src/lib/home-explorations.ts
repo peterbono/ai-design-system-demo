@@ -109,7 +109,10 @@ export function explorationProductKey(p: Pick<ExplorationPull, 'labels'> & { pro
  * member, or a designer whose writes go through the app since designers write through Bridge), with their name on it
  * (the "Requested by" line, or the exploration block's author). Other automation stays off the home.
  */
-const openedForSomeone = (p: Pick<ExplorationPull, 'body'>) => Boolean(requesterOf(p.body) || parseExplorationBody(p.body)?.author);
+const openedForSomeone = (p: Pick<ExplorationPull, 'body'>) => {
+  const e = parseExplorationBody(p.body);
+  return Boolean(requesterOf(p.body) || e?.author || e?.member);
+};
 
 /** An exploration, or a branch started for a product: what the home's section shows. Library changes are not. */
 export function isHomeExploration(p: ExplorationPull, products: readonly ProductConfig[]): boolean {
@@ -168,10 +171,17 @@ export function explorationHref(p: ExplorationPull): string {
   return studioHref(exploration ? `changes/?exploration=${p.number}` : `changes/?pr=${p.number}`);
 }
 
-/** The viewer's own: they opened it, asked for it ("Requested by"), or started it (the exploration block's author). */
-export function isOwnExploration(p: Pick<ExplorationPull, 'user' | 'body'>, viewer: string | null | undefined): boolean {
+/**
+ * The viewer's own: they opened it, asked for it ("Requested by"), or started it: the exploration block's author, or for
+ * a member who joined by email its member reference (`member`, never their email; older blocks carried the email as
+ * author, still matched).
+ */
+export function isOwnExploration(p: Pick<ExplorationPull, 'user' | 'body'>, viewer: string | null | undefined, viewerRef?: string | null): boolean {
+  if (!viewer && !viewerRef) return false;
+  const e = parseExplorationBody(p.body);
+  if (viewerRef && typeof e?.member === 'string' && e.member === viewerRef) return true;
   if (!viewer) return false;
-  return same(p.user?.login, viewer) || same(requesterOf(p.body)?.login, viewer) || same(parseExplorationBody(p.body)?.author, viewer);
+  return same(p.user?.login, viewer) || same(requesterOf(p.body)?.login, viewer) || same(e?.author, viewer);
 }
 
 /** The plate of a screen, while no capture of it exists. */
@@ -195,6 +205,8 @@ export interface HomeExplorationsOptions<P extends ExplorationPull = Exploration
   products: readonly ProductConfig[];
   /** Who looks: marks their own (`own`). Omitted on the demo, where the visitor has none. */
   viewer?: string | null;
+  /** A member who joined by email: their member reference, how exploration blocks name them (isOwnExploration). */
+  viewerRef?: string | null;
   /** Only the viewer's own: the home of a contributor (home by role). Leads and reviewers see the team's. */
   onlyOwn?: boolean;
   /** Who explores it (the asker, Claude AI for agent work without one). */
@@ -247,7 +259,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
     .filter((p) => {
       if (seen.has(keyOf(p))) return false;
       seen.add(keyOf(p));
-      return !givenUp(p) && isArchivedExploration(p.labels) === (opts.archived === 'only') && isHomeExploration(p, opts.products) && (!opts.onlyOwn || isOwnExploration(p, opts.viewer));
+      return !givenUp(p) && isArchivedExploration(p.labels) === (opts.archived === 'only') && isHomeExploration(p, opts.products) && (!opts.onlyOwn || isOwnExploration(p, opts.viewer, opts.viewerRef));
     })
     .map((p): ExplorationCard => {
       const files = opts.files;
@@ -271,7 +283,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
         dot: tag.dot,
         updated: p.updated_at,
         preview: previewOf(opts.preview?.(p), { product: product ?? 'Library', screen: changedScreenOf(files?.(p)), seed: keyOf(p) }),
-        own: isOwnExploration(p, opts.viewer),
+        own: isOwnExploration(p, opts.viewer, opts.viewerRef),
       };
     })
     .sort((a, b) => ORDER[a.stage] - ORDER[b.stage] || b.updated.localeCompare(a.updated) || b.number - a.number);
