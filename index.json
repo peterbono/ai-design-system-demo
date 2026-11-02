@@ -3,10 +3,10 @@
   "branch": "bridge-shots",
   "shots": {
     "art-print-shop-co/art-print-shop-design#1": {
-      "sha": "17df2f19f8e3c9c3a7e9f04a61e440bef954e8bc",
-      "capturedAt": "2026-11-01T21:07:13.975Z",
+      "sha": "f50b196ce79b91fa8fc9b4118dc35cd30f37a57b",
+      "capturedAt": "2026-11-02T07:36:44.101Z",
       "image": "art-print-shop-co/art-print-shop-design/1.webp",
-      "url": "https://art-print-shop-design-git-explore-da-6e68e5-peterbonos-projects.vercel.app/",
+      "url": "https://explore-dashboard-orders-wai.art-print-shop-design.pages.dev/",
       "route": "/?tenant=northwind",
       "screen": "Orders waiting to ship alert"
     },
@@ -18,10 +18,10 @@
       "route": "/?tenant=northwind"
     },
     "art-print-shop-co/art-print-shop-design#4": {
-      "sha": "a88753f69f12a7d5f39ccdd99f3daff25f962b6c",
-      "capturedAt": "2026-11-02T00:39:13.080Z",
+      "sha": "9d009318fd51d28cef5666d448b02c989b272187",
+      "capturedAt": "2026-11-02T07:36:41.452Z",
       "image": "art-print-shop-co/art-print-shop-design/4.webp",
-      "url": "https://art-print-shop-design-git-explore-ad-c8ac81-peterbonos-projects.vercel.app/",
+      "url": "https://explore-add-a-toast-alert.art-print-shop-design.pages.dev/",
       "route": "/?tenant=northwind"
     },
     "peterbono/bridge-product-admin#2": {

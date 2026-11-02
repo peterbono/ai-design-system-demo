@@ -1,15 +1,15 @@
 {
   "repo": "art-print-shop-co/art-print-shop-design",
   "pr": 1,
-  "sha": "17df2f19f8e3c9c3a7e9f04a61e440bef954e8bc",
+  "sha": "f50b196ce79b91fa8fc9b4118dc35cd30f37a57b",
   "branch": "explore/dashboard-orders-waiting-to-ship",
   "title": "Exploration: Dashboard, orders waiting to ship",
-  "url": "https://art-print-shop-design-git-explore-da-6e68e5-peterbonos-projects.vercel.app/",
+  "url": "https://explore-dashboard-orders-wai.art-print-shop-design.pages.dev/",
   "route": "/?tenant=northwind",
   "screen": "Orders waiting to ship alert",
-  "capturedAt": "2026-11-01T21:07:13.975Z",
+  "capturedAt": "2026-11-02T07:36:44.101Z",
   "image": "art-print-shop-co/art-print-shop-design/1.webp",
   "width": 800,
   "height": 500,
-  "bytes": 24190
+  "bytes": 24532
 }
