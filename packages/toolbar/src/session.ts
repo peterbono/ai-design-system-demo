@@ -167,11 +167,16 @@ export function readReturn(search: string, storage: StorageLike | null, template
 
 export type Where = 'production' | 'preview' | 'local';
 
-/** Which deployment this page is: the product in production by host or by build, a preview, or a local build. */
-export function whereAmI(host: string, build: Pick<BridgeBuild, 'production' | 'deployEnv'>): Where {
+/**
+ * Which deployment this page is: the product in production by host or by build, a preview, or a local build. A host
+ * that matches the preview template is a preview even when the build does not say (Cloudflare Pages, Netlify and other
+ * hosts set no VERCEL_ENV).
+ */
+export function whereAmI(host: string, build: Pick<BridgeBuild, 'production' | 'deployEnv'> & Partial<Pick<BridgeBuild, 'preview'>>): Where {
   const prodHost = build.production ? safe(() => new URL(build.production!).host, null) : null;
   if (build.deployEnv === 'production' || (prodHost && host.toLowerCase() === prodHost.toLowerCase())) return 'production';
   if (build.deployEnv === 'preview') return 'preview';
+  if (build.preview && isPreviewUrl(`https://${host}`, build.preview)) return 'preview';
   return 'local';
 }
 

@@ -1,9 +1,9 @@
 // Adding a product from Bridge (Settings > Products and the onboarding Products step, components/ds/studio/AddProduct.tsx):
-// the words, the key Bridge gives it, what its Vercel statuses say about its previews, the bridge.config.json entry,
+// the words, the key Bridge gives it, what its host (Vercel, Netlify statuses, Cloudflare Pages check runs) says about its previews, the bridge.config.json entry,
 // the format-preserving edit that appends it, and the pull request that carries it (scripts/roles.ts proposeNewProduct,
 // the same path as a product rename). Designers never read "repository", "fork" or "config" here. Pure, covered by
 // add-product.test.ts.
-import { fromPlain, getEntry, parseJson, serializeJson, type JsonArray, type JsonObject, type ProductConfig } from '@bridge-ds/core';
+import { fromPlain, getEntry, isCloudflareCheck, parseCloudflareCheck, parseJson, serializeJson, type PreviewCheckRun, type JsonArray, type JsonObject, type ProductConfig } from '@bridge-ds/core';
 import { cleanProductName, PRODUCT_NAME_MAX } from './product-name';
 
 export const ADD_PRODUCT_WORDS = {
@@ -80,6 +80,9 @@ function inspector(url: string | null | undefined): { scope: string; project: st
  */
 export function previewsFromStatuses(statuses: readonly StatusLike[]): { preview: string; production: string } | null {
   for (const s of statuses) {
+    // Netlify: `netlify/<site>/deploy-preview` (or `/deploy`): pull request previews and the site's own address.
+    const site = /^netlify\/([a-z0-9-]+)\//i.exec(s.context ?? '')?.[1]?.toLowerCase();
+    if (site) return { preview: `https://deploy-preview-{pr}--${site}.netlify.app`, production: `https://${site}.netlify.app` };
     if (!/^\s*vercel\b/i.test(s.context ?? '')) continue;
     const at = inspector(s.target_url);
     if (!at) continue;
@@ -87,6 +90,27 @@ export function previewsFromStatuses(statuses: readonly StatusLike[]): { preview
       preview: `https://${at.project}-git-{branch}-${at.scope}.vercel.app`,
       production: `https://${at.project}.vercel.app`,
     };
+  }
+  return null;
+}
+
+/**
+ * The previews a product's Cloudflare Pages check run points to: `https://{branch}.<project>.pages.dev` and
+ * `https://<project>.pages.dev`, from the project its preview links are on. Null when no Cloudflare run is there.
+ */
+export function previewsFromCheckRuns(runs: readonly PreviewCheckRun[]): { preview: string; production: string } | null {
+  for (const c of runs) {
+    if (!isCloudflareCheck(c)) continue;
+    const links = parseCloudflareCheck(c);
+    const host = (() => {
+      try {
+        return new URL(links?.branchUrl ?? links?.commitUrl ?? '').hostname.toLowerCase();
+      } catch {
+        return '';
+      }
+    })();
+    const project = /^[a-z0-9-]+\.([a-z0-9-]+)\.pages\.dev$/.exec(host)?.[1];
+    if (project) return { preview: `https://{branch}.${project}.pages.dev`, production: `https://${project}.pages.dev` };
   }
   return null;
 }

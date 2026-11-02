@@ -1,7 +1,7 @@
 // The developers' task Done exploring opened from the design team's copy: one read of the issue, and its timeline while
 // it is open (the developers' pull request that links it, for the Review step).
 import { designReviewComment, designReviewOf, devPullOfTimeline, taskStage, type LifecycleStage, type DesignAnswer, type DesignTaskRead, type DevPull, type TimelineEventLike } from '../lib/review-state';
-import { parseExplorationBody } from '@bridge-ds/core';
+import { isCloudflareCheck, parseCloudflareCheck, parseExplorationBody } from '@bridge-ds/core';
 import { ghGet, ghWrite } from './github-session';
 
 const TASK_URL = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)$/;
@@ -59,14 +59,27 @@ export async function readDevPull(repo: string, pull: DevPull): Promise<{ pull: 
   };
 }
 
-/** The address of the latest deployment GitHub lists for a commit (Vercel reports it there), or null. Two reads. */
+/**
+ * The address of a commit's deployment: the latest one GitHub lists (Vercel, Netlify and most hosts report it there),
+ * else the preview a Cloudflare Pages check run names. Null when none. Two reads, three for Cloudflare.
+ */
 async function deployedUrlOf(repo: string, sha: string): Promise<string | null> {
   try {
     const list = await ghGet<{ id: number }[]>(`/repos/${repo}/deployments?sha=${sha}&per_page=1`);
     const id = list.data?.[0]?.id;
-    if (!id) return null;
-    const statuses = await ghGet<{ state?: string; environment_url?: string | null }[]>(`/repos/${repo}/deployments/${id}/statuses?per_page=5`);
-    return statuses.data?.find((st) => st.state === 'success' && st.environment_url)?.environment_url ?? null;
+    if (id) {
+      const statuses = await ghGet<{ state?: string; environment_url?: string | null }[]>(`/repos/${repo}/deployments/${id}/statuses?per_page=5`);
+      const url = statuses.data?.find((st) => st.state === 'success' && st.environment_url)?.environment_url ?? null;
+      if (url) return url;
+    }
+    const runs = await ghGet<{ check_runs?: { name: string; status: string; conclusion?: string | null; app?: { slug?: string } | null; output?: { summary?: string | null; text?: string | null } | null }[] }>(`/repos/${repo}/commits/${sha}/check-runs?per_page=100`);
+    for (const c of runs.data?.check_runs ?? []) {
+      const run = { name: c.name, status: c.status, app: c.app?.slug ?? null, summary: c.output?.summary ?? null, text: c.output?.text ?? null };
+      if (!isCloudflareCheck(run) || c.conclusion !== 'success') continue;
+      const links = parseCloudflareCheck(run);
+      if (links) return links.branchUrl ?? links.commitUrl;
+    }
+    return null;
   } catch {
     return null;
   }

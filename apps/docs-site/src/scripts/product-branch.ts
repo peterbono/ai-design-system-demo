@@ -22,11 +22,13 @@ import {
   productBranchViewOnGitHub,
   suggestTokenProposalOnGitHub,
   switchToPublishedOnGitHub,
+  previewHostOf,
   tryInProductUrl,
   useLibraryPreviewOnGitHub,
   writeTokenProposalOnGitHub,
   type BranchPreview,
   type BranchPreviewSources,
+  type PreviewCheckRun,
   type PreviewApps,
   type ChangesMode,
   type LibraryTokenWrite,
@@ -99,14 +101,24 @@ export async function previewSources(r: ExplorationRow): Promise<BranchPreviewSo
   const own = productRepoByKey(r.product);
   const RR = own ? `/repos/${own.repo}` : R;
   try {
-    const [comments, statuses] = await Promise.all([
+    const [comments, statuses, checkRuns] = await Promise.all([
       ghGet<{ body?: string | null }[]>(`${RR}/issues/${r.number}/comments?per_page=100`).then((f) => f.data),
       ghGet<{ statuses: { context: string; state: string; description?: string | null; target_url?: string | null }[] }>(`${RR}/commits/${r.headSha}/status`).then((f) => f.data.statuses).catch(() => []),
+      // Cloudflare Pages reports its previews as check runs: read only when the preview is not on Vercel.
+      own && [own.product.preview, own.product.design?.preview].some((t) => !!t && previewHostOf(t) !== 'vercel') ? readCheckRuns(RR, r.headSha) : Promise.resolve([] as PreviewCheckRun[]),
     ]);
-    return { comments, statuses };
+    return { comments, statuses, checkRuns };
   } catch {
     return null;
   }
+}
+
+/** A commit's check runs with their output (Cloudflare Pages writes its preview links there). Empty when unread. */
+export async function readCheckRuns(RR: string, sha: string): Promise<PreviewCheckRun[]> {
+  type Run = { name: string; status: string; conclusion?: string | null; app?: { slug?: string } | null; output?: { summary?: string | null; text?: string | null } | null };
+  return ghGet<{ check_runs?: Run[] }>(`${RR}/commits/${sha}/check-runs?per_page=100`)
+    .then((f) => (f.data.check_runs ?? []).map((c) => ({ name: c.name, status: c.status, conclusion: c.conclusion ?? null, app: c.app?.slug ?? null, summary: c.output?.summary ?? null, text: c.output?.text ?? null })))
+    .catch(() => []);
 }
 
 /**

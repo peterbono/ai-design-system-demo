@@ -92,6 +92,14 @@ describe('where the toolbar shows', () => {
     expect(whereAmI('localhost:5180', build)).toBe('local');
   });
 
+  it('knows a preview by its host when the build does not say (Cloudflare Pages, Netlify)', () => {
+    const cf = { production: 'https://art-print-shop.pages.dev', deployEnv: null, preview: 'https://{branch}.art-print-shop-design.pages.dev' };
+    expect(whereAmI('explore-add-a-toast-alert.art-print-shop-design.pages.dev', cf)).toBe('preview');
+    expect(whereAmI('art-print-shop.pages.dev', cf)).toBe('production');
+    expect(whereAmI('art-print-shop-design.pages.dev', cf)).toBe('local');
+    expect(whereAmI('localhost:5173', cf)).toBe('local');
+  });
+
   it('never renders without a change, and on production only with a preview to return to', () => {
     expect(shouldRender({ change: null, where: 'preview', returnTo: null })).toBe(false);
     expect(shouldRender({ change: 101, where: 'preview', returnTo: null })).toBe(true);

@@ -425,6 +425,9 @@ export interface CheckRun {
   url: string | undefined;
   /** Slug of the GitHub App that reported it ("github-actions", "vercel"), when GitHub says. */
   app?: string | undefined;
+  /** The run's output summary and text (Cloudflare Pages writes its preview URLs there), when it has them. */
+  summary?: string | undefined;
+  text?: string | undefined;
 }
 
 export interface CommitSummary {
@@ -1389,11 +1392,20 @@ export class GitHubClient {
   }
 
   async listCheckRuns(ref: string): Promise<CheckRun[]> {
-    const r = await this.request<{ check_runs: { id: number; name: string; status: string; conclusion: string | null; html_url?: string; app?: { slug?: string } | null }[] }>(
+    const r = await this.request<{ check_runs: { id: number; name: string; status: string; conclusion: string | null; html_url?: string; app?: { slug?: string } | null; output?: { summary?: string | null; text?: string | null } | null }[] }>(
       'GET',
       `${this.repoPath}/commits/${encodeRef(ref)}/check-runs`,
     );
-    return r.check_runs.map((c) => ({ id: c.id, name: c.name, status: c.status, conclusion: c.conclusion, url: c.html_url, ...(c.app?.slug ? { app: c.app.slug } : {}) }));
+    return r.check_runs.map((c) => ({
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      conclusion: c.conclusion,
+      url: c.html_url,
+      ...(c.app?.slug ? { app: c.app.slug } : {}),
+      ...(c.output?.summary ? { summary: c.output.summary } : {}),
+      ...(c.output?.text ? { text: c.output.text } : {}),
+    }));
   }
 
   /** Rulesets that apply to the repository, without their rules (GET /rulesets; read access is enough). */

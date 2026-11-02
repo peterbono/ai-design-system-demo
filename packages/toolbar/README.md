@@ -56,7 +56,7 @@ live tokens). `bridge connect` prints this line with your values.
 | Prop | What it does |
 | --- | --- |
 | `studio`, `production`, `preview` | Override what the config says (for example a staging URL as Before). |
-| `deployEnv` | `"production"` or `"preview"` when your build knows it (Vercel: `VERCEL_ENV`). |
+| `deployEnv` | `"production"` or `"preview"` when your build knows it (Vercel: `VERCEL_ENV`). Optional: on other hosts (Cloudflare Pages, Netlify) a page whose host matches the preview template counts as a preview. |
 | `build` | Every fact at once, read at build time: no config read at run time. |
 | `scope` | A hook returning `{ theme, brand, density, shop, set }` when your app keeps theme and shop in state. Default: the `data-theme`, `data-brand` and `data-density` attributes `ThemeProvider asRoot` puts on `<html>`. |
 | `shops` | `{ id, name, brand }[]` of a multi-brand product, for the screens list and "Switch to <shop>". |
