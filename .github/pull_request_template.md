@@ -26,6 +26,7 @@ Closes #
 - [ ] Stories added or updated for every new state
 - [ ] Changeset added with the right bump (`patch` / `minor` / `major`)
 - [ ] No lint rule disabled, no test or story deleted
+- [ ] Screens comment reviewed: every changed screen looked at, desktop and mobile, light and dark, no render error (docs/VISUAL-CHECK.md)
 
 ## Screenshots
 
