@@ -34,6 +34,7 @@ import {
   explorationRefLabel,
   findExplorationOnGitHub,
   branchPreviewUrls,
+  branchPreviewUrl,
   previewLinksOf,
   productPreviewOnGitHub,
   listProductExplorationsOnGitHub,
@@ -47,6 +48,7 @@ import {
   type ExplorationSource,
   type ExplorationTryIt,
   type ExplorationUseCase,
+  type CommitFile,
   type GitHubClient,
   type ProductConfig,
   continueLines,
@@ -180,7 +182,7 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
     ctx,
     `Token edits: bridge_propose_token_change with "branch": "${branch}". Requests: bridge_create_request with "exploration": "${branch}", then bridge_get_request with "branch": "${branch}".`,
     `Token edits: \`bridge propose --branch ${branch} ...\`. Requests: \`bridge request create --exploration ${branch} ...\`, then \`bridge request implement <n> --branch ${branch}\`.`,
-  )} ${CHANGE_MARKER_RULE} It is never merged as is: say it is done exploring (\`bridge explore done ${slug}\`) to hand it to developers; it stays open.`;
+  )} ${say(ctx, SAVE_RULE, 'Commit and push your changes on it.')} ${CHANGE_MARKER_RULE} It is never merged as is: say it is done exploring (\`bridge explore done ${slug}\`) to hand it to developers; it stays open.`;
   if (gh && ctx.canWriteRemote) {
     const r = await startExplorationOnGitHub(gh, e, { ...s, labels: marks.labels });
     return {
@@ -475,8 +477,8 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
     ? [await productPreviewOnGitHub(gh, at.product, { number: p.number, branch: p.headRef, sha: p.headSha }).catch(() => null)].filter((x) => x !== null)
     : await branchPreviewUrls(gh, p.number, config, { branch: p.headRef, sha: p.headSha }).catch(() => []);
   const keepWorking = at.repo
-    ? `Keep working on ${p.headRef} in a checkout of ${at.repo}: build the screens with the library components (bridge_get_component, bridge_search_tokens), commit and push there. ${CHANGE_MARKER_RULE} What the library lacks goes to the DS lead in ${ds.fullName} with ${say(ctx, `bridge_missing_pieces { pr: "${ref}" }`, `\`bridge pieces ${ref} --record\``)} then Done exploring, never on this branch.`
-    : `Keep working on ${p.headRef}: ${say(ctx, `write tools take "branch": "${p.headRef}"`, `\`bridge propose --branch ${p.headRef}\``)}. Build screens with the library components (bridge_search_tokens, bridge_get_token). ${CHANGE_MARKER_RULE}`;
+    ? `Keep working on ${p.headRef}, in a checkout of ${at.repo} or through Bridge: build the screens with the library components (bridge_get_component, bridge_search_tokens). ${say(ctx, SAVE_RULE, 'Commit and push your changes there.')} ${CHANGE_MARKER_RULE} What the library lacks goes to the DS lead in ${ds.fullName} with ${say(ctx, `bridge_missing_pieces { pr: "${ref}" }`, `\`bridge pieces ${ref} --record\``)} then Done exploring, never on this branch.`
+    : `Keep working on ${p.headRef}: ${say(ctx, `write tools take "branch": "${p.headRef}"`, `\`bridge propose --branch ${p.headRef}\``)}. Build screens with the library components (bridge_search_tokens, bridge_get_token). ${say(ctx, SAVE_RULE, 'Commit and push your changes there.')} ${CHANGE_MARKER_RULE}`;
   return {
     ref,
     number: p.number,
@@ -575,6 +577,102 @@ export async function writeToExploration(ctx: BridgeContext, branch: string, inp
     status: 'written' as const,
     branch,
     next: `Written to your working tree on ${branch}. Commit and push them there: \`git add ${paths.join(' ')} && git commit -m "${input.message.split('\n')[0]!.replace(/"/g, "'")}" && git push\`. Do not open a pull request to main: the exploration's draft pull request is the place.`,
+  };
+}
+
+// --- saving prototype code on an exploration -----------------------------------------------------------------------
+
+/**
+ * How Claude saves its work on an exploration: through Bridge, so it works without a GitHub access of its own (a
+ * designer who joined with their email, Claude on claude.ai). git push stays for whoever has their own access.
+ */
+// MCP only: the CLI says "Commit and push" (say() at each use).
+export const SAVE_RULE = 'Save your changes with bridge_save_exploration (send every changed file, whole, in one call per step); use git push only if you have your own access to this repository.';
+
+/** One save: at most this many files and bytes (decoded), the size of a prototype step, not a whole app. */
+export const SAVE_LIMITS = { files: 200, bytes: 2_000_000 } as const;
+
+export interface SaveFileInput {
+  path: string;
+  /** The whole file, UTF-8 text. */
+  content?: string | undefined;
+  /** The whole file in base64, for an image or a font. */
+  contentBase64?: string | undefined;
+  /** true: the file is removed from the exploration. */
+  delete?: boolean | undefined;
+}
+
+/** Why a path cannot be saved on an exploration, in plain words, or null. Mirrors the email members' copy policy. */
+export function savePathProblem(path: string): string | null {
+  const p = path.trim();
+  if (!p || p.startsWith('/') || p.includes('\\') || p.split('/').some((x) => x === '' || x === '.' || x === '..')) return `"${path}" is not a file path inside the repository: use a relative path like src/orders/OrdersList.tsx.`;
+  const parts = p.split('/');
+  if (parts[0] === '.github') return `${p}: CI settings (.github) are not part of an exploration. Leave them to the developers.`;
+  if (parts.includes('node_modules')) return `${p}: node_modules is never saved. Dependencies come from package.json.`;
+  if (parts[0] === '.git' || parts.includes('.git')) return `${p}: the .git folder is never saved.`;
+  if (parts.includes('.vercel') || parts[parts.length - 1] === 'vercel.json') return `${p}: hosting settings (vercel.json, .vercel) are not part of an exploration. Leave them to the developers.`;
+  return null;
+}
+
+/** The commit files of a save, checked: one entry per path, content or base64 or delete, within SAVE_LIMITS. */
+export function saveFilesOf(files: SaveFileInput[]): CommitFile[] {
+  if (!files.length) throw new Error('Nothing to save: send the files that changed, each whole.');
+  if (files.length > SAVE_LIMITS.files) throw new Error(`Too many files in one save (${files.length}; ${SAVE_LIMITS.files} at most). Save the step in a few calls.`);
+  const seen = new Set<string>();
+  let bytes = 0;
+  const out: CommitFile[] = [];
+  for (const f of files) {
+    const path = f.path.trim().replace(/^\.\//, '');
+    const problem = savePathProblem(path);
+    if (problem) throw new Error(problem);
+    if (seen.has(path)) throw new Error(`${path} is listed twice. Send each file once.`);
+    seen.add(path);
+    const kinds = [f.content !== undefined, f.contentBase64 !== undefined, f.delete === true].filter(Boolean).length;
+    if (kinds !== 1) throw new Error(`${path}: give its content, its contentBase64 or delete: true (one of them).`);
+    if (f.delete) out.push({ path, content: null });
+    else if (f.contentBase64 !== undefined) {
+      const b64 = f.contentBase64.replace(/\s+/g, '');
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(b64)) throw new Error(`${path}: contentBase64 is not base64.`);
+      bytes += Math.floor((b64.length * 3) / 4);
+      out.push({ path, content: b64, encoding: 'base64' });
+    } else {
+      bytes += Buffer.byteLength(f.content!, 'utf8');
+      out.push({ path, content: f.content! });
+    }
+  }
+  if (bytes > SAVE_LIMITS.bytes) throw new Error(`This save is ${Math.round(bytes / 1000)} kB; ${SAVE_LIMITS.bytes / 1_000_000} MB at most. Save the step in a few calls.`);
+  return out;
+}
+
+/**
+ * bridge_save_exploration: one commit with the given files on the exploration's explore/* branch, fast-forwarded,
+ * never forced, never another branch. It goes through the session's GitHub client: the person's own access, or for a
+ * designer who joined with their email the team's Bridge proxy (its copy policy decides). Returns the commit and where
+ * to see it.
+ */
+export async function saveExploration(ctx: BridgeContext, a: { ref: string; message: string; files: SaveFileInput[] }) {
+  const files = saveFilesOf(a.files);
+  const message = a.message.trim();
+  if (!message) throw new Error('Say what this step changes in the message, in a few words ("Orders: success toast when an order ships").');
+  const at = await located(ctx, a.ref.replace(/^\s*continue\s+bridge\s+exploration\s+/i, '').replace(/\s+".*$/, '').trim());
+  const p = await findExplorationOnGitHub(at.gh, refOf(at.ref));
+  if (!isExplorationBranch(p.headRef)) throw new Error(`${p.headRef} is not an exploration branch: Bridge only saves on explore/ branches.`);
+  // MCP only: the tool is Claude's, the CLI has no save command.
+  if (p.state !== 'open') throw new Error(`This exploration is closed, so nothing is saved on it. Start a new one with bridge_start_exploration.`);
+  const res = await at.gh.withBranchPrefix(EXPLORATION_PREFIX).commitToBranch({ branch: p.headRef, message, files });
+  const ref = explorationRefLabel({ number: p.number, product: at.product?.key, repo: at.repo });
+  const preview = at.product ? branchPreviewUrl(at.product.preview, p.headRef) : null;
+  const removed = files.filter((f) => f.content === null).length;
+  return {
+    status: 'saved' as const,
+    ref,
+    branch: p.headRef,
+    commit: res.sha,
+    saved: files.length - removed,
+    removed,
+    url: p.url,
+    preview,
+    next: `Saved on ${ref}. ${preview ? `The preview updates in a few minutes: ${preview}` : 'Its previews rebuild in a few minutes.'} Tell the designer in one plain sentence what changed and where to look; nothing reached the developers or the library.`,
   };
 }
 

@@ -112,6 +112,7 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
   const messages = new Map<string, string>();
   const commits = new Map<string, Commit>();
   const trees = new Map<string, Map<string, string>>();
+  const blobs = new Map<string, string>();
   const refs = new Map<string, string>();
   const root = id();
   commits.set(root, { files: new Map(Object.entries(initial)), parents: [] });
@@ -231,10 +232,17 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       return sha ? json(200, { object: { sha } }) : json(404, {});
     }
     if (method === 'GET' && (m = /^\/git\/commits\/(.+)$/.exec(path))) return json(200, { sha: m[1], tree: { sha: m[1] } });
+    if (method === 'POST' && path === '/git/blobs') {
+      // Blobs as GitHub stores them: the text, base64 decoded when sent that way.
+      const b = id();
+      blobs.set(b, body.encoding === 'base64' ? Buffer.from(body.content, 'base64').toString('latin1') : body.content);
+      return json(201, { sha: b });
+    }
     if (method === 'POST' && path === '/git/trees') {
       const base = new Map(commits.get(body.base_tree)?.files ?? trees.get(body.base_tree) ?? []);
       for (const e of body.tree) {
         if (e.sha === null) base.delete(e.path);
+        else if (typeof e.sha === 'string' && blobs.has(e.sha)) base.set(e.path, blobs.get(e.sha)!);
         else if (typeof e.sha === 'string' && e.sha.startsWith('blob:')) {
           const [, c, ...rest] = e.sha.split(':');
           base.set(e.path, commits.get(c!)!.files.get(rest.join(':'))!);

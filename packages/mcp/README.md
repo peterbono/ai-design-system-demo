@@ -45,7 +45,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 
 <!-- tools:start (generated from the server: npm run readme:tools -w @bridge-ds/mcp) -->
 
-75 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
+76 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
 
 | Tool | Access | What it does |
 | --- | --- | --- |
@@ -111,6 +111,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_review_pr` | writes | Post a review on a PR as the token owner: comment, approve or request changes, with a body. |
 | `bridge_review_suggestion` | writes | Approve, request changes on, comment on or decline a suggestion, as the person whose GitHub token the server has. |
 | `bridge_save_docs` | writes | Save a component's usage guidance (docs.json sections: summary, whenToUse, whenNotToUse, dos, donts, accessibility, contentGuidelines, anatomy, preview) the way the Library edit mode does: merged into the docs on the branch, cleaned and checked (a summary, no empty items, no em dash). |
+| `bridge_save_exploration` | writes | Save prototype code on an exploration: one commit with the files you send on its explore/<name> branch, so its preview updates in a few minutes. |
 | `bridge_scaffold_component` | writes | Generate a new component folder per the repo checklist: Name.tsx (forwardRef, typed props), Name.module.css (existing tokens only), stories with AllStates, docs.json with the reference component's keys, a keyboard + axe test when interactive, index.ts. |
 | `bridge_search_tokens` | reads | Find tokens by words in the path or description ("danger text", "focus ring"), by CSS variable, or by value ("#c2410c", "16px": exact and near colors). |
 | `bridge_send_for_review` | writes | Ask for review: a draft branch becomes ready for review, as "Mark as ready" in Studio. |

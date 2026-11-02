@@ -409,10 +409,12 @@ export function rateLimitMessage(x: { withToken: boolean; resetsAt?: Date; token
   return `GitHub's hourly limit for requests without a token (60 an hour) is used up.${when} To keep going now, ${hint}: a token gets 5,000 requests an hour.`;
 }
 
-/** A file in a new commit: text content, or null to delete it. */
+/** A file in a new commit: text content (or base64 for a binary file), or null to delete it. */
 export interface CommitFile {
   path: string;
   content: string | null;
+  /** `base64`: `content` is base64 (an image, a font); it goes up as its own blob. Default: UTF-8 text. */
+  encoding?: 'utf-8' | 'base64' | undefined;
 }
 
 export interface CheckRun {
@@ -832,10 +834,17 @@ export class GitHubClient {
     return r.map((t) => ({ name: t.name, sha: t.commit.sha }));
   }
 
-  async createBlob(content: string): Promise<string> {
+  async createBlob(content: string, encoding: 'utf-8' | 'base64' = 'utf-8'): Promise<string> {
     // Blobs, trees and commits are content-addressed: retrying a create is harmless.
-    const r = await this.request<{ sha: string }>('POST', `${this.repoPath}/git/blobs`, { content, encoding: 'utf-8' }, true);
+    const r = await this.request<{ sha: string }>('POST', `${this.repoPath}/git/blobs`, { content, encoding }, true);
     return r.sha;
+  }
+
+  /** The tree entries of a commit's files: text inline, base64 files as their own blob, null deletes. */
+  private async treeFilesOf(files: CommitFile[]): Promise<({ path: string; sha: string | null } | { path: string; content: string })[]> {
+    return Promise.all(
+      files.map(async (f) => (f.content === null ? { path: f.path, sha: null } : f.encoding === 'base64' ? { path: f.path, sha: await this.createBlob(f.content, 'base64') } : { path: f.path, content: f.content })),
+    );
   }
 
   /** A tree on top of `baseTree`. Each file gives a blob `sha`, inline `content`, or `sha: null` to delete. */
@@ -874,7 +883,7 @@ export class GitHubClient {
     const baseSha = await this.getBranchSha(input.base);
     if (!baseSha) throw new GitHubError(404, `Base branch "${input.base}" not found.`);
     const baseTree = await this.getCommitTree(baseSha);
-    const tree = await this.createTree(baseTree, input.files.map((f) => (f.content === null ? { path: f.path, sha: null } : { path: f.path, content: f.content })));
+    const tree = await this.createTree(baseTree, await this.treeFilesOf(input.files));
     const sha = await this.createCommit(input.message, tree, [baseSha]);
     await this.createBranch(input.branch, sha);
     return { sha, branch: input.branch };
@@ -895,7 +904,7 @@ export class GitHubClient {
     const head = await this.getBranchSha(input.branch);
     if (!head) throw new GitHubError(404, `Branch "${input.branch}" not found. Start it first.`);
     const baseTree = await this.getCommitTree(head);
-    const tree = await this.createTree(baseTree, input.files.map((f) => (f.content === null ? { path: f.path, sha: null } : { path: f.path, content: f.content })));
+    const tree = await this.createTree(baseTree, await this.treeFilesOf(input.files));
     const sha = await this.createCommit(input.message, tree, [head]);
     await this.updateBranch(input.branch, sha);
     return { sha, branch: input.branch };
