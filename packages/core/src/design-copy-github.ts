@@ -5,6 +5,9 @@
 // builds in the background), tell how far behind the product it is, and bring it up to date (GitHub's "Sync fork").
 
 import { GitHubError, parseRepo, type GitHubClient } from './github-client';
+import { githubLoginOf } from './github-login';
+
+export { githubLoginOf } from './github-login';
 
 /** The label of the developers' task Done exploring opens from a design copy. */
 export const FROM_DESIGN_LABEL = 'from-design';
@@ -101,15 +104,6 @@ export async function getLatestDesignCopyOnGitHub(copy: GitHubClient, branch?: s
  * The developers' task Done exploring opens in the product's own repository: what the prototype is, its preview, what
  * changes, the library pieces it needed, and where its code is if they want it. Markdown for GitHub.
  */
-/**
- * A GitHub login, or null for anything else (an email, a display name with spaces): a member's email never goes
- * into GitHub content, even when a caller passes one by mistake.
- */
-export function githubLoginOf(s: string | null | undefined): string | null {
-  const v = s?.trim().replace(/^@/, '') ?? '';
-  return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(v) ? v : null;
-}
-
 export function designTaskBody(t: {
   name: string;
   purpose?: string | null | undefined;

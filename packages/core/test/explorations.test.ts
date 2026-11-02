@@ -125,6 +125,10 @@ describe('done exploring: status, plan and body', () => {
     expect(parseExplorationBody(again)?.doneSha).toBe('c9');
     expect(parseExplorationBody(again)?.doneBy).toBeUndefined();
     expect(parseExplorationBody(withDoneExploring(plan.body, { branch: 'explore/pill-buttons', doneAt: '2026-10-30T09:00:00.000Z', doneBy: 'ann' }))?.doneBy).toBe('ann');
+    // A member who joined by email is never written into GitHub content by their email.
+    const leaked = withDoneExploring(plan.body, { branch: 'explore/pill-buttons', doneAt: '2026-10-30T09:00:00.000Z', doneBy: 'dino@yopmail.com' });
+    expect(leaked).not.toContain('yopmail');
+    expect(parseExplorationBody(leaked)?.doneBy).toBeUndefined();
   });
 
   it('pieceRequest: always a request for the DS lead, with the preview link and who needs it', () => {
