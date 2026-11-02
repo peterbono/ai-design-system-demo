@@ -53,7 +53,8 @@ function contextOf(el: HTMLAnchorElement): SwitchContext | null {
   }
   // A team's Library: /library/<owner>/<repo>/<route>, with that team's Studio.
   const team = document.documentElement.hasAttribute('data-library-shell') ? libraryFromPath(pathname) : null;
-  if (!team) return null;
+  // Bridge's own Library, for an email member (scripts/email-studio.ts set their team's Studio): the same page there.
+  if (!team) return el.dataset.studioRoot ? { space, pathname, search, studioRoot: el.dataset.studioRoot } : null;
   const route = pathname.split('/').filter(Boolean).slice(3).join('/');
   const studioRoot = el.dataset.studioRoot ?? teamHref(team.owner, team.repo, null);
   return { space, pathname, search, studioRoot, team, libraryRoute: route ? `${route}/` : '' };

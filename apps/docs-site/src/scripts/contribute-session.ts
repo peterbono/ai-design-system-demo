@@ -63,6 +63,18 @@ export function contributorFor(repo: string): ContributeMember | null {
 
 const listeners: ((repo: string, m: ContributeMember | null) => void)[] = [];
 
+/** "owner/repo" (lowercase) of every team this browser last saw its person signed in to by email. */
+export function contributorRepos(): string[] {
+  try {
+    return Object.keys(localStorage)
+      .filter((k) => k.startsWith(HINT_PREFIX))
+      .map((k) => k.slice(HINT_PREFIX.length))
+      .filter((r) => /^[^/\s]+\/[^/\s]+$/.test(r));
+  } catch {
+    return [];
+  }
+}
+
 /** Called when a team's email session starts or ends on this page. */
 export function onContributeChange(fn: (repo: string, m: ContributeMember | null) => void) {
   listeners.push(fn);
