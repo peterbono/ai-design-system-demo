@@ -1,5 +1,12 @@
 # @bridge-ds/docs-site
 
+## 0.26.14
+
+### Patch Changes
+
+- 3def0c3: Continue as names the team and role for a lead signed in with GitHub.
+- cd51b1c: The ticket tracker integration is hidden for the MVP behind one flag in lib/studio-flags: no screen, landing copy or search entry shows it, and the code stays.
+
 ## 0.26.13
 
 ### Patch Changes
