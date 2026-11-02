@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEMO, START, WORKSPACE } from './nav';
 import { onboardingSteps } from './onboarding';
 import {
+  awayFrom,
   demoBack,
   CONNECT_HREF,
   DEMO_HOME,
@@ -178,5 +179,26 @@ describe('the home of a team made in Bridge', () => {
     expect(TEAM_HOME_WORDS.ready('Northwind Design')).toBe('Northwind Design is set up. Connect your design system next, and your tokens, components and changes show up here.');
     expect(TEAM_HOME_WORDS.waiting('Northwind Design')).toContain('An admin of the team connects it');
     expect(JSON.stringify(TEAM_HOME_WORDS)).not.toContain(String.fromCharCode(0x2014));
+  });
+});
+
+describe('the demo banner never leads back to the page it is on', () => {
+  const here = { pathname: '/studio/peterbono/ai-design-system-demo/', repo: 'peterbono/ai-design-system-demo' };
+  it('the current team, in any spelling, or the hosted root showing it, goes to the workspace instead', () => {
+    for (const href of ['/studio/peterbono/ai-design-system-demo/', '/studio/~/peterbono/ai-design-system-demo', '/studio/Peterbono/AI-design-system-demo/?x=1#y', '/studio/']) {
+      expect(awayFrom({ href, connect: false }, here)).toEqual({ href: WORKSPACE_HOME, connect: false });
+    }
+  });
+  it("the account's team made in Bridge when it has one", () => {
+    expect(awayFrom({ href: '/studio/peterbono/ai-design-system-demo/', connect: false }, here, [{ repo: 'acme/ds' }, { repo: '_team/c0ffee0000000017' }])).toEqual({
+      href: `${WORKSPACE_HOME}?team=c0ffee0000000017`,
+      connect: false,
+    });
+  });
+  it('any other place is kept', () => {
+    expect(awayFrom({ href: '/studio/acme/ds/', connect: false }, here)).toEqual({ href: '/studio/acme/ds/', connect: false });
+    expect(awayFrom({ href: WORKSPACE_HOME, connect: false }, here)).toEqual({ href: WORKSPACE_HOME, connect: false });
+    // On another team, the hosted root is not that page.
+    expect(awayFrom({ href: '/studio/', connect: false }, { pathname: '/studio/acme/ds/', repo: 'acme/ds' })).toEqual({ href: '/studio/', connect: false });
   });
 });

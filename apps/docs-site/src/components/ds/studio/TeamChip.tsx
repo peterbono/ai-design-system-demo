@@ -41,6 +41,7 @@ import { isSampleTeam } from '../../../lib/demo';
 import { pickableTeams } from '../../../lib/pickable-teams';
 import { DEMO_HOME, MENU_WORDS, ownTeams, TEAM_HOME_WORDS, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, workspaceTeamKey, type StartFacts } from '../../../lib/start';
 import { isTeamKey, teamKeyId } from '../../../lib/team-path';
+import { linkedAccessState } from '../../../lib/linked-role';
 
 export interface TeamChipProps {
   /** owner/repo known at build time (self-hosted). Null on a team shell: read from the address. */
@@ -106,6 +107,9 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const [cfg, setCfg] = useState<{ read: boolean; name: string | null }>({ read: false, name: null });
   const [names, setNames] = useState<Record<string, string>>({});
   const [roles, setRoles] = useState<Record<string, string>>({});
+  // No GitHub sign-in here, and the Bridge account's linked GitHub is on this team (the server read it with the app,
+  // scripts/linked-role.ts): the chip and "Your teams" say the real role, never "Explore freely" or a stale "Can view".
+  const [linked, setLinked] = useState<RepoAccessState | null>(null);
 
   // A team shell names its team from the address at once, before the session and its scripts load (a cold first visit
   // can take seconds): never "Your team" while the address already says which.
@@ -163,6 +167,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         if (live) setReviewer(viewerRole() === 'reviewer');
       };
       document.addEventListener('bridge:team-model', () => void readReviewer());
+      void import('../../../scripts/linked-role').then(({ onLinkedRole }) => onLinkedRole(() => live && setLinked(linkedAccessState(session.linkedGitHubRole()))));
       session.onAccess((a) => {
         setAccessBusy(!a && session.accessBusy() !== null);
         setAccess(pillState(a));
@@ -194,6 +199,14 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     setRoles(noteTeamRole(name, memberRole(access, ghSignedIn, reviewer)));
   }, [hosted, name, access, ghSignedIn, recent, reviewer]);
 
+  // The linked GitHub role replaces what this browser noted before (a "Can view" from an older GitHub read).
+  const shownAccess = !ghSignedIn && linked ? linked : access;
+  const roleSignedIn = ghSignedIn || Boolean(!ghSignedIn && linked);
+  useEffect(() => {
+    if (!hosted || !name || ghSignedIn || !linked) return;
+    setRoles(noteTeamRole(name, memberRole(linked, true)));
+  }, [hosted, name, ghSignedIn, linked, recent]);
+
   const forget = (team: string) => setRecent(others(forgetRecentTeam(team), name));
 
   const [owner = ''] = (name ?? '').split('/');
@@ -209,8 +222,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
       : { kind: 'workspace' as const, name: wsName, title: `${wsName}, ${WORKSPACE_WORDS.kept.toLowerCase()}`, badge: { label: facts?.storybook ? 'Storybook' : WORKSPACE_WORDS.notConnected, tone: 'neutral' as const } }
     : // The settings' name, else the account's name for this team, else the one this browser knows (the server keeps
       // it), before and after the settings are read: settings without a `name` never flip it to the repository in words.
-      chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.name ?? (name ? (accountTeamName(name) ?? knownTeamName(name)) : null) });
-  const shownBadge = !sessionKnown && !account && chip.kind !== 'workspace' ? { label: 'Checking', tone: 'neutral' as const } : chip.kind === 'team' ? roleBadge(access, ghSignedIn, reviewer) : chip.badge;
+      chipIdentity(name, { demo: isDemoTeam(name, hosted), state: shownAccess, signedIn: roleSignedIn, name: cfg.name ?? (name ? (accountTeamName(name) ?? knownTeamName(name)) : null) });
+  const shownBadge = !sessionKnown && !account && chip.kind !== 'workspace' ? { label: 'Checking', tone: 'neutral' as const } : chip.kind === 'team' ? roleBadge(shownAccess, roleSignedIn, reviewer) : chip.badge;
   const badge = accessBusy && sessionKnown && !access && shownBadge.label === 'Checking' ? busyBadge(name ? roles[name.toLowerCase()] : null) : shownBadge;
   const offerTeams = launcher || hosted;
   // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first
@@ -238,7 +251,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     const here = chip.kind !== 'workspace' && name && !isSampleTeam(name) ? name : null;
     const mine = (t: string) => account?.teams.find((x) => x.repo.toLowerCase() === t.toLowerCase());
     const here_ = here ? mine(here) : undefined;
-    const role = memberRole(access, ghSignedIn, reviewer) ?? (here_ ? roleWord(here_.role) : null);
+    const role = memberRole(shownAccess, roleSignedIn, reviewer) ?? (here_ ? roleWord(here_.role) : null);
     // The team you are on: yours when you belong to it; a guest still sees where they are on someone else's team.
     if (here && (role || chip.kind === 'team')) rows.push(teamRowOf(here, true, role ?? badge.label));
     // The teams this browser opened with a role, then the account's teams it has not opened yet, each to its own space:

@@ -75,7 +75,7 @@ let banner: Promise<(on: boolean) => void> | null = null;
 
 /** Where the banner's one action leads (DemoBanner.tsx): null is "Get started", for a visitor who has not started. */
 async function bannerBack(repo: string): Promise<{ href: string; connect: boolean } | null> {
-  const [{ startFacts }, { demoBack }, { loadReserved }, { getAccount }, { defaultNext }] = await Promise.all([
+  const [{ startFacts }, { demoBack, awayFrom }, { loadReserved }, { getAccount }, { defaultNext }] = await Promise.all([
     import('./start'),
     import('../lib/start'),
     import('../lib/team-open'),
@@ -83,11 +83,13 @@ async function bannerBack(repo: string): Promise<{ href: string; connect: boolea
     import('../lib/account'),
   ]);
   const facts = startFacts();
-  if (isOwnTeam(repo)) return demoBack(facts, await loadReserved());
-  // The sample team: someone signed in to Bridge goes back to their own team; anyone else gets started.
   const { account } = await getAccount().catch(() => ({ account: null }));
+  // Never back to the page it is on (a "Back to your workspace" that reloads Bridge DS): the account's own team instead.
+  const away = (b: { href: string; connect: boolean }) => (b.connect ? b : awayFrom(b, { pathname: location.pathname, repo }, account?.teams ?? []));
+  if (isOwnTeam(repo)) return away(account?.teams.length ? { href: defaultNext(account, facts.recent), connect: false } : demoBack(facts, await loadReserved()));
+  // The sample team: someone signed in to Bridge goes back to their own team; anyone else gets started.
   if (!account) return null;
-  return account.teams.length ? { href: defaultNext(account, facts.recent), connect: false } : demoBack(facts, await loadReserved());
+  return away(account.teams.length ? { href: defaultNext(account, facts.recent), connect: false } : demoBack(facts, await loadReserved()));
 }
 
 /** Paints the demo banner into the layout's [data-demo-strip] when `show`, hides it otherwise. */

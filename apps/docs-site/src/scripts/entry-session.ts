@@ -123,6 +123,19 @@ export async function askedToJoin(repo: string): Promise<boolean> {
   }
 }
 
+/**
+ * The role the account's linked GitHub account has on a repository, as the server reads it with the Bridge app (GET
+ * ?linked=): 'admin', 'edit', 'view', or null (no linked GitHub, not on it, or any error).
+ */
+export async function linkedGitHubRole(repo: string): Promise<'admin' | 'edit' | 'view' | null> {
+  try {
+    const r = await call<{ role?: unknown }>('GET', `?linked=${encodeURIComponent(repo)}`);
+    return r.role === 'admin' || r.role === 'edit' || r.role === 'view' ? r.role : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Takes back the account's own pending request to join a team. A request already gone (404) counts as cancelled. */
 export async function cancelJoinRequest(team: string): Promise<void> {
   try {
