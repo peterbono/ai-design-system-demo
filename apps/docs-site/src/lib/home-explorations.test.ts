@@ -11,6 +11,8 @@ import {
   libraryChangesLine,
   libraryChangesOf,
   ownOpenWork,
+  ownWorkHref,
+  quietParts,
   quietSentence,
   recentExplorations,
   RECENT_CARDS,
@@ -141,11 +143,14 @@ describe('the explorations of the Studio home', () => {
     ]);
   });
 
-  it("keeps a member's own: opened, asked for, or started by them", () => {
+  it("keeps a member's own: asked for or started by them, else opened by them", () => {
     const ann = pull(60, { ...profile, number: 60, user: { login: 'claude-bot' }, body: `${block('Checkout', 'ann')}` });
     expect(isOwnExploration(ann, 'Ann')).toBe(true);
     expect(isOwnExploration(pull(61, { body: 'Requested by Ann Leroy (@ann).' }), 'ann')).toBe(true);
-    expect(isOwnExploration(profile, 'peterbono')).toBe(true);
+    // Nobody named: the account that opened it.
+    expect(isOwnExploration(pull(62, { head: { ref: 'explore/x' }, body: block('X') }), 'peterbono')).toBe(true);
+    // "Requested by Ann Leroy.": Ann's, even opened with peterbono's account.
+    expect(isOwnExploration(profile, 'peterbono')).toBe(false);
     expect(isOwnExploration(profile, 'dana')).toBe(false);
     expect(isOwnExploration(profile, null)).toBe(false);
     expect(homeExplorations([profile, ann], { products, author: who, viewer: 'ann', onlyOwn: true }).map((c) => c.number)).toEqual([60]);
@@ -219,7 +224,7 @@ describe("a designer's exploration opened by Bridge's app (designers write throu
     expect(cards.map((c) => c.number)).toEqual([5, 4]);
     expect(cards.find((c) => c.number === 4)).toMatchObject({ own: true, stage: 'with-devs', state: 'Waiting to be picked up' });
     expect(explorationsFor(cards, true).cards.map((c) => c.number)).toEqual([4]);
-    expect(quietSentence(ownOpenWork(cards))).toBe('Nothing needs you. 1 waiting to be picked up.');
+    expect(quietSentence(ownOpenWork(cards))).toBe('Nothing needs you. 1 of your explorations waits for a developer to pick it up.');
     // The product card counts the team's: Dino's handed-off one is no longer left out.
     const team = homeExplorations([dino, ann, bot, pull(1, { product: 'admin-app', draft: true, labels: [{ name: 'exploration' }], head: { ref: 'explore/dashboard' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'Dashboard', slug: 'dashboard', doneAt: '2026-10-31T10:00:00Z', task: 'https://github.com/art-print-shop-co/art-print-shop/issues/7' })} -->\n\nRequested by Florian.` })], { products: shop, author: who, taskStage: (p) => (p.number === 4 || p.number === 1 ? 'waiting-for-code' : null) });
     expect(team.map((c) => c.number).sort()).toEqual([1, 4, 5]);
@@ -227,6 +232,19 @@ describe("a designer's exploration opened by Bridge's app (designers write throu
     // The GitHub designer finds theirs by login.
     const forAnn = homeExplorations([dino, ann], { products: shop, author: who, viewer: 'ann' });
     expect(explorationsFor(forAnn, true).cards.map((c) => c.number)).toEqual([5]);
+  });
+
+  it("keeps a member's exploration theirs when Bridge opened it with the lead's account", () => {
+    // As art-print-shop-design#4 reads live: opened by peterbono, asked for by Dino (an email member), task shipped.
+    const asLead = pull(4, { ...dino, user: { login: 'peterbono' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'add a toast alert', slug: 'add-a-toast-alert', doneAt: '2026-11-02T01:40:45.516Z', task: 'https://github.com/art-print-shop-co/art-print-shop/issues/12', member: '254dfac3665d4d07', memberName: 'Dino' })} -->\n\nRequested by Dino through Bridge.` });
+    const florians = pull(1, { product: 'admin-app', draft: true, user: { login: 'peterbono' }, labels: [{ name: 'ready-for-devs' }, { name: 'product: admin-app' }], head: { ref: 'explore/dashboard' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'Dashboard', slug: 'dashboard', doneAt: '2026-10-31T10:00:00Z', task: 'https://github.com/art-print-shop-co/art-print-shop/issues/7' })} -->` });
+    expect(isOwnExploration(asLead, 'peterbono')).toBe(false);
+    expect(isOwnExploration(asLead, null, '254dfac3665d4d07')).toBe(true);
+    expect(isOwnExploration(florians, 'peterbono')).toBe(true);
+    const cards = homeExplorations([asLead, florians], { products: shop, author: who, viewer: 'peterbono', taskStage: (p) => (p.number === 4 ? 'shipped' : 'waiting-for-code') });
+    expect(cards.map((c) => [c.number, c.own, c.state])).toEqual(expect.arrayContaining([[4, false, 'Shipped'], [1, true, 'Waiting to be picked up']]));
+    // "2 waiting to be picked up" on the live Home: one shipped, and Dino's. Only Florian's own counts.
+    expect(quietSentence(ownOpenWork(cards))).toBe('Nothing needs you. 1 of your explorations waits for a developer to pick it up.');
   });
 });
 
@@ -266,17 +284,43 @@ describe('the quiet team Home', () => {
     expect(r.total).toBe(6);
   });
 
-  it("says what is open of the viewer's own work in the Changes words, else that nothing is", () => {
-    expect(ownOpenWork([c(1, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })])).toBe('1 waiting to be picked up.');
-    expect(ownOpenWork([c(1, { own: true }), c(2, { own: true, stage: 'found', state: '1 new piece found' }), c(3, { own: true, stage: 'with-devs', state: 'Being built' }), c(4, { own: true, stage: 'in-review', state: 'In review' })])).toBe('2 exploring, 1 being built, 1 in review.');
-    // Someone else's, shipped, kept or archived: not open work of the viewer.
+  const say = (...a: Parameters<typeof ownOpenWork>) => quietSentence(ownOpenWork(...a));
+
+  it("says what is open of the viewer's own work and who it waits on, in designer words", () => {
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })])).toBe('Nothing needs you. 1 of your explorations waits for a developer to pick it up.');
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' }), c(2, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })])).toBe('Nothing needs you. 2 of your explorations wait for a developer to pick them up.');
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Being built' })])).toBe('Nothing needs you. 1 of your explorations is being built.');
+    expect(say([c(1, { own: true, stage: 'in-review', state: 'In review' }), c(2, { own: true, stage: 'in-review', state: 'In review' })])).toBe('Nothing needs you. 2 of your explorations are in review.');
+    expect(say([c(1, { own: true }), c(2, { own: true, stage: 'found', state: '1 new piece found' }), c(3, { own: true, stage: 'with-devs', state: 'Being built' }), c(4, { own: true, stage: 'in-review', state: 'In review' })])).toBe(
+      'Nothing needs you. 2 of your explorations are still being explored, 1 is being built and 1 is in review.',
+    );
+    expect(say([c(1, { own: true }), c(2, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })])).toBe('Nothing needs you. 1 of your explorations is still being explored and 1 waits for a developer to pick it up.');
+  });
+
+  it('counts only what is still open and the viewer\'s own: never shipped, not planned, archived or someone else\'s', () => {
+    // A handed-off one its task shipped stays "with the developers" as a stage, but it is done (art-print-shop-design#4).
+    expect(ownOpenWork([c(1, { own: true, stage: 'with-devs', state: 'Shipped' }), c(2, { own: true, stage: 'with-devs', state: 'Not planned' }), c(3, { own: true, stage: 'with-devs', state: 'Approved, waiting to ship' })])).toBeNull();
     expect(ownOpenWork([c(1), c(2, { own: true, stage: 'kept', state: 'Shipped' }), c(3, { own: true, state: 'Archived' })])).toBeNull();
-    // Library changes: a draft is being built, one waiting for a developer waits for code, one sent is in review.
-    expect(ownOpenWork([], [{ stage: 'draft' }, { stage: 'waiting' }, { stage: 'ready' }])).toBe('1 waiting to be picked up, 1 being built, 1 in review.');
+    // Its task in review: the exploration is in review.
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'In review' })])).toBe('Nothing needs you. 1 of your explorations is in review.');
+  });
+
+  it('says the library changes apart, in the same words', () => {
+    expect(say([], [{ stage: 'draft' }, { stage: 'waiting' }, { stage: 'ready' }])).toBe('Nothing needs you. 1 of your library changes waits for a developer to pick it up, 1 is being built and 1 is in review.');
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Being built' })], [{ stage: 'ready' }, { stage: 'ready' }])).toBe('Nothing needs you. 1 of your explorations is being built. 2 of your library changes are in review.');
+  });
+
+  it("makes each clause a link to Changes on the viewer's own work at that stage", () => {
+    const parts = quietParts(ownOpenWork([c(1, { own: true }), c(2, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })]));
+    expect(parts.filter((p) => p.href).map((p) => [p.text, p.href])).toEqual([
+      ['1 of your explorations is still being explored', ownWorkHref('exploring')],
+      ['1 waits for a developer to pick it up', ownWorkHref('code')],
+    ]);
+    expect(ownWorkHref('code')).toMatch(/changes\/\?state=code&people=you$/);
+    expect(quietParts(null).some((p) => p.href)).toBe(false);
   });
 
   it('tells the truth after the greeting', () => {
-    expect(quietSentence('1 waiting to be picked up.')).toBe('Nothing needs you. 1 waiting to be picked up.');
     expect(quietSentence(null)).toBe('Nothing needs you, and you have nothing in progress.');
     expect(quietSentence(null, true)).toBe('Nothing needs you.');
   });

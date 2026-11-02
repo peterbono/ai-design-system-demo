@@ -413,7 +413,12 @@ describe('StudioHome, quiet team Home (recent)', () => {
     const { container } = render(createElement(StudioHome, quiet({ explorations: [waiting] })));
     expect(screen.getByRole('heading', { level: 1, name: 'What do you want to explore?' })).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Start an exploration' })).toHaveLength(1);
-    expect(container.querySelector('.sh-zone')!.textContent).toContain('Good evening, Florian. Nothing needs you. 1 waiting to be picked up.');
+    expect(container.querySelector('.sh-zone')!.textContent).toContain('Good evening, Florian. Nothing needs you. 1 of your explorations waits for a developer to pick it up.');
+    // The clause opens Changes on the viewer's own explorations waiting to be picked up.
+    expect(screen.getByRole('link', { name: '1 of your explorations waits for a developer to pick it up' }).getAttribute('href')).toMatch(/changes\/\?state=code&people=you$/);
+    // Nothing needs the viewer: the harbor scene in the zone (water only on a phone), the Start card still the one action.
+    expect(container.querySelector('.sh-zone .sh-window [data-scene="harbor"][data-layout="window"]')).toBeTruthy();
+    expect(container.querySelector('.sh-window')!.contains(container.querySelector('.sh-choice'))).toBe(false);
     expect(container.textContent).not.toContain('you have nothing in progress');
     const recent = container.querySelector('[aria-labelledby="sh-explorations"]')!;
     expect(screen.getByRole('heading', { level: 2, name: 'Recent explorations' })).toBeTruthy();

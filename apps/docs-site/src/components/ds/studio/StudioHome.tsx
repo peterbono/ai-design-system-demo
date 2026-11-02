@@ -5,14 +5,15 @@
 //   - Your explorations (lib/home-explorations.ts): the product screens tried with Claude AI, each card the explored
 //     screen, "Start an exploration" as the first card. Library changes are not cards here: they wait in the review
 //     queue for reviewers, live on Changes, and their author gets one line under the section ("Your changes").
-//   - Nothing at all: three ways to start, each with its drawing, and the explorations' own empty state.
+//   - Nothing needs the viewer: "What do you want to explore?" in a window onto the calm harbor (QuietScene), what is
+//     open of their own work in one sentence (each clause opens Changes on it), and the Start card, the one action.
 //   - Someone without a review right (`contributor`): only what waits on them (their branches sent back with changes),
 //     never the review queue, and on the first visit a two-step tour of their explorations and how to start (HomeTour.tsx).
 // NeedList is shared with the review queue (pages/studio/review.astro), so a row reads the same in both places.
 // Admins also get join requests (board E7b, scripts/team-home.ts): one row per person, Decline and Approve inline while
 // 3 things or fewer wait; more than that, it folds into "N more" like any row and Review all leads there.
 import { createRoot, type Root } from 'react-dom/client';
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import { Who } from './faces';
 import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, Skeleton, ToastProvider } from '@bridge-ds/react';
@@ -40,7 +41,7 @@ import {
   type NeedRow,
   type Person,
 } from '../../../lib/home-model';
-import { explorationsFor, libraryChangesLine, ownOpenWork, quietSentence, recentExplorations, YOUR_CHANGES_HREF, type ExplorationCard } from '../../../lib/home-explorations';
+import { explorationsFor, libraryChangesLine, ownOpenWork, quietParts, recentExplorations, YOUR_CHANGES_HREF, type ExplorationCard, type QuietPart } from '../../../lib/home-explorations';
 import { studioHref } from '../../../lib/team-path';
 import { productFolders } from '../../../lib/product-page';
 import { siteConfig } from '../../../scripts/repo-context';
@@ -404,6 +405,23 @@ const REVIEW_CROP = '0 98 232 86';
 /** The Harbor zone's line when nothing waits on the viewer: honest first, then the calm. */
 export const QUIET_LINE = 'Nothing needs you. The harbor is calm.';
 
+/** The quiet sentence (lib/home-explorations quietParts): its counts open Changes on the viewer's own work at that stage. */
+function QuietLine({ parts }: { parts: QuietPart[] }) {
+  return (
+    <>
+      {parts.map((x, i) =>
+        x.href ? (
+          <Link key={i} href={x.href}>
+            {x.text}
+          </Link>
+        ) : (
+          <Fragment key={i}>{x.text}</Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
 /** "You joined Acme Design.": said once, dismissible. */
 function JoinedNote({ text }: { text: string }) {
   const [open, setOpen] = useState(true);
@@ -481,13 +499,18 @@ function HomeBody(p: StudioHomeProps) {
       <div className="sh">
         {note}
         <section className="zone sh-zone sh-zone-empty" aria-labelledby="sh-hello">
-          <div className="sh-head-text">
-            <p className="t-body">
-              {p.greeting} {p.recent ? quietSentence(ownOpenWork(p.explorations, p.branches), Boolean(p.failed)) : `Nothing needs you${p.failed ? '' : ', and you have nothing in progress'}.`}
-            </p>
-            <h1 id="sh-hello" className="sh-hello">
-              What do you want to explore?
-            </h1>
+          {/* Nothing needs the viewer: the head stands in a window onto the calm harbor (on a phone, only the water),
+              the Start card under it stays the one action, on the zone, never over the drawing. */}
+          <div className="sh-window">
+            <QuietScene scene="harbor" layout="window" />
+            <div className="sh-head-text">
+              <p className="t-body">
+                {p.greeting} <QuietLine parts={quietParts(p.recent ? ownOpenWork(p.explorations, p.branches) : null, Boolean(p.failed))} />
+              </p>
+              <h1 id="sh-hello" className="sh-hello">
+                What do you want to explore?
+              </h1>
+            </div>
           </div>
           {tour?.('branches')}
           <Start components={p.components} />

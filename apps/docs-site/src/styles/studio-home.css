@@ -539,6 +539,29 @@
   gap: var(--space-6);
 }
 
+/* Nothing needs you: the head of the zone is a window onto the calm harbor (QuietScene layout="window"), bled to the
+   zone's top and side edges and clipped by its top corners. The text stands in the sky, the harbor to its right, the
+   water along the window's bottom; the Start card sits under the water, on the zone, so the drawing never runs behind
+   it. Phones: only the water (quiet-scene.css). */
+.sh-window {
+  --_view: 44%;
+  position: relative;
+  display: grid;
+  align-content: end;
+  container-type: inline-size;
+  min-height: var(--size-64);
+  margin: calc(var(--space-7) * -1) calc(var(--space-8) * -1) 0;
+  padding: var(--space-7) var(--space-8) calc(var(--space-12) * 2 + var(--space-3));
+  overflow: hidden;
+  border-radius: var(--radius-container) var(--radius-container) 0 0;
+}
+
+/* The text keeps to the sky left of the harbor: a long sentence wraps before it reaches the drawing. */
+.sh-window > .sh-head-text {
+  position: relative;
+  max-width: calc(100% - var(--_view));
+}
+
 /* Four ways to start: two by two on a wide screen (never three and an orphan), one column on a phone. */
 .sh-choices {
   display: grid;
@@ -615,6 +638,16 @@
   .sh-zone-quiet {
     min-height: 0;
     padding-bottom: calc(var(--space-10) + var(--space-6));
+  }
+
+  .sh-window {
+    min-height: 0;
+    margin: calc(var(--space-5) * -1) calc(var(--space-4) * -1) 0;
+    padding: var(--space-5) var(--space-4) calc(var(--space-10) + var(--space-6));
+  }
+
+  .sh-window > .sh-head-text {
+    max-width: none;
   }
 
   .sh-row-body {
