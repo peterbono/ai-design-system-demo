@@ -5,6 +5,9 @@
 // builds in the background), tell how far behind the product it is, and bring it up to date (GitHub's "Sync fork").
 
 import { GitHubError, parseRepo, type GitHubClient } from './github-client';
+import { githubLoginOf } from './github-login';
+
+export { githubLoginOf } from './github-login';
 
 /** The label of the developers' task Done exploring opens from a design copy. */
 export const FROM_DESIGN_LABEL = 'from-design';
@@ -110,10 +113,15 @@ export function designTaskBody(t: {
   copy: string;
   branch: string;
   pr: { number: number; url: string };
+  /** The GitHub login of who said Done exploring: "From @login." */
   doneBy?: string | null | undefined;
+  /** Who said it when they have no GitHub account (a member who joined by email): their display name, never an email. */
+  doneByName?: string | null | undefined;
 }): string {
+  const login = githubLoginOf(t.doneBy);
+  const by = login ? ` From @${login}.` : t.doneByName?.trim() ? ` From ${t.doneByName.trim()}, through Bridge.` : '';
   const lines = [
-    `The design team explored this in Bridge and sends it to you to build.${t.doneBy ? ` From @${t.doneBy}.` : ''}`,
+    `The design team explored this in Bridge and sends it to you to build.${by}`,
     '',
     ...(t.purpose?.trim() ? [`**Purpose.** ${t.purpose.trim()}`, ''] : []),
     `**Preview.** ${t.previewUrl ?? `In the Vercel comment of the prototype: ${t.pr.url}`}`,

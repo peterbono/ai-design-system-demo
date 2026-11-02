@@ -205,7 +205,7 @@ export async function readView(r: ExplorationRow, gh: ReturnType<typeof client>,
 export function pieceActor(x: { r: ExplorationRow; gh: ReturnType<typeof client>; lib: ReturnType<typeof client>; own: boolean; mode: ChangesMode; products: readonly ProductConfig[]; lastView: () => ProductBranchView | null; refresh: () => void }) {
   const { r, gh, lib, mode, products } = x;
   return async (row: Pick<PieceRowView, 'id' | 'title'>, kind: PieceActionKind): Promise<string | void> => {
-    const viewer = currentViewer()?.login;
+    const viewer = currentViewer()?.email ? undefined : currentViewer()?.login;
     if (kind === 'open') {
       const res = await openLibraryBranchOnGitHub(gh, {
         // Core opens a branch when the mode is left out: Studio always says which one this repo uses.

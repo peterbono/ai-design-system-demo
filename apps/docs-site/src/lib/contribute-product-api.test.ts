@@ -17,6 +17,7 @@ import {
   FROM_DESIGN_LABEL,
   handleContribute,
   isSandboxPath,
+  publicEmail,
   issueSession,
   productPairsFrom,
   scopeOf,
@@ -174,7 +175,7 @@ describe('the design copy', () => {
     const { call, redis } = await signedIn();
     const ok = await call('POST', `${C}/pulls`, { title: 'Exploration: Orders', head: 'explore/theirs', base: 'main', body: 'Hi', draft: false });
     expect(ok.r.status).toBe(201);
-    expect(ok.sent!.body).toEqual({ title: 'Exploration: Orders', head: 'explore/theirs', base: 'main', draft: true, body: 'Hi\n\nRequested by Dino (dino@yopmail.com) through Bridge.' });
+    expect(ok.sent!.body).toEqual({ title: 'Exploration: Orders', head: 'explore/theirs', base: 'main', draft: true, body: 'Hi\n\nRequested by Dino through Bridge.' });
     expect(await redis.cmd('GET', 'bridge:contrib:issue:acme/shop-design:7')).toBe('dino@yopmail.com');
     expect((await call('POST', `${C}/pulls`, { title: 'x', head: 'explore/other', base: 'main' })).r.status).toBe(403);
     expect((await call('POST', `${C}/pulls`, { title: 'x', head: 'explore/theirs', base: 'explore/other' })).r.status).toBe(403);
@@ -272,7 +273,7 @@ describe("the developers' repository", () => {
     const { call, redis } = await signedIn();
     const ok = await call('POST', `${D}/issues`, { title: 'Design: Orders', body: TASK, labels: ['from-design'] });
     expect(ok.r.status).toBe(201);
-    expect(ok.sent!.body.body).toBe(`${TASK}\n\nRequested by Dino (dino@yopmail.com) through Bridge.`);
+    expect(ok.sent!.body.body).toBe(`${TASK}\n\nRequested by Dino through Bridge.`);
     expect(await redis.cmd('GET', 'bridge:contrib:issue:acme/shop:7')).toBe('dino@yopmail.com');
     expect((await call('POST', `${D}/issues`, { title: 'Design: Orders', body: TASK.replace('/pull/3', '/pull/4'), labels: ['from-design'] })).r.status).toBe(403);
     expect((await call('POST', `${D}/issues`, { title: 'Orders', body: TASK, labels: ['from-design'] })).r.status).toBe(403);
@@ -330,7 +331,8 @@ describe("Claude for an email member (api/mcp proxyFetchFor): the connector's Gi
     const { put, w } = await viaClaude();
     expect((await put('src/App.tsx')).status).toBe(200);
     const sent = w.calls.filter((c) => c.method === 'PUT' && c.path === `${C}/contents/src/App.tsx`).at(-1)!;
-    expect(sent.body.author).toEqual({ name: 'Dino', email: 'dino@yopmail.com' });
+    expect(sent.body.author).toEqual({ name: 'Dino', email: publicEmail(SECRET, 'acme/shop-design', 'dino@yopmail.com') });
+    expect(JSON.stringify(sent.body)).not.toContain('dino@yopmail.com');
   });
 
   it('answers a refusal of the policy as a 422 with the policy words, never a token message', async () => {

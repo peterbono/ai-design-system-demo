@@ -39,8 +39,10 @@ export function askDoneExploring(
     checked: found.checked,
     sent: found.sent,
     confirm: async (pieces) => {
-      const viewer = currentViewer()?.login;
-      const res = await doneExploringOnGitHub(opts.client(), r.number, { pieces, products: opts.products ?? [], previewUrl: opts.previewUrl, ...(viewer ? { openedBy: viewer } : {}), ...(opts.library ? { library: opts.library() } : {}), source: 'studio' });
+      // A member who joined by email is named by their display name in the developers' task, never by their email.
+      const v = currentViewer();
+      const who = v ? (v.email ? { openedByName: v.name?.trim() || 'a designer' } : { openedBy: v.login }) : {};
+      const res = await doneExploringOnGitHub(opts.client(), r.number, { pieces, products: opts.products ?? [], previewUrl: opts.previewUrl, ...who, ...(opts.library ? { library: opts.library() } : {}), source: 'studio' });
       // The designer reads what happened to their pieces; GitHub housekeeping (a label, the note) is for developers.
       const other = res.warnings.filter((w) => !res.pieces.warnings.includes(w));
       if (other.length) console.warn(`Done exploring #${r.number}: ${other.join(' ')}`);

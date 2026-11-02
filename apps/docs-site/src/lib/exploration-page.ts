@@ -342,3 +342,12 @@ export function libraryTodayRoute(component: string | null | undefined): string 
 
 /** The link beside an empty preview: the product as it is today, or the library for a library exploration. */
 export const todayLinkLabel = (library: boolean): string => (library ? 'See the library today' : 'See the product today');
+
+/**
+ * Whether Studio runs the library check of an exploration on its own (api/mcp ?view=pieces): for someone who may write
+ * it (who started it, a reviewer, or anyone with write access), in a team that writes branches, signed in with GitHub
+ * or, in the design team's copy, as a member who joined by email (Bridge's server runs it with their Bridge session).
+ */
+export function canRunCheck(x: { github: boolean; emailInCopy: boolean; direct: boolean; emailOnProduct: boolean; keeper: boolean; write: boolean }): boolean {
+  return (x.github || x.emailInCopy) && x.direct && !x.emailOnProduct && (x.keeper || x.write);
+}

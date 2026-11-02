@@ -18,6 +18,7 @@
 // CLI, so an exploration reads the same everywhere. GitHub calls live in explorations-github.ts.
 
 import type { BridgeConfig } from './config';
+import { githubLoginOf } from './github-login';
 import { slugify } from './pr-composer';
 import { previewUrl, readPreviewComment, resolveBranchPreviews, type PreviewApps } from './previews';
 import { classifyRisk, type ChangedFile, type RiskTier } from './risk';
@@ -319,6 +320,10 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
 
 /** The hidden block tools read: the exploration as JSON. */
 function explorationBlock(e: Exploration): string {
+  // Who started, said done or took it back, as GitHub content may hold it: GitHub logins only, never a member's email.
+  const author = githubLoginOf(e.author);
+  const doneBy = githubLoginOf(e.doneBy);
+  const reopenedBy = githubLoginOf(e.reopenedBy);
   const experimental = (e.experimental ?? []).map((x) => x.trim()).filter(Boolean);
   const data = {
     name: e.name.trim(),
@@ -326,16 +331,16 @@ function explorationBlock(e: Exploration): string {
     slug: e.slug || explorationSlug(e.name),
     ...(e.useCase ? { useCase: e.useCase } : {}),
     ...(experimental.length ? { experimental } : {}),
-    ...(e.author ? { author: e.author } : {}),
+    ...(author ? { author } : {}),
     ...(e.startedAt ? { startedAt: e.startedAt } : {}),
     ...(e.source ? { source: e.source } : {}),
     ...(e.agent ? { agent: e.agent } : {}),
     ...(e.doneAt ? { doneAt: e.doneAt } : {}),
-    ...(e.doneBy ? { doneBy: e.doneBy } : {}),
+    ...(doneBy ? { doneBy } : {}),
     ...(e.doneSha ? { doneSha: e.doneSha } : {}),
     ...(e.task ? { task: e.task } : {}),
     ...(e.reopenedAt ? { reopenedAt: e.reopenedAt } : {}),
-    ...(e.reopenedAt && e.reopenedBy ? { reopenedBy: e.reopenedBy } : {}),
+    ...(e.reopenedAt && reopenedBy ? { reopenedBy } : {}),
   };
   return `<!-- ${MARK} ${JSON.stringify(data).replace(/-->/g, '--\\u003e')} -->`;
 }

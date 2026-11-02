@@ -13,6 +13,7 @@ import {
 import {
   designCopyStateOnGitHub,
   designTaskBody,
+  githubLoginOf,
   designTaskTitle,
   FROM_DESIGN_LABEL,
   getLatestDesignCopyOnGitHub,
@@ -179,6 +180,21 @@ test("the developers' task: preview, changes, pieces and where the prototype cod
   assert.match(body, /git fetch https:\/\/github\.com\/acme\/shop-design\.git explore\/orders/);
   assert.doesNotMatch(body, /—/);
   assert.equal(designTaskTitle(' Orders waiting to ship '), 'Design: Orders waiting to ship');
+});
+
+test('the task names a member without GitHub by name, never by email', () => {
+  const base = { name: 'Toast', changes: [], pieces: [], copy: 'acme/shop-design', branch: 'explore/toast', pr: { number: 4, url: 'https://github.com/acme/shop-design/pull/4' } };
+  assert.match(designTaskBody({ ...base, doneBy: 'ann' }), /From @ann\./);
+  const byName = designTaskBody({ ...base, doneByName: 'Dino' });
+  assert.match(byName, /From Dino, through Bridge\./);
+  assert.doesNotMatch(byName, /@/);
+  const leaked = designTaskBody({ ...base, doneBy: 'dino@yopmail.com', doneByName: 'Dino' });
+  assert.doesNotMatch(leaked, /yopmail/);
+  assert.match(leaked, /From Dino, through Bridge\./);
+  assert.doesNotMatch(designTaskBody({ ...base, doneBy: 'dino@yopmail.com' }), /yopmail|From/);
+  assert.equal(githubLoginOf('@ann'), 'ann');
+  assert.equal(githubLoginOf('dino@yopmail.com'), null);
+  assert.equal(githubLoginOf('Ann Leroy'), null);
 });
 
 test('done exploring in a copy: developers fetch from the copy, the body records their task', () => {

@@ -38,8 +38,8 @@ export function canKeepExploration(x: { viewer: string | null | undefined; autho
 
 /**
  * Whether an email member started this exploration in the design team's copy: Bridge opened its pull request for them
- * (api/contribute), so its body carries "Requested by <name> (<email>) through Bridge." (the email only on a private
- * repository). Bridge's proxy decides again on every write; this only shows them their own Done exploring.
+ * (api/contribute), so its body carries "Requested by <name> through Bridge." (never their email; older ones may carry
+ * it in parentheses). Bridge's proxy decides again on every write; this only shows them their own Done exploring.
  */
 export function startedByEmailMember(body: string | null | undefined, member: { name: string; email: string } | null | undefined): boolean {
   if (!body || !member?.name) return false;
