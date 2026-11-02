@@ -35,6 +35,11 @@ export interface ContextOptions {
   workTree?: string;
   /** The product key of that repository: new work and a bare reference (#12) default to it. */
   product?: string;
+  /**
+   * The work the person made through Bridge's app (the hosted connector, for a member Bridge writes for): branches by
+   * repository, so "mine" finds explorations GitHub shows under the app's name. Absent: mine is the token's account.
+   */
+  owned?: () => Promise<{ repo: string; branch: string }[] | null>;
 }
 
 /** Whether a request only reads: GET and HEAD, and GraphQL queries (POST /graphql without a mutation). */
@@ -169,6 +174,13 @@ export class BridgeContext {
 
   get canWriteRemote(): boolean {
     return Boolean(this.opts.token) && !this.opts.readOnly;
+  }
+
+  /** What the person made through Bridge's app, as "repo#branch" keys (repo lower case), or null when not known. */
+  async ownedWork(): Promise<Set<string> | null> {
+    if (!this.opts.owned) return null;
+    const list = await this.opts.owned().catch(() => null);
+    return list ? new Set(list.map((o) => `${o.repo.toLowerCase()}#${o.branch}`)) : null;
   }
 
   /** Who reads the messages: 'mcp' (tool names and arguments, the default) or 'cli' (commands and flags). */

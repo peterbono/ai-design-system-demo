@@ -312,9 +312,13 @@ export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' |
       return { ...x, previews: t.previews.map((p) => ({ app: p.app, label: p.label, url: p.url, state: p.state })), install: installOf(t.tryIt), requests };
     }),
   );
-  // mine: the ones the viewer started (the token's account); none when Bridge cannot tell who that is.
-  const me = a.mine ? await viewerOf(ctx, gh) : null;
-  const explorations = [...dsOnes, ...productOnes].filter((x) => !a.mine || (me !== null && x.author.toLowerCase() === me.toLowerCase()));
+  // mine: the ones the viewer started (the token's account), and the ones Bridge's app opened for them (a member
+  // Bridge writes for: GitHub names the app as the author); none when Bridge cannot tell who that is.
+  const [me, owned] = a.mine ? await Promise.all([viewerOf(ctx, gh), ctx.ownedWork()]) : [null, null];
+  const repoOf = (x: { repo?: string }) => (x.repo ?? gh.fullName).toLowerCase();
+  const explorations = [...dsOnes, ...productOnes].filter(
+    (x) => !a.mine || (me !== null && x.author.toLowerCase() === me.toLowerCase()) || Boolean(owned?.has(`${repoOf(x as { repo?: string })}#${x.branch}`)),
+  );
   let localBranches: string[] = [];
   if (ctx.mode === 'local' && ctx.isGit) {
     const refs = (await git(ctx.root!, ['for-each-ref', '--format=%(refname:short)', `refs/heads/${EXPLORATION_PREFIX}`]).catch(() => '')).split('\n').filter(Boolean);

@@ -410,7 +410,7 @@ function listRow(r: Row): ListRow {
   // An email contributor reviews nothing: their own branches are the server's list, and only those sent back with
   // changes requested wait on them.
   const contributor = Boolean(currentContributor());
-  const own = contributor ? ownedBy({ author: r.user.login, number: r.number, headRef: r.head?.ref ?? null }, listViewer(), contribMine) : undefined;
+  const own = contributor ? ownedBy({ author: r.user.login, number: r.number, headRef: r.head?.ref ?? null, product: r.product ?? null }, listViewer(), contribMine, `${repo.owner}/${repo.repo}`) : undefined;
   // Waiting on me: the one rule of every surface (lib/waiting-on), the lead's seat on the demo included (every branch in
   // review waits on the lead, as on its home). An email contributor's own branches come from the server's list.
   const seat = demoSeat();

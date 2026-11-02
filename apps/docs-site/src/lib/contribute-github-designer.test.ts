@@ -204,6 +204,32 @@ describe('a designer signed in with GitHub, through the proxy', () => {
     expect((await call(s, null, 'POST', `${C}/git/refs`, { ref: 'refs/heads/explore/mail', sha: NOTE }, cookie)).status).toBe(201);
     expect(await s.redis.cmd('GET', 'bridge:contrib:branch:acme/shop-design:explore/mail')).toBe('dino@yopmail.com');
   });
+
+  it('"mine" lists their explorations in each product, apart from the library ones', async () => {
+    const s = setup();
+    const member = { email: 'dino@yopmail.com', name: 'Dino', role: 'edit' as const, version: 1, addedBy: 'florian', at: new Date(T0).toISOString() };
+    await s.members.put(TEAM, member);
+    const cookie = issueSession(member, TEAM, SECRET, T0).split(';')[0]!;
+    expect((await call(s, null, 'POST', `${C}/git/refs`, { ref: 'refs/heads/explore/toast', sha: NOTE }, cookie)).status).toBe(201);
+    const r = await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(TEAM)}&mine=1`, { headers: { ...H, cookie } }), ENV, s.deps);
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as { branches: string[]; products: Record<string, { branches: string[] }> };
+    expect(body.branches).not.toContain('explore/toast');
+    expect(body.products['acme/shop-design']?.branches).toEqual(['explore/toast']);
+    // A designer signed in with GitHub: theirs too, by their token.
+    expect((await call(s, DINA, 'POST', `${C}/git/refs`, { ref: 'refs/heads/explore/dina', sha: NOTE })).status).toBe(201);
+    const d = (await (await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(TEAM)}&mine=1`, { headers: { ...H, authorization: `Bearer ${DINA}` } }), ENV, s.deps)).json()) as { products: Record<string, { branches: string[] }> };
+    expect(d.products['acme/shop-design']?.branches).toEqual(['explore/dina']);
+  });
+
+  it('the connector knows what Bridge made for them (ownedWorkFor), by email or by GitHub token', async () => {
+    const s = setup();
+    const { ownedWorkFor } = await import('../../api/contribute/index');
+    expect((await call(s, DINA, 'POST', `${C}/git/refs`, { ref: 'refs/heads/explore/dina', sha: NOTE })).status).toBe(201);
+    expect(await ownedWorkFor({ token: DINA }, TEAM, ENV, s.deps)).toEqual([{ repo: 'acme/shop-design', branch: 'explore/dina' }]);
+    expect(await ownedWorkFor({ email: 'nobody@acme.design' }, TEAM, ENV, s.deps)).toEqual([]);
+    expect(await ownedWorkFor({ token: 'ghu_reader_token_eeeeeeeeeee' }, TEAM, ENV, s.deps)).toBeNull();
+  });
 });
 
 describe('the connector for a designer signed in with GitHub (api/mcp designerFetchFor)', () => {

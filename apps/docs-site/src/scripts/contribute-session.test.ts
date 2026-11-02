@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONTRIB_TOKEN } from '../lib/contribute';
 import { errorText } from '../lib/token-session';
-import { clearRecentMemory, contributeBlobs, prefetchChangeStatuses, contributeFetch, contributeInfo, forgetRecent, recentFor, RECENT_SHA_MS, contributorFor, forgetContributors, onContributeChange, publicTeamRead, requestEmailSignIn, seedContributors, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
+import { clearRecentMemory, contributeBlobs, parseMine, prefetchChangeStatuses, contributeFetch, contributeInfo, forgetRecent, recentFor, RECENT_SHA_MS, contributorFor, forgetContributors, onContributeChange, publicTeamRead, requestEmailSignIn, seedContributors, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
 import { resetGuestActivity } from './guest-activity';
 import { currentContributor, getToken, ghWrite, studioClient, studioFetch } from './github-session';
 import { teamClient, teamToken } from './team-data';
@@ -408,5 +408,16 @@ describe('a member reads through Bridge with fewer requests', () => {
     const r = await get('/repos/acme/ds/pulls/1');
     expect(await r.json()).toEqual({ n: 1 });
     expect(proxied()).toBe(1);
+  });
+});
+
+describe('parseMine: the member\'s lists, per product repository', () => {
+  it('keeps the products the server names, lower case, and drops anything malformed', () => {
+    expect(parseMine({ branches: ['a', 3], issues: [1, 'x'], products: { 'Acme/Shop-Design': { branches: ['explore/t'], issues: [4] }, 'not a repo': { branches: ['x'] } } })).toEqual({
+      branches: ['a'],
+      issues: [1],
+      products: { 'acme/shop-design': { branches: ['explore/t'], issues: [4] } },
+    });
+    expect(parseMine({ branches: [], issues: [] })).toEqual({ branches: [], issues: [] });
   });
 });

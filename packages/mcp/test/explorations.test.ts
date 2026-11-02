@@ -276,4 +276,15 @@ describe('continue an exploration', () => {
     gh.viewer.login = 'agent';
     expect(((await explorations.listExplorations(ctx, { mine: true })) as any).explorations.map((x: any) => x.ref)).toEqual(['#1']);
   });
+
+  it("counts as mine what Bridge's app opened for the person (owned), though GitHub names the app", async () => {
+    const gh = fakeGitHub('acme', 'ds', files());
+    const start = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    const made = (await explorations.startExploration(start, { name: 'Pill buttons' })) as any;
+    gh.viewer.login = 'someone-else';
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch, owned: async () => [{ repo: 'ACME/ds', branch: made.branch }] });
+    expect(((await explorations.listExplorations(ctx, { mine: true })) as any).explorations.map((x: any) => x.ref)).toEqual(['#1']);
+    const none = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch, owned: async () => [] });
+    expect(((await explorations.listExplorations(none, { mine: true })) as any).explorations).toHaveLength(0);
+  });
 });

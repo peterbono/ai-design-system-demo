@@ -432,11 +432,11 @@ describe('proxy: what is allowed', () => {
     const mine = (c: string) => handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${REPO}&mine=1`, { headers: { host: HOST, ...(c ? { cookie: c } : {}) } }), ENV, s.deps);
     const r = await mine(cookie);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ branches: ['bridge/mia-1'], issues: [40] });
+    expect(await r.json()).toEqual({ branches: ['bridge/mia-1'], issues: [40], products: {} });
     expect(await s.redis.cmd('SMEMBERS', `bridge:contrib:mine:${REPO}:mia@acme.design`)).toEqual(expect.arrayContaining(['b:bridge/mia-1', 'i:40']));
     // A branch that changed hands is no longer theirs.
     await s.redis.cmd('SET', `bridge:contrib:branch:${REPO}:bridge/mia-1`, 'leo@acme.design');
-    expect(await (await mine(cookie)).json()).toEqual({ branches: [], issues: [40] });
+    expect(await (await mine(cookie)).json()).toEqual({ branches: [], issues: [40], products: {} });
     expect((await mine('')).status).toBe(401);
   });
 

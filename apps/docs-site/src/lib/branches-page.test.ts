@@ -23,6 +23,7 @@ import {
   shippedRows,
   productOf,
   selectable,
+  mineIn,
   ownedBy,
   contributorTurn,
 } from './branches-page';
@@ -296,5 +297,20 @@ describe("designRows: Bridge's own pull requests stay out of Changes", () => {
   it('keeps every row without tooling (a team repository)', () => {
     expect(designRows(rows, (x) => files[x.number], null)).toHaveLength(rows.length);
     expect(designRows(rows, (x) => files[x.number], { paths: [] })).toHaveLength(rows.length);
+  });
+});
+
+describe('a member\'s work in the products (contribute ?mine=1 products)', () => {
+  const mine = { branches: ['bridge/leo-spacing'], issues: [7], products: { 'acme/shop-design': { branches: ['explore/toast'], issues: [4] }, 'acme/shop': { branches: [], issues: [12] } } };
+  it('reads each repository\'s own lists, never mixing numbers', () => {
+    expect(mineIn(mine, 'acme/design', 'acme/design')).toEqual({ branches: ['bridge/leo-spacing'], issues: [7] });
+    expect(mineIn(mine, 'Acme/Shop-Design', 'acme/design')).toEqual({ branches: ['explore/toast'], issues: [4] });
+    expect(mineIn(mine, 'acme/other', 'acme/design')).toEqual({ branches: [], issues: [] });
+  });
+  it('owns a product exploration by its copy\'s branch, not by a library number', () => {
+    expect(ownedBy({ author: 'bridge-app[bot]', number: 4, headRef: 'explore/toast', headRepo: 'acme/shop-design' }, 'leo@acme.design', mine, 'acme/design')).toBe(true);
+    expect(ownedBy({ author: 'bridge-app[bot]', number: 7, headRef: 'explore/x', headRepo: 'acme/shop-design' }, 'leo@acme.design', mine, 'acme/design')).toBe(false);
+    expect(ownedBy({ author: 'bridge-app[bot]', number: 4, headRef: 'explore/toast', product: 'shop' }, 'leo@acme.design', mine, 'acme/design')).toBe(true);
+    expect(ownedBy({ author: 'bridge-app[bot]', number: 7, headRef: 'explore/other', product: 'shop' }, 'leo@acme.design', mine, 'acme/design')).toBe(false);
   });
 });

@@ -7,6 +7,7 @@
 // scripts/github-session.ts uses it: getToken() gives the stand-in token (lib/contribute CONTRIB_TOKEN) to every
 // feature, and the session's fetch sends each call that carries it here (contributeFetch). No feature changes.
 import { GitHubError } from '@bridge-ds/core';
+import { mineIn } from '../lib/branches-page';
 import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, localDevHost, MISSING_HEADER, parseMember, proxyUrl, restoreMissing, type ContributeMember } from '../lib/contribute';
 import { isDemoRepo } from '../lib/demo';
 
@@ -231,7 +232,12 @@ export function takeContributeHash(): string | null {
 export interface Mine {
   branches: string[];
   issues: number[];
+  /** The same, in each product repository of the team (its design copy, its developers' tasks), by repo, lower case. */
+  products?: Record<string, { branches: string[]; issues: number[] }>;
 }
+
+/** What the member owns in `repo`: the team's own list, or one product repository's (lib/branches-page mineIn). */
+export { mineIn };
 
 const mines = new Map<string, Promise<Mine>>();
 
@@ -241,15 +247,27 @@ export function contributeMine(repo: string, authorization?: string): Promise<Mi
   const k = authorization ? `${key(repo)}#gh` : key(repo);
   const held = mines.get(k);
   if (held) return held;
-  const p = call<{ branches?: unknown; issues?: unknown }>('GET', `?repo=${encodeURIComponent(repo)}&mine=1`, undefined, authorization ? { Authorization: authorization } : {}).then(
-    (r) => ({
-      branches: Array.isArray(r.branches) ? r.branches.filter((b): b is string => typeof b === 'string') : [],
-      issues: Array.isArray(r.issues) ? r.issues.filter((n): n is number => typeof n === 'number') : [],
-    }),
+  const p = call<{ branches?: unknown; issues?: unknown; products?: unknown }>('GET', `?repo=${encodeURIComponent(repo)}&mine=1`, undefined, authorization ? { Authorization: authorization } : {}).then(
+    (r) => parseMine(r),
     () => ({ branches: [], issues: [] }),
   );
   mines.set(k, p);
   return p;
+}
+
+/** The server's "mine" answer, anything malformed left out. */
+export function parseMine(r: { branches?: unknown; issues?: unknown; products?: unknown }): Mine {
+  const list = (v: { branches?: unknown; issues?: unknown }) => ({
+    branches: Array.isArray(v.branches) ? v.branches.filter((b): b is string => typeof b === 'string') : [],
+    issues: Array.isArray(v.issues) ? v.issues.filter((n): n is number => typeof n === 'number') : [],
+  });
+  const products: Record<string, { branches: string[]; issues: number[] }> = {};
+  if (r.products && typeof r.products === 'object' && !Array.isArray(r.products)) {
+    for (const [repo, v] of Object.entries(r.products as Record<string, unknown>)) {
+      if (/^[\w.-]+\/[\w.-]+$/.test(repo) && v && typeof v === 'object') products[repo.toLowerCase()] = list(v as { branches?: unknown; issues?: unknown });
+    }
+  }
+  return { ...list(r), ...(Object.keys(products).length ? { products } : {}) };
 }
 
 /** Forgets what was read about "mine" on this page (a new branch or pull request was just made). */
@@ -516,6 +534,12 @@ function memberProfile(repo: string, login: string): Promise<Response | null> {
 /** Calls whose answer holds pull requests or issues: their authors may be the member's. */
 const AUTHORED = /^\/repos\/[^/]+\/[^/]+\/(pulls|issues)(\/\d+)?(\?|$)/;
 
+/** The repository an api.github.com path is under ("owner/name", lower case), or null. */
+const repoOfPath = (path: string): string | null => {
+  const m = /^\/repos\/([^/]+)\/([^/?#]+)/.exec(path);
+  return m ? `${decodeURIComponent(m[1]!)}/${decodeURIComponent(m[2]!)}`.toLowerCase() : null;
+};
+
 /** Strips the stand-in Authorization header (any case) from a header record. */
 /** A designer signed in with GitHub, for contributeFetch: their `Authorization` header and their login. */
 export interface DesignerAuth {
@@ -566,12 +590,15 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
   ]);
   if (res.status === 401 && !as) endedEmailSession(repo);
   const login = as ? as.login : contributorFor(repo)?.email;
-  if (res.ok && mine && login && (mine.issues.length || mine.branches.length)) {
+  // A read in a product repository counts the member's work there (their copy explorations, their tasks), not the
+  // team's: the same numbers mean other things in another repository.
+  const own = mine ? mineIn(mine, repoOfPath(path) ?? repo, repo) : null;
+  if (res.ok && own && login && (own.issues.length || own.branches.length)) {
     const data = (await res
       .clone()
       .json()
       .catch(() => undefined)) as unknown;
-    if (data !== undefined) return new Response(JSON.stringify(asMine(data, mine, login)), { status: res.status, statusText: res.statusText, headers: res.headers });
+    if (data !== undefined) return new Response(JSON.stringify(asMine(data, own, login)), { status: res.status, statusText: res.statusText, headers: res.headers });
   }
   // Bridge's own refusals ({ error, message }: a file outside design files, the app missing a permission, the daily
   // limit, an ended session) are said in the server's words, as they are: a GitHubError the core client keeps, so no
