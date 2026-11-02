@@ -32,6 +32,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { b64url, HttpError, sha256, type FetchLike } from './http.js';
 import type { Redis } from './redis.js';
 import { seal, unseal, type Sealed } from './sealed.js';
+import { canonicalEmail, emailSpellings } from './canonical-email.js';
 
 export const ACCESS_TTL_S = 60 * 60;
 export const REFRESH_TTL_S = 30 * 24 * 60 * 60;
@@ -375,9 +376,14 @@ export interface Grant {
 
 const grantKey = (id: string) => `bridge:oauth:grant:${id}`;
 const grantsKey = (repo: string) => `bridge:oauth:grants:${repo.toLowerCase()}`;
-const accountGrantsKey = (ref: string) => `bridge:oauth:account:${ref}`;
-/** How a grant names the Bridge account that made it: the SHA-256 of its email, never the email itself. */
-export const accountRef = (email: string) => hash(`account:${email.trim().toLowerCase()}`);
+export const accountGrantsKey = (ref: string) => `bridge:oauth:account:${ref}`;
+/** How a grant names the Bridge account that made it: the SHA-256 of its canonical email, never the email itself. */
+export const accountRef = (email: string) => hash(`account:${canonicalEmail(email)}`);
+/**
+ * Every reference a grant of this email may carry: the canonical one, and the one of the address lower-cased (grants
+ * made before canonical keys; api/_lib/account-merge.ts moves them to the canonical one).
+ */
+export const accountRefs = (email: string): string[] => emailSpellings(email).map((e) => hash(`account:${e}`));
 const codeKey = (code: string) => `bridge:oauth:code:${hash(code)}`;
 const atKey = (t: string) => `bridge:oauth:at:${hash(t)}`;
 const rtKey = (t: string) => `bridge:oauth:rt:${hash(t)}`;
@@ -421,13 +427,13 @@ export async function createGrant(
  * tokens, so its Bridge tokens stop working at once. Answers how many ended.
  */
 export async function revokeAccountGrants(redis: Redis, who: { email: string; login?: string | null | undefined; repos: readonly string[] }): Promise<number> {
-  const ref = accountRef(who.email);
-  const raw = await redis.cmd('SMEMBERS', accountGrantsKey(ref));
-  const ids = new Set(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []);
+  const refs = accountRefs(who.email);
+  const sets = await redis.pipe(refs.map((r) => ['SMEMBERS', accountGrantsKey(r)]));
+  const ids = new Set(sets.flatMap((raw) => (Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [])));
   let ended = 0;
   for (const id of ids) {
     const g = await getGrant(redis, id);
-    if (g && g.account === ref) {
+    if (g && g.account && refs.includes(g.account)) {
       await revokeGrant(redis, g);
       ended++;
     }
@@ -442,7 +448,7 @@ export async function revokeAccountGrants(redis: Redis, who: { email: string; lo
       }
     }
   }
-  await redis.cmd('DEL', accountGrantsKey(ref));
+  await redis.pipe(refs.map((r) => ['DEL', accountGrantsKey(r)]));
   return ended;
 }
 
@@ -460,6 +466,15 @@ export async function getGrant(redis: Redis, id: string): Promise<Grant | null> 
 
 export async function saveGrant(redis: Redis, g: Grant): Promise<void> {
   await redis.cmd('SET', grantKey(g.id), JSON.stringify(g), 'EX', GRANT_TTL_S);
+}
+
+/** Names another account reference on a grant (account-merge), its expiry and its sealed tokens unchanged. */
+export async function repointGrant(redis: Redis, g: Grant, account: string): Promise<void> {
+  await redis.pipe([
+    ['SET', grantKey(g.id), JSON.stringify({ ...g, account }), 'KEEPTTL'],
+    ['SADD', accountGrantsKey(account), g.id],
+    ['EXPIRE', accountGrantsKey(account), GRANT_TTL_S],
+  ]);
 }
 
 /** Ends a grant: its tokens stop working at once (every token lookup reads the grant). */

@@ -835,8 +835,18 @@ names and roles (`lib/recent-teams.ts forgetTeamEverywhere`).
   account again: a version bump (sign out everywhere) or a deleted account ends it at once.
 - **Email contributors**: `/api/contribute` accepts the account session too. An account whose email is a member of
   the team counts as that member; the per-team cookie keeps working.
-- **Keys** (the same Upstash Redis as invites): `bridge:account:<email>` `{ id, email, name, github, createdAt,
-  version, aiTools? }`, `bridge:account:gh:<githubId>` (the email), `bridge:account:teams:<email>` (set of `owner/repo`, kept by
+- **One account per mailbox**: every key and set entry made from an email uses its canonical spelling
+  (`api/_lib/canonical-email.ts`): lower case, and for Gmail (`gmail.com`, `googlemail.com`) without the dots and the
+  `+tag` before the @, on `gmail.com`. Other providers are only lower-cased. The account keeps the address as typed in
+  `displayEmail` (what Bridge shows). Records written before that rule are read under the spelling a caller holds
+  too, and `api/_lib/account-merge.ts` moves them to the canonical key on the next sign-in or account read (a lock
+  per mailbox, writes before deletes, a done marker `bridge:account:canon:<hash>`): the oldest account keeps its
+  identity (id, creation date, name, GitHub, notification choices), memberships unite (Admin wins), and invites,
+  join requests, notifications, connections in Claude and teams made in Bridge follow. Two accounts linked to
+  different GitHub accounts are never merged. An empty auto-created workspace of the newer account goes only when the
+  merged account is on another team.
+- **Keys** (the same Upstash Redis as invites): `bridge:account:<email>` `{ id, email, displayEmail?, name, github,
+  createdAt, version, aiTools? }`, `bridge:account:gh:<githubId>` (the email), `bridge:account:teams:<email>` (set of `owner/repo`, kept by
   the member store), the codes above. Memberships stay `bridge:member:<repo>:<email>`.
 - **Linked GitHub roles**: a browser without the GitHub sign-in asks `GET /api/entry?linked=<owner/repo>`; the server
   reads the linked GitHub account's permission with the Bridge app (matched by GitHub id), kept 10 minutes in

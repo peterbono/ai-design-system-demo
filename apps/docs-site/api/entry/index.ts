@@ -106,14 +106,15 @@
 // INVITE_EMAIL_FROM (request emails), PUBLIC_SITE_URL (optional).
 
 import { createHmac, randomBytes } from 'node:crypto';
-import { type Account, accountNameByGithub, displayName, forgetGithubTeam, noteGithubTeam, sessionAccount } from '../_lib/account.js';
+import { type Account, accountNameByGithub, displayName, forgetGithubTeam, getAccount, noteGithubTeam, sessionAccount, shownEmail } from '../_lib/account.js';
+import { canonicalEmail, sameEmail } from '../_lib/canonical-email.js';
 import { workDomain } from '../_lib/domains.js';
 import { escHtml, mailButton, mailP, mailPage, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin, type FetchLike } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
-import { accountTeamsKey, memberStore, membersKey, type EmailMember, type MemberStore } from '../_lib/members.js';
+import { dropTeamFromSet, memberStore, membersKey, teamsInSet, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { unwatchTeam } from '../_lib/notify.js';
 import { revokeTeamGrants } from '../_lib/oauth.js';
 import { settingKey as librarySettingKey } from '../library-access/index.js';
@@ -359,13 +360,12 @@ async function bumpOrRefuse(ctx: Ctx, keys: string[], limits: number[], kinds: (
 
 /** Email memberships, each one read again (a removed membership leaves the set). */
 async function membershipsOf(ctx: Ctx, email: string): Promise<{ repo: string; member: EmailMember }[]> {
-  const raw = await ctx.svc.redis.cmd('SMEMBERS', accountTeamsKey(email));
-  const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string').sort() : [];
+  const repos = (await teamsInSet(ctx.svc.redis, email)).sort();
   const out: { repo: string; member: EmailMember }[] = [];
   for (const repo of repos) {
     const m = await ctx.svc.members.get(repo, email);
     if (m) out.push({ repo, member: m });
-    else await ctx.svc.redis.cmd('SREM', accountTeamsKey(email), repo);
+    else await dropTeamFromSet(ctx.svc.redis, email, repo);
   }
   return out;
 }
@@ -624,18 +624,17 @@ async function adminEmails(ctx: Ctx, repo: string): Promise<string[]> {
     people = null;
   }
   const out: string[] = [...local];
-  for (const m of await ctx.svc.members.list(repo)) if (m.role === 'admin' && !out.includes(m.email)) out.push(m.email);
+  // One email per mailbox (two spellings of one Gmail address are one admin).
+  const add = (e: string) => {
+    if (!out.some((x) => sameEmail(x, e))) out.push(e);
+  };
+  for (const m of await ctx.svc.members.list(repo)) if (m.role === 'admin') add(m.email);
   for (const p of people ?? []) {
     if (p?.permissions?.admin !== true || !Number.isSafeInteger(p.id)) continue;
     const email = await ctx.svc.redis.cmd('GET', `bridge:account:gh:${p.id}`);
     if (typeof email !== 'string') continue;
-    const raw = await ctx.svc.redis.cmd('GET', `bridge:account:${email}`);
-    try {
-      const acc = typeof raw === 'string' ? (JSON.parse(raw) as Account) : null;
-      if (acc && acc.github?.id === p.id && !out.includes(acc.email)) out.push(acc.email);
-    } catch {
-      /* skipped */
-    }
+    const acc = await getAccount(ctx.svc.redis, email);
+    if (acc && acc.github?.id === p.id) add(acc.email);
   }
   return out;
 }
@@ -688,12 +687,13 @@ export function approvedEmail(x: { to: string; admin: string; team: string; link
  */
 async function acceptInvite(ctx: Ctx, req: Request, a: Account, inv: StoredInvite): Promise<Response> {
   const email = a.email.toLowerCase();
-  if (inv.email.trim().toLowerCase() !== email || Date.parse(inv.expiresAt) <= ctx.now()) return fail(410, 'expired', INVITE_GONE);
+  // An invite sent to any spelling of the account's mailbox (a Gmail address with dots) is theirs.
+  if (!sameEmail(inv.email, email) || Date.parse(inv.expiresAt) <= ctx.now()) return fail(410, 'expired', INVITE_GONE);
   const t = await resolveTeam(ctx, inv.repo);
   if (inv.role === 'edit' || (inv.role === 'admin' && (!a.github || t.id))) {
     const role = inv.role === 'admin' ? 'admin' : 'edit';
     const prev = await ctx.svc.members.get(t.full, email);
-    const member: EmailMember = { email, name: a.name, role: prev?.role === 'admin' ? 'admin' : role, version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
+    const member: EmailMember = { email: prev?.email ?? shownEmail(a).toLowerCase(), name: a.name, role: prev?.role === 'admin' ? 'admin' : role, version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
     await ctx.svc.members.put(t.full, member);
     await ctx.svc.invites.remove(inv);
     await removeRequest(ctx.svc.redis, t.full, email);
@@ -799,14 +799,14 @@ async function placeRequest(ctx: Ctx, req: Request, a: Account, full: string): P
   const day = dayOf(now);
   await bumpOrRefuse(
     ctx,
-    [`bridge:joinreq:count:email:${hmacHex(ctx.svc.secret, `email:${email}`)}:${day}`, `bridge:joinreq:count:ip:${hmacHex(ctx.svc.secret, `ip:${clientIp(req)}`)}:${day}`, `bridge:joinreq:count:team:${full}:${day}`],
+    [`bridge:joinreq:count:email:${hmacHex(ctx.svc.secret, `email:${canonicalEmail(email)}`)}:${day}`, `bridge:joinreq:count:ip:${hmacHex(ctx.svc.secret, `ip:${clientIp(req)}`)}:${day}`, `bridge:joinreq:count:team:${full}:${day}`],
     [REQUEST_LIMITS.email, REQUEST_LIMITS.ip, REQUEST_LIMITS.team],
     ['email', 'ip', 'team'],
   );
   const r: JoinRequest = {
     id: Buffer.from(ctx.random(8)).toString('hex'),
     repo: full,
-    email,
+    email: shownEmail(a).toLowerCase(),
     name: a.name,
     createdAt: new Date(now).toISOString(),
     expiresAt: new Date(now + JOIN_REQUEST_TTL_MS).toISOString(),
@@ -816,9 +816,9 @@ async function placeRequest(ctx: Ctx, req: Request, a: Account, full: string): P
     const link = `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}${manageHref(full)}`;
     const team = (await teamNamesOf(ctx, [full]))(full);
     for (const to of await adminEmails(ctx, full)) {
-      if (to === email) continue;
+      if (sameEmail(to, email)) continue;
       try {
-        await ctx.svc.email.send(requestEmail({ to, name: a.name, email, team, link }));
+        await ctx.svc.email.send(requestEmail({ to, name: a.name, email: r.email, team, link }));
       } catch {
         // The request stands: admins see it in Settings, Members.
       }
@@ -927,7 +927,7 @@ async function publicTeam(ctx: Ctx, rec: TeamRecord, role: 'edit' | 'admin'): Pr
   const d = await getDiscovery(ctx.svc.redis, key);
   const list = await ctx.svc.members.list(key);
   const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.adminsOf(key) : [];
-  const people = list.map((m) => ({ name: m.name, role: m.role === 'admin' || local.includes(m.email) ? ('admin' as const) : ('edit' as const) }));
+  const people = list.map((m) => ({ name: m.name, role: m.role === 'admin' || local.some((e) => sameEmail(e, m.email)) ? ('admin' as const) : ('edit' as const) }));
   return { id: rec.id, key, name: rec.name, role, repo: rec.repo, storybook: rec.storybook, discovery: d ? { domain: d.domain, enabled: d.enabled } : null, memberCount: list.length, people, createdAt: rec.createdAt };
 }
 
@@ -943,7 +943,7 @@ async function ownTeamWithoutRepo(ctx: Ctx, a: Account): Promise<TeamRecord | nu
     const id = teamKeyId(repo);
     if (!id || member.role !== 'admin') continue;
     const rec = await getTeamRecord(ctx.svc.redis, id);
-    if (rec && !rec.repo && rec.createdBy === a.email.toLowerCase()) return rec;
+    if (rec && !rec.repo && sameEmail(rec.createdBy, a.email)) return rec;
   }
   return null;
 }
@@ -1124,7 +1124,7 @@ async function nextAfterDelete(ctx: Ctx, a: Account): Promise<string> {
 
 async function onDeleteTeam(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
   const t = await resolveTeam(ctx, body.team ?? body.repo);
-  await bumpOrRefuse(ctx, [`bridge:entry:count:delete-team:${hmacHex(ctx.svc.secret, `email:${a.email.toLowerCase()}`)}:${dayOf(ctx.now())}`], [DELETE_TEAM_PER_DAY], ['deleteTeam']);
+  await bumpOrRefuse(ctx, [`bridge:entry:count:delete-team:${hmacHex(ctx.svc.secret, `email:${canonicalEmail(a.email)}`)}:${dayOf(ctx.now())}`], [DELETE_TEAM_PER_DAY], ['deleteTeam']);
   const kind = t.id ? ('team' as const) : ('repository' as const);
   try {
     await requireAdmin(ctx, a, t.full);
@@ -1146,7 +1146,7 @@ async function onAction(ctx: Ctx, req: Request, a: Account, body: Record<string,
       const { full } = await resolveTeam(ctx, body.repo);
       const inv = typeof body.id === 'string' && ID.test(body.id) ? await ctx.svc.invites.get(full, body.id) : null;
       // Someone else's invite answers like a missing one.
-      if (!inv || inv.email.trim().toLowerCase() !== a.email.toLowerCase()) return fail(410, 'expired', INVITE_GONE);
+      if (!inv || !sameEmail(inv.email, a.email)) return fail(410, 'expired', INVITE_GONE);
       return acceptInvite(ctx, req, a, inv);
     }
     case 'request':
@@ -1209,7 +1209,7 @@ async function onInviteLink(ctx: Ctx, req: Request, a: Account | null, body: Rec
   const team = (await teamNamesOf(ctx, [repo]))(repo);
   if (!live) return json(200, { state: 'gone', team, invitedBy: displayName(trace!.invitedBy), signedIn, member, ...(member ? { repo } : {}) });
   const card = await inviteCard(ctx, live, team);
-  const mine = Boolean(a && live.email.trim().toLowerCase() === a.email.toLowerCase());
+  const mine = Boolean(a && sameEmail(live.email, a.email));
   return json(200, {
     state: 'live',
     team,

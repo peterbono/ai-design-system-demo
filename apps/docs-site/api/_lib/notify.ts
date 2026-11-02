@@ -14,7 +14,8 @@
 // notices are kept for the summary and one line says so once per warm function. Nothing here logs an address, a token
 // or a payload.
 //
-// Keys (Upstash Redis, emails lower case):
+// Keys (Upstash Redis; the email in a key or on the due list canonical, api/_lib/canonical-email.ts, so one Gmail
+// mailbox gets one summary whatever its spelling; what was kept under the address lower-cased is read too):
 //   bridge:notify:teams                    set of watched repositories (the team's, its products' copies and
 //                                          developers' repositories), owner/name lower case; filled by api/contribute
 //                                          when an email member files something or opens Studio, never expires (the
@@ -30,6 +31,7 @@
 
 import { getAccount, type Account } from './account.js';
 import { brevoSender, type EmailSender } from './email.js';
+import { canonicalEmail, emailSpellings } from './canonical-email.js';
 import { issueKey } from './former-member.js';
 import type { FetchLike } from './http.js';
 import { memberStore, type MemberStore } from './members.js';
@@ -112,16 +114,21 @@ export const SWEEP_KEY = 'bridge:notify:sweep';
 const lc = (s: string) => s.trim().toLowerCase();
 export const repoMetaKey = (repo: string) => `bridge:notify:repo:${lc(repo)}`;
 export const itemMetaKey = (repo: string, n: number | string) => `bridge:notify:item:${lc(repo)}:${n}`;
-export const digestKey = (email: string) => `bridge:notify:digest:${lc(email)}`;
-export const soonKey = (email: string, repo: string, n: number) => `bridge:notify:soon:${lc(email)}:${lc(repo)}#${n}`;
+export const digestKey = (email: string) => `bridge:notify:digest:${canonicalEmail(email)}`;
+const digestKeys = (email: string) => emailSpellings(email).map((e) => `bridge:notify:digest:${e}`);
+export const soonKey = (email: string, repo: string, n: number) => `bridge:notify:soon:${canonicalEmail(email)}:${lc(repo)}#${n}`;
 export const onceKey = (kind: NotifyKind, repo: string, n: number) => `bridge:notify:once:${kind}:${lc(repo)}:${n}`;
 /** The choices of someone who unsubscribed without a Bridge account (an older email member). */
-export const optOutKey = (email: string) => `bridge:notify:off:${lc(email)}`;
+export const optOutKey = (email: string) => `bridge:notify:off:${canonicalEmail(email)}`;
 
 /** The person's choices: on their account, else what an unsubscribe link kept for them, else the defaults. */
 export async function prefsFor(redis: Redis, email: string, account: Account | null): Promise<NotifyPrefs> {
   if (account) return prefsOf(account);
-  return prefsOf({ notify: parse<NotifyPrefs>(await redis.cmd('GET', optOutKey(email))) ?? undefined });
+  for (const e of emailSpellings(email)) {
+    const kept = parse<NotifyPrefs>(await redis.cmd('GET', `bridge:notify:off:${e}`));
+    if (kept) return prefsOf({ notify: kept });
+  }
+  return prefsOf(undefined);
 }
 
 export const YEAR_S = 365 * 24 * 60 * 60;
@@ -300,7 +307,7 @@ async function keep(d: NotifyDeps, email: string, item: NotifyItem, tz: string):
   await d.redis.pipe([
     ['ZADD', digestKey(email), item.at, JSON.stringify(item)],
     ['EXPIRE', digestKey(email), KEEP_S],
-    ['ZADD', DUE_KEY, 'NX', nextDigestAt(now, tz), lc(email)],
+    ['ZADD', DUE_KEY, 'NX', nextDigestAt(now, tz), canonicalEmail(email)],
   ]);
 }
 
@@ -405,7 +412,9 @@ const isItem = (v: any): v is NotifyItem => v && typeof v.id === 'string' && typ
 
 /** The summary of one person, if they have anything left to read under their current choices. */
 export async function digestFor(d: NotifyDeps, email: string): Promise<{ items: NotifyItem[]; raw: string[]; account: Account | null }> {
-  const raw = ((await d.redis.cmd('ZRANGE', digestKey(email), 0, -1)) as string[] | null) ?? [];
+  // The canonical list and, until the person's next sign-in moves it, the one under the spelling on the due list.
+  const lists = await d.redis.pipe(digestKeys(email).map((k) => ['ZRANGE', k, 0, -1]));
+  const raw = lists.flatMap((l) => (Array.isArray(l) ? l.filter((x): x is string => typeof x === 'string') : []));
   const account = await getAccount(d.redis, email);
   const prefs = await prefsFor(d.redis, email, account);
   const seen = new Set<string>();
@@ -431,7 +440,7 @@ export async function sendDueDigests(d: NotifyDeps, max = 25): Promise<SweepResu
     if (Number(await d.redis.cmd('ZREM', DUE_KEY, email)) !== 1) continue;
     const { items, raw, account } = await digestFor(d, email);
     if (!items.length) {
-      if (raw.length) await d.redis.cmd('DEL', digestKey(email));
+      if (raw.length) await d.redis.pipe(digestKeys(email).map((k) => ['DEL', k]));
       res.empty++;
       continue;
     }
@@ -455,7 +464,7 @@ export async function sendDueDigests(d: NotifyDeps, max = 25): Promise<SweepResu
       continue;
     }
     // Only what this summary said goes: anything kept while it was sent waits for the next one.
-    await d.redis.cmd('ZREM', digestKey(email), ...raw);
+    await d.redis.pipe(digestKeys(email).map((k) => ['ZREM', k, ...raw]));
     res.sent++;
   }
   return res;
@@ -469,9 +478,10 @@ export async function sweepSometimes(d: NotifyDeps): Promise<SweepResult | null>
 
 /** What account deletion forgets: the person's kept notices and their place on the due list. */
 export function forgetWrites(email: string): RedisArg[][] {
+  const spellings = emailSpellings(email);
   return [
-    ['DEL', digestKey(email)],
-    ['DEL', optOutKey(email)],
-    ['ZREM', DUE_KEY, lc(email)],
+    ...spellings.map((e) => ['DEL', `bridge:notify:digest:${e}`]),
+    ...spellings.map((e) => ['DEL', `bridge:notify:off:${e}`]),
+    ['ZREM', DUE_KEY, ...spellings],
   ];
 }
