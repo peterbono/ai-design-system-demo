@@ -1,5 +1,15 @@
 # @bridge-ds/docs-site
 
+## 0.26.16
+
+### Patch Changes
+
+- 32c3264: GitHub busy for the viewer's account is now a calm wait, never "Product not found", "Make my copy", an empty list or a role stuck on "Checking". One classification (lib/github-busy) reads 403 or 429 answers with no reads left, or in GitHub's limit words, as busy with the reset time. Team pages keep the team as last read in this browser, product pages keep the explorations as last read with one line ("GitHub is busy for your account. Bridge is back at 13:52."), Being built and team load errors say the same, and each reads again once on its own just after the reset (or on Try again). The team chip shows the last known role, else "Signed in". Core no longer reads a worded limit 403 as a missing design copy or a missing installation.
+- 4306da2: Settings shows a team's admins how much of GitHub's hourly limit Bridge used for their team, and says calmly when it gets close. The server records the GitHub limit of each Bridge app installation from every answer (throttled writes), logs one warning per installation and hour under 20% left, and counts GitHub's slow-down answers.
+- b2602fd: Team reads through Bridge follow GitHub's webhooks: `/api/github-webhook` (signed with `GITHUB_WEBHOOK_SECRET`, each delivery done once) marks only the changed topic of a repository (code, pulls, issues, checks, deployments, releases) to be checked again, and while deliveries arrive cached answers stay fresh 10 minutes instead of 30 seconds, falling back to 30 seconds on their own when the webhook goes quiet. GitHub calls now grow with activity, not with viewers.
+- Updated dependencies [32c3264]
+  - @bridge-ds/core@0.27.3
+
 ## 0.26.15
 
 ### Patch Changes
