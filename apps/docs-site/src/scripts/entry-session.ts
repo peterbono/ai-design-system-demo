@@ -212,6 +212,19 @@ export async function renameTeam(key: string, name: string): Promise<TeamInfo> {
   return team;
 }
 
+/**
+ * An admin deletes a team made in Bridge, or disconnects a repository's team from Bridge (the server checks the admin).
+ * This browser forgets the team at once and the account is read again; `next` is where the person goes now.
+ */
+export async function deleteTeam(team: string): Promise<{ kind: 'team' | 'repository'; next: string }> {
+  const r = await call<{ kind?: unknown; next?: unknown }>('POST', '', { action: 'delete-team', team });
+  const { forgetTeamEverywhere } = await import('../lib/recent-teams');
+  forgetTeamEverywhere(team);
+  await import('./account-session').then(({ getAccount }) => getAccount(true)).catch(() => {});
+  const next = typeof r.next === 'string' && r.next.startsWith('/') && !r.next.startsWith('//') ? r.next : '/start/';
+  return { kind: r.kind === 'repository' ? 'repository' : 'team', next };
+}
+
 /** A team made in Bridge, for one of its members; null when it is gone or they are not on it (404). */
 export async function getTeam(key: string): Promise<TeamInfo | null> {
   try {

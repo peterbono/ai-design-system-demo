@@ -1,7 +1,7 @@
 // The team chip's recent teams in storage: cleaned on read, remembered only after a real read, removable.
 import { describe, expect, it } from 'vitest';
-import { RECENT_TEAMS_KEY } from './access-view';
-import { ACCOUNT_TEAM_NAMES_KEY, forgetRecentTeam, knownTeamName, loadRecentTeams, noteAccountTeamNames, noteTeamAccess, type RecentStore } from './recent-teams';
+import { RECENT_TEAMS_KEY, TEAM_NAMES_KEY, TEAM_ROLES_KEY } from './access-view';
+import { ACCOUNT_TEAM_NAMES_KEY, forgetRecentTeam, forgetTeamEverywhere, knownTeamName, loadRecentTeams, noteAccountTeamNames, noteTeamAccess, type RecentStore } from './recent-teams';
 
 function memory(initial?: unknown): RecentStore & { data: Map<string, string> } {
   const data = new Map<string, string>();
@@ -102,5 +102,24 @@ describe('names known before a team page reads its settings', () => {
     expect(knownTeamName('lumen/mobile-kit', store)).toBe('Lumen Mobile 2');
     noteAccountTeamNames(null, store);
     expect(store.data.has(ACCOUNT_TEAM_NAMES_KEY)).toBe(false);
+  });
+});
+
+describe('forgetTeamEverywhere (a deleted or disconnected team)', () => {
+  it('drops the team from the recent teams, names, roles and account names, and keeps the others', () => {
+    const store = memory(['_team/00112233aabbccdd', 'acme/ds']);
+    store.data.set(TEAM_NAMES_KEY, JSON.stringify({ '_team/00112233aabbccdd': "Florian's workspace", 'acme/ds': 'Acme' }));
+    store.data.set(TEAM_ROLES_KEY, JSON.stringify({ '_team/00112233aabbccdd': 'Admin', 'acme/ds': 'Can edit' }));
+    store.data.set(ACCOUNT_TEAM_NAMES_KEY, JSON.stringify({ '_team/00112233aabbccdd': "Florian's workspace" }));
+    forgetTeamEverywhere('_team/00112233AABBCCDD', store);
+    expect(stored(store)).toEqual(['acme/ds']);
+    expect(JSON.parse(store.data.get(TEAM_NAMES_KEY)!)).toEqual({ 'acme/ds': 'Acme' });
+    expect(JSON.parse(store.data.get(TEAM_ROLES_KEY)!)).toEqual({ 'acme/ds': 'Can edit' });
+    expect(store.data.has(ACCOUNT_TEAM_NAMES_KEY)).toBe(false);
+  });
+
+  it('never throws on a blocked storage', () => {
+    expect(() => forgetTeamEverywhere('acme/ds', blocked)).not.toThrow();
+    expect(() => forgetTeamEverywhere('acme/ds', null)).not.toThrow();
   });
 });

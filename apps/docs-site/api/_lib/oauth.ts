@@ -446,6 +446,14 @@ export async function revokeAccountGrants(redis: Redis, who: { email: string; lo
   return ended;
 }
 
+/** Every connection in Claude to one team ends (api/entry delete-team): its grants, and their tokens with them. */
+export async function revokeTeamGrants(redis: Redis, repo: string): Promise<number> {
+  const list = await listGrants(redis, repo);
+  for (const g of list) await revokeGrant(redis, g);
+  await redis.cmd('DEL', grantsKey(repo));
+  return list.length;
+}
+
 export async function getGrant(redis: Redis, id: string): Promise<Grant | null> {
   return parse<Grant>(await redis.cmd('GET', grantKey(id)), isGrant);
 }

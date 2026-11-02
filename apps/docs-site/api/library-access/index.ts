@@ -330,7 +330,8 @@ export const clearSession = (repoFull: string) => `${cookieName(repoFull)}=; Max
 //   bridge:library:signin:<sha256 of token>   a sign-in link (JSON), 15 minutes
 //   bridge:library:count:<kind>:<who>:<day>   daily caps, 2 days; emails and IPs under an HMAC
 
-const settingKey = (repo: string) => `bridge:library:setting:${repo.toLowerCase()}`;
+/** Exported for api/entry delete-team, which forgets the setting of a team that leaves Bridge. */
+export const settingKey = (repo: string) => `bridge:library:setting:${repo.toLowerCase()}`;
 const signInKey = (hash: string) => `bridge:library:signin:${hash}`;
 
 function parseJson<T>(raw: unknown, ok: (v: any) => boolean): T | null {

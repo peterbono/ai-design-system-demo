@@ -317,12 +317,15 @@ const STORED = [
       <li><strong>Remove an AI connection.</strong> In Studio, Settings, Claude: the person who connected it, or a team admin, removes it. Its tokens stop working at once. A connection unused for 90 days ends on its own.</li>
       <li><strong>Remove Bridge from a repository.</strong> A repository admin uninstalls the Bridge apps on GitHub (repository or organization settings, GitHub Apps). Each person can also revoke their own sign-in: GitHub, Settings, Applications, Authorized GitHub Apps. GitHub then refuses every token of that sign-in, including the ones Bridge keeps for their AI connections.</li>
       <li><strong>Delete an account.</strong> In Studio, the menu with your name, Account settings, Delete my account. It removes the account, its memberships, join requests and sessions at once, and ends every AI connection the person made, with the GitHub tokens kept for them. Changes the person sent stay in the team’s history, signed “A former member”. Backups age out within 30 days.</li>
+      <li><strong>Delete a team.</strong> A team made in Bridge: an admin opens Settings, Danger zone, Delete this team, and types the team’s name to confirm. Everyone on it loses access at once; its members, invites, requests to join, AI connections, name and settings go from Bridge’s storage at once.</li>
+      <li><strong>Disconnect a team from Bridge.</strong> A team connected to a repository: an admin opens Settings, Danger zone, Disconnect this team, and types the team’s name. Bridge forgets the same things as for a deleted team. The repository, its history and its settings stay on GitHub: Bridge never changes them. People with access to the repository on GitHub can still open it in Bridge until a repository admin uninstalls the Bridge apps (see above).</li>
       <li><strong>Remove your design system.</strong> Nothing to delete on Bridge’s side: it lives in your repository. Short-lived copies expire on their own within 7 days.</li>
     </ul>
-    <p>Not supported yet: a team connected to a repository has no Delete team action. Its email members and domain setting stay until an admin removes them, and its name stays.</p>
+    <p>What deleting or disconnecting a team leaves: copies of what Bridge read from GitHub expire on their own within 7 days, Claude’s work in progress on a component within 7 days, notices already in people’s daily summaries within 30 days, and backups within 30 days.</p>
     <DevDetail id="offboarding-dev" client:visible>
       <ul>
         <li>Account deletion: <code>onDelete</code> in <Link href={src('apps/docs-site/api/account/index.ts')}><code>api/account/index.ts</code></Link> and <Link href={src('apps/docs-site/api/_lib/former-member.ts')}><code>api/_lib/former-member.ts</code></Link>. It ends the person’s connections first: <code>revokeAccountGrants</code> in <code>api/_lib/oauth.ts</code>.</li>
+        <li>Team deletion and disconnection: <code>delete-team</code> in <Link href={src('apps/docs-site/api/entry/index.ts')}><code>api/entry/index.ts</code></Link> (<code>forgetTeam</code>), admins only, checked on the server. It calls GitHub only to check that the person is an admin, never to write.</li>
         <li>Connection removal: <code>view=disconnect</code> in <code>api/mcp/index.ts</code>, <code>revokeGrant</code> in <code>api/_lib/oauth.ts</code>. A GitHub token that no longer renews ends the connection on its next use (<code>githubTokenOf</code>).</li>
       </ul>
     </DevDetail>
@@ -352,7 +355,6 @@ const STORED = [
       <li>No encryption with your own keys. Bridge encrypts only the GitHub tokens it keeps.</li>
       <li>One server secret does several jobs: it signs sessions and is the source of the keys that encrypt the kept GitHub tokens and sign Figma pushes (each key derived for one purpose). Rotating it signs everyone out and ends every AI connection.</li>
       <li>No audit log of Bridge’s own actions beyond what GitHub records (commits, reviews, comments).</li>
-      <li>No Delete team action for a team connected to a repository.</li>
       <li>No uptime commitment or support agreement.</li>
     </ul>
   </section>

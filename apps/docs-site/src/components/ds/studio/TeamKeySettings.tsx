@@ -7,6 +7,7 @@
 //   Your design system  how changes reach your code, review rules, safety and library access all come from the design
 //                    system: "Connect your design system first", the admin's one action, or who can do it by name
 //   Appearance       this browser's choice
+//   Danger zone      admins only: "Delete this team" with its confirm dialog (DeleteTeam.tsx, api/entry delete-team)
 // Never the sample team nor Bridge's own: a page without the team says how to get one.
 import { useEffect, useState } from 'react';
 import { Link2Off } from 'lucide-react';
@@ -15,6 +16,8 @@ import ButtonLink from '../ButtonLink';
 import MembersSection from './MembersSection';
 import AppearanceSetting from './AppearanceSetting';
 import AiToolsSetting from './AiToolsSetting';
+import { DeleteTeamRow } from './DeleteTeam';
+import { DELETE_TEAM_WORDS } from '../../../lib/delete-team';
 import { TEAM_NAME_WORDS, teamNameProblem } from '../../../lib/team-name';
 import { adminOnlyText } from '../../../lib/settings-view';
 import { signInHref } from '../../../lib/account';
@@ -249,6 +252,12 @@ export default function TeamKeySettings() {
       <Band id="appearance" title="Appearance" intro="How Bridge looks for you, only in this browser. It changes nothing for your team.">
         <AppearanceSetting />
       </Band>
+
+      {admin && (
+        <Band id="danger-zone" title={DELETE_TEAM_WORDS.band} intro={DELETE_TEAM_WORDS.intro.team}>
+          <DeleteTeamRow team={team.key} name={team.name} />
+        </Band>
+      )}
     </>
   );
 }

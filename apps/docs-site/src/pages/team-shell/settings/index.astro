@@ -9,6 +9,7 @@
 // Products (TeamProducts.tsx), for leads and admins only: the team's products and Add a product.
 // On the demo, that is the demo's sample team. Appearance (light or dark) is this browser's own choice, there for
 // everyone whatever the team read gives (AppearanceSetting.tsx).
+// Danger zone (DeleteTeam.tsx), admins of a real team only: "Disconnect this team from Bridge" (the repository stays).
 import '../../../styles/settings.css';
 import TeamShell from '../../../components/TeamShell.astro';
 import MembersSection from '../../../components/ds/studio/MembersSection';
@@ -19,6 +20,7 @@ import TeamProducts from '../../../components/ds/studio/TeamProducts';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import AiToolsSetting from '../../../components/ds/studio/AiToolsSetting';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
+import DeleteTeamBand from '../../../components/ds/studio/DeleteTeam';
 import { TEAM_NAME_WORDS } from '../../../lib/team-name';
 ---
 
@@ -49,4 +51,5 @@ import { TEAM_NAME_WORDS } from '../../../lib/team-name';
     <p class="ts-intro">How Bridge looks for you, only in this browser. It changes nothing for your team.</p>
     <AppearanceSetting client:load />
   </section>
+  <DeleteTeamBand client:only="react" />
 </TeamShell>

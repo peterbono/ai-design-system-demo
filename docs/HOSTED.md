@@ -804,6 +804,26 @@ there, and Studio links it from the team page once its admin opens it). Everythi
 points back to it, and an old key resolves to the repository in every call. Existing repository teams have no record
 and need no migration.
 
+### Deleting a team, disconnecting a team from Bridge
+
+`POST /api/entry { action: 'delete-team', team }` (an admin of the team, checked on the server like every admin
+action; 403 for anyone else) removes everything Bridge keeps for one team, from Settings, Danger zone. A team made in
+Bridge (`_team/<id>`) is deleted; a repository's team is disconnected from Bridge with the same cleanup. In order:
+its connections in Claude (`bridge:oauth:grants:<repo>` and each grant, so their tokens stop at once), every email
+membership (`bridge:member:*`, `bridge:members:<repo>`, the entry in each `bridge:account:teams:<email>`; contributor
+sessions end with it), seeded local admins (`npm run dev:full`), invites (`bridge:invite:*`, `bridge:invites:<repo>`,
+the token and email indexes), discovery and its domain index, pending join requests, the name and the AI tools default
+(`forgetTeamKey`), the notifications registry (`bridge:notify:teams` and `bridge:notify:repo:*` for the team and every
+repository whose meta names it), the library access setting (`bridge:library:setting:<repo>`), and the team record
+(`bridge:team:rec:<id>`, `bridge:team:byrepo:<repo>`, and the old key of a team linked since). Nothing writes to
+GitHub: the repository, its history and the Bridge app installation stay; people with access on GitHub can still
+open the team until a repository admin uninstalls the app. What ages out on its own: the read cache
+(`bridge:read:*`, 7 days at most), fix sessions (7 days), notices already kept in daily summaries (30 days), the
+backups (30 days). Idempotent: a team made in Bridge that is already gone answers `{ deleted: true }` again. Capped
+at 10 per account per UTC day. Answer `{ deleted: true, kind: 'team' | 'repository', next }`, `next` being the
+person's next team, else Studio (GitHub linked) or `/start/`; the browser forgets the team from its recent teams,
+names and roles (`lib/recent-teams.ts forgetTeamEverywhere`).
+
 ### Codes, sessions and storage
 
 - **Codes**: 6 digits, 10 minutes, single use, one live code per email (a new one replaces the last). Stored only as

@@ -153,6 +153,20 @@ export function watchWrites(entries: readonly { repo: string; meta: RepoMeta }[]
   ];
 }
 
+/**
+ * A team leaves Bridge (api/entry delete-team): its repository, and every watched repository whose meta names it (its
+ * products' copies, developers' repositories), stop being watched. Notices already kept in summaries age out.
+ */
+export async function unwatchTeam(redis: Redis, team: string): Promise<void> {
+  const t = lc(team);
+  const raw = await redis.cmd('SMEMBERS', NOTIFY_TEAMS_KEY);
+  const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+  const metas = repos.length ? ((await redis.cmd('MGET', ...repos.map(repoMetaKey))) as unknown[] | null) : [];
+  const gone = repos.filter((r, i) => lc(r) === t || parse<RepoMeta>(metas?.[i])?.team === t);
+  if (!gone.includes(t)) gone.push(t);
+  await redis.pipe([['SREM', NOTIFY_TEAMS_KEY, ...gone], ...gone.map((r) => ['DEL', repoMetaKey(r)])]);
+}
+
 /** The write that keeps what a task or suggestion is called and which exploration it comes from. */
 export function itemWrite(repo: string, n: number, meta: ItemMeta): RedisArg[] {
   return ['SET', itemMetaKey(repo, n), JSON.stringify(meta), 'EX', YEAR_S];

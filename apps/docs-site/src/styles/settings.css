@@ -161,6 +161,16 @@
   gap: var(--space-2);
 }
 
+/* Danger zone (components/ds/studio/DeleteTeam.tsx): the confirm dialog's note, name field and refusal, stacked. */
+.set-delete-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.set-delete-form p {
+  margin: 0;
+}
+
 /* The value takes the action column too (the Jira row), or the row spans every column (save bar). */
 .set-row-span {
   grid-column: 2 / -1;
