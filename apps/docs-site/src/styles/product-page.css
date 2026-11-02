@@ -150,9 +150,15 @@
     justify-items: center;
   }
 
-  /* The Home's phone choice (studio-home.css: the drawing at --size-16, --space-4 apart), the chevron last. */
+  /* The Home's phone choice (studio-home.css: the drawing above the text), the chevron beside both, centered. */
   .pp-choice .pp-choice-body {
-    grid-template-columns: var(--size-16) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pp-choice .pp-choice-go {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    align-self: center;
   }
 }
 

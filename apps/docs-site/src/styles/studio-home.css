@@ -651,14 +651,17 @@
     margin-inline-start: 0;
   }
 
-  .sh-choice-body {
-    grid-template-columns: var(--size-16) minmax(0, 1fr);
-    align-items: center;
-    column-gap: var(--space-4);
+  /* A phone: the drawing (56px) above the text, left-aligned, so the title keeps the card's full width (two lines at
+     most at 390px). */
+  .sh-choice-body,
+  .sh-choice-one .sh-choice-body {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    row-gap: var(--space-3);
   }
 
   .sh-choice-body > .ill {
-    width: var(--size-16);
+    width: var(--size-14);
     height: auto;
   }
 }
