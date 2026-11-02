@@ -43,7 +43,7 @@ function NameRow({ account }: { account: Account }) {
     }
   };
   return (
-    <div className="acc-set-row">
+    <div className={editing ? 'acc-set-row' : 'acc-set-row acc-set-row-inline'}>
       <Avatar name={accountName(account)} src={face} size="md" decorative />
       {editing ? (
         <form className="acc-set-form" noValidate onSubmit={(e) => void save(e)}>
@@ -196,7 +196,7 @@ function EmailRow({ account }: { account: Account }) {
   const summary = `${W.emailNeeds}: ${optionLabel(NEEDS_OPTIONS, notify.needs).toLowerCase()}. ${W.emailNews}: ${optionLabel(NEWS_OPTIONS, notify.news).toLowerCase()}.`;
   return (
     <div className="acc-set-text" data-account-email>
-      <div className="acc-set-row">
+      <div className="acc-set-row acc-set-row-inline">
         <div className="acc-set-text">
           <p className="acc-set-title">{W.emailTitle}</p>
           <p className="acc-set-sub">{open ? W.emailLead : summary}</p>
@@ -206,7 +206,7 @@ function EmailRow({ account }: { account: Account }) {
         </Button>
       </div>
       {open && (
-        <div className="acc-set-form">
+        <div className="acc-set-choices">
           <Select label={W.emailNeeds} options={NEEDS_OPTIONS} value={notify.needs} disabled={busy} onValueChange={(v) => v && v !== notify.needs && void save({ needs: v as NotifyChoices['needs'] })} />
           <Select label={W.emailNews} options={NEWS_OPTIONS} value={notify.news} disabled={busy} onValueChange={(v) => v && v !== notify.news && void save({ news: v as NotifyChoices['news'] })} />
         </div>

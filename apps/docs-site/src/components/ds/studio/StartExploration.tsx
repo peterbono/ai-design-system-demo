@@ -21,12 +21,14 @@
 // when the first need is the primary, hidden signed out (Connect GitHub takes its place).
 import { VOCAB } from '../../../lib/vocabulary';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, Copy, Plus } from 'lucide-react';
+import { Check, Copy, ExternalLink, Plus } from 'lucide-react';
 import { defaultProduct, parseJiraKey, productMarks, productsOf, type ProductConfig } from '@bridge-ds/core';
 import { Alert, Button, Combobox, Dialog, DialogContent, DialogTrigger, Input, Select } from '@bridge-ds/react';
 import { startChangeHref } from '../../../lib/overview-board';
 import {
+  adminBlockedFix,
   askAdmin,
+  blockIsAdmins,
   claudePrompt,
   connectorPrompt,
   featureHref,
@@ -147,6 +149,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
 
   // A lead may also start in the library; until the access is known, only the products (a lead sees it a moment later).
   const [lead, setLead] = useState(false);
+  // An admin of the team (email or GitHub): a product Bridge cannot reach is theirs to set up, never "Ask an admin".
+  const [admin, setAdmin] = useState(false);
   const targets = startTargets(products, { library: lead });
   const picked = targets.find((t) => t.value === target) ?? null;
 
@@ -201,6 +205,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
           m.onAccess((a) => {
             const designer = m.designerRoute();
             setLead(libraryLead(a) && !designer);
+            setAdmin(Boolean(a?.admin));
             if (designer) setEmail(true);
           });
         })
@@ -427,7 +432,19 @@ export default function StartExploration({ components, appearance = 'menu', prod
             {making ? COPY_WORDS.making : COPY_WORDS.noCopyStart(blocked.product)}
           </Alert>
         )}
-        {blocked && blocked.reason !== 'no-copy' && !error && (
+        {blocked && blocked.reason !== 'no-copy' && !error && blockIsAdmins({ admin, email, reason: blocked.reason }) && (
+          <Alert
+            tone="warning"
+            actions={
+              <Button variant="secondary" iconStart={ExternalLink} onClick={() => window.open(installUrl(), '_blank', 'noopener')}>
+                {adminBlockedFix(blocked.product, blocked.reason).label}
+              </Button>
+            }
+          >
+            {adminBlockedFix(blocked.product, blocked.reason).line}
+          </Alert>
+        )}
+        {blocked && blocked.reason !== 'no-copy' && !error && !blockIsAdmins({ admin, email, reason: blocked.reason }) && (
           <Alert
             tone="warning"
             actions={

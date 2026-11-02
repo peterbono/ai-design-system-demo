@@ -137,6 +137,8 @@ export const CLAUDE_CONNECT_WORDS = {
   otherAccount: 'Use another account',
   identityEmail: (email: string) => `Bridge account ${email}.`,
   identityGitHub: (login: string) => `GitHub account @${login}.`,
+  /** The GitHub path before this browser holds a GitHub sign-in: nobody is named yet, GitHub asks on Allow. */
+  identityGitHubLater: "You're connecting Claude with your GitHub account. GitHub asks you to sign in when you allow.",
   noRequest: 'Open this page from Claude: Settings, Connectors, Add custom connector, then Connect.',
   noAccess: "Your GitHub account cannot change this team's design system. Start again from Claude and pick a team you can edit, or ask its admin for access.",
   expired: 'This sign-in took too long. Start again from Claude.',

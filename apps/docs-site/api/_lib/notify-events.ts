@@ -35,6 +35,11 @@ export interface Notice {
   /** The exploration in the design team's copy the task links, when its body says so. */
   copy: { repo: string; number: number } | null;
   scope: NoticeScope;
+  /**
+   * What they wrote, when the event carries it (the question's comment, the lead's review note): the start of it, for
+   * the right-away email only. Never kept: the daily summary names things, it never quotes them.
+   */
+  quote?: string;
 }
 
 /** The context the mapper does not read from the payload. */
@@ -65,12 +70,44 @@ export const TASK_BACK_PREFIX = 'The design team took this back to exploring.';
 export const NEEDS_DESIGN_LABEL = 'needs-design';
 const bridgeWords = (body: string) => VIA_BRIDGE.test(body) || body.trim().startsWith(DESIGN_REVIEW_PREFIX) || body.trim().startsWith(TASK_BACK_PREFIX);
 
-/** "Design: Pill buttons" (the task title Done exploring writes) as "Pill buttons"; any title cleaned and kept short. */
+const upperFirst = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/**
+ * "Design: add a toast alert" (the task title Done exploring writes) as "Add a toast alert", the way Studio names it
+ * (the rule of lib/pr-title humanTitle, kept here so the functions import nothing of the site: no "feat:" prefix, a
+ * capital first); any title cleaned and kept short.
+ */
 export function cleanTitle(raw: unknown): string {
   const t = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim().replace(/^Design:\s*/i, '') : '';
   // No em dash in anything Bridge writes: one in a title becomes a comma.
-  const s = t.replace(/\s*\u2014\s*/g, ', ');
+  const s = upperFirst(t.replace(/^(?:[a-z]+|Exploration|Feat|Fix|Chore|Docs|Refactor|Revert|Tokens)(\([^)]*\))?!?:\s*/, '').replace(/\s*\u2014\s*/g, ', '));
   return s.length > 90 ? `${s.slice(0, 89).trimEnd()}…` : s;
+}
+
+/** Characters of what someone wrote that an email quotes. */
+export const QUOTE_MAX = 400;
+
+/**
+ * The start of what someone wrote (a comment, a review note) as an email quotes it: plain text, no HTML comment or
+ * tag, an image as "(image)", blank lines folded, no em dash, at most QUOTE_MAX characters cut on a word. Empty when
+ * nothing is left.
+ */
+export function quoteOf(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  const t = raw
+    .replace(/\r\n?/g, '\n')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '(image)')
+    .replace(/<img\b[^>]*>/gi, '(image)')
+    .replace(/<[^>]{1,200}>/g, '')
+    .replace(/\s*\u2014\s*/g, ', ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (t.length <= QUOTE_MAX) return t;
+  const cut = t.slice(0, QUOTE_MAX);
+  const space = cut.search(/\s\S*$/);
+  return `${(space > QUOTE_MAX * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
 /**
@@ -116,7 +153,8 @@ export function notifyEventsOf(event: string, payload: unknown, ctx: NotifyConte
     if (issue.pull_request || !Number.isSafeInteger(issue.number) || (issue.state !== undefined && issue.state !== 'open')) return [];
     const by = human(comment.user, ctx) ?? null;
     if (!by || !sender || typeof comment.body !== 'string' || !comment.body.trim() || bridgeWords(comment.body)) return [];
-    return [{ kind: 'question', repo, items: [issue.number], title: cleanTitle(issue.title), actor: by, copy: linkedCopy(issue.body, repo), scope: 'any' }];
+    const quote = quoteOf(comment.body);
+    return [{ kind: 'question', repo, items: [issue.number], title: cleanTitle(issue.title), actor: by, copy: linkedCopy(issue.body, repo), scope: 'any', ...(quote ? { quote } : {}) }];
   }
 
   // The developers put needs-design on the task: they ask for design, with no words.
@@ -157,7 +195,8 @@ export function notifyEventsOf(event: string, payload: unknown, ctx: NotifyConte
     const review = obj(p.review);
     const by = human(review.user, ctx);
     if (!Number.isSafeInteger(pr.number) || !by || String(review.state).toLowerCase() !== 'changes_requested') return [];
-    return [{ kind: 'changes', repo, items: [pr.number], title: cleanTitle(pr.title), actor: by, copy: null, scope: 'library' }];
+    const quote = quoteOf(review.body);
+    return [{ kind: 'changes', repo, items: [pr.number], title: cleanTitle(pr.title), actor: by, copy: null, scope: 'library', ...(quote ? { quote } : {}) }];
   }
 
   return [];

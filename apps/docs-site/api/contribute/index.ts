@@ -128,7 +128,7 @@
 
 import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
-import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
+import { escHtml, mailButton, mailP, mailPage, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { explorationBlockOf, memberRef, withMemberInBlock } from '../_lib/exploration-member.js';
 import { branchKey, issueKey, mineKey } from '../_lib/former-member.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
@@ -163,7 +163,7 @@ import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/sessi
 import { accountTeamsKey } from '../_lib/members.js';
 import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-update.js';
 import { validPackageName } from '../../src/lib/library-update.js';
-import { corsHeaders, isPublicRepo, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
+import { corsHeaders, isPublicRepo, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, profileNameOf, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
 
@@ -478,12 +478,16 @@ function signInEmail(x: { to: string; repo: string; link: string }): EmailMessag
     'The link works once and expires in 15 minutes. It keeps you signed in on that browser for 30 days.',
     'If you did not ask for it, you can ignore this email.',
   ];
-  const html = [
-    `<p>Sign in to the <strong>${escHtml(x.repo)}</strong> design system on Bridge.</p>`,
-    `<p><a href="${escHtml(x.link)}">Open Bridge</a></p>`,
-    '<p>The link works once and expires in 15 minutes. It keeps you signed in on that browser for 30 days.</p>',
-    '<p>If you did not ask for it, you can ignore this email.</p>',
-  ].join('\n');
+  const html = mailPage({
+    subject,
+    preheader: 'The link works once and expires in 15 minutes.',
+    body: [
+      mailP(`Sign in to the <strong>${escHtml(x.repo)}</strong> design system on Bridge.`, true),
+      mailButton(x.link, 'Open Bridge'),
+      `<p style="margin:16px 0 0">The link works once and expires in 15 minutes. It keeps you signed in on that browser for 30 days.</p>`,
+    ].join('\n'),
+    footer: 'If you did not ask for it, you can ignore this email.',
+  });
   return { to: x.to, subject, text: lines.join('\n'), html };
 }
 
@@ -1901,10 +1905,25 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
       const kvToken = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
       const redis = deps.redis ?? (kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, STORAGE_DOWN) : null);
       const session = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
-      // Notifications need the session secret (unsubscribe links); the sender is optional (kept, not sent).
+      // Notifications need the session secret (unsubscribe links); the sender is optional (kept, not sent). Someone
+      // with no Bridge account is named by their GitHub profile name, as Studio names them (the read token's profile).
+      const svc = redis ? services(env, { ...deps, redis }) : null;
+      const now = deps.now ?? Date.now;
+      const profileName = svc
+        ? (login: string, repo: string) => {
+            const [o = '', r = ''] = repo.split('/');
+            return profileNameOf({ f: deps.fetch, now, redis: svc.redis, token: (ow, re) => svc.readApp.installationToken(ow, re) }, o, r, login);
+          }
+        : undefined;
       const notify =
         session.length >= MIN_SECRET_LENGTH
-          ? { sender: deps.notifySender !== undefined ? deps.notifySender : notifySenderFromEnv(env, deps.fetch), secret: session, publicUrl: env.PUBLIC_SITE_URL, ...(deps.members ? { members: deps.members } : {}) }
+          ? {
+              sender: deps.notifySender !== undefined ? deps.notifySender : notifySenderFromEnv(env, deps.fetch),
+              secret: session,
+              publicUrl: env.PUBLIC_SITE_URL,
+              ...(deps.members ? { members: deps.members } : {}),
+              ...(profileName ? { profileName } : {}),
+            }
           : undefined;
       return await handleGithubWebhook(req, { redis, secret: env.GITHUB_WEBHOOK_SECRET, now: deps.now ?? Date.now, ...(notify ? { notify } : {}) });
     }

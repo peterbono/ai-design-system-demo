@@ -150,6 +150,25 @@ export function productRepoBlockedLine(product: string, reason: 'not-connected' 
 }
 
 /**
+ * The same block for an admin of the team: the way forward is theirs, so it is never "Ask an admin". Bridge is set up
+ * on the product (or its design copy) from GitHub's install page, then they start again. The line keeps designer words;
+ * the button opens the install page.
+ */
+/**
+ * Whether the block is the viewer's own to fix: an admin of the team, when Bridge is not connected to the product, or
+ * when they explore through Bridge (an email admin, whose design copy Bridge cannot open). A GitHub admin without push
+ * on the developers' repository still asks for access there.
+ */
+export const blockIsAdmins = (x: { admin: boolean; email: boolean; reason: 'not-connected' | 'read-only' | 'no-copy' }): x is { admin: true; email: boolean; reason: 'not-connected' | 'read-only' } =>
+  x.admin && x.reason !== 'no-copy' && (x.email || x.reason === 'not-connected');
+
+export function adminBlockedFix(product: string, reason: 'not-connected' | 'read-only'): { line: string; label: string } {
+  return reason === 'read-only'
+    ? { line: `Bridge cannot open the design copy of ${product} yet. Set Bridge up on it, then start again.`, label: `Set up Bridge on ${product}` }
+    : { line: `Bridge is not connected to ${product} yet. Connect it, then start again.`, label: `Connect ${product}` };
+}
+
+/**
  * The admin action: its button label and the message it copies (install Bridge on the repository, or give access).
  * `email`: a designer (joined with their email, or with GitHub as a designer of the team): the way in is a design copy
  * of the product (they explore there through Bridge), never GitHub access.

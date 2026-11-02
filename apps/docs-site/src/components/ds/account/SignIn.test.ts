@@ -336,7 +336,7 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     entryReply = entry;
     const view = render(createElement(SignIn));
     // Already signed in, opened from the site: Continue as them, which takes them on (the entry rooms).
-    void screen.findByRole('button', { name: `Continue as ${String(over.name ?? 'Jordan Lee')}` }).then((b) => fireEvent.click(b));
+    void screen.findByRole('button', { name: 'Continue' }).then((b) => fireEvent.click(b));
     return view;
   }
   const entryPosts = (action: string) => entryCalls.filter((c) => c.body?.action === action);
@@ -347,6 +347,9 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     render(createElement(SignIn));
     expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
     expect(screen.getByText('Acme Design · Can edit')).toBeInTheDocument();
+    // One action, and the name said once: in the card, not again on the button.
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
+    expect(screen.getAllByText('Jordan Lee')).toHaveLength(1);
     expect(screen.queryByLabelText('Work email')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Use another account' }));
     expect(await screen.findByRole('heading', { name: 'Welcome to Bridge' })).toBeInTheDocument();

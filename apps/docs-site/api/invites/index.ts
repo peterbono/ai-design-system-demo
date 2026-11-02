@@ -70,7 +70,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { accountNameByGithub, displayName } from '../_lib/account.js';
-import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
+import { escHtml, mailButton, mailP, mailPage, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app.js';
 import { b64url, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
@@ -504,13 +504,17 @@ export function inviteEmail(x: { to: string; inviter: string; repo: string; team
     `${how} The link works once and expires in 7 days.`,
     "If you did not expect this email, you can ignore it.",
   ];
-  const html = [
-    `<p>${escHtml(x.inviter)} invited you to the <strong>${escHtml(team)}</strong> design system${onBridge(team)}.</p>`,
-    `<p>Your role: <strong>${escHtml(roleLabel)}</strong>. ${escHtml(w.text)}</p>`,
-    `<p><a href="${escHtml(x.link)}">Join the team</a></p>`,
-    `<p>${how} The link works once and expires in 7 days.</p>`,
-    '<p>If you did not expect this email, you can ignore it.</p>',
-  ].join('\n');
+  const html = mailPage({
+    subject,
+    preheader: `Your role: ${roleLabel}. ${w.text}`,
+    body: [
+      `<p style="margin:0 0 12px">${escHtml(x.inviter)} invited you to the <strong>${escHtml(team)}</strong> design system${onBridge(team)}.</p>`,
+      mailP(`Your role: <strong>${escHtml(roleLabel)}</strong>. ${escHtml(w.text)}`, true),
+      mailButton(x.link, 'Join the team'),
+      `<p style="margin:16px 0 0">${how} The link works once and expires in 7 days.</p>`,
+    ].join('\n'),
+    footer: 'If you did not expect this email, you can ignore it.',
+  });
   return { to: x.to, subject, text: lines.join('\n'), html };
 }
 

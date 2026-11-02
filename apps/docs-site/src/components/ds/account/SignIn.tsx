@@ -557,7 +557,7 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
             </span>
           </div>
           <Button variant="primary" size="lg" className="acc-wide" onClick={() => (me ? go({ account: me, created: false, next: '' }, false) : leave(already.href))}>
-            {W.continueAs(already.name)}
+            {W.continueAs}
           </Button>
           <Button
             variant="ghost"

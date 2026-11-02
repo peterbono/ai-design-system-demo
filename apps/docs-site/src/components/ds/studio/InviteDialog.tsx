@@ -46,7 +46,7 @@ export interface InviteDialogProps {
   onSent?: () => void;
 }
 
-function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn: (d: MembersData) => MembersData) => void; onNotice: (n: Notice | null) => void }) {
+function AccessList({ data, update, notice, onNotice }: { data: MembersData; update: (fn: (d: MembersData) => MembersData) => void; notice: Notice | null; onNotice: (n: Notice | null) => void }) {
   const act = memberActions(data, update);
   const admins = adminCount(data.members);
   const now = data.context === 'sample' ? SAMPLE_NOW : Date.now();
@@ -62,6 +62,7 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
       <h3 id="inv-access-title" className="inv-access-title">
         {MEMBERS_WORDS.who} <span className="mem-count">{data.members.length + data.pending.length}</span>
       </h3>
+      <NoticeLine notice={notice} />
       <ul className="inv-access-list">
         {members.map((m) => {
           const can = allowed(m, { canManage: data.canManage, admins });
@@ -79,12 +80,25 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
         })}
         {data.pending.map((p) => (
           <li key={p.id} className="inv-access-row">
-            <PersonCell name={p.email} seed={p.face ?? p.email} line={pendingLine(p.sentAt, now)} pending />
-            {data.canManage && (
-              <Button variant="link" size="sm" data-demo-write={data.context === 'sample' ? 'send invites' : undefined} onClick={() => void run(() => act.resend(p))}>
-                {MEMBERS_WORDS.resend}
-              </Button>
-            )}
+            {/* Resend on the person's line, as in the Settings table (MembersSection PendingRow): the same row both places. */}
+            <PersonCell
+              name={p.email}
+              seed={p.face ?? p.email}
+              pending
+              line={
+                <>
+                  {pendingLine(p.sentAt, now)}
+                  {data.canManage && (
+                    <>
+                      {' · '}
+                      <Button variant="link" size="sm" className="mem-resend" data-demo-write={data.context === 'sample' ? 'send invites' : undefined} onClick={() => void run(() => act.resend(p))}>
+                        {MEMBERS_WORDS.resend}
+                      </Button>
+                    </>
+                  )}
+                </>
+              }
+            />
             {data.canManage ? (
               <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} variant="ghost" onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
             ) : (
@@ -115,6 +129,8 @@ export default function InviteDialog({ open, onOpenChange, shared, onSent }: Inv
   const [query, setQuery] = useState('');
   const [choice, setChoice] = useState<RoleChoice>(DEFAULT_CHOICE);
   const [notice, setNotice] = useState<Notice | null>(null);
+  /** What a row's action said (Resend, a role, Cancel invite): shown at the list, by the rows. */
+  const [listNotice, setListNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
   /** Invites went out since the dialog opened: with nothing left to send, the way out reads Done, not Cancel. */
   const [sent, setSent] = useState(false);
@@ -129,6 +145,7 @@ export default function InviteDialog({ open, onOpenChange, shared, onSent }: Inv
     setQuery('');
     setChoice(DEFAULT_CHOICE);
     setNotice(null);
+    setListNotice(null);
     setBusy(false);
     setSent(false);
   }, [open]);
@@ -166,7 +183,10 @@ export default function InviteDialog({ open, onOpenChange, shared, onSent }: Inv
     setBusy(true);
     const r = await memberActions(data, update).send(emails, choice, data.people);
     setBusy(false);
-    if (r.notice) setNotice(r.notice);
+    if (r.notice) {
+      setNotice(r.notice);
+      setListNotice(null);
+    }
     if (r.notice?.tone === 'success') {
       setEmails(r.left);
       setSent(true);
@@ -237,7 +257,7 @@ export default function InviteDialog({ open, onOpenChange, shared, onSent }: Inv
               <p className="inv-hint">{MEMBERS_WORDS.readOnly}</p>
             )}
             <NoticeLine notice={notice} />
-            <AccessList data={data} update={update} onNotice={setNotice} />
+            <AccessList data={data} update={update} notice={listNotice} onNotice={setListNotice} />
           </>
         )}
       </DialogContent>

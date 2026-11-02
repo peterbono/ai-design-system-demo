@@ -70,7 +70,7 @@ import {
 import { forgetChanges } from '../_lib/former-member.js';
 import { parseAiTools, type AiTool } from '../../src/lib/ai-tools.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
-import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
+import { mailCode, mailP, mailPage, escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, sameOrigin, secondsToTomorrow, sha256, type FetchLike } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
 import { forgetWrites, notifySenderFromEnv, optOutKey, parsePrefs, prefsFor, prefsOf, sendDueDigests, validTimeZone, type NotifyPrefs } from '../_lib/notify.js';
@@ -385,20 +385,22 @@ async function signedIn(ctx: Ctx, a: Account, created: boolean, tz?: unknown): P
 // ---------------------------------------------------------------------------------------------------------------
 // Codes
 
-function codeEmail(to: string, code: string): EmailMessage {
+/** The sign-in code email (exported for the email previews). */
+export function codeEmail(to: string, code: string): EmailMessage {
   const text = [
     `Your Bridge code: ${code}`,
     '',
     'Enter it on the page that asked for it. It works once and expires in 10 minutes.',
     'If you did not ask for it, you can ignore this email.',
   ].join('\n');
-  const html = [
-    '<p>Your Bridge code:</p>',
-    `<p style="font-size:24px;letter-spacing:4px"><strong>${escHtml(code)}</strong></p>`,
-    '<p>Enter it on the page that asked for it. It works once and expires in 10 minutes.</p>',
-    '<p>If you did not ask for it, you can ignore this email.</p>',
-  ].join('\n');
-  return { to, subject: `${code} is your Bridge code`, text, html };
+  const subject = `${code} is your Bridge code`;
+  const html = mailPage({
+    subject,
+    preheader: 'Enter it on the page that asked for it. It works once and expires in 10 minutes.',
+    body: [mailP('Your Bridge code:', true), mailCode(code), mailP('Enter it on the page that asked for it. It works once and expires in 10 minutes.', true)].join('\n'),
+    footer: 'If you did not ask for it, you can ignore this email.',
+  });
+  return { to, subject, text, html };
 }
 
 const newCode = (deps: AccountDeps) => (deps.code ? deps.code() : String(randomInt(0, 1_000_000)).padStart(6, '0'));
@@ -853,18 +855,41 @@ export const UNSUB_WORDS = {
   news: 'Bridge will stop sending you the daily summary.',
   all: 'Bridge will stop emailing you about your work.',
   button: 'Stop these emails',
-  done: 'Done. Bridge will not send you these emails anymore.',
+  doneTitle: 'Emails stopped',
+  done: 'Bridge will not send you these emails anymore.',
   back: 'You can turn them back on in Bridge, in Account, under Email.',
+  goneTitle: 'This link no longer works',
   gone: 'This link no longer works. You can change what Bridge emails you in Bridge, in Account, under Email.',
+  open: 'Open Bridge',
 };
 
-function unsubPage(status: number, body: string): Response {
+// The page of an unsubscribe link: no site around it (it opens from a mail app, with a strict policy and no script),
+// so the Bridge palette is written out as in the emails (api/_lib/email.ts mailPage): ink.900 text, ink.600 muted,
+// ink.50 canvas, Deep Harbor for the name, the title and the one button; the dark theme's values in a dark browser.
+// One title per state, one sentence, one action: the button (44px, full width on a phone), or a quiet link to Bridge.
+const UNSUB_STYLE = [
+  ':root{color-scheme:light dark;--ink:#15202B;--muted:#5B6672;--canvas:#F5F7F9;--paper:#FFFFFF;--line:#E3E8EE;--action:#0B4A8B;--on-action:#FFFFFF;--focus:#0B4A8B}',
+  '@media (prefers-color-scheme: dark){:root{--ink:#F5F7F9;--muted:#A0AAB5;--canvas:#0B1825;--paper:#15202B;--line:#323E4C;--action:#AAD2FE;--on-action:#001732;--focus:#6EAEF2}}',
+  "body{margin:0;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:var(--ink);background:var(--canvas)}",
+  'main{max-width:456px;margin:0 auto;background:var(--paper);border-radius:12px;padding:32px}',
+  ".brand{margin:0 0 24px;font-family:Georgia,'Times New Roman',serif;font-size:20px;line-height:24px;font-weight:600;color:var(--action)}",
+  "h1{margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:32px;font-weight:600}",
+  'p{margin:0}p+p{margin-top:8px}.muted{color:var(--muted)}form{margin:24px 0 0}',
+  'button{font:inherit;font-weight:600;color:var(--on-action);background:var(--action);border:0;border-radius:8px;min-height:44px;padding:10px 20px;cursor:pointer}',
+  'a{color:var(--action);text-underline-offset:2px}.next{margin-top:24px}',
+  'button:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:2px}',
+  '@media (max-width:480px){main{padding:24px 20px}button{width:100%}}',
+].join('');
+
+function unsubPage(status: number, title: string, body: string): Response {
   const html = [
     '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<title>${UNSUB_WORDS.title}</title>`,
-    '<style>body{margin:0;padding:48px 16px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#1A2433;background:#F5F7FA;line-height:1.5}main{max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:24px}h1{font-family:Georgia,serif;font-size:22px;color:#0B4A8B;margin:0 0 12px}button{font:inherit;font-weight:600;color:#fff;background:#0B4A8B;border:0;border-radius:8px;min-height:40px;padding:8px 18px;cursor:pointer}button:focus-visible{outline:3px solid #0B4A8B;outline-offset:2px}</style>',
+    '<meta name="color-scheme" content="light dark"><meta name="robots" content="noindex">',
+    `<title>${title} · Bridge</title>`,
+    `<style>${UNSUB_STYLE}</style>`,
     '</head><body><main>',
-    `<h1>${UNSUB_WORDS.title}</h1>`,
+    '<p class="brand">Bridge</p>',
+    `<h1>${title}</h1>`,
     body,
     '</main></body></html>',
   ].join('\n');
@@ -880,6 +905,9 @@ function unsubPage(status: number, body: string): Response {
   });
 }
 
+/** The quiet way on after it is done, or when the link is spent: Bridge, where Account > Email changes it. */
+const openBridge = `<p class="next"><a href="${STUDIO_ROOT}">${UNSUB_WORDS.open}</a></p>`;
+
 /** The person's choices with this unsubscribe applied. */
 const unsubscribed = (p: NotifyPrefs, kind: 'needs' | 'news' | 'all'): NotifyPrefs => ({ needs: kind === 'news' ? p.needs : 'off', news: kind === 'needs' ? p.news : 'off' });
 
@@ -891,15 +919,15 @@ async function onUnsub(req: Request, env: AccountEnv, deps: AccountDeps, token: 
   const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
   const redis = redisOf(env, deps);
   const who = secret.length >= MIN_SECRET_LENGTH ? readUnsubToken(secret, token) : null;
-  if (!who || !redis) return unsubPage(400, `<p>${UNSUB_WORDS.gone}</p>`);
+  if (!who || !redis) return unsubPage(400, UNSUB_WORDS.goneTitle, `<p class="muted">${UNSUB_WORDS.gone.replace(/^This link no longer works\. /, '')}</p>${openBridge}`);
   if (req.method.toUpperCase() === 'GET') {
     const action = `/api/account?unsub=${encodeURIComponent(token)}`;
-    return unsubPage(200, `<p>${UNSUB_WORDS[who.kind]}</p><form method="post" action="${escHtml(action)}"><button type="submit">${UNSUB_WORDS.button}</button></form>`);
+    return unsubPage(200, UNSUB_WORDS.title, `<p class="muted">${UNSUB_WORDS[who.kind]}</p><form method="post" action="${escHtml(action)}"><button type="submit">${UNSUB_WORDS.button}</button></form>`);
   }
   const a = await getAccount(redis, who.email);
   if (a) await putAccount(redis, { ...a, notify: unsubscribed(prefsOf(a), who.kind) });
   else await redis.cmd('SET', optOutKey(who.email), JSON.stringify(unsubscribed(await prefsFor(redis, who.email, null), who.kind)));
-  return unsubPage(200, `<p role="status">${UNSUB_WORDS.done}</p><p>${UNSUB_WORDS.back}</p>`);
+  return unsubPage(200, UNSUB_WORDS.doneTitle, `<p role="status">${UNSUB_WORDS.done}</p><p class="muted">${UNSUB_WORDS.back}</p>${openBridge}`);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

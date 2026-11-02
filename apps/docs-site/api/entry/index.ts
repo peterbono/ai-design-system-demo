@@ -93,7 +93,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { type Account, accountNameByGithub, displayName, sessionAccount } from '../_lib/account.js';
 import { workDomain } from '../_lib/domains.js';
-import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
+import { escHtml, mailButton, mailP, mailPage, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin, type FetchLike } from '../_lib/http.js';
@@ -632,22 +632,28 @@ export function requestEmail(x: { to: string; name: string; email: string; team:
     'If you approve, they join with Can edit. The request expires in 14 days.',
     'If you do not know this person, decline it.',
   ].join('\n');
-  const html = [
-    `<p>${escHtml(x.name)} (${escHtml(x.email)}) asked to join the <strong>${escHtml(x.team)}</strong> design system on Bridge.</p>`,
-    `<p><a href="${escHtml(x.link)}">Review the request</a></p>`,
-    '<p>If you approve, they join with Can edit. The request expires in 14 days.</p>',
-    '<p>If you do not know this person, decline it.</p>',
-  ].join('\n');
+  const html = mailPage({
+    subject,
+    preheader: `${x.name} (${x.email}) asked to join the ${x.team} design system.`,
+    body: [
+      mailP(`${escHtml(x.name)} (${escHtml(x.email)}) asked to join the <strong>${escHtml(x.team)}</strong> design system on Bridge.`),
+      mailP('If you approve, they join with Can edit. The request expires in 14 days.', true),
+      mailButton(x.link, 'Review the request'),
+    ].join('\n'),
+    footer: 'If you do not know this person, decline it.',
+  });
   return { to: x.to, subject, text, html };
 }
 
 export function approvedEmail(x: { to: string; admin: string; team: string; link: string }): EmailMessage {
   const subject = `You joined ${x.team} on Bridge`;
   const text = [`${x.admin} approved your request. You joined the ${x.team} design system with Can edit.`, '', `Open it: ${x.link}`].join('\n');
-  const html = [
-    `<p>${escHtml(x.admin)} approved your request. You joined the <strong>${escHtml(x.team)}</strong> design system with Can edit.</p>`,
-    `<p><a href="${escHtml(x.link)}">Open it</a></p>`,
-  ].join('\n');
+  const html = mailPage({
+    subject,
+    preheader: `${x.admin} approved your request.`,
+    body: [mailP(`${escHtml(x.admin)} approved your request. You joined the <strong>${escHtml(x.team)}</strong> design system with Can edit.`, true), mailButton(x.link, 'Open it')].join('\n'),
+    footer: 'You get this because you asked to join this team on Bridge.',
+  });
   return { to: x.to, subject, text, html };
 }
 

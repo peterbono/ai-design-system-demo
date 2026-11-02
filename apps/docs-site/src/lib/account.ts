@@ -193,7 +193,8 @@ export const ACCOUNT_WORDS = {
   /** Sign in and sign up alike (board E1): email only. */
   welcomeBack: 'Welcome back',
   welcomeBackLead: 'You are signed in on this browser.',
-  continueAs: (name: string) => `Continue as ${name}`,
+  /** The one action of Welcome back: the card above it says who, so the name is said once. */
+  continueAs: 'Continue',
   anotherAccount: 'Use another account',
   signInTitle: 'Welcome to Bridge',
   signInShort: 'Sign in',

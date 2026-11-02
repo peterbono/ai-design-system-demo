@@ -235,9 +235,16 @@
 
 .inv-access-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: 0 var(--space-3);
   min-height: var(--size-12);
+}
+
+/* On a phone the person keeps the line's width (an address never breaks letter by letter) and the role and its menu
+   wrap under it, at the row's end, as one group. */
+.inv-access-row > :nth-child(2) {
+  margin-inline-start: auto;
 }
 
 /* Keeps the role column aligned on member rows when the pending invites carry a "More" menu. */
@@ -247,7 +254,8 @@
 }
 
 .inv-access-row > :first-child {
-  flex: 1;
+  flex: 1 1 var(--size-60);
+  min-width: 0;
 }
 
 /* The actions on the right (board I1). */

@@ -141,4 +141,11 @@ describe('Use Bridge in Claude: the consent card', () => {
     await userEvent.click(screen.getByRole('button', { name: /No GitHub account/ }));
     expect(await screen.findByText("You're connecting Claude as Dino (Can edit, signed in with email).")).toBeTruthy();
   });
+
+  it('the GitHub path with no GitHub sign-in here: never "signed in with GitHub", it says GitHub asks on Allow', async () => {
+    reply({ name: 'Dino', teams: [{ repo: 'acme/design', name: 'Acme Design' }] });
+    render(createElement(ConnectClaude));
+    expect(await screen.findByText("You're connecting Claude with your GitHub account. GitHub asks you to sign in when you allow.")).toBeTruthy();
+    expect(screen.queryByText(/signed in with GitHub/)).toBeNull();
+  });
 });
