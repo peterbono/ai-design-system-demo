@@ -55,6 +55,7 @@ import { personName } from '../../../lib/people';
 import { overrideHolders, overrideReasonMin, productRepos as productRepos_ } from '@bridge-ds/core';
 import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
 import MembersSection from '../../../components/ds/studio/MembersSection';
+import DeleteTeamBand from '../../../components/ds/studio/DeleteTeam';
 import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
 import ClaudeConnector from '../../../components/ds/studio/ClaudeConnector';
 import GitHubUsage from '../../../components/ds/studio/GitHubUsage';
@@ -507,6 +508,8 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
         <AppearanceSetting client:load />
       </div>
     </section>
+
+    <DeleteTeamBand client:only="react" layout="site" />
   </div>
 
   {JIRA_IN_BRIDGE && <script type="application/json" id="set-int-data" set:html={intData} />}

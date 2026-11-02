@@ -69,6 +69,14 @@
 //   POST { action: 'link-team', team, storybook }  admin: keeps the Storybook connected with the quick start. { team }
 //   POST { action: 'link-team', team, repo }  admin of the team and of the repository: the team moves to the repository
 //                                           (members, admins, discovery, requests, invites, name). { repo, next }
+//   POST { action: 'delete-team', team }   admin of the team: removes everything Bridge keeps for it. A team made in
+//                                           Bridge (`_team/<id>`) is deleted; a repository's team is disconnected from
+//                                           Bridge: the same cleanup, and the repository and GitHub are never touched
+//                                           (no call writes to GitHub). Members, invites, join requests, connections in
+//                                           Claude (grants and their tokens), contributor sessions (they end with the
+//                                           membership), discovery, name, AI tools default, library access setting,
+//                                           notifications registry and the team record. Idempotent; capped per account
+//                                           per day. { deleted: true, kind: 'team' | 'repository', next }
 // A team made in Bridge goes by its key `_team/<id>` (src/lib/team-path.ts) until a repository is linked; every
 // action that takes `repo` takes that key too, and an old key resolves to the repository it was linked to.
 // Every POST carries `X-Bridge-Contribute: 1` (or `X-Bridge-Account: 1`), JSON, and an Origin of this site (CSRF).
@@ -98,12 +106,17 @@ import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin, type FetchLike } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
-import { accountTeamsKey, memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
+import { accountTeamsKey, memberStore, membersKey, type EmailMember, type MemberStore } from '../_lib/members.js';
+import { unwatchTeam } from '../_lib/notify.js';
+import { revokeTeamGrants } from '../_lib/oauth.js';
+import { settingKey as librarySettingKey } from '../library-access/index.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import {
   configName,
+  deleteTeamRecord,
   forgetTeamKey,
   getTeamRecord,
+  teamByRepoKey,
   parseTeam,
   resolveTeam as resolveTeamOn,
   type TeamRef,
@@ -128,7 +141,7 @@ import {
   TEAM_NAME_MAX_AGE_MS,
   teamsForDomain,
 } from '../_lib/teams.js';
-import { acceptInviteForGithub, githubApp as invitesApp, inviteStoreOn, maskEmail, type InviteStore, type StoredInvite } from '../invites/index.js';
+import { acceptInviteForGithub, githubApp as invitesApp, inviteStoreOn, maskEmail, repoKey as invitesKey, type InviteStore, type StoredInvite } from '../invites/index.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
 import { parseAiTools } from '../../src/lib/ai-tools.js';
 import { isTeamKey, STUDIO_ROOT, teamHref as studioTeamHref, teamKeyId, teamKeyOf } from '../../src/lib/team-path.js';
@@ -224,6 +237,7 @@ export const LIMIT_WORDS = {
   email: 'You asked to join a few teams today. Try again tomorrow.',
   ip: 'Too many requests from this network today. Try again tomorrow.',
   team: 'This team got many requests today. Try again tomorrow.',
+  deleteTeam: 'You removed a few teams today. Try again tomorrow.',
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1049,6 +1063,74 @@ async function onLinkTeam(ctx: Ctx, a: Account, body: Record<string, unknown>): 
   return json(200, { repo: target.full, next: teamHref(target.full) });
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Delete a team (a team made in Bridge) or disconnect it from Bridge (a repository's team)
+
+/** Teams one account may delete or disconnect in a UTC day. */
+export const DELETE_TEAM_PER_DAY = 10;
+
+/** The team record of a key, or of a repository a team made in Bridge was linked to; null for a repository's own team. */
+async function recordOf(ctx: Ctx, t: TeamRef): Promise<TeamRecord | null> {
+  if (t.id) return getTeamRecord(ctx.svc.redis, t.id);
+  const id = await ctx.svc.redis.cmd('GET', teamByRepoKey(t.full));
+  return typeof id === 'string' ? getTeamRecord(ctx.svc.redis, id) : null;
+}
+
+/**
+ * Everything Bridge keeps for one team goes. Only Bridge's storage: nothing here calls GitHub, so a repository, its
+ * history, its settings and the Bridge app installation stay exactly as they are.
+ */
+async function forgetTeam(ctx: Ctx, t: TeamRef): Promise<void> {
+  const { redis, members, invites } = ctx.svc;
+  const full = t.full;
+  // Connections in Claude first: their tokens stop working at once.
+  await revokeTeamGrants(redis, full);
+  // Each membership goes, which also ends that person's contributor sessions on the team.
+  for (const m of await members.list(full)) await members.remove(full, m.email);
+  if (ctx.svc.localAdmins) for (const e of await ctx.svc.localAdmins.adminsOf(full)) await ctx.svc.localAdmins.remove(full, e);
+  for (const inv of await invites.list(full)) await invites.remove(inv);
+  // Discovery and the domain index, pending join requests, name, AI tools default.
+  await forgetTeamKey(redis, full, ctx.now());
+  await unwatchTeam(redis, full);
+  await redis.pipe([
+    ['DEL', membersKey(full)],
+    ['DEL', invitesKey(full)],
+    ['DEL', librarySettingKey(full)],
+  ]);
+  const rec = await recordOf(ctx, t);
+  if (rec) {
+    // A team made in Bridge and linked since: its old key goes too, so it never resolves to the repository again.
+    if (rec.repo) await forgetTeamKey(redis, teamKeyOf(rec.id), ctx.now());
+    await deleteTeamRecord(redis, rec);
+  }
+}
+
+/** Where the person goes once the team is gone: their next team, else Studio (GitHub) or the start page. */
+async function nextAfterDelete(ctx: Ctx, a: Account): Promise<string> {
+  const left = await membershipsOf(ctx, a.email);
+  const first = left.sort((x, y) => Date.parse(y.member.at || '') - Date.parse(x.member.at || ''))[0];
+  if (first) return teamHref(first.repo);
+  return a.github ? STUDIO_ROOT : '/start/';
+}
+
+async function onDeleteTeam(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
+  const t = await resolveTeam(ctx, body.team ?? body.repo);
+  await bumpOrRefuse(ctx, [`bridge:entry:count:delete-team:${hmacHex(ctx.svc.secret, `email:${a.email.toLowerCase()}`)}:${dayOf(ctx.now())}`], [DELETE_TEAM_PER_DAY], ['deleteTeam']);
+  const kind = t.id ? ('team' as const) : ('repository' as const);
+  try {
+    await requireAdmin(ctx, a, t.full);
+  } catch (e) {
+    // Idempotent: a team made in Bridge that is already gone (no record, nobody on it) answers as deleted. It names a
+    // random key nobody else knows, so this tells nothing about any other team.
+    if (e instanceof HttpError && e.code === 'forbidden' && t.id && !(await getTeamRecord(ctx.svc.redis, t.id)) && !(await ctx.svc.members.list(t.full)).length) {
+      return json(200, { deleted: true, kind, next: await nextAfterDelete(ctx, a) });
+    }
+    throw e;
+  }
+  await forgetTeam(ctx, t);
+  return json(200, { deleted: true, kind, next: await nextAfterDelete(ctx, a) });
+}
+
 async function onAction(ctx: Ctx, req: Request, a: Account, body: Record<string, unknown>): Promise<Response> {
   switch (body.action) {
     case 'accept-invite': {
@@ -1076,6 +1158,8 @@ async function onAction(ctx: Ctx, req: Request, a: Account, body: Record<string,
       return onCreateTeam(ctx, a, body);
     case 'link-team':
       return onLinkTeam(ctx, a, body);
+    case 'delete-team':
+      return onDeleteTeam(ctx, a, body);
     case 'rename-team':
       return onRenameTeam(ctx, a, body);
     case 'ai-tools':

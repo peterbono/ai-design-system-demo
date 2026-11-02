@@ -7,9 +7,12 @@ import { type Account, ACCOUNT_COOKIE, putAccount, signAccountSession } from '..
 import { isPublicDomain, workDomain } from '../../api/_lib/domains';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
-import { JOIN_REQUEST_TTL_MS } from '../../api/_lib/teams';
+import { JOIN_REQUEST_TTL_MS, putRequest } from '../../api/_lib/teams';
+import { NOTIFY_TEAMS_KEY, watchWrites } from '../../api/_lib/notify';
+import { createGrant, getGrant } from '../../api/_lib/oauth';
+import { settingKey as librarySettingKey } from '../../api/library-access/index';
 import { handleAccount } from '../../api/account/index';
-import { ADMIN_ONLY, type EntryDeps, handleEntry, firstNameOnly, teamId, INVITE_LINK_PER_HOUR, NOT_OPEN, PUBLIC_DOMAIN, REQUEST_LIMITS } from '../../api/entry/index';
+import { ADMIN_ONLY, DELETE_TEAM_PER_DAY, type EntryDeps, handleEntry, firstNameOnly, teamId, INVITE_LINK_PER_HOUR, NOT_OPEN, PUBLIC_DOMAIN, REQUEST_LIMITS } from '../../api/entry/index';
 import { type EmailMessage, inviteStoreOn, type StoredInvite } from '../../api/invites/index';
 
 const HOST = 'bridge.example.com';
@@ -795,5 +798,115 @@ describe('ask to join from the team address (any work domain)', () => {
     await post(s, sam, { action: 'ask', repo: REPO });
     expect(await (await get(s, kim, '?asked=acme/ds')).json()).toEqual({ asked: false });
     expect(await (await get(s, kim, '?asked=not a repo')).json()).toEqual({ asked: false });
+  });
+});
+
+describe('delete-team (delete a team made in Bridge, disconnect a repository team from Bridge)', () => {
+  const KEY32 = Buffer.alloc(32, 7);
+  const rnd = (n: number) => new Uint8Array(n).map((_, i) => (i * 13 + 5) % 256);
+
+  /** Everything a team keeps, seeded under `team`, with Bob as a member who is not admin. */
+  async function seedTeam(s: S, team: string) {
+    const bob = await account(s, 'bob@acme.design', 'Bob Member');
+    await s.members.put(team, { email: 'bob@acme.design', name: 'Bob Member', role: 'edit', version: 1, addedBy: 'Ada', at: new Date(s.now()).toISOString() });
+    await invite(s, { email: 'cara@acme.design', repo: team, id: 'b1b2c3d4e5f60718', tokenHash: 'c'.repeat(64) });
+    const exp = new Date(s.now() + JOIN_REQUEST_TTL_MS).toISOString();
+    await putRequest(s.redis, { id: 'r1', repo: team, email: 'dan@acme.design', name: 'Dan', createdAt: new Date(s.now()).toISOString(), expiresAt: exp }, s.now());
+    const grant = await createGrant(s.redis, KEY32, { repo: team, client: { clientId: 'https://claude.ai/x', clientName: 'Claude' }, login: '', name: 'Bob', email: 'bob@acme.design' }, rnd, s.now());
+    await s.redis.pipe([
+      ...watchWrites([
+        { repo: team, meta: { team, kind: 'team' } },
+        { repo: 'acme/web-copy', meta: { team, kind: 'copy', product: 'web' } },
+        { repo: 'other/unrelated', meta: { team: 'other/unrelated', kind: 'team' } },
+      ]),
+      ['SET', librarySettingKey(team), JSON.stringify({ mode: 'team' })],
+      ['SET', `bridge:team:ai-tools:${team.toLowerCase()}`, JSON.stringify(['claude-code'])],
+    ]);
+    return { bob, grant };
+  }
+
+  /** The keys still naming the team (daily counters aside). */
+  const left = (s: S, team: string) => (s.redis as unknown as { keys(): string[] }).keys().filter((k) => k.toLowerCase().includes(team.toLowerCase()) && !k.includes(':count:'));
+
+  it('a team made in Bridge: only its admin deletes it, every key goes, nothing asks GitHub, and again is fine', async () => {
+    const s = setup();
+    const ada = await account(s, 'ada@acme.design', 'Ada Admin');
+    const made = await post(s, ada, { action: 'create-team', name: "Florian's workspace", discover: true });
+    const key = ((await made.json()) as { team: { key: string } }).team.key;
+    const { bob, grant } = await seedTeam(s, key);
+    expect(left(s, key).length).toBeGreaterThan(5);
+
+    // A member who is not admin, and someone not on the team: 403, nothing goes.
+    expect((await post(s, bob, { action: 'delete-team', team: key })).status).toBe(403);
+    const stranger = await account(s, 'eve@else.design', 'Eve');
+    expect((await post(s, stranger, { action: 'delete-team', team: key })).status).toBe(403);
+    expect(await s.members.get(key, 'bob@acme.design')).not.toBeNull();
+
+    const r = await post(s, ada, { action: 'delete-team', team: key });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ deleted: true, kind: 'team', next: '/start/' });
+    expect(left(s, key)).toEqual([]);
+    expect(await getGrant(s.redis, grant.id)).toBeNull();
+    expect(await s.redis.cmd('SMEMBERS', 'bridge:account:teams:bob@acme.design')).toEqual([]);
+    expect(await s.redis.cmd('SMEMBERS', 'bridge:team:domain:acme.design')).toEqual([]);
+    expect(await s.redis.cmd('SMEMBERS', 'bridge:invites:email:cara@acme.design')).toEqual([]);
+    expect(await s.redis.cmd('SMEMBERS', 'bridge:joinreq:mine:dan@acme.design')).toEqual([]);
+    expect(await s.redis.cmd('SMEMBERS', NOTIFY_TEAMS_KEY)).toEqual(['other/unrelated']);
+    expect(s.calls).toEqual([]);
+
+    // Idempotent: the team is gone, asking again answers the same.
+    const again = await post(s, ada, { action: 'delete-team', team: key });
+    expect(again.status).toBe(200);
+    expect(((await again.json()) as { deleted: boolean }).deleted).toBe(true);
+  });
+
+  it('a repository team: an admin disconnects it, Bridge forgets it, GitHub is only read, never written', async () => {
+    const s = setup();
+    const ada = await account(s, 'ada@acme.design', 'Ada Admin', { login: 'ada', id: 1 });
+    const { bob, grant } = await seedTeam(s, REPO);
+    await s.redis.cmd('SET', `bridge:team:name:${REPO}`, JSON.stringify({ name: 'Acme DS', at: s.now() }));
+    // A team made in Bridge that was linked to this repository since: its record and old key go too.
+    await s.redis.pipe([
+      ['SET', 'bridge:team:rec:00112233aabbccdd', JSON.stringify({ id: '00112233aabbccdd', name: 'Acme', createdBy: 'ada@acme.design', createdAt: '2026-10-01T00:00:00Z', repo: REPO, storybook: null })],
+      ['SET', `bridge:team:byrepo:${REPO}`, '00112233aabbccdd'],
+    ]);
+
+    expect((await post(s, bob, { action: 'delete-team', team: REPO })).status).toBe(403);
+    const r = await post(s, ada, { action: 'delete-team', team: REPO });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ deleted: true, kind: 'repository' });
+    expect(left(s, REPO)).toEqual([]);
+    expect(await s.redis.cmd('GET', 'bridge:team:rec:00112233aabbccdd')).toBeNull();
+    expect(await getGrant(s.redis, grant.id)).toBeNull();
+    expect(await s.redis.cmd('SMEMBERS', NOTIFY_TEAMS_KEY)).toEqual(['other/unrelated']);
+    // The admin check reads GitHub with the app; nothing is ever written there (no PUT, PATCH, POST or DELETE).
+    expect(s.calls.length).toBeGreaterThan(0);
+    expect(s.calls.every((c) => c.startsWith('GET '))).toBe(true);
+
+    // Idempotent: a GitHub admin can ask again, nothing is left to forget.
+    expect((await post(s, ada, { action: 'delete-team', team: REPO })).status).toBe(200);
+  });
+
+  it('an email admin of a repository team disconnects it without asking GitHub, then goes to their next team', async () => {
+    const s = setup();
+    const mia = await account(s, 'mia@acme.design', 'Mia');
+    await s.members.put(REPO, { email: 'mia@acme.design', name: 'Mia', role: 'admin', version: 1, addedBy: 'ada', at: new Date(s.now()).toISOString() });
+    await s.members.put('acme/other', { email: 'mia@acme.design', name: 'Mia', role: 'edit', version: 1, addedBy: 'ada', at: new Date(s.now()).toISOString() });
+    const r = await post(s, mia, { action: 'delete-team', team: REPO });
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { next: string }).next).toBe('/studio/acme/other/');
+    expect(s.calls).toEqual([]);
+  });
+
+  it('needs the cookie and the CSRF header, and is capped per account per day', async () => {
+    const s = setup();
+    expect((await post(s, null, { action: 'delete-team', team: REPO })).status).toBe(401);
+    const ada = await account(s, 'ada@acme.design', 'Ada Admin');
+    expect((await post(s, ada, { action: 'delete-team', team: REPO }, { header: false })).status).toBe(403);
+    for (let i = 0; i < DELETE_TEAM_PER_DAY; i++) {
+      const r = await post(s, ada, { action: 'delete-team', team: `_team/${String(i).padStart(16, 'a')}` });
+      expect(r.status).toBe(200);
+    }
+    expect((await post(s, ada, { action: 'delete-team', team: '_team/bbbbbbbbbbbbbbbb' })).status).toBe(429);
   });
 });

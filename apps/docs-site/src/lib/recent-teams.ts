@@ -117,7 +117,31 @@ export function noteAccountTeamNames(teams: readonly { repo: string; name?: stri
   }
 }
 
-/** The name this browser already knows for `team`: the one its page last read, else the account's (server-kept). */
+/**
+ * A team was deleted or disconnected from Bridge: this browser forgets it everywhere it kept it (the recent teams, the
+ * names, the roles of "Your teams", the account's team names), so no menu offers it again.
+ */
+export function forgetTeamEverywhere(team: string, store: RecentStore | null = browserStore()): void {
+  forgetRecentTeam(team, store);
+  if (!store) return;
+  const k = team.toLowerCase();
+  for (const key of [TEAM_NAMES_KEY, TEAM_ROLES_KEY, ACCOUNT_TEAM_NAMES_KEY]) {
+    try {
+      // The raw map: a team key (`_team/<id>`) is kept there even where the cleaned read leaves it out.
+      const raw = store.getItem(key);
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+      const map = Object.fromEntries(Object.entries(parsed as Record<string, unknown>).filter(([t]) => t.toLowerCase() !== k));
+      if (Object.keys(map).length === Object.keys(parsed).length) continue;
+      if (Object.keys(map).length) store.setItem(key, JSON.stringify(map));
+      else store.removeItem(key);
+    } catch {
+      /* storage blocked: nothing kept to forget */
+    }
+  }
+}
+
+/** The name this browser already knows for `team`:the one its page last read, else the account's (server-kept). */
 export function knownTeamName(team: string, store: RecentStore | null = browserStore()): string | null {
   const k = team.toLowerCase();
   return loadMap(TEAM_NAMES_KEY, store)[k] ?? loadMap(ACCOUNT_TEAM_NAMES_KEY, store)[k] ?? null;

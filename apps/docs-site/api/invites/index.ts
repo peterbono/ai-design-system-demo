@@ -309,7 +309,8 @@ export const githubApp = (appId: string, privateKey: string, f: FetchLike, now: 
 //   bridge:invites:count:<...>:<day> daily counters for the caps, expire after 2 days
 
 const inviteKey = (repo: string, id: string) => `bridge:invite:${repo.toLowerCase()}:${id}`;
-const repoKey = (repo: string) => `bridge:invites:${repo.toLowerCase()}`;
+/** The team's index of invites (exported for api/entry delete-team, which drops it with the team). */
+export const repoKey = (repo: string) => `bridge:invites:${repo.toLowerCase()}`;
 const tokenKey = (hash: string) => `bridge:invite-token:${hash}`;
 const traceKey = (hash: string) => `bridge:invite-trace:${hash}`;
 const traceOf = (inv: StoredInvite): string => JSON.stringify({ repo: inv.repo, invitedBy: inv.invitedByName?.trim() || inv.invitedBy } satisfies InviteTrace);
