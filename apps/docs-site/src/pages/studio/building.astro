@@ -15,7 +15,6 @@ import StudioHeader from '../../components/StudioHeader.astro';
 import BeingBuilt from '../../components/ds/studio/BeingBuilt';
 import NextRelease from '../../components/NextRelease.astro';
 import { lastUpdated } from '../../lib/repo';
-import { PICKED_UP_IN } from '../../lib/building-view';
 
 const sources = ['docs/BUILD-REQUESTS.md', 'docs/REQUESTS.md'];
 ---
@@ -27,12 +26,7 @@ const sources = ['docs/BUILD-REQUESTS.md', 'docs/REQUESTS.md'];
   updated={lastUpdated(sources)}
   wide
 >
-  <StudioHeader title="Being built" scene="building">
-    <Fragment slot="how">
-      <p>Explorations handed to developers, and changes from Figma or from Components that need code, land here. Developers pick them up in {PICKED_UP_IN}; each one reads Shipped once it is in the library.</p>
-      <p>Claude's fixes from Figma show here too: someone on your team reviews each one.</p>
-    </Fragment>
-  </StudioHeader>
+  <StudioHeader title="Being built" scene="building" />
   <NextRelease />
   <BeingBuilt client:only="react" />
 </Layout>

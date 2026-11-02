@@ -2,7 +2,6 @@
 // Page header for every Studio page, one pattern (its React twin: components/ds/studio/StudioHead.tsx, same markup):
 //   the title (Fraunces, h2 role) with the page's primary action on the same line,
 //   ONE summary sentence about the state of the page (live: the page's island writes it, lib/page-summary),
-//   an optional quiet "How it works" fold for the generic explanation (progressive disclosure),
 //   and no drawing: the primary action owns the end of the title line (UX before brand; the brand moments live in
 //   the quiet Home, the Quality verdict and empty states). `scene` only tags the header (data-scene).
 // No team name under the title: the side nav already says which team this is. Not a Harbor zone: the page's main card
@@ -12,7 +11,7 @@
 //   summary   the summary sentence as built (a page whose island fills it later leaves it out; the line is kept)
 //   scene     the section's drawing
 //   countId   id of a live count next to the title, filled by the page script
-// Slots: "actions" (the title line's end), "summary" (rich summary content), "how" (the fold), default (extra lines).
+// Slots: "actions" (the title line's end), "summary" (rich summary content), default (extra lines).
 import type { SectionSceneName } from './ds/studio/QuietScene';
 
 interface Props {
@@ -23,7 +22,6 @@ interface Props {
   countLabel?: string;
 }
 const { title, summary, scene, countId, countLabel } = Astro.props;
-const how = Astro.slots.has('how');
 ---
 
 <header class="st-head" data-scene={scene}>
@@ -36,16 +34,6 @@ const how = Astro.slots.has('how');
       <div class="st-head-actions" data-st-actions><slot name="actions" /></div>
     </div>
     <p class="st-sub" data-st-summary aria-live="polite"><slot name="summary">{summary}</slot></p>
-    {
-      how && (
-        <details class="st-how">
-          <summary>How it works</summary>
-          <div class="st-how-body">
-            <slot name="how" />
-          </div>
-        </details>
-      )
-    }
     <slot />
   </div>
 </header>

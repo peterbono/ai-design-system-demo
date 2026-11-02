@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // The Studio page header, one pattern on every page: the title with the action on its line, ONE live summary sentence
-// (no team name under the title) and the quiet "How it works" fold. No drawing in the header: the action comes first.
+// (no team name under the title), and no "How it works" fold (noise, often empty). No drawing in the header: the action
+// comes first.
 import '../../../../../../packages/react/src/test/setup';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
@@ -27,11 +28,12 @@ describe('Studio page header', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('keeps the generic explanation behind a closed "How it works" fold', () => {
-    const { container } = render(createElement(StudioHead, { title: 'Being built', scene: 'building', how: createElement('p', null, 'Developers pick them up in GitHub.') }));
-    const fold = container.querySelector('details.st-how') as HTMLDetailsElement;
-    expect(fold.open).toBe(false);
-    expect(fold.querySelector('summary')!.textContent).toBe('How it works');
+  it('has no "How it works" fold under the title', () => {
+    const { container } = render(createElement(StudioHead, { title: 'Being built', summary: '2 waiting to be picked up.', scene: 'building' }));
+    expect(container.querySelector('details')).toBeNull();
+    expect(container.textContent).not.toContain('How it works');
+    // The summary sentence under the title stays.
+    expect(container.querySelector('[data-st-summary]')!.textContent).toBe('2 waiting to be picked up.');
   });
 
   it('lets the page island write the live summary sentence', () => {
@@ -101,6 +103,15 @@ describe('Studio pages use the one header pattern', () => {
 
   it('never repeats the team name under the title', () => {
     expect(read('../../TeamShell.astro')).not.toContain('data-team-display');
+  });
+
+  it('no Studio page header carries a "How it works" fold', () => {
+    for (const path of ['../../StudioHeader.astro', '../../TeamShell.astro', './StudioHead.tsx', '../../explorer/TokenExplorer.astro', ...pages.map(([p]) => p)]) {
+      const src = read(path);
+      expect(src, path).not.toContain('How it works');
+      expect(src, path).not.toMatch(/slot="how"|st-how/);
+    }
+    expect(read('../../../styles/studio-app.css')).not.toContain('.st-how');
   });
 
   it('the header is not a Harbor zone', () => {

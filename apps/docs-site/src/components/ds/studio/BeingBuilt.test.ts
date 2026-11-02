@@ -194,9 +194,12 @@ describe('Being built', () => {
     expect(row.textContent).toContain('Waiting to be picked up');
     expect(row.textContent).toContain('Admin demo · Done exploring by Florian on');
     expect(row.querySelector('a')!.getAttribute('href')).toBe('/studio/changes/?exploration=611');
-    // What lands here and who picks it up: the header's "How it works" fold, on the self-hosted and the team page.
-    for (const page of ['../../../pages/studio/building.astro', '../../../pages/team-shell/building.astro'])
-      expect(readFileSync(new URL(page, import.meta.url), 'utf8')).toContain('Explorations handed to developers, and changes from Figma or from Components that need code, land here.');
+    // No "How it works" fold under the title, on the self-hosted and the team page: the summary sentence is enough.
+    for (const page of ['../../../pages/studio/building.astro', '../../../pages/team-shell/building.astro']) {
+      const src = readFileSync(new URL(page, import.meta.url), 'utf8');
+      expect(src).not.toContain('slot="how"');
+      expect(src).not.toContain('Explorations handed to developers, and changes from Figma or from Components that need code, land here.');
+    }
     expect(container.textContent).not.toMatch(/—/);
     expect(screen.getByRole('tab', { name: /Waiting to be picked up/ }).textContent).toContain('3');
     expect(screen.getByRole('tab', { name: /In progress/ }).textContent).toContain('2');
