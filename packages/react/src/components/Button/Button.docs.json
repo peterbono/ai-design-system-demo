@@ -24,7 +24,8 @@
     "Navigation with variant link: a link-looking button still does not go anywhere. Use Link to go to another page.",
     "Turning a setting on or off in a form: use Switch or Checkbox. A pressed Button is for toolbar toggles that change the view.",
     "Picking one of several views: use Tabs or an attached ButtonGroup.",
-    "More than three actions in one row: keep the main ones and move the rest to a Menu behind an IconButton."
+    "More than three actions in one row: keep the main ones and move the rest to a Menu behind an IconButton.",
+    "To show a status that cannot be clicked: use a Badge."
   ],
   "dos": [
     {
