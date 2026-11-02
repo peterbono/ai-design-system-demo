@@ -189,7 +189,8 @@ export const SCREEN_SKETCH: ThumbSpec = { kind: 'screen', src: null };
 
 /** The tag of a card's state: the exploration page's words and tones (lib/exploration-page explorationTag). */
 export function cardTag(stage: ExplorationStage, state: string): { tone: TagTone; dot: boolean } {
-  const byWord: Record<string, string> = { 'Not started': 'active', Exploring: 'active', 'Waiting for code': 'ready', 'Waiting to be picked up': 'ready', 'Being built': 'building', Shipped: 'shipped', 'In review': 'promoted', 'Kept in the library': 'kept' };
+  const byWord: Record<string, string> = { 'Not started': 'active', Exploring: 'active', 'Waiting for code': 'ready', 'Waiting to be picked up': 'ready', 'Being built': 'building', Shipped: 'shipped', 'In review': 'promoted', 'Kept in the library': 'kept', 'Not planned': 'closed' };
+  if (state === LIFECYCLE_LABEL.approved) return { tone: 'info', dot: false };
   const status = byWord[state];
   if (status) {
     const t = explorationTag(status, { notStarted: state === 'Not started' });
@@ -229,6 +230,7 @@ export interface HomeExplorationsOptions<P extends ExplorationPull = Exploration
 
 /** A handed-off card's words from its task's stage: the same as Being built. Closed (taken back) keeps its own read. */
 export function withTaskStage(read: { stage: ExplorationStage; state: string }, task: LifecycleStage | null | undefined): { stage: ExplorationStage; state: string } {
+  // Not planned keeps the card, in those words: the developers closed it without building it.
   if (read.stage !== 'with-devs' || !task || task === 'closed' || task === 'archived') return read;
   return { stage: read.stage, state: LIFECYCLE_LABEL[task] };
 }

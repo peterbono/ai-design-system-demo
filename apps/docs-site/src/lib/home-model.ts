@@ -209,6 +209,8 @@ export interface NeedRow {
   detail?: string;
   /** A join request: its id, for Approve and Decline in the row. */
   request?: { id: string; name: string };
+  /** The developers asked the viewer a question on what they build: counts in the nav badge with the reviews. */
+  question?: boolean;
 }
 
 /** The verb on a Needs you row's button: the row's own, else the kind's. */
@@ -387,6 +389,30 @@ export function explorationReviewNeed(c: Omit<ChangeFacts, 'task' | 'title'> & {
   const row = changeNeed({ ...c, title: `Review ${c.name}`, task: 'requested' }, now);
   return { ...row, key: `exploration-review-${c.product ? `${c.product}#` : ''}${c.number}`, href: c.href };
 }
+
+/**
+ * One Needs you row for the developers' question on an exploration the viewer handed off (lib/waiting-on
+ * 'dev-question'): the developers wait for their answer, so it counts in the nav badge too (`question`).
+ */
+export function devQuestionNeed(c: { key: string; name: string; href: string; asker: Person | null; since: string | null; thumb: ThumbSpec }, now: number): NeedRow {
+  return {
+    key: `dev-question-${c.key}`,
+    kind: 'own',
+    title: c.name,
+    href: c.href,
+    person: c.asker,
+    line: `${c.asker?.name ?? 'The developers'} asked a question`,
+    since: c.since,
+    waitsOnYou: true,
+    pill: c.since ? { label: waitingLabel(c.since, now), tone: 'warning' } : null,
+    thumb: c.thumb,
+    action: 'Answer',
+    question: true,
+  };
+}
+
+/** The Needs you rows the nav badge counts: the reviews, and the developers' questions. */
+export const badgeRows = (rows: readonly NeedRow[]): number => rows.filter((r) => r.kind === 'review' || r.question).length;
 
 /** A usage guidance draft by Claude, as the home reads it (the component's slug finds its open change). */
 export interface GuidanceDraft {

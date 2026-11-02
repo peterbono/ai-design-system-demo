@@ -481,10 +481,13 @@ export function unreadableExplorationLine(n: number, where: string, opts: { prod
 
 /**
  * A handed-off design copy exploration's row from its task's stage (taskStage): Waiting to be picked up, Being built,
- * In review or Shipped, the words of Being built and its page. Running, archived or taken back rows stay as read.
+ * In review, Approved, waiting to ship, Shipped or Not planned, the words of Being built and its page. Running,
+ * archived or taken back rows stay as read.
  */
 export function withTaskRow<R extends Pick<ExplorationRow, 'status' | 'statusLabel' | 'archived'>>(r: R, stage: LifecycleStage | null | undefined): R {
   if (!stage || r.archived || r.status === 'active' || r.status === 'closed') return r;
-  const status: ExplorationStatus | null = stage === 'waiting-for-code' ? 'ready' : stage === 'being-built' || stage === 'in-review' ? 'building' : stage === 'shipped' ? 'shipped' : null;
+  // The developers closed it without building it while it is still handed off: it stays listed, and says so.
+  if (stage === 'not-planned') return r.status === 'ready' || r.status === 'building' ? { ...r, statusLabel: LIFECYCLE_LABEL['not-planned'] } : r;
+  const status: ExplorationStatus | null = stage === 'waiting-for-code' ? 'ready' : stage === 'being-built' || stage === 'in-review' || stage === 'approved' ? 'building' : stage === 'shipped' ? 'shipped' : null;
   return status ? { ...r, status, statusLabel: LIFECYCLE_LABEL[stage] } : r;
 }

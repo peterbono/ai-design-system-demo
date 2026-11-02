@@ -227,9 +227,33 @@ describe('Being built: explorations handed to developers', () => {
       [task(33)]: { assignees: [], state: 'closed', stateReason: 'not_planned', closedAt: iso(1) },
     };
     const list = explorationBuildRows([copy(30), copy(31), copy(32), copy(33), copy(34)], { products, now: NOW, nameOf, task: (u) => reads[u] ?? null });
-    expect(list.map((r) => `${r.number}:${r.status}`)).toEqual(['30:requested', '31:in-progress', '32:shipped', '34:requested']);
+    expect(list.map((r) => `${r.number}:${r.status}`)).toEqual(['30:requested', '31:in-progress', '32:shipped', '33:not-planned', '34:requested']);
     expect(list[1]!.builders).toEqual(['theo']);
     expect(list[2]!.exploration.line).toBe('Shop · Shipped 1 day ago');
+    // Closed without being built while the copy still waits on them: the developers declined it, the row says so.
+    const declined = list[3]!;
+    expect(declined).toMatchObject({ label: 'Not planned', sentence: 'Developers closed it without building it.' });
+    expect(declined.exploration.line).toMatch(/Developers closed it without building it$/);
+    expect(declined.timeline.map((e) => e.status)).toEqual(['requested', 'not-planned']);
+    expect(statusTag(declined)).toEqual({ label: 'Not planned', tone: 'neutral' });
+    expect(listedRows([declined], NOW)).toHaveLength(1);
+  });
+
+  it('drops a task Bridge closed on Back to exploring: the exploration runs again, it is not Not planned', () => {
+    const task = 'https://github.com/acme/shop/issues/35';
+    const back = { ...pull(35, { name: 'Screen 35', labels: ['exploration'], body: block({ name: 'Screen 35', author: 'ann', task, reopenedAt: iso(0) }) }), product: 'shop' };
+    const read: DesignTaskRead = { assignees: [], state: 'closed', stateReason: 'not_planned', closedAt: iso(0) };
+    expect(explorationBuildRows([back], { products, now: NOW, nameOf, task: () => read })).toEqual([]);
+  });
+
+  it('reads Approved, waiting to ship once the designer said the developers\' version looks right', () => {
+    const task = 'https://github.com/acme/shop/issues/36';
+    const copy = { ...pull(36, { name: 'Screen 36', head: { ref: 'explore/screen-36', sha: 'h9' }, done: { task } }), product: 'shop' };
+    const read: DesignTaskRead = { assignees: [{ login: 'theo' }], state: 'open', stateReason: null, closedAt: null, devPull: { number: 96, url: 'https://github.com/acme/shop/pull/96', draft: false, answer: { kind: 'looks-right', login: 'ann' } } };
+    const [row] = explorationBuildRows([copy], { products, now: NOW, nameOf, task: () => read });
+    expect(row).toMatchObject({ status: 'in-review', label: 'Approved, waiting to ship', approved: true });
+    expect(statusTag(row!)).toEqual({ label: 'Approved, waiting to ship', tone: 'info' });
+    expect(row!.exploration.line).toMatch(/said it looks right$/);
   });
 
   it("reads In review once the developers open their pull request on the task, Being built while it is a draft", () => {

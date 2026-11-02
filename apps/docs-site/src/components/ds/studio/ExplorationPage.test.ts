@@ -445,6 +445,93 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
     const { container } = handed({ pieces: { state: 'rows', rows: [{ id: 'a', title: 'Alert: count', href: '?request=81', line: 'Requested', tone: 'neutral', opens: 'request', number: 81 }] } });
     await expectNoAxeViolations(container);
   });
+
+  describe("the developers' question", () => {
+    const sam = { login: 'sam', name: 'Sam', agent: false, avatar: null };
+    const asking = [steps[0]!, { status: 'warning' as const, title: 'Developers build it', detail: 'Developers asked a question', current: true }, steps[2]!, steps[3]!];
+    const long = `Should the empty state use the illustration from the old page? ${'We want to match the rest of the shop. '.repeat(12)}Thanks!`;
+
+    it('quotes their words as plain text, who and when, with the reply box; long words fold behind Show more', async () => {
+      const onReply = vi.fn(async () => 'Sent to the developers.');
+      handed({ steps: asking, question: { text: `<img src=x onerror=alert(1)> ${long}`, by: sam, when: 'today', answered: false, onReply } });
+      const next = screen.getByRole('region', { name: 'What happens next' });
+      expect(within(next).getByText('Developers asked a question').closest('li')!.getAttribute('aria-current')).toBe('step');
+      const q = within(next).getByRole('region', { name: "The developers' question" });
+      // Escaped, never HTML: the tag reads as text, no image is made.
+      expect(q.querySelector('img:not([class*="avatar"] img)')).toBeNull();
+      expect(q.querySelector('blockquote')!.textContent).toContain('Should the empty state');
+      expect(q.querySelector('blockquote')!.textContent!.endsWith('…')).toBe(true);
+      expect(within(q).getByText('Sam, today')).toBeTruthy();
+      const more = within(q).getByRole('button', { name: 'Show more' });
+      expect(more.getAttribute('aria-expanded')).toBe('false');
+      fireEvent.click(more);
+      expect(q.querySelector('blockquote')!.textContent).toContain('Thanks!');
+      expect(within(q).getByRole('button', { name: 'Show less' })).toBeTruthy();
+      // The reply goes out once there are words, through the viewer's own route.
+      const send = within(q).getByRole('button', { name: 'Send to the developers' });
+      expect((send as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.change(within(q).getByLabelText('Your answer'), { target: { value: 'Yes, the old illustration.' } });
+      await act(async () => {
+        fireEvent.click(send);
+      });
+      expect(onReply).toHaveBeenCalledWith('Yes, the old illustration.');
+      await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Sent to the developers.'));
+      expect(document.body.textContent).not.toMatch(/\bissue\b|pull request|state_reason|—/i);
+      await expectNoAxeViolations(next);
+    });
+
+    it('answered: one quiet line, no reply box', () => {
+      handed({ question: { text: 'Red or orange?', by: sam, when: 'today', answered: true, onReply: null } });
+      expect(screen.getByText('Answered. The developers build on from here.')).toBeTruthy();
+      expect(screen.queryByLabelText('Your answer')).toBeNull();
+    });
+
+    it('a needs-design label with no words: says they need input', () => {
+      handed({ steps: asking, question: { text: null, by: null, when: '', answered: false, onReply: async () => undefined } });
+      expect(screen.getByText('The developers need your input before they build on.')).toBeTruthy();
+      expect(screen.getByLabelText('Your answer')).toBeTruthy();
+    });
+  });
+
+  describe('declined by the developers', () => {
+    const sam = { login: 'sam', name: 'Sam', agent: false, avatar: null };
+    const declinedSteps = [
+      steps[0]!,
+      { status: 'warning' as const, title: 'Developers build it', detail: 'Developers closed it without building it.', current: true },
+      { status: 'waiting' as const, title: 'Review', detail: 'Not built' },
+      { status: 'waiting' as const, title: 'Shipped', detail: 'Not built' },
+    ];
+
+    it('Not planned, their last word, and Back to exploring as the one primary action', async () => {
+      const onReopen = vi.fn(async () => 'Back to exploring. Say Done exploring again when it is ready for developers.');
+      handed({ stage: 'not-planned', steps: declinedSteps, declined: { note: { text: 'Not this quarter, sorry.', by: sam, when: 'Oct 31' } } }, { onReopen });
+      expect(screen.getByText('Not planned', { selector: '[class*="badge"]' })).toBeTruthy();
+      const next = screen.getByRole('region', { name: 'What happens next' });
+      expect(within(next).getByText('Developers closed it without building it.')).toBeTruthy();
+      expect(within(next).getByText('Not this quarter, sorry.')).toBeTruthy();
+      expect(within(next).getByText('Sam, Oct 31')).toBeTruthy();
+      // One primary action: Back to exploring; the preview steps back to secondary.
+      const back = within(next).getByRole('button', { name: 'Back to exploring' });
+      expect(back.className).toMatch(/primary/);
+      expect(screen.getByRole('link', { name: /Open the preview/ }).className).not.toMatch(/primary/);
+      fireEvent.click(back);
+      const dialog = await screen.findByRole('alertdialog');
+      expect(dialog.textContent).toContain('Your developers closed it without building it.');
+      expect(document.body.textContent).not.toMatch(/not_planned|state_reason|\bissue\b|—/i);
+    });
+
+    it('closed without a word: the sentence alone, still the way back', () => {
+      handed({ stage: 'not-planned', steps: declinedSteps, declined: { note: null } }, { onReopen: async () => undefined });
+      expect(screen.getByText('Developers closed it without building it.')).toBeTruthy();
+      expect(document.querySelector('.xp-quote')).toBeNull();
+      expect(screen.getAllByRole('button', { name: 'Back to exploring' }).length).toBeGreaterThan(0);
+    });
+  });
+
+  it('approved by the designer: the tag reads the next state', () => {
+    handed({ status: 'building', stage: 'approved' });
+    expect(screen.getByText('Approved, waiting to ship', { selector: '[class*="badge"]' })).toBeTruthy();
+  });
 });
 
 describe('the "..." menu: Rename, Back to exploring, Archive', () => {

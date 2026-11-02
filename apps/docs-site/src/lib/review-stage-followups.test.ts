@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { branchPreviewUrl } from '@bridge-ds/core';
 import { devReviewLine, devVersionUrl, DEV_VERSION_READY } from './review-state';
 import { withTaskRow } from './explorations-view';
-import { withTaskStage } from './home-explorations';
-import { libraryTodayRoute, todayLinkLabel } from './exploration-page';
+import { cardTag, withTaskStage } from './home-explorations';
+import { clipQuote, explorationTag, libraryTodayRoute, todayLinkLabel } from './exploration-page';
+import { badgeRows, devQuestionNeed, type Person } from './home-model';
+import { jargonIn } from './vocabulary';
 import { COPY_WORDS } from './design-copy';
 
 const PRODUCT = 'https://bridge-product-admin-git-{branch}-peterbonos-projects.vercel.app';
@@ -45,6 +47,41 @@ describe('lists take the task words', () => {
     expect(withTaskStage(handed, 'in-review').state).toBe('In review');
     expect(withTaskStage(handed, 'closed')).toBe(handed);
     expect(withTaskStage({ stage: 'exploring', state: 'Exploring' }, 'in-review').state).toBe('Exploring');
+  });
+  it('Approved, waiting to ship and Not planned, in designer words', () => {
+    expect(withTaskRow(row, 'approved')).toMatchObject({ status: 'building', statusLabel: 'Approved, waiting to ship' });
+    // Declined while still handed off: listed, under its own words, never dropped.
+    expect(withTaskRow(row, 'not-planned')).toMatchObject({ status: 'ready', statusLabel: 'Not planned' });
+    // Taken back by Bridge's Back to exploring: the exploration runs again, its own words stay.
+    expect(withTaskRow({ ...row, status: 'active' as const, statusLabel: 'Exploring' }, 'not-planned')).toMatchObject({ status: 'active', statusLabel: 'Exploring' });
+    const handed = { stage: 'with-devs' as const, state: 'Waiting to be picked up' };
+    expect(withTaskStage(handed, 'not-planned').state).toBe('Not planned');
+    expect(withTaskStage(handed, 'approved').state).toBe('Approved, waiting to ship');
+    expect(cardTag('with-devs', 'Not planned')).toEqual({ tone: 'neutral', dot: false });
+    expect(cardTag('with-devs', 'Approved, waiting to ship')).toEqual({ tone: 'info', dot: false });
+    expect(explorationTag('ready', { stage: 'not-planned' })).toEqual({ label: 'Not planned', tone: 'neutral', dot: false });
+    expect(explorationTag('building', { stage: 'approved' })).toEqual({ label: 'Approved, waiting to ship', tone: 'info', dot: false });
+  });
+});
+
+describe("a developers' question quoted on the page", () => {
+  it('shows short words whole, and cuts long ones at a word with Show more', () => {
+    expect(clipQuote('  Red or orange?  ')).toEqual({ short: 'Red or orange?', clipped: false });
+    const long = `${'word '.repeat(80)}end`;
+    const cut = clipQuote(long, 100);
+    expect(cut.clipped).toBe(true);
+    expect(cut.short.length).toBeLessThanOrEqual(101);
+    expect(cut.short.endsWith('word…')).toBe(true);
+  });
+});
+
+describe('the Needs you row for a question', () => {
+  const sam = { login: 'sam', name: 'Sam', avatar: null } as unknown as Person;
+  it('asks the explorer to answer, waits on them, and counts in the badge', () => {
+    const row = devQuestionNeed({ key: 'shop#12', name: 'Checkout flow', href: '/studio/changes/?exploration=12&product=shop', asker: sam, since: null, thumb: { kind: 'icon', icon: 'branch' } }, Date.now());
+    expect(row).toMatchObject({ key: 'dev-question-shop#12', kind: 'own', title: 'Checkout flow', line: 'Sam asked a question', waitsOnYou: true, action: 'Answer', question: true });
+    expect(badgeRows([row, { ...row, key: 'x', question: false }])).toBe(1);
+    expect(jargonIn(`${row.title} ${row.line}`)).toEqual([]);
   });
 });
 

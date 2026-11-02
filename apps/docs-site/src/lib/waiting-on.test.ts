@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CLAUDE_WAITING_SENTENCE, needFromStatus, whoActs, type People, type Need } from './changes';
 import { rowLifecycle } from './change-status';
 import { reviewStatus, summarizeCi } from './review-rules';
-import { isReviewTask, reviewCount, waitingOn, waitsOnMe, type WaitChange, type WaitViewer } from './waiting-on';
+import { countsInBadge, isReviewTask, reviewCount, waitingOn, waitsOnMe, type WaitChange, type WaitViewer } from './waiting-on';
 
 // One team: Ann designs (design owner), Theo codes (tech owner), Sam contributes. Florian is the only owner of a solo
 // team and the only one allowed to use the owner override.
@@ -129,6 +129,30 @@ describe('waitingOn: one rule for every "waiting on me" surface', () => {
     expect(changes.filter((c) => waitsOnMe(c, ann))).toHaveLength(2);
     expect(isReviewTask('own-changes')).toBe(false);
     expect(isReviewTask('ship')).toBe(true);
+  });
+});
+
+describe("the developers' question on an exploration handed off", () => {
+  const asked = { answered: false };
+  it('waits on the person who explored it, whatever their role, until they answer', () => {
+    expect(waitingOn({ author: 'sam', who: null, exploration: true, devQuestion: asked }, sam)).toBe('dev-question');
+    expect(waitingOn({ author: 'ann', who: null, exploration: true, devQuestion: asked }, ann)).toBe('dev-question');
+    expect(waitingOn({ author: 'sam', who: null, exploration: true, devQuestion: { answered: true } }, sam)).toBeNull();
+  });
+
+  it('never on anyone else, the demo seat, or once it shipped', () => {
+    expect(waitingOn({ author: 'sam', who: null, exploration: true, devQuestion: asked }, ann)).toBeNull();
+    expect(waitingOn({ author: 'ann', who: null, exploration: true, devQuestion: asked }, { login: 'ann', role: 'reviewer', seat: true })).toBeNull();
+    expect(waitingOn({ author: 'sam', who: null, exploration: true, devQuestion: asked, lifecycle: 'shipped' }, sam)).toBeNull();
+    expect(waitingOn({ author: 'sam', who: null, exploration: true, devQuestion: asked }, { login: null, role: 'contributor' })).toBeNull();
+  });
+
+  it('counts in the nav badge with the reviews, not in the review count', () => {
+    expect(countsInBadge('dev-question')).toBe(true);
+    expect(countsInBadge('design')).toBe(true);
+    expect(countsInBadge('own-changes')).toBe(false);
+    expect(isReviewTask('dev-question')).toBe(false);
+    expect(reviewCount([{ author: 'sam', who: null, exploration: true, devQuestion: asked }], sam)).toBe(0);
   });
 });
 

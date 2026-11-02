@@ -56,7 +56,7 @@ import ButtonLink from '../ButtonLink';
 import { Drawing } from './Drawing';
 import { Who } from './faces';
 import type { DesignAnswer, LifecycleStage } from '../../../lib/review-state';
-import { explorationTag, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
+import { clipQuote, explorationTag, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
 import { studioHref } from '../../../lib/team-path';
 import { ARCHIVED_LINE } from '../../../lib/explorations-view';
 import { EXPLORATION_STAGE_LABEL } from '@bridge-ds/core';
@@ -87,6 +87,19 @@ export interface HandoffView {
    * request): Looks right, or Needs changes with a short text. Null when there is nothing to answer or the viewer cannot.
    */
   onAnswer?: ((a: DesignAnswer) => Promise<string | void>) | null;
+  /**
+   * The developers asked the designer something on their task: their words (plain text; null when only a label asks),
+   * who and when, whether the designer answered since, and the reply when this viewer can write it.
+   */
+  question?: {
+    text: string | null;
+    by: PageFace | null;
+    when: string;
+    answered: boolean;
+    onReply?: ((text: string) => Promise<string | void>) | null;
+  } | null;
+  /** The developers closed it without building it: their last word, when they left one. */
+  declined?: { note: { text: string; by: PageFace; when: string } | null } | null;
 }
 
 export interface ExplorationPageProps {
@@ -470,6 +483,72 @@ function DevAnswer({ onAnswer, say }: { onAnswer: NonNullable<HandoffView['onAns
   );
 }
 
+/**
+ * A developer's words, quoted as plain text (React escapes it: never HTML), cut after a few lines with "Show more",
+ * then who said it and when.
+ */
+function DevQuote({ text, by, when }: { text: string; by: PageFace | null; when: string }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  const { short, clipped } = clipQuote(text);
+  return (
+    <figure className="xp-quote">
+      <blockquote id={id} className="xp-quote-text">
+        {open ? text : short}
+      </blockquote>
+      {clipped && (
+        <Button variant="link" size="sm" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
+          {open ? 'Show less' : 'Show more'}
+        </Button>
+      )}
+      {by && (
+        <figcaption className="xp-muted xp-quote-by">
+          <Who p={{ login: by.login, name: by.name, agent: by.agent, avatar: by.avatar }} size="xs" />
+          <span>
+            {by.name}
+            {when ? `, ${when}` : ''}
+          </span>
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+/**
+ * The developers' question, under the steps: their words, and the reply box when this viewer can answer. Once the
+ * designer answered, one quiet line says so and their words stay for reference.
+ */
+function DevQuestion({ q, say }: { q: NonNullable<HandoffView['question']>; say: (s: string) => void }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const send = (e: FormEvent) => {
+    e.preventDefault();
+    if (!q.onReply || !text.trim()) return;
+    setBusy(true);
+    q.onReply(text)
+      .then((r) => r && say(r))
+      .catch((err: Error) => say(err.message))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <section className="xp-question" aria-label="The developers' question">
+      {q.text ? <DevQuote text={q.text} by={q.by} when={q.when} /> : !q.answered && <p>The developers need your input before they build on.</p>}
+      {q.answered ? (
+        <p className="xp-muted">Answered. The developers build on from here.</p>
+      ) : (
+        q.onReply && (
+          <form className="xp-answer xp-reply" onSubmit={send}>
+            <Textarea label="Your answer" hint="The developers read it where they work." rows={3} value={text} onChange={(e) => setText(e.target.value)} />
+            <Button type="submit" variant="secondary" size="md" loading={busy} disabled={!text.trim()}>
+              Send to the developers
+            </Button>
+          </form>
+        )
+      )}
+    </section>
+  );
+}
+
 /** "Art print shop changed since this exploration started. Bring it in": quiet, one link-sized action. */
 function LatestLine({ latest, say }: { latest: NonNullable<ExplorationPageProps['latest']>; say: (s: string) => void }) {
   const [busy, setBusy] = useState(false);
@@ -495,7 +574,7 @@ function LatestLine({ latest, say }: { latest: NonNullable<ExplorationPageProps[
 }
 
 /** The one Harbor zone after Done exploring: the hand-off in four steps, then the library part. */
-function HandoffCard({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void }) {
+function HandoffCard({ h, p, say, onBack }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void; onBack?: (() => void) | null }) {
   const version = h.steps.find((s) => s.link)?.link ?? null;
   return (
     <section className="xp-next zone" aria-labelledby="xp-next-h">
@@ -523,7 +602,20 @@ function HandoffCard({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
           </Link>
         </p>
       )}
-      {h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && <DevAnswer onAnswer={h.onAnswer} say={say} />}
+      {h.declined ? (
+        // Declined: their last word, if any, then the one way forward.
+        <div className="xp-declined">
+          {h.declined.note && <DevQuote text={h.declined.note.text} by={h.declined.note.by} when={h.declined.note.when} />}
+          {onBack && (
+            <Button variant="primary" size="lg" className="xp-fill" onClick={onBack}>
+              Back to exploring
+            </Button>
+          )}
+        </div>
+      ) : (
+        h.question && h.status !== 'shipped' && <DevQuestion q={h.question} say={say} />
+      )}
+      {!h.declined && h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && <DevAnswer onAnswer={h.onAnswer} say={say} />}
       <LibraryPart h={h} p={p} say={say} />
     </section>
   );
@@ -581,6 +673,8 @@ function ExplorationBody(p: ExplorationPageProps) {
   };
   const notStarted = p.stage === 'not-started';
   const handoff = p.stage === 'handed-off' ? (p.handoff ?? null) : null;
+  // Declined by the developers: Back to exploring is the one primary action, the preview steps back.
+  const declined = Boolean(handoff?.declined);
   return (
     <ToolContext.Provider value={tab}>
     <div className="xp-page">
@@ -700,7 +794,7 @@ function ExplorationBody(p: ExplorationPageProps) {
             <div className={handoff ? 'xp-acts' : 'xp-acts xp-preview-acts'}>
               {p.previewUrl ? (
                 // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
-                <ButtonLink variant="primary" size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
+                <ButtonLink variant={declined ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
                   {handoff?.status === 'shipped' ? 'See it in the product' : 'Open the preview'}
                 </ButtonLink>
               ) : p.previewBuilding ? (
@@ -723,7 +817,7 @@ function ExplorationBody(p: ExplorationPageProps) {
             {!handoff && p.latest && <LatestLine latest={p.latest} say={setSaid} />}
           </section>
           <div className="xp-side">
-            {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} /> : <DoneCard p={p} />}
+            {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} /> : <DoneCard p={p} />}
             {!handoff && <ActivityList rows={p.activity} />}
           </div>
           {handoff && <ActivityList rows={p.activity} />}
@@ -749,7 +843,7 @@ function ExplorationBody(p: ExplorationPageProps) {
         <AlertDialog open={ask === 'reopen'} onOpenChange={(o) => !reopening && setAsk(o ? 'reopen' : null)}>
           <AlertDialogContent
             title="Back to exploring?"
-            description="Your developers have not started yet. The exploration runs again and Done exploring comes back."
+            description={declined ? 'Your developers closed it without building it. The exploration runs again and Done exploring comes back.' : 'Your developers have not started yet. The exploration runs again and Done exploring comes back.'}
             confirmLabel="Back to exploring"
             cancelLabel="Cancel"
             tone="primary"
