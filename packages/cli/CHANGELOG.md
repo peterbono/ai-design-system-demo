@@ -1,5 +1,13 @@
 # @bridge-ds/cli
 
+## 0.17.6
+
+### Patch Changes
+
+- 5a783a2: Cloudflare Pages previews: read the HTML table Cloudflare really posts in its check run (`<strong>Preview URL:</strong>` with an `<a href>` link, and `Branch Preview URL:` on preview branches), not only Markdown rows.
+- Updated dependencies [5a783a2]
+  - @bridge-ds/mcp@0.14.2
+
 ## 0.17.5
 
 ### Patch Changes
