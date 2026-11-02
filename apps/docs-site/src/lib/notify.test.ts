@@ -187,6 +187,18 @@ describe('who a notice is for', () => {
 });
 
 describe('right away, at most once per thing per hour', () => {
+  it('a send the provider refused does not use up the hour: the next event tries again', async () => {
+    let fail = true;
+    const sent: unknown[] = [];
+    const w = world({ sender: { send: async (m) => { if (fail) throw new Error('email provider answered 401 unauthorized'); sent.push(m); } } });
+    await w.watch();
+    await w.member();
+    await w.task();
+    expect(await deliverNotices([question], w.d, 'd1')).toEqual([{ kind: 'question', status: 'kept', reason: 'not-sent email provider answered 401 unauthorized' }]);
+    fail = false;
+    expect(await deliverNotices([question], w.d, 'd2')).toEqual([{ kind: 'question', status: 'sent' }]);
+    expect(sent).toHaveLength(1);
+  });
   it('a second question within the hour folds into the summary; after the hour, right away again', async () => {
     const w = world();
     await w.watch();
