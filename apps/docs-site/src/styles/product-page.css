@@ -62,16 +62,9 @@
   min-height: var(--size-60);
 }
 
-/* Nothing explored yet: the page's one Harbor zone holding the Home's choice cards (StudioHome Start, .sh-choice): one
-   card to start, or a designer's two asks on the library side by side (.sh-choices: two columns, one on a phone). The
-   same padding on all four sides, and the zone's corners concentric with the cards': zone radius = card radius plus the
-   padding (.zone sets the plain container radius, hence the two classes). */
-.zone.pp-empty {
-  --_pad: var(--space-6);
-
-  padding: var(--_pad);
-  border-radius: calc(var(--card-radius) + var(--_pad));
-}
+/* Nothing explored yet: the page's one Harbor zone, the Home hero's own (.zone.sh-zone: same radius, padding and phone
+   values), holding the Home's choice cards (StudioHome Start, .sh-choice) at the Home card's radius and inset: one card
+   to start, or a designer's two asks on the library side by side (.sh-choices: two columns, one on a phone). */
 
 /* No copy yet (CopyCard): the drawing beside the reason and the one action. */
 .pp-copy {
@@ -148,10 +141,6 @@
 }
 
 @media (max-width: 640px) {
-  .zone.pp-empty {
-    --_pad: var(--space-4);
-  }
-
   .pp-copy {
     justify-content: center;
     text-align: center;
@@ -161,15 +150,9 @@
     justify-items: center;
   }
 
-  /* A phone: a smaller drawing and a tighter inset, so the title keeps most of the card's width. */
+  /* The Home's phone choice (studio-home.css: the drawing at --size-16, --space-4 apart), the chevron last. */
   .pp-choice .pp-choice-body {
-    grid-template-columns: var(--size-12) minmax(0, 1fr) auto;
-    column-gap: var(--space-3);
-    padding: var(--space-4);
-  }
-
-  .pp-choice .pp-choice-body > .ill {
-    width: var(--size-12);
+    grid-template-columns: var(--size-16) minmax(0, 1fr) auto;
   }
 }
 

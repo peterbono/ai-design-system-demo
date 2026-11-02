@@ -291,7 +291,7 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
     }
   };
   return (
-    <section className="zone pp-empty pp-copy" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
+    <section className="zone sh-zone pp-empty pp-copy" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
       <Drawing name="paint" width={160} />
       <div className="pp-empty-text">
         <p className="t-body">{COPY_WORDS.intro(product.name)}</p>
@@ -391,7 +391,7 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
       ) : busyAlone && busy ? (
         <BusyNotice busy={busy} onRetry={onRetry} signedIn={signedIn} />
       ) : empty ? (
-        <section className="zone pp-empty" aria-label={asks ? 'Ask for a library change' : `Nothing explored in ${name} yet`}>
+        <section className="zone sh-zone pp-empty" aria-label={asks ? 'Ask for a library change' : `Nothing explored in ${name} yet`}>
           {product && asks ? (
             <ul className="sh-choices">
               {LIBRARY_ASKS.map((a) => (
