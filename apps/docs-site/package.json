@@ -13,7 +13,8 @@
     "dev:scenario": "node dev/cli.mjs scenario",
     "build": "astro build",
     "preview": "astro preview",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "loadtest:github": "cd ../.. && vitest run --config apps/docs-site/test/quota/vitest.config.ts"
   },
   "dependencies": {
     "@astrojs/react": "4.4.2",
