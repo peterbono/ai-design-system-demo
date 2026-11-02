@@ -12,6 +12,8 @@
 //   GET  ?view=session&repo=owner/name&component=Name   a fix session: { session: SessionView } (plugin, Studio)
 //   GET  ?view=sessions&repo=owner/name                 the team's sessions of the last 7 days
 //   GET  ?view=connections&repo=owner/name              who connected Bridge in Claude for this team, last used
+//   GET  ?view=github-usage&repo=owner/name             the team's GitHub usage this hour (admins only, Settings):
+//                                                       { usage: { limit, used, remaining, resetAt, low } | null, slowedAt }
 //   POST ?view=disconnect { repo, id }                  ends one connection (its owner, or a team admin)
 //   POST ?view=pieces { repo, pr }                      Studio's library check of an exploration: the adoption audit
 //                                                       on its diff (bridge_missing_pieces), recorded on it. GitHub
@@ -40,6 +42,7 @@ import { displayName, sessionAccount } from '../_lib/account.js';
 import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/fix-sessions.js';
 import type { AppTokens } from '../_lib/github-app.js';
 import { clientIp, fail, HttpError, json, parseRepo, readBody, sameOrigin, type FetchLike } from '../_lib/http.js';
+import { meteredFromEnv, readUsage } from '../_lib/github-quota.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
 import { getTeamNames } from '../_lib/teams.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
@@ -143,6 +146,7 @@ export const EMAIL_REFUSED_TOOLS: readonly string[] = [
   'bridge_open_library_branch',
 ];
 export const EMAIL_REFUSED_WORDS = 'You joined this team with your email, so Bridge does not do this for you. Ask a reviewer or an admin of your team.';
+export const USAGE_ADMINS_ONLY = 'Only admins of this team see its GitHub usage.';
 export const LIBRARY_LEADS_WORDS = 'The design system leads change the library. Ask them for what you need, or explore one of your products.';
 
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
@@ -614,6 +618,12 @@ async function onView(view: string, req: Request, env: ConnectorEnv, deps: Conne
     if (!/^[A-Za-z][A-Za-z0-9 ._-]{0,79}$/.test(component)) return fail(400, 'bad_request', 'Say which component, by its name.');
     return json(200, { session: sessionView(await getSession(svc.redis, t.full, component), component, now) });
   }
+  if (view === 'github-usage') {
+    // Settings, for the team's admins only (checked here, never trusted from the page): how much of the hourly GitHub
+    // budget of the team's installation Bridge used (api/_lib/github-quota.ts). Numbers and times, nothing else.
+    if (!who.admin) return fail(403, 'forbidden', USAGE_ADMINS_ONLY);
+    return json(200, await readUsage(svc.redis, t.full, now), NO_STORE);
+  }
   if (view === 'sessions') return json(200, { sessions: (await listSessions(svc.redis, t.full, now)).map((s) => sessionView(s, s.component, now)) });
   if (view === 'connections') {
     const grants = await listGrants(svc.redis, t.full);
@@ -665,7 +675,8 @@ const envFromProcess = (): ConnectorEnv => ({
   PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL,
 });
 
-const realFetch: FetchLike = (url, init) => fetch(url, init);
+// Answers to calls with the Bridge app's tokens are metered per installation (api/_lib/github-quota.ts).
+const realFetch: FetchLike = meteredFromEnv();
 const handle = (request: Request) => handleConnector(request, envFromProcess(), { fetch: realFetch });
 
 /** Vercel Functions entries (Web standard signature). */

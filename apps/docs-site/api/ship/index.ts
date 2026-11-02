@@ -54,6 +54,7 @@
 import { contributorOf, type ContribEnv } from '../contribute/index.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOriginWhenPresent, type FetchLike } from '../_lib/http.js';
+import { meteredFromEnv } from '../_lib/github-quota.js';
 import {
   approverEntriesOf,
   designApprovalOf,
@@ -692,7 +693,8 @@ const envFromProcess = (): ContribEnv => ({
   GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY,
 });
 
-const realFetch: FetchLike = (url, init) => fetch(url, init);
+// Answers to calls with the Bridge app's tokens are metered per installation (api/_lib/github-quota.ts).
+const realFetch: FetchLike = meteredFromEnv();
 const handle = (request: Request) => handleShip(request, envFromProcess(), { fetch: realFetch });
 
 /** Vercel Functions entries (Web standard signature). */

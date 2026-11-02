@@ -97,6 +97,7 @@ import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin, type FetchLike } from '../_lib/http.js';
+import { meteredFromEnv } from '../_lib/github-quota.js';
 import { accountTeamsKey, memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import {
@@ -1226,7 +1227,8 @@ const envFromProcess = (): EntryEnv => ({
   PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL,
 });
 
-const realFetch: FetchLike = (url, init) => fetch(url, init);
+// Answers to calls with the Bridge app's tokens are metered per installation (api/_lib/github-quota.ts).
+const realFetch: FetchLike = meteredFromEnv();
 const handle = (request: Request) => handleEntry(request, envFromProcess(), { fetch: realFetch });
 
 /** Vercel Functions entries (Web standard signature). */

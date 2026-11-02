@@ -14,7 +14,8 @@
 //                 (components/ds/studio/ClaudeConnector.tsx, api/mcp).
 //   How changes reach your code  suggestions (a GitHub issue developers apply) or pull requests Bridge opens, from
 //                 `changes` in bridge.config.json; what Bridge's GitHub App may do on the repo; the switch, sent for review
-//                 as a pull request (components/ds/studio/ChangesMode.tsx, scripts/roles.ts).
+//                 as a pull request (components/ds/studio/ChangesMode.tsx, scripts/roles.ts); for admins only, how
+//                 much of GitHub's hourly limit Bridge used for the team (components/ds/studio/GitHubUsage.tsx).
 //   Review rules  who the design and tech owners are (people or GitHub teams, read from GitHub), who checks the look,
 //                 who checks the code and who adds it to the library, in designer words and names (edited in place, a review is requested on a branch that edits
 //                 bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no tier
@@ -56,6 +57,7 @@ import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
 import MembersSection from '../../../components/ds/studio/MembersSection';
 import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
 import ClaudeConnector from '../../../components/ds/studio/ClaudeConnector';
+import GitHubUsage from '../../../components/ds/studio/GitHubUsage';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
 import { TEAM_NAME_WORDS } from '../../../lib/team-name';
 import '../../../styles/team-access.css';
@@ -168,6 +170,7 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
           protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']}
           suggestApp={signInConfig()?.suggestApp ?? null}
         />
+        <GitHubUsage client:only="react" />
         <Card id="repository">
           <CardBody>
             <DevFold

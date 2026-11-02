@@ -3,6 +3,7 @@
 // and the session cookie. Every rule is checked by the server.
 import { CONTRIBUTE_HEADER } from '../lib/contribute';
 import type { Connection } from '../lib/claude-connector';
+import { parseUsage, type GitHubUsageView } from '../lib/github-usage';
 import { currentContributor, getToken, noteWrite, signedInWithGitHub } from './github-session';
 
 export const CONNECTOR_API = '/api/mcp';
@@ -43,6 +44,14 @@ export async function listConnections(repo: string): Promise<{ connections: Conn
 
 export async function removeConnection(repo: string, id: string): Promise<void> {
   await call('POST', '?view=disconnect', { repo, id });
+}
+
+/**
+ * How much of GitHub's hourly limit Bridge used for this team (Settings, admins only). Anyone else gets an Error with
+ * `status` 401 or 403, and the row stays hidden.
+ */
+export async function githubUsage(repo: string): Promise<GitHubUsageView> {
+  return parseUsage(await call<unknown>('GET', `?view=github-usage&repo=${encodeURIComponent(repo)}`));
 }
 
 export async function listFixSessions(repo: string): Promise<unknown[]> {

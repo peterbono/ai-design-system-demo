@@ -81,6 +81,7 @@ import {
   siteOrigin as originOf,
   type FetchLike,
 } from '../_lib/http.js';
+import { meteredFromEnv } from '../_lib/github-quota.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import { cookieAttrs as attrsFor, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 
@@ -698,7 +699,8 @@ const envFromProcess = (): LibraryEnv => ({
   LIBRARY_SIGNIN_MAX_SITE_DAY: process.env.LIBRARY_SIGNIN_MAX_SITE_DAY,
 });
 
-const realFetch: FetchLike = (url, init) => fetch(url, init);
+// Answers to calls with the Bridge app's tokens are metered per installation (api/_lib/github-quota.ts).
+const realFetch: FetchLike = meteredFromEnv();
 
 /** Vercel Functions entries (Web standard signature). */
 export function GET(request: Request): Promise<Response> {
