@@ -8,6 +8,9 @@
 //   GET /api/contribute?repo=owner/name&gh=<GitHub REST path under /repos/owner/name, URL-encoded>
 //       GitHub's status, body, Content-Type, Link and ETag, from the cache when it is fresh. If-None-Match that
 //       matches the kept ETag answers 304. X-Bridge-Cache says hit, revalidated, miss or stale.
+//       A member's request that carries X-Bridge-Fresh: 1 (the page wrote to GitHub itself a moment ago: a lead or an
+//       admin signed in with GitHub, lib/token-session readCacheMode) skips the fresh window: Bridge asks GitHub again
+//       with the kept ETag (a 304 costs nothing) and keeps the answer for the team. A visitor's is ignored.
 //       A request that carries X-Bridge-Missing: 1 (Bridge's own pages) gets GitHub's 404 (a file or branch that is not
 //       there, such as a team without a Bridge snapshot) as 200 with X-Bridge-Missing: 1 and GitHub's body, so the
 //       browser logs no error for an expected empty state; the page reads it back as the 404 (lib/contribute.ts).
@@ -33,7 +36,8 @@
 //     PRODUCTS_KEEP_S): the same READ_RULES minus members-only ones, with a read token of that repository, on the
 //     team's budget; the app missing there answers 409 product_missing (the page skips that product only); a visitor
 //     of a public demo team also needs the product repository to be public
-//   - who: a member of the team (the team's email session cookie, or a Bridge account that is a member), or anyone for
+//   - who: a member of the team (the team's email session cookie, a Bridge account that is a member, or anyone on the
+//     team signed in with GitHub: api/contribute githubTeamReaderOf, checked with their own token), or anyone for
 //     the public demo teams (PUBLIC_TEAMS, and only while GitHub says the repository is public). `collaborators`
 //     only for members.
 //   - the token never leaves the server; no request header of the browser is passed on (Accept is re-validated).
@@ -59,7 +63,11 @@
 //   bridge:read:count:<kind>:<who>:<window>       requests per window (READ_WINDOW_S): per signed-in member (a hash of
 //                                                 their email, so one office behind one address is not one budget),
 //                                                 per address for a visitor of a public demo team, and per team
+//   bridge:read:count:up:<who>:<window>           GitHub calls the reader's requests cost the app (a cache miss; a
+//                                                 304 is free), per member or address: one viewer never spends the
+//                                                 app's hourly limit for the whole team (READ_LIMITS.upstream)
 // Answers that never change (a blob, a tree or a commit by its sha) are also kept in this function's memory.
+// Over a reader's GitHub calls (upstream), a read answers what is kept, however old; nothing kept answers busy.
 // Over a limit, or when GitHub says slow down and nothing is kept: 429 { error: 'busy', message: "Bridge is busy, try
 // again in N min." } with Retry-After.
 
@@ -89,9 +97,17 @@ export const MAX_BATCH_BYTES = 3_000_000;
 export const READ_WINDOW_S = 10 * 60;
 /**
  * Requests per window: per signed-in member (`ip` keeps its name: READ_MAX_IP sets it), per address on a public demo
- * team (no sign-in), per team.
+ * team (no sign-in), per team. `upstream`: GitHub calls one reader (member or address) may cost the app per window
+ * (READ_MAX_UPSTREAM): 300 per 10 minutes is 1,800 an hour, about a third of the app's 5,000, so one viewer never
+ * spends the limit the whole team reads on. Cached answers and 304s cost none of it.
  */
-export const READ_LIMITS = { ip: 1200, guest: 400, team: 6000 } as const;
+export const READ_LIMITS = { ip: 1200, guest: 400, team: 6000, upstream: 300 } as const;
+
+/**
+ * Request header of a member's read right after the page wrote to GitHub itself: the kept answer is checked with
+ * GitHub again (its ETag) instead of answered while fresh. Honored for members of the team only.
+ */
+export const FRESH_HEADER = 'X-Bridge-Fresh';
 
 const API = 'https://api.github.com';
 const UA = 'bridge-read';
@@ -122,7 +138,7 @@ export interface ReadCtx {
   redis: Redis;
   /** Read token for one repository (narrowed to read permissions), or null when the app is not there. */
   token: (owner: string, repo: string) => Promise<string | null>;
-  env: { READ_MAX_IP?: string | undefined; READ_MAX_GUEST?: string | undefined; READ_MAX_TEAM?: string | undefined };
+  env: { READ_MAX_IP?: string | undefined; READ_MAX_GUEST?: string | undefined; READ_MAX_TEAM?: string | undefined; READ_MAX_UPSTREAM?: string | undefined };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -156,6 +172,10 @@ const READ_RULES: { path: string[]; members?: true }[] = [
   { path: ['issues', '#', '*'] },
   { path: ['labels'] },
   { path: ['tags'] },
+  { path: ['releases'] },
+  { path: ['releases', 'latest'] },
+  { path: ['releases', 'tags', '*'] },
+  { path: ['releases', '#'] },
   { path: ['deployments'] },
   { path: ['deployments', '#', 'statuses'] },
   { path: ['rulesets'] },
@@ -199,7 +219,7 @@ export function immutable(rest: string[], query: string): boolean {
 const windowOf = (now: number) => Math.floor(now / 1000 / READ_WINDOW_S);
 const secondsToNextWindow = (now: number) => Math.max(1, (windowOf(now) + 1) * READ_WINDOW_S - Math.floor(now / 1000));
 
-export const countKey = (kind: 'ip' | 'member' | 'guest' | 'team', who: string, now: number) => `bridge:read:count:${kind}:${who}:${windowOf(now)}`;
+export const countKey = (kind: 'ip' | 'member' | 'guest' | 'team' | 'up', who: string, now: number) => `bridge:read:count:${kind}:${who}:${windowOf(now)}`;
 export const wroteKey = (repo: string) => `bridge:read:wrote:${repo.toLowerCase()}`;
 const getKey = (repo: string, accept: string, url: string) => `bridge:read:get:${repo.toLowerCase()}:${sha256(`${accept} ${url}`).slice(0, 40)}`;
 export const changeKey = (repo: string, n: number, sha: string) => `bridge:read:change:${repo.toLowerCase()}:${n}:${sha}`;
@@ -220,19 +240,43 @@ export function budgetOf(req: Request, reader: Reader): { kind: 'member' | 'ip' 
   return { kind: reader.kind === 'guest' ? 'guest' : 'ip', who: sha256(`read-ip:${clientIp(req)}`).slice(0, 24) };
 }
 
+/** What the reader may still cost the app in GitHub calls this window (READ_LIMITS.upstream), and how to spend it. */
+interface Upstream {
+  /** GitHub calls left this window (0: answer what is kept, else busy). */
+  left: number;
+  /** Seconds until the window turns. */
+  wait: number;
+  /** Counts `n` GitHub calls (cache misses; a 304 is free) against the reader. Never throws. */
+  spend: (n: number) => Promise<void>;
+}
+
+/** The GitHub calls `reader` may still cost this window, from what they spent (read in the same round trip). */
+function upstreamOf(ctx: ReadCtx, req: Request, reader: Reader, spent: unknown, now: number): Upstream {
+  const k = countKey('up', budgetOf(req, reader).who, now);
+  const limit = envInt(ctx.env.READ_MAX_UPSTREAM, READ_LIMITS.upstream);
+  return {
+    left: Math.max(0, limit - (Number(spent) || 0)),
+    wait: secondsToNextWindow(now),
+    spend: async (n) => {
+      if (n > 0) await ctx.redis.pipe([['INCRBY', k, n], ['EXPIRE', k, READ_WINDOW_S + 5]]).catch(() => undefined);
+    },
+  };
+}
+
 /**
  * Counts one request (`weight` for a batch) against the reader's budget (budgetOf) and the team, and reads `extra`
- * keys in the same round trip. Throws busy over a limit. Returns the values of `extra` and the last write time.
+ * keys in the same round trip. Throws busy over a limit. Returns the values of `extra`, the last write time and the
+ * GitHub calls the reader may still cost the app (upstreamOf).
  */
-async function countAndRead(ctx: ReadCtx, req: Request, full: string, reader: Reader, weight: number, extra: string[]): Promise<{ values: unknown[]; wrote: number }> {
+async function countAndRead(ctx: ReadCtx, req: Request, full: string, reader: Reader, weight: number, extra: string[]): Promise<{ values: unknown[]; wrote: number; up: Upstream }> {
   const now = ctx.now();
   const budget = budgetOf(req, reader);
   const keys = [countKey(budget.kind, budget.who, now), countKey('team', full.toLowerCase(), now)];
   const limits = [reader.kind === 'guest' ? envInt(ctx.env.READ_MAX_GUEST, READ_LIMITS.guest) : envInt(ctx.env.READ_MAX_IP, READ_LIMITS.ip), envInt(ctx.env.READ_MAX_TEAM, READ_LIMITS.team)];
-  const r = await ctx.redis.pipe([...keys.flatMap((k) => [['INCRBY', k, weight], ['EXPIRE', k, READ_WINDOW_S + 5]]), ['GET', wroteKey(full)], ...extra.map((k) => ['GET', k])]);
+  const r = await ctx.redis.pipe([...keys.flatMap((k) => [['INCRBY', k, weight], ['EXPIRE', k, READ_WINDOW_S + 5]]), ['GET', wroteKey(full)], ['GET', countKey('up', budget.who, now)], ...extra.map((k) => ['GET', k])]);
   if (keys.some((_, i) => Number(r[i * 2]) > limits[i]!)) throw busy(secondsToNextWindow(now));
   const wrote = Number(r[keys.length * 2]) || 0;
-  return { values: r.slice(keys.length * 2 + 1), wrote };
+  return { values: r.slice(keys.length * 2 + 2), wrote, up: upstreamOf(ctx, req, reader, r[keys.length * 2 + 1], now) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -570,15 +614,24 @@ export async function onRead(req: Request, ctx: ReadCtx, t: ReadTarget, reader: 
   const answer = (k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', etagIn: string | null) => answerKept(k, source, etagIn, missingOk);
   const now = ctx.now();
 
+  // A member who just wrote to GitHub from the page asks GitHub again (with the kept ETag); a visitor never does.
+  const fresh = reader.kind === 'member' && req.headers.get(FRESH_HEADER) === '1';
+
   const mem = forever ? memory.get(key) : undefined;
-  const { values, wrote } = await countAndRead(ctx, req, t.full, reader, 1, mem || !keep ? [] : [key]);
+  const { values, wrote, up } = await countAndRead(ctx, req, t.full, reader, 1, mem || !keep ? [] : [key]);
   if (mem && typeof mem !== 'string') return answer(mem, 'hit', inm);
   const kept = keep ? parseKept(values[0]) : null;
-  if (kept && (forever || (now - kept.at < FRESH_MS && kept.at >= wrote))) {
+  if (kept && (forever || (!fresh && now - kept.at < FRESH_MS && kept.at >= wrote))) {
     if (forever) remember(key, kept);
     return answer(kept, 'hit', inm);
   }
+  // This reader spent their share of the app's GitHub calls: what is kept, however old, else busy until the window turns.
+  if (up.left <= 0) {
+    if (kept) return answer(kept, 'stale', inm);
+    throw busy(up.wait);
+  }
   const { k, source } = await throughGitHub(ctx, t.owner, t.repo, url, accept, key, kept, { keep, forever });
+  if (source === 'miss') await up.spend(1);
   return answer(k, source, inm);
 }
 
@@ -639,7 +692,10 @@ const STATUS_ACCEPT = 'application/vnd.github+json';
  */
 export async function onChanges(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'owner' | 'repo' | 'full'>, changes: ChangeRef[], reader: Reader): Promise<Response> {
   if (reader.kind !== 'member') throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
-  const { values, wrote } = await countAndRead(ctx, req, t.full, reader, changes.length, changes.map((c) => changeKey(t.full, c.number, c.sha)));
+  const { values, wrote, up } = await countAndRead(ctx, req, t.full, reader, changes.length, changes.map((c) => changeKey(t.full, c.number, c.sha)));
+  // The reader's GitHub calls left this window (READ_LIMITS.upstream), and the ones these reads cost.
+  let left = up.left;
+  let spent = 0;
   const now = ctx.now();
   const out: Record<string, ChangeReads> = {};
   const cold: ChangeRef[] = [];
@@ -660,9 +716,20 @@ export async function onChanges(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 
       const k0 = kept[i] ?? null;
       let k: Kept;
       if (k0 && now - k0.at < FRESH_MS && k0.at >= wrote) k = k0;
-      else {
+      else if (left <= 0) {
+        // The reader spent their GitHub calls: what is kept, else this change is left out (the page reads it alone).
+        if (!k0) {
+          limited = up.wait;
+          return;
+        }
+        k = k0;
+      } else {
         try {
-          k = (await throughGitHub(ctx, t.owner, t.repo, urlOf(path), STATUS_ACCEPT, keys[i]!, k0, { keep: true, forever: false })).k;
+          left -= 1;
+          const got = await throughGitHub(ctx, t.owner, t.repo, urlOf(path), STATUS_ACCEPT, keys[i]!, k0, { keep: true, forever: false });
+          if (got.source === 'miss') spent += 1;
+          else left += 1;
+          k = got.k;
         } catch (e) {
           if (e instanceof HttpError && e.status === 429) limited = Number(e.headers?.['Retry-After']) || 60;
           if (e instanceof HttpError && e.code === 'app_missing') throw e;
@@ -682,6 +749,7 @@ export async function onChanges(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 
   };
   await Promise.all(Array.from({ length: Math.min(4, cold.length) }, worker));
   if (writes.length) await ctx.redis.pipe(writes).catch(() => undefined);
+  await up.spend(spent);
   if (limited !== null && !Object.keys(out).length) throw busy(limited);
   return json(200, { changes: out }, { 'Cache-Control': 'private, no-store' });
 }
@@ -701,7 +769,7 @@ export async function onBlobs(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'o
     return typeof v === 'string' ? v : undefined;
   };
   const cold = shas.filter((s) => fromMemory(s) === undefined);
-  const { values } = await countAndRead(ctx, req, t.full, reader, Math.max(1, Math.ceil(shas.length / 20)), cold.map((s) => blobKey(t.full, s)));
+  const { values, up } = await countAndRead(ctx, req, t.full, reader, Math.max(1, Math.ceil(shas.length / 20)), cold.map((s) => blobKey(t.full, s)));
   let bytes = 0;
   const later: string[] = [];
   const add = (s: string, text: string | null) => {
@@ -729,14 +797,20 @@ export async function onBlobs(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'o
     const token = await tokenFor(ctx, t.owner, t.repo);
     const writes: (string | number)[][] = [];
     let limited: number | null = null;
+    // The reader's GitHub calls left this window (READ_LIMITS.upstream): past them, the rest is for later.
+    let left = up.left;
+    let spent = 0;
     let i = 0;
     const worker = async () => {
       while (i < missing.length) {
         const s = missing[i++]!;
+        if (left <= 0) limited ??= up.wait;
         if (limited !== null || bytes > MAX_BATCH_BYTES) {
           later.push(s);
           continue;
         }
+        left -= 1;
+        spent += 1;
         const res = await upstream(ctx, `${API}/repos/${t.owner}/${t.repo}/git/blobs/${s}`, token, 'application/vnd.github.raw', null).catch(() => null);
         if (!res || res.status >= 500) {
           later.push(s);
@@ -764,6 +838,7 @@ export async function onBlobs(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'o
     };
     await Promise.all(Array.from({ length: Math.min(8, missing.length) }, worker));
     if (writes.length) await ctx.redis.pipe(writes).catch(() => undefined);
+    await up.spend(spent);
     // GitHub refused every one for its limit: say so instead of an empty answer.
     if (limited !== null && !Object.keys(out).length) throw busy(limited);
   }
@@ -817,7 +892,7 @@ const parseProfile = (raw: unknown): PublicProfile | null | undefined => {
  */
 export async function onUsers(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'owner' | 'repo' | 'full'>, logins: string[], reader: Reader): Promise<Response> {
   if (reader.kind !== 'member') throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
-  const { values } = await countAndRead(ctx, req, t.full, reader, Math.max(1, Math.ceil(logins.length / 20)), logins.map(userKey));
+  const { values, up } = await countAndRead(ctx, req, t.full, reader, Math.max(1, Math.ceil(logins.length / 20)), logins.map(userKey));
   const users: Record<string, PublicProfile | null> = {};
   const missing: string[] = [];
   logins.forEach((l, i) => {
@@ -829,11 +904,17 @@ export async function onUsers(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'o
     const token = await tokenFor(ctx, t.owner, t.repo);
     const writes: (string | number)[][] = [];
     let limited: number | null = null;
+    // The reader's GitHub calls left this window (READ_LIMITS.upstream): past them, the rest is asked again later.
+    let left = up.left;
+    let spent = 0;
     let i = 0;
     const worker = async () => {
       while (i < missing.length) {
         const l = missing[i++]!;
+        if (left <= 0) limited ??= up.wait;
         if (limited !== null) continue;
+        left -= 1;
+        spent += 1;
         const res = await upstream(ctx, `${API}/users/${encodeURIComponent(l)}`, token, 'application/vnd.github+json', null).catch(() => null);
         if (!res || res.status >= 500) continue;
         const wait = limitedFor(res, ctx.now());
@@ -854,6 +935,7 @@ export async function onUsers(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'o
     };
     await Promise.all(Array.from({ length: Math.min(4, missing.length) }, worker));
     if (writes.length) await ctx.redis.pipe(writes).catch(() => undefined);
+    await up.spend(spent);
     if (limited !== null && !Object.keys(users).length) throw busy(limited);
   }
   // A login GitHub did not answer for (busy, down) is left out: Studio shows the login and asks again later.

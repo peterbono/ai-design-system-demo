@@ -8,7 +8,7 @@
 // feature, and the session's fetch sends each call that carries it here (contributeFetch). No feature changes.
 import { GitHubError } from '@bridge-ds/core';
 import { mineIn } from '../lib/branches-page';
-import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, localDevHost, MISSING_HEADER, parseMember, proxyUrl, restoreMissing, type ContributeMember } from '../lib/contribute';
+import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, FRESH_HEADER, localDevHost, MISSING_HEADER, parseMember, proxyUrl, restoreMissing, wantsFresh, type ContributeMember } from '../lib/contribute';
 import { isDemoRepo } from '../lib/demo';
 
 /** The site cannot sign in with an email (no server piece, or not set up). */
@@ -340,7 +340,9 @@ export function recentFor(path: string): number {
   return UNCHANGING.some((r) => r.test(path)) ? RECENT_SHA_MS : RECENT_MS;
 }
 
-const recentKey = (repo: string, target: string, accept: string) => `${RECENT_PREFIX}${key(repo)}:${contributorFor(repo)?.email ?? ''}:${accept}|${target}`;
+/** Whose reads these are: the email member, or the login of someone signed in with GitHub (never shared between people). */
+const readerOfTab = (repo: string, login?: string) => contributorFor(repo)?.email ?? (login ? `gh:${login.toLowerCase()}` : '');
+const recentKey = (repo: string, target: string, accept: string, login?: string) => `${RECENT_PREFIX}${key(repo)}:${readerOfTab(repo, login)}:${accept}|${target}`;
 
 /** Forgets what this tab kept of `repo` (null: of every team). */
 export function forgetRecent(repo: string | null) {
@@ -381,11 +383,11 @@ function storedRecent(k: string, ttl: number): RecentRead | null {
 const toResponse = (r: RecentRead) => new Response(r.body, { status: r.status, headers: r.headers });
 
 /** A GET of the team through the proxy: this tab's recent answer, a read in flight, or `send` (kept when it is a 200). */
-async function recentRead(repo: string, target: string, path: string, headers: Record<string, string>, send: () => Promise<Response>): Promise<Response> {
+async function recentRead(repo: string, target: string, path: string, headers: Record<string, string>, send: () => Promise<Response>, login?: string): Promise<Response> {
   const ttl = recentFor(path);
   if (!ttl) return send();
   const accept = Object.entries(headers).find(([h]) => h.toLowerCase() === 'accept')?.[1] ?? '';
-  const k = recentKey(repo, target, accept);
+  const k = recentKey(repo, target, accept, login);
   const at = recentAt.get(k);
   const inMemory = recent.get(k);
   if (inMemory && (at === undefined || Date.now() - at <= ttl)) {
@@ -458,17 +460,20 @@ function changeRead(repo: string, path: string, headers: Record<string, string>)
 }
 
 /**
- * Asks Bridge for the status reads of these open changes at once, for a member of `repo` (their session); nothing for
- * anyone else. Never throws: a change the server left out is read on its own, as before.
+ * Asks Bridge for the status reads of these open changes at once, for a member of `repo`: their email session, or
+ * `auth`, the Authorization of a GitHub sign-in that reads the team through Bridge (scripts/github-session.ts
+ * bridgeReadAuth). Nothing for anyone else. Never throws: a change the server left out is read on its own, as before.
  */
-export async function prefetchChangeStatuses(repo: string, changes: readonly { number: number; head: { sha: string } }[]): Promise<void> {
-  if (!contributorFor(repo)) return;
+export async function prefetchChangeStatuses(repo: string, changes: readonly { number: number; head: { sha: string } }[], auth0: string | null = null): Promise<void> {
+  const email = Boolean(contributorFor(repo));
+  const auth = email ? null : auth0;
+  if (!email && !auth) return;
   const list = changes.filter((c) => /^[0-9a-f]{40}$/.test(c.head.sha));
   for (let i = 0; i < list.length; i += CHANGES_PER_REQUEST) {
     const part = list.slice(i, i + CHANGES_PER_REQUEST);
     try {
-      const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&changes=${part.map((c) => `${c.number}:${c.head.sha}`).join(',')}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
-      if (res.status === 401) endedEmailSession(repo);
+      const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&changes=${part.map((c) => `${c.number}:${c.head.sha}`).join(',')}`, { headers: { Accept: 'application/json', ...(auth ? { Authorization: auth } : {}) }, credentials: 'same-origin' });
+      if (res.status === 401 && email) endedEmailSession(repo);
       if (!res.ok || !/json/i.test(res.headers.get('content-type') ?? '')) return;
       const data = (await res.json()) as { changes?: Record<string, Record<string, { status?: unknown; body?: unknown }>> };
       const at = Date.now();
@@ -495,14 +500,14 @@ const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\[bot\])?$/;
 const profiles = new Map<string, Promise<Response | null>>();
 let askProfiles = new Map<string, Map<string, (r: Response | null) => void>>();
 
-async function sendProfiles(repo: string, wanted: Map<string, (r: Response | null) => void>) {
+async function sendProfiles(repo: string, wanted: Map<string, (r: Response | null) => void>, auth?: string) {
   const logins = [...wanted.keys()];
   for (let i = 0; i < logins.length; i += 30) {
     const part = logins.slice(i, i + 30);
     let users: Record<string, unknown> | null = null;
     try {
-      const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&users=${part.map(encodeURIComponent).join(',')}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
-      if (res.status === 401) endedEmailSession(repo);
+      const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&users=${part.map(encodeURIComponent).join(',')}`, { headers: { Accept: 'application/json', ...(auth ? { Authorization: auth } : {}) }, credentials: 'same-origin' });
+      if (res.status === 401 && !auth) endedEmailSession(repo);
       if (res.ok && /json/i.test(res.headers.get('content-type') ?? '')) users = ((await res.json()) as { users?: Record<string, unknown> }).users ?? null;
     } catch {
       users = null;
@@ -516,8 +521,11 @@ async function sendProfiles(repo: string, wanted: Map<string, (r: Response | nul
   }
 }
 
-/** The public profile of `login` as GitHub's /users answer, read through Bridge with the other logins of this tick. */
-function memberProfile(repo: string, login: string): Promise<Response | null> {
+/**
+ * The public profile of `login` as GitHub's /users answer, read through Bridge with the other logins of this tick.
+ * `auth`: a GitHub sign-in's Authorization, proof of who reads (an email member's session cookie needs none).
+ */
+function memberProfile(repo: string, login: string, auth?: string): Promise<Response | null> {
   if (!LOGIN.test(login)) return Promise.resolve(null);
   const k = `${key(repo)}:${login.toLowerCase()}`;
   const kept = profiles.get(k);
@@ -530,7 +538,7 @@ function memberProfile(repo: string, login: string): Promise<Response | null> {
       queueMicrotask(() => {
         const wanted = askProfiles.get(key(repo));
         askProfiles.delete(key(repo));
-        if (wanted) void sendProfiles(repo, wanted);
+        if (wanted) void sendProfiles(repo, wanted, auth);
       });
     }
     team.set(login.toLowerCase(), resolve);
@@ -586,7 +594,7 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
     // A person's public profile (names on Being built, History, branch pages): through Bridge, as a member.
     const user = (init.method ?? 'GET').toUpperCase() === 'GET' ? USER_URL.exec(url) : null;
     if (user) {
-      const answer = await memberProfile(repo, decodeURIComponent(user[1]!));
+      const answer = await memberProfile(repo, decodeURIComponent(user[1]!), as?.authorization);
       if (answer) return answer;
     }
     return fetchImpl(url, { ...init, headers });
@@ -598,11 +606,15 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
   if (method === 'POST' && /\/(git\/refs|pulls|issues)(\?|$)/.test(path)) forgetMine(repo);
   // Any write: what this tab kept of the team is read again.
   if (method !== 'GET') forgetRecent(repo);
-  const send = () => fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1', ...(method === 'GET' ? { [MISSING_HEADER]: '1' } : {}) }, credentials: 'same-origin' });
+  // A GitHub sign-in's read shortly after this tab wrote to GitHub itself (lib/token-session readCacheMode): neither
+  // this tab's copy nor Bridge's fresh one; Bridge checks with GitHub again (FRESH_HEADER, members only). An email
+  // member's writes go through Bridge, which forgets its copies by itself (api/_lib/team-read.ts noteWrite).
+  const fresh = Boolean(as) && method === 'GET' && wantsFresh(init.cache);
+  const send = () => fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1', ...(method === 'GET' ? { [MISSING_HEADER]: '1' } : {}), ...(fresh ? { [FRESH_HEADER]: '1' } : {}) }, credentials: 'same-origin' });
   // The status reads of an open change the server answered for the whole list (prefetchChangeStatuses).
-  const answered = method === 'GET' ? changeRead(repo, path, headers) : null;
+  const answered = method === 'GET' && !fresh ? changeRead(repo, path, headers) : null;
   const [res, mine] = await Promise.all([
-    answered ? Promise.resolve(answered) : (method === 'GET' ? recentRead(repo, target, path, headers, send) : send()).then(restoreMissing),
+    answered ? Promise.resolve(answered) : (method === 'GET' && !fresh ? recentRead(repo, target, path, headers, send, as?.login) : send()).then(restoreMissing),
     authored ? contributeMine(repo, as?.authorization) : Promise.resolve(null),
   ]);
   if (res.status === 401 && !as) endedEmailSession(repo);

@@ -32,6 +32,15 @@ export const CONTRIBUTE_HEADER = 'X-Bridge-Contribute';
  */
 export const MISSING_HEADER = 'X-Bridge-Missing';
 
+/**
+ * Request header of a read right after this tab wrote (lib/token-session readCacheMode says 'no-cache'): Bridge checks
+ * its kept answer with GitHub again instead of answering it while fresh (api/_lib/team-read.ts, members only).
+ */
+export const FRESH_HEADER = 'X-Bridge-Fresh';
+
+/** Whether a read's RequestCache asks for a fresh answer (a read shortly after a write, or one that keeps nothing). */
+export const wantsFresh = (cache: RequestCache | undefined): boolean => cache === 'no-cache' || cache === 'no-store' || cache === 'reload';
+
 /** The proxy's "missing" answer read back as GitHub's own 404 (same body and headers); any other answer as it is. */
 export function restoreMissing(res: Response): Response {
   if (res.status !== 200 || res.headers.get(MISSING_HEADER) !== '1') return res;

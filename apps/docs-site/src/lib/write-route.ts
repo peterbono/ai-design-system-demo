@@ -106,6 +106,30 @@ export function productReadRoute(x: { method: string | undefined; url: string; p
   return x.products.some((p) => p.toLowerCase() === repo) ? 'bridge' : 'github';
 }
 
+/** Where a signed-in GitHub read of the team goes (teamReadRoute): which repository, or a person's public profile. */
+export type TeamReadRoute = { via: 'bridge'; scope: 'library' | 'product' | 'user' } | { via: 'github' };
+
+/** A person's public profile on api.github.com (/users/<login>): names and avatars of builders and reviewers. */
+const USER_PATH = /^\/users\/([A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:%5Bbot%5D|\[bot\])?)$/;
+
+/**
+ * How a GitHub read of the Studio goes for someone signed in with GitHub on a team page. Settled rule: every read of
+ * the team goes through the Bridge server with the app's read token and the team's shared cache, never the viewer's
+ * own GitHub limit (5,000 an hour, shared with everything else they do on GitHub): a GET under the team's library
+ * repository (`team`, "owner/name"), under one of its products (productReadRoute), or a person's public profile. The
+ * server checks they are on the team (api/contribute githubTeamReaderOf) and the read allow-list; anything it refuses
+ * goes to GitHub as before. 'github': a write (its own route), another repository or host, the account itself
+ * (/user), a page without a team, a guest (its own path). Pure.
+ */
+export function teamReadRoute(x: { method: string | undefined; url: string; team: string | null; products: readonly string[]; session: 'github' | 'email' | null }): TeamReadRoute {
+  if (!x.session || !x.team || (x.method ?? 'GET').toUpperCase() !== 'GET' || !x.url.startsWith(GITHUB_API)) return { via: 'github' };
+  const path = x.url.slice(GITHUB_API.length);
+  if (USER_PATH.test(path)) return { via: 'bridge', scope: 'user' };
+  if (productReadRoute({ ...x, products: [x.team] }) === 'bridge') return { via: 'bridge', scope: 'library' };
+  if (productReadRoute(x) === 'bridge') return { via: 'bridge', scope: 'product' };
+  return { via: 'github' };
+}
+
 /**
  * Whether a designer signed in with GitHub started this exploration through Bridge: its pull request (opened by
  * Bridge's app) carries "Requested by <name> (@<login>) through Bridge.". Shows them their own Done exploring.

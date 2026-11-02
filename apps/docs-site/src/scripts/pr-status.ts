@@ -9,7 +9,7 @@ import { isGuidanceOnly } from '../lib/overview-todo';
 import { touchesVisuals } from '../lib/visual-impact';
 import { fileSignals, type FileSignals } from '../lib/work-nature';
 import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
-import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
+import { bridgeReadAuth, currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
 import { holdsReviewRight } from '../lib/home-model';
 import { ghAction } from '../lib/gh-wording';
 import { isDeveloper, needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
@@ -307,7 +307,7 @@ export async function loadStatuses(
   // A member reading through Bridge: one request answers every change's status reads (shared with the team for 30 s).
   if (connected && plan.fetch.length) {
     const { owner, repo } = readRepo();
-    await prefetchChangeStatuses(`${owner}/${repo}`, plan.fetch.map((n) => byNumber.get(n)!));
+    await prefetchChangeStatuses(`${owner}/${repo}`, plan.fetch.map((n) => byNumber.get(n)!), await bridgeReadAuth(`${owner}/${repo}`).catch(() => null));
   }
   const read = async (n: number) => {
     const p = byNumber.get(n)!;

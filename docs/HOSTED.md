@@ -513,8 +513,12 @@ once), connections (90 days after last use, the person's GitHub tokens sealed wi
 
 Members of a team without a GitHub token of their own (email members, Bridge accounts) and signed-out visitors of the
 public demo teams read the team's repository through Bridge, never with anonymous browser calls to `api.github.com`
-(GitHub gives an address 60 of those an hour, about three page views). People signed in with GitHub keep reading with
-their own token. The code is `apps/docs-site/api/_lib/team-read.ts`, wired in `/api/contribute` (its session cookie is
+(GitHub gives an address 60 of those an hour, about three page views). People on the team signed in with GitHub (leads,
+admins, designers) read the team the same way: its library repository, its products and people's public profiles go
+through Bridge with the app's read token and the team's shared cache, their own token only proving who they are, so
+the Studio never spends their personal GitHub limit (5,000 an hour, shared with everything else they do on GitHub).
+Their writes keep their own routes. A path Bridge does not read, or a team Bridge cannot read for them, goes to GitHub
+with their token as before. The code is `apps/docs-site/api/_lib/team-read.ts`, wired in `/api/contribute` (its session cookie is
 scoped there).
 
 ### The contract
@@ -530,7 +534,10 @@ instead of one request per file.
 ### Who, and what
 
 - **Who**: a member of the team (the team's email session cookie, or a Bridge account whose email is a member: its
-  `bridge:account:teams:<email>` set, or a local admin in `npm run dev:full`), else anyone on a public demo team
+  `bridge:account:teams:<email>` set, a local admin in `npm run dev:full`, or a GitHub account on the team:
+  `Authorization: Bearer <their token>`, checked with that token, GET `/user` and the team's repository, for an
+  explicit role there or read on a private one, kept 5 minutes in `bridge:read:who:<token hash>:<team>`), else anyone
+  on a public demo team
   (`peterbono/bridge-demo-ds`, `peterbono/ai-design-system-demo`) while GitHub says the repository is public. Anyone
   else: 401 `signin`. A member reads only the team of the request, and the path must be under `/repos/<that team>`.
 - **Read only**: `GET` only (every other verb is the email contributor policy above, which needs a member and the CSRF
@@ -539,7 +546,7 @@ instead of one request per file.
   stored. No header of the browser goes to GitHub but a checked `Accept`.
 - **Deny by default**: the repository itself, `branches`, `commits`, `compare`, `contents`, `readme`, `git/trees`,
   `git/blobs`, `git/commits`, `git/ref(s)`, `git/matching-refs`, `pulls` and `issues` (and one level below a number:
-  files, reviews, comments, timeline...), `labels`, `tags`, `deployments` and their statuses, `rulesets`,
+  files, reviews, comments, timeline...), `labels`, `tags`, `releases`, `deployments` and their statuses, `rulesets`,
   `rules/branches`, `check-runs/<n>`, `actions/jobs/<n>`, `actions/runs/<n>`; `collaborators` for members only.
   Anything else (hooks, keys, secrets, invitations, environments, traffic, settings, another repository, `/user`,
   GraphQL) answers 403 `not-allowed` without calling GitHub.
@@ -568,11 +575,16 @@ instead of one request per file.
   (`bridge:read:wrote:<repo>`) makes older answers be checked again at once. Answers that never change (a blob, a tree
   or a commit by its sha, contents at a full sha) are kept a day (blobs a week) and in the function's memory. Keys:
   `bridge:read:get:<repo>:<hash>`, `bridge:read:blob:<repo>:<sha>`. Bodies of private repositories land there: access
-  is checked on every request, never by the key.
+  is checked on every request, never by the key. A member's read with `X-Bridge-Fresh: 1` (Studio sends it for 90
+  seconds after the page wrote to GitHub itself) is checked with GitHub again at once, with the kept `ETag`, and the
+  answer is kept for the team; a visitor's is ignored.
 - **Limits** per 10 minutes: 1,200 requests per signed-in member (counted by a hash of their email, so a whole
   office behind one address is not one budget), 400 per address for a signed-out visitor of a demo team, 6,000 per
   team (`READ_MAX_IP` sets the member limit, `READ_MAX_GUEST`, `READ_MAX_TEAM`, optional; a blob batch counts 1 per
-  20 blobs). Studio keeps a member's answers 30 seconds in the tab (an answer by commit sha 10 minutes), forgotten on
+  20 blobs). Each reader (member or address) may also cost the app at most 300 GitHub calls per 10 minutes
+  (`READ_MAX_UPSTREAM`; cache misses only, a `304` is free), about a third of the app's 5,000 an hour, so one viewer
+  never spends the limit the whole team reads on: past it, what is kept answers, however old, else 429 `busy` (a
+  library read of someone signed in with GitHub then goes to GitHub with their token for a while). Studio keeps a member's answers 30 seconds in the tab (an answer by commit sha 10 minutes), forgotten on
   any write or sign-out, so moving between pages reads again only what changed. Over a limit, or
   when GitHub says slow down and nothing is kept: 429 `busy`, `Retry-After`, `{ "message": "Bridge is busy, try again
   in N min.", "retryAfter": <seconds> }`. Studio shows that sentence, never "add a GitHub token".

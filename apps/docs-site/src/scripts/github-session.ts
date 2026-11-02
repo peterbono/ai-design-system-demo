@@ -9,7 +9,7 @@ import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
 import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
 import { repoContext, siteConfig } from './repo-context';
-import { productReadRoute, productRouteFor } from '../lib/write-route';
+import { productRouteFor, teamReadRoute } from '../lib/write-route';
 import { clearPrivateRepoCaches, clearRepoCache } from './repo-cache';
 import {
   authFailure,
@@ -183,7 +183,7 @@ const pageRepo = () => {
 /**
  * The product repositories of this page's team (bridge.config.json products[].repo and each design copy,
  * products[].design.repo): everyone on the team reads them through the team's proxy (an email member, anyone signed in
- * with GitHub: productReadViaBridge), and so does a visitor of a public demo team. Writes keep their own route.
+ * with GitHub: teamReadViaBridge), and so does a visitor of a public demo team. Writes keep their own route.
  */
 const pageProductRepos = (): string[] => {
   try {
@@ -723,39 +723,69 @@ async function liveAuth(auth: string | undefined): Promise<string | undefined> {
   return now && !tokenRejected() ? `Bearer ${now}` : auth;
 }
 
-/** Bridge cannot read the team's products for this GitHub sign-in (no function here, or not on the team): GitHub. */
-let productReadsDown = false;
+/**
+ * Bridge cannot read the team for this GitHub sign-in (no function here, not on the team, or the app not on the
+ * team's library): every read goes to GitHub with the viewer's own token, as before.
+ */
+let teamReadsDown = false;
+/** Until when Bridge said it is busy for this viewer's library reads (ms): they go to GitHub with their own token. */
+let libraryBusyUntil = 0;
+
+/** The team of this page ("owner/name"), or null on a page without one (the browser workspace, the site's own). */
+const pageTeam = (): string | null => (typeof document !== 'undefined' && document.documentElement.hasAttribute('data-no-repo') ? null : pageRepo());
 
 /**
- * A read in one of the team's product repositories (its code repository or its design copy) by someone signed in with
- * GitHub (lib/write-route productReadRoute): through the team's proxy with Bridge's app, their token as proof of who
- * they are (the server checks they are on the team), so a private product reads for every member, leads included,
- * whatever their own token can see. Null: this read goes to GitHub as before (another repository, Bridge cannot read
- * it here, the app is not on that product). Bridge's own limit throws its "Bridge is busy" GitHubError.
+ * A read of the team by someone signed in with GitHub (lib/write-route teamReadRoute): its library repository, one of
+ * its products (code repository or design copy) or a person's public profile, through the team's proxy with Bridge's
+ * app and the team's shared cache, their token only as proof of who they are (the server checks they are on the
+ * team). Each viewer's own GitHub limit stays theirs, and a private product reads for every member, leads included.
+ * Null: this read goes to GitHub as before (another repository, a path Bridge does not read, Bridge cannot read it
+ * here, the app is not on that product). Bridge's own limit throws its "Bridge is busy" GitHubError for a product
+ * (the viewer's token may not read it); a library read goes to GitHub with the viewer's token for a while instead.
  */
-async function productReadViaBridge(url: string, init: { method?: string; headers?: Record<string, string> } & Record<string, unknown>): Promise<Response | null> {
+async function teamReadViaBridge(url: string, init: { method?: string; headers?: Record<string, string> } & Record<string, unknown>): Promise<Response | null> {
   const auth = init.headers?.Authorization;
-  if (productReadsDown || !auth || isContribAuth(auth)) return null;
+  if (teamReadsDown || !auth || isContribAuth(auth)) return null;
   const products = pageProductRepos();
-  if (productReadRoute({ method: init.method, url, products, session: 'github' }) !== 'bridge') return null;
-  // A designer's reads mark their own explorations; a lead's or an admin's have nothing of theirs to mark.
-  const designer = designerRoute();
+  const route = teamReadRoute({ method: init.method, url, team: pageTeam(), products, session: 'github' });
+  if (route.via !== 'bridge') return null;
+  if (route.scope !== 'product' && Date.now() < libraryBusyUntil) return null;
+  // A designer's reads in the products mark their own explorations; in the library their GitHub login is already the
+  // author, and a lead's or an admin's have nothing of theirs to mark.
+  const reader = route.scope !== 'product' || !designerRoute();
   let res: Response;
   try {
-    res = await contributeFetch(pageRepo(), url, init as RequestInit, products, { authorization: auth, login: viewer?.login ?? '', reader: !designer });
+    res = await contributeFetch(pageRepo(), url, init as RequestInit, products, { authorization: auth, login: viewer?.login ?? '', reader });
   } catch (err) {
-    if (err instanceof GitHubError && err.status === 429) throw err;
+    if (err instanceof GitHubError && err.status === 429) {
+      if (route.scope === 'product') throw err;
+      libraryBusyUntil = Date.now() + (err.resetsAt ? Math.max(0, err.resetsAt.getTime() - Date.now()) : 60_000);
+      return null;
+    }
     // Not on the team, or a sign-in Bridge cannot check: the rest of the page reads on GitHub. The app missing on
-    // one product (product_missing) leaves only that read to GitHub.
-    if (err instanceof GitHubError && err.status === 401) productReadsDown = true;
+    // one product (product_missing) leaves only that read to GitHub; missing on the library (app_missing), all of them.
+    if (err instanceof GitHubError && (err.status === 401 || (route.scope === 'library' && err.status === 409))) teamReadsDown = true;
     return null;
   }
   // No function here (the static host's page, an older deploy): GitHub directly for the rest of the page.
   if (res.status === 405 || (!res.ok && res.status !== 304 && !/json|vnd\.github|text\/plain/i.test(res.headers.get('content-type') ?? ''))) {
-    productReadsDown = true;
+    teamReadsDown = true;
     return null;
   }
   return res;
+}
+
+/**
+ * The Authorization a batched read of `repo` through Bridge carries for a GitHub sign-in (the change statuses of
+ * scripts/pr-status.ts, contribute-session prefetchChangeStatuses): proof of who reads, while Bridge reads the team for
+ * them (teamReadViaBridge). Null when their reads of `repo` go to GitHub (another repository, Bridge cannot read it).
+ */
+export async function bridgeReadAuth(repo: string): Promise<string | null> {
+  if (teamReadsDown || Date.now() < libraryBusyUntil || !githubToken() || tokenRejected()) return null;
+  const team = pageTeam();
+  if (!team || team.toLowerCase() !== repo.toLowerCase()) return null;
+  const auth = await liveAuth(`Bearer ${githubToken()}`);
+  return auth && !isContribAuth(auth) ? auth : null;
 }
 
 /**
@@ -783,9 +813,9 @@ export const studioFetch: FetchLike = async (url, init0 = {}) => {
     const { Authorization: _drop, ...rest } = headers;
     headers = rest;
   }
-  // A signed-in read in one of the team's products: through Bridge's app (lib/write-route productReadRoute).
+  // A signed-in read of the team (its library, its products, people): through Bridge's app (lib/write-route teamReadRoute).
   if (method === 'GET' && headers.Authorization) {
-    const viaBridge = await productReadViaBridge(url, { ...init, headers });
+    const viaBridge = await teamReadViaBridge(url, { ...init, headers });
     if (viaBridge) return viaBridge;
   }
   // A code write on a team page in direct mode goes out with Bridge Direct (or waits for its OK: this throws).
@@ -961,12 +991,12 @@ const freshRead = (): RequestCache => readCacheMode(wroteAt, Date.now());
 
 /**
  * fetch for a call with the session's headers: the proxy for an email contributor, Bridge's app for a GitHub sign-in's
- * read in one of the team's products (productReadViaBridge), GitHub otherwise.
+ * read of the team (teamReadViaBridge), GitHub otherwise.
  */
 const ghFetch = async (url: string, init: RequestInit & { headers: Record<string, string> }): Promise<Response> => {
   if (isContribAuth(init.headers.Authorization)) return contributeFetch(pageRepo(), url, init, pageProductRepos());
   if ((init.method ?? 'GET').toUpperCase() === 'GET') {
-    const viaBridge = await productReadViaBridge(url, init as Parameters<typeof productReadViaBridge>[1]);
+    const viaBridge = await teamReadViaBridge(url, init as Parameters<typeof teamReadViaBridge>[1]);
     if (viaBridge) return viaBridge;
   }
   return fetch(url, init);
