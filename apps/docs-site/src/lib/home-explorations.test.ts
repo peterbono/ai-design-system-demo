@@ -19,6 +19,7 @@ import {
   type ExplorationPull,
 } from './home-explorations';
 import { person } from './home-model';
+import { folderLine } from './product-page';
 
 const products: ProductConfig[] = [
   { key: 'account', name: 'Account', path: 'apps/account' },
@@ -189,6 +190,43 @@ describe('the explorations of the Studio home', () => {
     expect(libraryChangesLine(0)).toBeNull();
     expect(libraryChangesLine(1)).toBe('You have 1 library change in progress.');
     expect(libraryChangesLine(3)).toBe('You have 3 library changes in progress.');
+  });
+});
+
+describe("a designer's exploration opened by Bridge's app (designers write through Bridge)", () => {
+  const shop: ProductConfig[] = [...products, { key: 'admin-app', name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop' }];
+  const app = { login: 'bridge-design-studio[bot]', type: 'Bot' };
+  // art-print-shop-co/art-print-shop-design#4, as GitHub lists it: opened by the app for an email member, handed off.
+  const dino = pull(4, {
+    product: 'admin-app',
+    draft: true,
+    title: 'Exploration: add a toast alert',
+    user: app,
+    labels: [{ name: 'exploration' }, { name: 'product: admin-app' }],
+    head: { ref: 'explore/add-a-toast-alert' },
+    body: `<!-- bridge-exploration ${JSON.stringify({ name: 'add a toast alert', slug: 'add-a-toast-alert', author: 'dinosolo@yopmail.com', doneAt: '2026-11-02T01:40:45.516Z', task: 'https://github.com/art-print-shop-co/art-print-shop/issues/12' })} -->\n\nRequested by Dino through Bridge.`,
+  });
+  // A GitHub designer's, opened by the app with their login on the line.
+  const ann = pull(5, { product: 'admin-app', draft: true, user: app, labels: [{ name: 'exploration' }], head: { ref: 'explore/badges' }, body: `${block('Badges')}\n\nRequested by Ann Leroy (@ann) through Bridge.` });
+  // Automation the app opens for nobody stays off the home.
+  const bot = pull(6, { product: 'admin-app', user: app, labels: [{ name: 'exploration' }], head: { ref: 'explore/sync' } });
+
+  it('lists it on the home, for the team and as the designer\'s own', () => {
+    expect(isHomeExploration(dino, shop)).toBe(true);
+    expect(isHomeExploration(ann, shop)).toBe(true);
+    expect(isHomeExploration(bot, shop)).toBe(false);
+    const cards = homeExplorations([dino, ann, bot], { products: shop, author: who, viewer: 'dinosolo@yopmail.com', taskStage: (p) => (p.number === 4 ? 'waiting-for-code' : null) });
+    expect(cards.map((c) => c.number)).toEqual([5, 4]);
+    expect(cards.find((c) => c.number === 4)).toMatchObject({ own: true, stage: 'with-devs', state: 'Waiting to be picked up' });
+    expect(explorationsFor(cards, true).cards.map((c) => c.number)).toEqual([4]);
+    expect(quietSentence(ownOpenWork(cards))).toBe('Nothing needs you. 1 waiting to be picked up.');
+    // The product card counts the team's: Dino's handed-off one is no longer left out.
+    const team = homeExplorations([dino, ann, bot, pull(1, { product: 'admin-app', draft: true, labels: [{ name: 'exploration' }], head: { ref: 'explore/dashboard' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'Dashboard', slug: 'dashboard', doneAt: '2026-10-31T10:00:00Z', task: 'https://github.com/art-print-shop-co/art-print-shop/issues/7' })} -->\n\nRequested by Florian.` })], { products: shop, author: who, taskStage: (p) => (p.number === 4 || p.number === 1 ? 'waiting-for-code' : null) });
+    expect(team.map((c) => c.number).sort()).toEqual([1, 4, 5]);
+    expect(folderLine(team)).toBe('1 exploring · 2 waiting to be picked up');
+    // The GitHub designer finds theirs by login.
+    const forAnn = homeExplorations([dino, ann], { products: shop, author: who, viewer: 'ann' });
+    expect(explorationsFor(forAnn, true).cards.map((c) => c.number)).toEqual([5]);
   });
 });
 

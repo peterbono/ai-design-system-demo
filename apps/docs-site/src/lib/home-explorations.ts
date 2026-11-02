@@ -104,9 +104,16 @@ export function explorationProductKey(p: Pick<ExplorationPull, 'labels'> & { pro
   return lib.key.toLowerCase();
 }
 
+/**
+ * Opened by an app for a person: Bridge's app opens the explorations of a designer who works through Bridge (an email
+ * member, or a designer whose writes go through the app since designers write through Bridge), with their name on it
+ * (the "Requested by" line, or the exploration block's author). Other automation stays off the home.
+ */
+const openedForSomeone = (p: Pick<ExplorationPull, 'body'>) => Boolean(requesterOf(p.body) || parseExplorationBody(p.body)?.author);
+
 /** An exploration, or a branch started for a product: what the home's section shows. Library changes are not. */
 export function isHomeExploration(p: ExplorationPull, products: readonly ProductConfig[]): boolean {
-  if (p.user?.type === 'Bot') return false;
+  if (p.user?.type === 'Bot' && !openedForSomeone(p)) return false;
   // A product repository's other branches are not Bridge's: only its explorations.
   if (p.product) return isExplorationPull({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body });
   return isExplorationPull({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body }) || explorationProduct(p, products) !== null;
