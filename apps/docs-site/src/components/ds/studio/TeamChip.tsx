@@ -41,7 +41,7 @@ import { isSampleTeam } from '../../../lib/demo';
 import { pickableTeams } from '../../../lib/pickable-teams';
 import { DEMO_HOME, MENU_WORDS, ownTeams, TEAM_HOME_WORDS, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, workspaceTeamKey, type StartFacts } from '../../../lib/start';
 import { isTeamKey, teamKeyId } from '../../../lib/team-path';
-import { linkedAccessState } from '../../../lib/linked-role';
+import { linkedAccessState, strongerAccess } from '../../../lib/linked-role';
 
 export interface TeamChipProps {
   /** owner/repo known at build time (self-hosted). Null on a team shell: read from the address. */
@@ -193,19 +193,15 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     setNames(noteTeamName(name, cfg.name));
   }, [hosted, name, cfg, recent]);
 
-  // Signed in, the person's role here: a team they belong to joins "Your teams" on the next pages. Signed out says nothing.
+  // The role shown: the stronger of the GitHub sign-in's access and the account's linked GitHub role (lib/linked-role).
+  const shownAccess = strongerAccess(access, linked);
+  const roleSignedIn = ghSignedIn || Boolean(linked);
+  // Signed in, the person's role here: a team they belong to joins "Your teams" on the next pages, and it replaces what
+  // this browser noted before (a "Can view" from an older read). Signed out says nothing.
   useEffect(() => {
-    if (!hosted || !name || !access || !ghSignedIn) return;
-    setRoles(noteTeamRole(name, memberRole(access, ghSignedIn, reviewer)));
-  }, [hosted, name, access, ghSignedIn, recent, reviewer]);
-
-  // The linked GitHub role replaces what this browser noted before (a "Can view" from an older GitHub read).
-  const shownAccess = !ghSignedIn && linked ? linked : access;
-  const roleSignedIn = ghSignedIn || Boolean(!ghSignedIn && linked);
-  useEffect(() => {
-    if (!hosted || !name || ghSignedIn || !linked) return;
-    setRoles(noteTeamRole(name, memberRole(linked, true)));
-  }, [hosted, name, ghSignedIn, linked, recent]);
+    if (!hosted || !name || !shownAccess || !roleSignedIn) return;
+    setRoles(noteTeamRole(name, memberRole(shownAccess, true, reviewer)));
+  }, [hosted, name, shownAccess, roleSignedIn, recent, reviewer]);
 
   const forget = (team: string) => setRecent(others(forgetRecentTeam(team), name));
 

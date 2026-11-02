@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GitHubClient, resolveRepoAccess, type FetchLike } from '@bridge-ds/core';
-import { accessFromCheck, accessLabel, accessStorageKey, accessView, ACCESS_MAX_AGE_MS, contributorAccess, freshAccess, lastKnownAccess, pillState } from './access';
+import { ACCESS_READ, accessFromCheck, accessLabel, accessStorageKey, accessView, ACCESS_MAX_AGE_MS, contributorAccess, freshAccess, lastKnownAccess, pillState } from './access';
 
 const TOKEN = 'test-token-not-real';
 const noSleep = { attempts: 1, baseDelayMs: 0, sleep: async () => {} };
@@ -84,8 +84,11 @@ describe('resolveAccess states (plan 3.3) as the Studio sees them', () => {
 
 describe('access remembered by the token check', () => {
   it('uses the state saved for the same repository', () => {
-    expect(accessFromCheck({ access: { repo: 'acme/ds', state: 'admin' }, reach: true }, 'Acme/DS', true)).toEqual({ state: 'admin', write: true, admin: true, reach: true });
-    expect(accessFromCheck({ access: { repo: 'acme/other', state: 'admin' } }, 'acme/ds', true)).toBeNull();
+    expect(accessFromCheck({ access: { repo: 'acme/ds', state: 'admin', read: ACCESS_READ }, reach: true }, 'Acme/DS', true)).toEqual({ state: 'admin', write: true, admin: true, reach: true });
+    expect(accessFromCheck({ access: { repo: 'acme/other', state: 'admin', read: ACCESS_READ } }, 'acme/ds', true)).toBeNull();
+    // A GitHub admin kept as "Can view" before ACCESS_READ (read through Bridge with the app's permissions): GitHub
+    // is asked again, nothing is painted from it.
+    expect(accessFromCheck({ access: { repo: 'acme/ds', state: 'reader' }, write: false }, 'acme/ds', true)).toBeNull();
   });
 
   it('reads the flags saved before states existed on the self-hosted site only', () => {
@@ -100,7 +103,7 @@ describe('access remembered by the token check', () => {
 
 describe('access cache', () => {
   it('keys per app slot, account and repository, case-insensitive', () => {
-    expect(accessStorageKey('suggest', 'Octo', 'Acme/DS')).toBe('bridge.github.access:suggest:octo:acme/ds');
+    expect(accessStorageKey('suggest', 'Octo', 'Acme/DS')).toBe(`bridge.github.access:${ACCESS_READ}:suggest:octo:acme/ds`);
   });
 
   it('reuses an access for ten minutes', () => {
@@ -140,8 +143,10 @@ describe('lastKnownAccess (GitHub busy)', () => {
   });
 
   it('else the state the token check last noted for this repository, else nothing', () => {
-    expect(lastKnownAccess(null, { repo: 'acme/ds', state: 'admin' }, 'Acme/DS', false)).toMatchObject({ state: 'admin', admin: true, write: true });
-    expect(lastKnownAccess(null, { repo: 'acme/other', state: 'admin' }, 'acme/ds', false)).toBeNull();
+    expect(lastKnownAccess(null, { repo: 'acme/ds', state: 'admin', read: ACCESS_READ }, 'Acme/DS', false)).toMatchObject({ state: 'admin', admin: true, write: true });
+    expect(lastKnownAccess(null, { repo: 'acme/other', state: 'admin', read: ACCESS_READ }, 'acme/ds', false)).toBeNull();
+    // Kept before ACCESS_READ (it may be the Bridge app's permissions, every flag false): never shown again.
+    expect(lastKnownAccess(null, { repo: 'acme/ds', state: 'reader' }, 'acme/ds', false)).toBeNull();
     expect(lastKnownAccess('{broken', null, 'acme/ds', false)).toBeNull();
   });
 });

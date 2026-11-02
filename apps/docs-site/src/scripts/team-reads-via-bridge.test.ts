@@ -60,7 +60,6 @@ describe('which reads of a GitHub sign-in go through Bridge (lib/write-route tea
     expect(r(`${API}/repos/acme/ds/pulls?state=open`)).toEqual({ via: 'bridge', scope: 'library' });
     expect(r(`${API}/repos/Acme/DS/contents/bridge.config.json`)).toEqual({ via: 'bridge', scope: 'library' });
     expect(r(`${API}/repos/acme/ds/commits/${'a'.repeat(40)}/check-runs`)).toEqual({ via: 'bridge', scope: 'library' });
-    expect(r(`${API}/repos/acme/ds`)).toEqual({ via: 'bridge', scope: 'library' });
     expect(r(`${API}/repos/acme/shop/deployments?sha=abc`)).toEqual({ via: 'bridge', scope: 'product' });
     expect(r(`${API}/repos/acme/shop-design/pulls`)).toEqual({ via: 'bridge', scope: 'product' });
     expect(r(`${API}/users/dana`)).toEqual({ via: 'bridge', scope: 'user' });
@@ -72,6 +71,10 @@ describe('which reads of a GitHub sign-in go through Bridge (lib/write-route tea
     expect(r(`${API}/repos/acme/ds-other/pulls`)).toEqual({ via: 'github' });
     expect(r(`${API}/repos/evil/ds/pulls`)).toEqual({ via: 'github' });
     expect(r(`${API}/user`)).toEqual({ via: 'github' });
+    // The repository itself: its permissions are the viewer's, never the app's (a GitHub admin read as "Can view").
+    expect(r(`${API}/repos/acme/ds`)).toEqual({ via: 'github' });
+    expect(r(`${API}/repos/Acme/DS/`)).toEqual({ via: 'github' });
+    expect(r(`${API}/repos/acme/ds?x=1`)).toEqual({ via: 'github' });
     expect(r(`${API}/user/installations`)).toEqual({ via: 'github' });
     expect(r(`${API}/users/dana/repos`)).toEqual({ via: 'github' });
     expect(r(`${API}/search/issues?q=x`)).toEqual({ via: 'github' });

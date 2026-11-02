@@ -28,7 +28,7 @@ export interface TokenCheck {
   /** Signed in with the GitHub App: whether the app reaches the repository for this account, once read. */
   reach?: boolean | null;
   /** The access state last read, and the repository ("owner/repo") it is for (write and reach above are its flags). */
-  access?: { repo: string; state: RepoAccessState } | null;
+  access?: { repo: string; state: RepoAccessState; /** lib/access ACCESS_READ: older reads are not shown again. */ read?: number } | null;
 }
 
 /** A token is checked again once its last check is older than this (one call per hour at most). */
