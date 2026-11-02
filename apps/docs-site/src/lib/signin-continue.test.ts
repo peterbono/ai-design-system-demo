@@ -41,6 +41,19 @@ describe('signed in already: Continue as them', () => {
     ).toMatchObject({ name: 'Florian', detail: 'Bridge DS · Admin' });
   });
 
+  it('a lead signed in with GitHub, no member team on the account: the last team opened, with its role', () => {
+    const c = continueAs({
+      account: acct({ name: 'Florian', github: { login: 'peterbono', id: 1 } }),
+      recent: ['peterbono/ai-design-system-demo'],
+      teamNames: { 'peterbono/ai-design-system-demo': 'Bridge DS' },
+      teamRoles: { 'peterbono/ai-design-system-demo': 'Admin' },
+    });
+    expect(c).toMatchObject({ name: 'Florian', detail: 'Bridge DS · Admin' });
+    expect(c!.href).toContain('peterbono/ai-design-system-demo/');
+    // An email account without a team still starts a team: nothing it did not open is guessed.
+    expect(continueAs({ account: acct(), recent: ['a/one'] })).toMatchObject({ href: START_PAGE, detail: null });
+  });
+
   it('remembers the last email on this browser, never anything else', () => {
     const m = new Map<string, string>();
     const store = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };

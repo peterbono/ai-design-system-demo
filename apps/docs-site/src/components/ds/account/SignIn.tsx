@@ -313,7 +313,7 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
         setEmail(info.account.email);
         // From inside Bridge (?next=): straight on. From the site: Continue as them, or another account.
         if (next) return go({ account: info.account, created: false, next: '' }, false);
-        setAlready(continueAs({ account: info.account, recent: loadRecentTeams(), teamNames: loadTeamNames() }));
+        setAlready(continueAs({ account: info.account, recent: loadRecentTeams(), teamNames: loadTeamNames(), teamRoles: loadTeamRoles() }));
         return setStep('continue');
       }
       // A GitHub sign-in on this browser without a Bridge account (a site without accounts, or never linked).

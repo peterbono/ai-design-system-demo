@@ -39,6 +39,19 @@ function teamOf(account: Account, recent: readonly string[]) {
   return recent.map((r) => mine.get(r.toLowerCase())).find(Boolean) ?? account.teams[0] ?? null;
 }
 
+/** The last team this browser opened, named with the role its page noted ("Bridge DS · Admin"), for a GitHub sign-in. */
+function lastTeam(s: SessionFacts): { detail: string | null; href: string } {
+  const team = s.recent?.[0] ?? null;
+  const last = team?.split('/');
+  const known = (m: Readonly<Record<string, string>> | undefined) => (team ? (m?.[team.toLowerCase()] ?? m?.[team]) : undefined);
+  const teamName = team ? (known(s.teamNames) ?? last?.[1] ?? team) : null;
+  const role = known(s.teamRoles);
+  return {
+    detail: teamName ? (role ? `${teamName} · ${role}` : teamName) : null,
+    href: last?.length === 2 && last[0] && last[1] ? teamHref(last[0], last[1], null) : STUDIO_ROOT,
+  };
+}
+
 /** Continue as the person signed in on this browser, or null when nobody is. */
 export function continueAs(s: SessionFacts): ContinueAs | null {
   const recent = s.recent ?? [];
@@ -46,27 +59,24 @@ export function continueAs(s: SessionFacts): ContinueAs | null {
     const a = s.account;
     const team = teamOf(a, recent);
     const teamName = team ? (team.name ?? s.teamNames?.[team.repo] ?? team.repo.split('/')[1] ?? team.repo) : null;
+    // A lead who signs in with GitHub reaches teams through their repositories, not the account's member list:
+    // the last team this browser opened, named with the role its page noted, like a GitHub sign-in below.
+    const viaGitHub = !team && a.github ? lastTeam(s) : null;
     return {
       name: a.name?.trim() || a.email,
       seed: a.github ? a.github.login : emailMemberFace(a.name, a.email),
       avatar: a.github ? `https://github.com/${encodeURIComponent(a.github.login)}.png?size=80` : null,
-      detail: team && teamName ? `${teamName} · ${roleWord(team.role)}` : null,
-      href: team ? defaultNext(a, recent) : START_PAGE,
+      detail: team && teamName ? `${teamName} · ${roleWord(team.role)}` : (viaGitHub?.detail ?? null),
+      href: team ? defaultNext(a, recent) : (viaGitHub?.href ?? START_PAGE),
     };
   }
   if (s.github?.login) {
-    const team = recent[0] ?? null;
-    const last = team?.split('/');
-    const known = (m: Readonly<Record<string, string>> | undefined) => (team ? (m?.[team.toLowerCase()] ?? m?.[team]) : undefined);
-    const teamName = team ? (known(s.teamNames) ?? last?.[1] ?? team) : null;
-    const role = known(s.teamRoles);
     return {
       // Their name as GitHub shows it ("Florian"), like the connector's consent; the login when they never set one.
       name: s.github.name?.trim() || `@${s.github.login}`,
       seed: s.github.login,
       avatar: s.github.avatar ?? `https://github.com/${encodeURIComponent(s.github.login)}.png?size=80`,
-      detail: teamName ? (role ? `${teamName} · ${role}` : teamName) : null,
-      href: last?.length === 2 && last[0] && last[1] ? teamHref(last[0], last[1], null) : STUDIO_ROOT,
+      ...lastTeam(s),
     };
   }
   return null;
