@@ -90,7 +90,8 @@ describe('ProductPageView', () => {
   it('turns nothing yet into a calm moment with the reason and the one action, none in the header', async () => {
     const { container } = render(createElement(ProductPageView, { productKey: 'library', components: [], data: data({ product: products[1]!, ownRepo: null, reached: null }) }));
     expect(container.querySelector('[data-st-summary]')!.textContent).toBe('Nothing explored here yet.');
-    expect(container.querySelector('.pp-empty svg')).toBeTruthy();
+    // The Home's way to start: one card in the zone, the drawing inside it, and the whole card opens the start flow.
+    expect(container.querySelector('.pp-empty .pp-choice svg.ill')).toBeTruthy();
     expect(container.querySelector('.pp-empty')!.textContent).toContain('Try a token, a variant or a new component');
     await waitFor(() => expect(container.querySelector('.pp-empty')!.textContent).toContain('Start an exploration'));
     expect(container.querySelector('[data-st-actions]')!.textContent).toBe('');
@@ -101,10 +102,24 @@ describe('ProductPageView', () => {
   it("offers a designer of the team no start on the library's page: library changes are the lead's", async () => {
     viewer.access = { state: 'writer', write: true, admin: false, contributor: true };
     try {
-      const { container } = render(createElement(ProductPageView, { productKey: 'library', components: [], data: data({ product: products[1]!, ownRepo: null, reached: null }) }));
+      const { container } = render(createElement(ProductPageView, { productKey: 'library', components: [], lead: false, data: data({ product: products[1]!, ownRepo: null, reached: null }) }));
       await new Promise((r) => setTimeout(r, 300));
       expect(container.querySelector('.pp-empty')).toBeTruthy();
       expect(screen.queryByRole('button', { name: 'Start an exploration' })).toBeNull();
+      // The page's lead says what it is for and where asks go; no "Nothing explored here yet" for who cannot explore it.
+      expect(container.querySelector('[data-st-summary]')!.textContent).toBe('The library your products use. Leads change it, so ask them for what you need.');
+      expect(container.textContent).not.toContain('Nothing explored');
+      // Two equal choice cards in the one zone, each a whole-card link named by its title, with a drawing and a chevron.
+      const cards = [...container.querySelectorAll('.pp-empty .sh-choices > li .pp-choice')];
+      expect(cards).toHaveLength(2);
+      expect(screen.getByRole('link', { name: 'Ask for a component change' }).getAttribute('href')).toBe('/studio/components/');
+      expect(screen.getByRole('link', { name: 'Suggest a token change' }).getAttribute('href')).toBe('/studio/tokens/');
+      for (const c of cards) {
+        expect(c.querySelectorAll('[data-card-primary]')).toHaveLength(1);
+        expect(c.querySelector('svg.ill')).toBeTruthy();
+        expect(c.querySelector('.pp-choice-go')).toBeTruthy();
+      }
+      await expectNoAxeViolations(container);
     } finally {
       viewer.access = { state: 'writer', write: true, admin: false, contributor: false };
     }
