@@ -56,7 +56,8 @@ describe('the Ask to join button', () => {
     entry.ask.mockResolvedValue({ requested: true });
     const { container } = show();
     await userEvent.click(await screen.findByRole('button', { name: 'Ask to join the team' }));
-    expect(entry.ask).toHaveBeenCalledWith('acme/ds');
+    // The click handler awaits two dynamic imports before it sends: wait for the call, never assume it already ran.
+    await waitFor(() => expect(entry.ask).toHaveBeenCalledWith('acme/ds'));
     expect(await screen.findByText(ASK_WORDS.sent)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ask to join the team' })).toBeNull();
     await expectNoAxeViolations(container);
@@ -75,7 +76,7 @@ describe('the Ask to join button', () => {
     entry.ask.mockResolvedValue({ requested: true });
     show();
     await userEvent.click(await screen.findByRole('button', { name: 'Ask to join the team' }));
-    expect(acc.signIn).toHaveBeenCalledWith(acc.token);
+    await waitFor(() => expect(acc.signIn).toHaveBeenCalledWith(acc.token));
     expect(await screen.findByText(ASK_WORDS.sent)).toBeInTheDocument();
   });
 
