@@ -580,7 +580,20 @@ async function captureVariant({ browser, origin, screen, id, viewport, theme, gi
     if (viewport === 'mobile') v.overflow = await page.evaluate(OVERFLOW_PROBE);
     const height = await page.evaluate(() => Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0));
     const clipH = Math.min(Math.max(height, size.height), size.height * MAX_SCREENS_TALL);
-    const png = await page.screenshot({ type: 'png', fullPage: true, clip: { x: 0, y: 0, width: size.width, height: clipH } });
+    // Settled: two captures in a row the same. Some parts fill in after the network is idle (row thumbnails, lazy
+    // images); without this, the base and the head can be caught at different moments and show a change neither made.
+    const shoot = () => page.screenshot({ type: 'png', fullPage: true, clip: { x: 0, y: 0, width: size.width, height: clipH } });
+    let png = await shoot();
+    for (let i = 0; ; i++) {
+      await page.waitForTimeout(800);
+      const again = await shoot();
+      if (again.equals(png)) break;
+      png = again;
+      if (i >= 5) {
+        v.notes.push('still changing after 5 s');
+        break;
+      }
+    }
     v.height = clipH;
     v.fullHeight = height;
     v.png = `${shotName(id, viewport, theme)}.png`;
