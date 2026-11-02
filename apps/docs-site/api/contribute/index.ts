@@ -140,6 +140,7 @@ import {
 import { meteredFromEnv } from '../_lib/github-quota.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { sharedAppTokens } from '../_lib/shared-token.js';
 import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { accountTeamsKey } from '../_lib/members.js';
@@ -263,13 +264,18 @@ function cachedApp(app: AppTokens, key: string, now: () => number): AppTokens {
   };
 }
 
+/** This function's memory of the shared read tokens (api/_lib/shared-token.ts). */
+const sharedReadMemory = new Map<string, { token: string; until: number; check: number }>();
+
 /**
  * Read tokens: the app narrowed to READ_PERMISSIONS, else to READ_BASE when the installation lacks one of the extra
- * read permissions (statuses, checks). Never a write permission.
+ * read permissions (statuses, checks). Never a write permission. One token per repository shared by every function
+ * (api/_lib/shared-token.ts), so the ETags Bridge keeps stay valid whichever function revalidates them.
  */
-function readTokens(appId: string, pem: string, f: FetchLike, now: () => number): AppTokens {
-  const full = cachedApp(githubApp(appId, pem, f, now, { permissions: { ...READ_PERMISSIONS }, require: { ...READ_PERMISSIONS }, userAgent: 'bridge-read' }), `${appId}:read`, now);
-  const base = cachedApp(githubApp(appId, pem, f, now, { permissions: { ...READ_BASE }, require: { ...READ_BASE }, userAgent: 'bridge-read' }), `${appId}:read-base`, now);
+function readTokens(appId: string, pem: string, f: FetchLike, now: () => number, redis: Redis, secret: string): AppTokens {
+  const share = (app: AppTokens, scope: string) => sharedAppTokens(app, { redis, secret, now, scope, memory: sharedReadMemory });
+  const full = share(githubApp(appId, pem, f, now, { permissions: { ...READ_PERMISSIONS }, require: { ...READ_PERMISSIONS }, userAgent: 'bridge-read' }), `${appId}:read`);
+  const base = share(githubApp(appId, pem, f, now, { permissions: { ...READ_BASE }, require: { ...READ_BASE }, userAgent: 'bridge-read' }), `${appId}:read-base`);
   // What the installation does not grant is not asked again for a while (each ask is two calls to GitHub).
   const without = new Map<string, number>();
   return {
@@ -302,7 +308,7 @@ export function services(env: ContribEnv, deps: ContribDeps): Services | null {
   const app = deps.app ?? (appId && pem ? cachedApp(githubApp(appId, pem, deps.fetch, now, { permissions: { ...PROXY_PERMISSIONS }, require: { ...PROXY_PERMISSIONS }, userAgent: 'bridge-contribute' }), appId, now) : null);
   const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
   if (!redis || !app || secret.length < MIN_SECRET_LENGTH) return null;
-  const readApp = deps.app ?? readTokens(appId!, pem!, deps.fetch, now);
+  const readApp = deps.app ?? readTokens(appId!, pem!, deps.fetch, now, redis, secret);
   return { redis, members: deps.members ?? memberStore(redis), email, app, readApp, secret, localAdmins: activeLocalAdmins(deps.localAdmins) };
 }
 

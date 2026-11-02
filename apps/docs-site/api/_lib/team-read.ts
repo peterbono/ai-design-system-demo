@@ -51,7 +51,9 @@
 //   bridge:read:get:<repo>:<sha256(accept url)>   { status, etag, type, link, body, at }  a GET answer; fresh for
 //                                                 FRESH_MS (HOOK_FRESH_MS while GitHub's webhooks arrive, below), then
 //                                                 revalidated with If-None-Match (a 304 does not count against
-//                                                 GitHub's limit); kept KEEP_S for stale-on-limit
+//                                                 GitHub's limit). Kept ETAG_KEEP_S so an answer past its fresh window
+//                                                 is revalidated (free) instead of read again; answered without GitHub
+//                                                 for KEEP_S at most after GitHub last confirmed it (stale-on-limit)
 //   bridge:read:changed:<repo>:<topic>            when GitHub last said <topic> of <repo> changed (api/_lib/github-
 //                                                 webhook.ts): answers of that topic kept before it (and SETTLE_MS
 //                                                 after) are revalidated at once. <repo> is the repository read (a
@@ -72,14 +74,21 @@
 //                                                 (public data, shared by every team)
 //   bridge:read:wrote:<repo>                      when a write went through Bridge (api/contribute): older answers
 //                                                 are revalidated at once
-//   bridge:read:count:<kind>:<who>:<window>       requests per window (READ_WINDOW_S): per signed-in member (a hash of
-//                                                 their email, so one office behind one address is not one budget),
-//                                                 per address for a visitor of a public demo team, and per team
+//   bridge:read:count:<kind>:<who>:<window>       requests per window (READ_WINDOW_S), abuse protection only: per
+//                                                 signed-in member (a hash of their email, so one office behind one
+//                                                 address is not one budget), per address for a visitor of a public
+//                                                 demo team. A cached answer costs GitHub nothing: no team request cap
 //   bridge:read:count:up:<who>:<window>           GitHub calls the reader's requests cost the app (a cache miss; a
 //                                                 304 is free), per member or address: one viewer never spends the
 //                                                 app's hourly limit for the whole team (READ_LIMITS.upstream)
+//   bridge:read:count:team:<repo>:<window>        GitHub calls the team's reads cost the app, counted the same way:
+//                                                 the team's budget protects GitHub's limit, not Bridge
+//                                                 (READ_LIMITS.team)
 // Answers that never change (a blob, a tree or a commit by its sha) are also kept in this function's memory.
-// Over a reader's GitHub calls (upstream), a read answers what is kept, however old; nothing kept answers busy.
+// Concurrent misses of one answer make one GitHub call (single flight, per function), and a function has at most
+// MAX_UPSTREAM_IN_FLIGHT GitHub calls in flight (the others wait their turn).
+// Over the reader's or the team's GitHub calls, a read answers what is kept (confirmed within KEEP_S); nothing kept
+// answers busy.
 // Over a limit, or when GitHub says slow down and nothing is kept: 429 { error: 'busy', message: "Bridge is busy, try
 // again in N min." } with Retry-After.
 
@@ -106,8 +115,17 @@ export const HOOK_HEALTHY_MS = 15 * 60 * 1000;
  * moment after it sent the event.
  */
 export const SETTLE_MS = 5 * 1000;
-/** Longer than HOOK_FRESH_MS, so a kept answer past its fresh window is revalidated (a free 304), not read again. */
+/**
+ * How long after GitHub last confirmed it a kept answer may stand in without GitHub (busy, down, over a budget), and
+ * how long Bridge listens to a repository's webhook events after it last kept one of its answers.
+ */
 export const KEEP_S = 20 * 60;
+/**
+ * How long a GET answer and its ETag are kept to be revalidated: past its fresh window (FRESH_MS, HOOK_FRESH_MS),
+ * Bridge asks GitHub with the ETag (a 304 does not count against GitHub's limit) instead of reading it again. Never
+ * answered without GitHub past KEEP_S. Each entry is at most MAX_KEPT_CHARS.
+ */
+export const ETAG_KEEP_S = 24 * 60 * 60;
 export const IMMUTABLE_KEEP_S = 24 * 60 * 60;
 export const BLOB_KEEP_S = 7 * 24 * 60 * 60;
 /** Bigger answers are not kept in Redis (one Upstash request carries at most 1 MB). */
@@ -121,12 +139,19 @@ export const USER_KEEP_S = 24 * 60 * 60;
 export const MAX_BATCH_BYTES = 3_000_000;
 export const READ_WINDOW_S = 10 * 60;
 /**
- * Requests per window: per signed-in member (`ip` keeps its name: READ_MAX_IP sets it), per address on a public demo
- * team (no sign-in), per team. `upstream`: GitHub calls one reader (member or address) may cost the app per window
- * (READ_MAX_UPSTREAM): 300 per 10 minutes is 1,800 an hour, about a third of the app's 5,000, so one viewer never
- * spends the limit the whole team reads on. Cached answers and 304s cost none of it.
+ * Per window (READ_WINDOW_S, 10 minutes):
+ *   - `ip`, `guest`: requests, abuse protection only. Per signed-in member (`ip` keeps its name: READ_MAX_IP sets it),
+ *     about 6 times what a lead reading all day sends (docs/QUOTA-LOADTEST.md); per address on a public demo team
+ *     (no sign-in).
+ *   - `upstream`: GitHub calls one reader (member or address) may cost the app (READ_MAX_UPSTREAM): 300 per 10 minutes
+ *     is 1,800 an hour, about a third of the app's 5,000, so one viewer never spends the limit the whole team reads on.
+ *   - `team`: GitHub calls the whole team's reads may cost the app (READ_MAX_TEAM): 500 per 10 minutes is 3,000 an
+ *     hour, 60 % of the app's 5,000, so reads leave room for writes and the other repositories of the installation.
+ * Cached answers and 304s cost neither `upstream` nor `team`.
  */
-export const READ_LIMITS = { ip: 1200, guest: 400, team: 6000, upstream: 300 } as const;
+export const READ_LIMITS = { ip: 3000, guest: 400, team: 500, upstream: 300 } as const;
+/** GitHub calls one warm function has in flight at once (GitHub's secondary limit is 100 concurrent requests). */
+export const MAX_UPSTREAM_IN_FLIGHT = 20;
 
 /**
  * Request header of a member's read right after the page wrote to GitHub itself: the kept answer is checked with
@@ -317,43 +342,47 @@ export function budgetOf(req: Request, reader: Reader): { kind: 'member' | 'ip' 
   return { kind: reader.kind === 'guest' ? 'guest' : 'ip', who: sha256(`read-ip:${clientIp(req)}`).slice(0, 24) };
 }
 
-/** What the reader may still cost the app in GitHub calls this window (READ_LIMITS.upstream), and how to spend it. */
+/** What the reader and the team may still cost the app in GitHub calls this window, and how to spend it. */
 interface Upstream {
-  /** GitHub calls left this window (0: answer what is kept, else busy). */
+  /** GitHub calls left this window, the lower of the reader's and the team's (0: answer what is kept, else busy). */
   left: number;
   /** Seconds until the window turns. */
   wait: number;
-  /** Counts `n` GitHub calls (cache misses; a 304 is free) against the reader. Never throws. */
+  /** Counts `n` GitHub calls (cache misses; a 304 is free) against the reader and the team. Never throws. */
   spend: (n: number) => Promise<void>;
 }
 
-/** The GitHub calls `reader` may still cost this window, from what they spent (read in the same round trip). */
-function upstreamOf(ctx: ReadCtx, req: Request, reader: Reader, spent: unknown, now: number): Upstream {
+/**
+ * The GitHub calls `reader` may still cost this window (READ_LIMITS.upstream), within what the team `full` may still
+ * cost (READ_LIMITS.team), from what they spent (read in the same round trip).
+ */
+function upstreamOf(ctx: ReadCtx, req: Request, reader: Reader, full: string, spent: unknown, teamSpent: unknown, now: number): Upstream {
   const k = countKey('up', budgetOf(req, reader).who, now);
+  const tk = countKey('team', full.toLowerCase(), now);
   const limit = envInt(ctx.env.READ_MAX_UPSTREAM, READ_LIMITS.upstream);
+  const teamLimit = envInt(ctx.env.READ_MAX_TEAM, READ_LIMITS.team);
   return {
-    left: Math.max(0, limit - (Number(spent) || 0)),
+    left: Math.max(0, Math.min(limit - (Number(spent) || 0), teamLimit - (Number(teamSpent) || 0))),
     wait: secondsToNextWindow(now),
     spend: async (n) => {
-      if (n > 0) await ctx.redis.pipe([['INCRBY', k, n], ['EXPIRE', k, READ_WINDOW_S + 5]]).catch(() => undefined);
+      if (n > 0) await ctx.redis.pipe([['INCRBY', k, n], ['EXPIRE', k, READ_WINDOW_S + 5], ['INCRBY', tk, n], ['EXPIRE', tk, READ_WINDOW_S + 5]]).catch(() => undefined);
     },
   };
 }
 
 /**
- * Counts one request (`weight` for a batch) against the reader's budget (budgetOf) and the team, and reads `extra`
- * keys in the same round trip. Throws busy over a limit. Returns the values of `extra`, the last write time and the
- * GitHub calls the reader may still cost the app (upstreamOf).
+ * Counts one request (`weight` for a batch) against the reader's request budget (budgetOf; abuse protection only) and
+ * reads `extra` keys in the same round trip. Throws busy over that limit. Returns the values of `extra`, the last
+ * write time and the GitHub calls the reader and the team may still cost the app (upstreamOf).
  */
 async function countAndRead(ctx: ReadCtx, req: Request, full: string, reader: Reader, weight: number, extra: string[]): Promise<{ values: unknown[]; wrote: number; up: Upstream }> {
   const now = ctx.now();
   const budget = budgetOf(req, reader);
-  const keys = [countKey(budget.kind, budget.who, now), countKey('team', full.toLowerCase(), now)];
-  const limits = [reader.kind === 'guest' ? envInt(ctx.env.READ_MAX_GUEST, READ_LIMITS.guest) : envInt(ctx.env.READ_MAX_IP, READ_LIMITS.ip), envInt(ctx.env.READ_MAX_TEAM, READ_LIMITS.team)];
-  const r = await ctx.redis.pipe([...keys.flatMap((k) => [['INCRBY', k, weight], ['EXPIRE', k, READ_WINDOW_S + 5]]), ['GET', wroteKey(full)], ['GET', countKey('up', budget.who, now)], ...extra.map((k) => ['GET', k])]);
-  if (keys.some((_, i) => Number(r[i * 2]) > limits[i]!)) throw busy(secondsToNextWindow(now));
-  const wrote = Number(r[keys.length * 2]) || 0;
-  return { values: r.slice(keys.length * 2 + 2), wrote, up: upstreamOf(ctx, req, reader, r[keys.length * 2 + 1], now) };
+  const k = countKey(budget.kind, budget.who, now);
+  const limit = reader.kind === 'guest' ? envInt(ctx.env.READ_MAX_GUEST, READ_LIMITS.guest) : envInt(ctx.env.READ_MAX_IP, READ_LIMITS.ip);
+  const r = await ctx.redis.pipe([['INCRBY', k, weight], ['EXPIRE', k, READ_WINDOW_S + 5], ['GET', wroteKey(full)], ['GET', countKey('up', budget.who, now)], ['GET', countKey('team', full.toLowerCase(), now)], ...extra.map((x) => ['GET', x])]);
+  if (Number(r[0]) > limit) throw busy(secondsToNextWindow(now));
+  return { values: r.slice(5), wrote: Number(r[2]) || 0, up: upstreamOf(ctx, req, reader, full, r[3], r[4], now) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -394,6 +423,47 @@ export function clearReadMemory() {
   memory.clear();
   memoryChars = 0;
   publicCache.clear();
+  flights.clear();
+}
+
+/** A kept answer GitHub confirmed within KEEP_S: it may stand in when GitHub cannot be asked. */
+const standIn = (k: Kept | null, now: number): Kept | null => (k && now - k.at < KEEP_S * 1000 ? k : null);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Single flight and concurrency, per warm function
+
+/** GitHub calls in flight, by the answer they read: a concurrent miss of the same answer waits for that call. */
+const flights = new Map<string, Promise<unknown>>();
+
+/**
+ * Runs `fn` once for concurrent callers of `key`: the first (`leader`) runs it, the others get its result (or its
+ * error) without a GitHub call of their own.
+ */
+async function once<T>(key: string, fn: () => Promise<T>): Promise<{ v: T; leader: boolean }> {
+  const going = flights.get(key) as Promise<T> | undefined;
+  if (going) return { v: await going, leader: false };
+  const p = fn();
+  flights.set(key, p);
+  try {
+    return { v: await p, leader: true };
+  } finally {
+    if (flights.get(key) === p) flights.delete(key);
+  }
+}
+
+let inFlight = 0;
+const queued: (() => void)[] = [];
+
+/** Waits for one of this function's MAX_UPSTREAM_IN_FLIGHT GitHub call slots; returns its release. */
+async function slot(): Promise<() => void> {
+  if (inFlight < MAX_UPSTREAM_IN_FLIGHT) inFlight += 1;
+  else await new Promise<void>((r) => queued.push(r));
+  return () => {
+    const next = queued.shift();
+    // The slot passes to the next call waiting, else it is free again.
+    if (next) next();
+    else inFlight -= 1;
+  };
 }
 
 const parseKept = (raw: unknown): Kept | null => {
@@ -428,6 +498,7 @@ function limitedFor(res: Response, now: number): number | null {
 }
 
 async function upstream(ctx: ReadCtx, url: string, token: string, accept: string, etag: string | null): Promise<Response> {
+  const release = await slot();
   try {
     return await ctx.f(url, {
       method: 'GET',
@@ -435,6 +506,8 @@ async function upstream(ctx: ReadCtx, url: string, token: string, accept: string
     });
   } catch {
     throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  } finally {
+    release();
   }
 }
 
@@ -638,34 +711,49 @@ export interface ReadTarget {
   query: string;
 }
 
+/** What a read through GitHub gave: the answer, where it came from, and whether this request paid a GitHub call. */
+interface Through {
+  k: Kept;
+  source: 'revalidated' | 'miss' | 'stale';
+  /** This request made the counted GitHub call (a miss it led, not one it shared). */
+  spent: boolean;
+}
+
 /**
  * A kept answer that is not fresh any more (or none): GitHub again, with the kept ETag (a 304 does not count against
- * GitHub's limit), kept for the next reader. GitHub busy or down: what was kept, else busy or unreachable.
+ * GitHub's limit), kept for the next reader. Concurrent misses of the same answer share one call (once). GitHub busy
+ * or down: what was kept (confirmed within KEEP_S), else busy or unreachable.
  */
-async function throughGitHub(ctx: ReadCtx, owner: string, repo: string, url: string, accept: string, key: string, kept: Kept | null, o: { keep: boolean; forever: boolean }): Promise<{ k: Kept; source: 'revalidated' | 'miss' | 'stale' }> {
+async function throughGitHub(ctx: ReadCtx, owner: string, repo: string, url: string, accept: string, key: string, kept: Kept | null, o: { keep: boolean; forever: boolean }): Promise<Through> {
+  const { v, leader } = await once(`get:${key}`, () => askGitHub(ctx, owner, repo, url, accept, key, kept, o));
+  return { ...v, spent: leader && v.source === 'miss' };
+}
+
+async function askGitHub(ctx: ReadCtx, owner: string, repo: string, url: string, accept: string, key: string, kept: Kept | null, o: { keep: boolean; forever: boolean }): Promise<Omit<Through, 'spent'>> {
   const now = ctx.now();
   const token = await tokenFor(ctx, owner, repo);
+  const old = standIn(kept, now);
   let res: Response;
   try {
     res = await upstream(ctx, url, token, accept, kept?.etag ?? null);
   } catch (e) {
-    if (kept) return { k: kept, source: 'stale' };
+    if (old) return { k: old, source: 'stale' };
     throw e;
   }
   const wait = limitedFor(res, now);
   if (wait !== null) {
-    if (kept) return { k: kept, source: 'stale' };
+    if (old) return { k: old, source: 'stale' };
     throw busy(wait);
   }
   if (res.status >= 500) {
-    if (kept) return { k: kept, source: 'stale' };
+    if (old) return { k: old, source: 'stale' };
     throw new HttpError(502, 'unreachable', GITHUB_DOWN);
   }
   // What Bridge keeps of a repository makes its webhook events worth noting (api/_lib/github-webhook.ts).
   const known = ['SET', knownKey(`${owner}/${repo}`), '1', 'EX', KEEP_S];
   if (res.status === 304 && kept) {
     const fresh = { ...kept, at: now };
-    if (kept.body.length <= MAX_KEPT_CHARS) await ctx.redis.pipe([['SET', key, JSON.stringify(fresh), 'EX', KEEP_S], known]);
+    if (kept.body.length <= MAX_KEPT_CHARS) await ctx.redis.pipe([['SET', key, JSON.stringify(fresh), 'EX', ETAG_KEEP_S], known]);
     return { k: fresh, source: 'revalidated' };
   }
   const body = res.status === 204 || res.status === 304 ? '' : await res.text();
@@ -673,7 +761,7 @@ async function throughGitHub(ctx: ReadCtx, owner: string, repo: string, url: str
   // Answers worth keeping: a success, or a 404 (a missing file stays missing for a while).
   if (o.keep && (k.status === 200 || k.status === 404)) {
     if (o.forever && k.status === 200) remember(key, k);
-    if (body.length <= MAX_KEPT_CHARS) await ctx.redis.pipe([['SET', key, JSON.stringify(k), 'EX', o.forever && k.status === 200 ? IMMUTABLE_KEEP_S : KEEP_S], known]);
+    if (body.length <= MAX_KEPT_CHARS) await ctx.redis.pipe([['SET', key, JSON.stringify(k), 'EX', o.forever && k.status === 200 ? IMMUTABLE_KEEP_S : ETAG_KEEP_S], known]);
   }
   return { k, source: 'miss' };
 }
@@ -710,13 +798,15 @@ export async function onRead(req: Request, ctx: ReadCtx, t: ReadTarget, reader: 
     if (forever) remember(key, kept);
     return answer(kept, 'hit', inm);
   }
-  // This reader spent their share of the app's GitHub calls: what is kept, however old, else busy until the window turns.
+  // The reader or the team spent their share of the app's GitHub calls: what is kept (confirmed within KEEP_S), else
+  // busy until the window turns.
   if (up.left <= 0) {
-    if (kept) return answer(kept, 'stale', inm);
+    const old = standIn(kept, now);
+    if (old) return answer(old, 'stale', inm);
     throw busy(up.wait);
   }
-  const { k, source } = await throughGitHub(ctx, t.owner, t.repo, url, accept, key, kept, { keep, forever });
-  if (source === 'miss') await up.spend(1);
+  const { k, source, spent } = await throughGitHub(ctx, t.owner, t.repo, url, accept, key, kept, { keep, forever });
+  if (spent) await up.spend(1);
   return answer(k, source, inm);
 }
 
@@ -809,17 +899,19 @@ export async function onChanges(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 
       const topic = topicOf(path.split('?')[0]!.split('/').filter(Boolean));
       if (k0 && stillFresh(k0.at, now, freshFor(topic, hookLast, now), wrote, changedAt(topic))) k = k0;
       else if (left <= 0) {
-        // The reader spent their GitHub calls: what is kept, else this change is left out (the page reads it alone).
-        if (!k0) {
+        // The reader or the team spent their GitHub calls: what is kept (confirmed within KEEP_S), else this change is
+        // left out (the page reads it alone).
+        const old = standIn(k0, now);
+        if (!old) {
           limited = up.wait;
           return;
         }
-        k = k0;
+        k = old;
       } else {
         try {
           left -= 1;
           const got = await throughGitHub(ctx, t.owner, t.repo, urlOf(path), STATUS_ACCEPT, keys[i]!, k0, { keep: true, forever: false });
-          if (got.source === 'miss') spent += 1;
+          if (got.spent) spent += 1;
           else left += 1;
           k = got.k;
         } catch (e) {
@@ -851,6 +943,21 @@ export function parseBlobList(v: string | null): string[] {
   const list = (v ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
   if (!list.length || list.length > MAX_BATCH || list.some((s) => !SHA.test(s))) throw new HttpError(400, 'bad_request', `Ask for 1 to ${MAX_BATCH} blobs by their sha.`);
   return [...new Set(list)];
+}
+
+/** What GitHub said of one blob: its text, none (404 or 422), later (down, odd answer) or slow down. */
+type BlobAnswer = { kind: 'text'; text: string } | { kind: 'none' } | { kind: 'later' } | { kind: 'limited'; wait: number };
+
+async function askBlob(ctx: ReadCtx, t: Pick<ReadTarget, 'owner' | 'repo' | 'full'>, s: string, token: string): Promise<BlobAnswer> {
+  const res = await upstream(ctx, `${API}/repos/${t.owner}/${t.repo}/git/blobs/${s}`, token, 'application/vnd.github.raw', null).catch(() => null);
+  if (!res || res.status >= 500) return { kind: 'later' };
+  const wait = limitedFor(res, ctx.now());
+  if (wait !== null) return { kind: 'limited', wait };
+  if (res.status === 404 || res.status === 422) return { kind: 'none' };
+  if (res.status !== 200) return { kind: 'later' };
+  const text = await res.text();
+  remember(blobKey(t.full, s), text);
+  return { kind: 'text', text };
 }
 
 /** Many blobs of the team's repository at once: from memory, then Redis, then GitHub (8 at a time). */
@@ -902,30 +1009,25 @@ export async function onBlobs(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'o
           continue;
         }
         left -= 1;
-        spent += 1;
-        const res = await upstream(ctx, `${API}/repos/${t.owner}/${t.repo}/git/blobs/${s}`, token, 'application/vnd.github.raw', null).catch(() => null);
-        if (!res || res.status >= 500) {
+        // Concurrent misses of the same blob (another request, another worker) share one GitHub call.
+        const { v: got, leader } = await once(`blob:${blobKey(t.full, s)}`, () => askBlob(ctx, t, s, token));
+        if (leader) spent += 1;
+        else left += 1;
+        if (got.kind === 'later') {
           later.push(s);
           continue;
         }
-        const wait = limitedFor(res, ctx.now());
-        if (wait !== null) {
-          limited = wait;
+        if (got.kind === 'limited') {
+          limited = got.wait;
           later.push(s);
           continue;
         }
-        if (res.status === 404 || res.status === 422) {
+        if (got.kind === 'none') {
           add(s, null);
           continue;
         }
-        if (res.status !== 200) {
-          later.push(s);
-          continue;
-        }
-        const text = await res.text();
-        remember(blobKey(t.full, s), text);
-        if (text.length <= MAX_KEPT_CHARS) writes.push(['SET', blobKey(t.full, s), text, 'EX', BLOB_KEEP_S]);
-        add(s, text);
+        if (leader && got.text.length <= MAX_KEPT_CHARS) writes.push(['SET', blobKey(t.full, s), got.text, 'EX', BLOB_KEEP_S]);
+        add(s, got.text);
       }
     };
     await Promise.all(Array.from({ length: Math.min(8, missing.length) }, worker));
@@ -978,6 +1080,19 @@ const parseProfile = (raw: unknown): PublicProfile | null | undefined => {
   }
 };
 
+/** What GitHub said of one login: its public profile, null (unknown), later (down, odd answer) or slow down. */
+type UserAnswer = { kind: 'profile'; profile: PublicProfile | null } | { kind: 'later' } | { kind: 'limited'; wait: number };
+
+async function askUser(ctx: ReadCtx, login: string, token: string): Promise<UserAnswer> {
+  const res = await upstream(ctx, `${API}/users/${encodeURIComponent(login)}`, token, 'application/vnd.github+json', null).catch(() => null);
+  if (!res || res.status >= 500) return { kind: 'later' };
+  const wait = limitedFor(res, ctx.now());
+  if (wait !== null) return { kind: 'limited', wait };
+  if (res.status === 404) return { kind: 'profile', profile: null };
+  if (res.status !== 200) return { kind: 'later' };
+  return { kind: 'profile', profile: publicProfile(login, await res.json().catch(() => null)) };
+}
+
 /**
  * The public profiles of `logins`, for a member of the team (never a visitor): from Redis, then GitHub with the team's
  * read token (4 at a time). Counts against the member's budget like a blob batch (1 per 20 logins).
@@ -1006,23 +1121,17 @@ export async function onUsers(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'o
         if (left <= 0) limited ??= up.wait;
         if (limited !== null) continue;
         left -= 1;
-        spent += 1;
-        const res = await upstream(ctx, `${API}/users/${encodeURIComponent(l)}`, token, 'application/vnd.github+json', null).catch(() => null);
-        if (!res || res.status >= 500) continue;
-        const wait = limitedFor(res, ctx.now());
-        if (wait !== null) {
-          limited = wait;
+        // Concurrent misses of the same login share one GitHub call.
+        const { v: got, leader } = await once(`user:${userKey(l)}`, () => askUser(ctx, l, token));
+        if (leader) spent += 1;
+        else left += 1;
+        if (got.kind === 'later') continue;
+        if (got.kind === 'limited') {
+          limited = got.wait;
           continue;
         }
-        if (res.status === 404) {
-          users[l] = null;
-          writes.push(['SET', userKey(l), 'null', 'EX', USER_KEEP_S]);
-          continue;
-        }
-        if (res.status !== 200) continue;
-        const p = publicProfile(l, await res.json().catch(() => null));
-        users[l] = p;
-        writes.push(['SET', userKey(l), JSON.stringify(p), 'EX', USER_KEEP_S]);
+        users[l] = got.profile;
+        if (leader) writes.push(['SET', userKey(l), got.profile ? JSON.stringify(got.profile) : 'null', 'EX', USER_KEEP_S]);
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, missing.length) }, worker));

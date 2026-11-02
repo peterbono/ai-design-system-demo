@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { ACCOUNT_SESSION_TTL_MS } from '../../api/_lib/account';
 import { SESSION_TTL_S as FIX_SESSION_TTL_S } from '../../api/_lib/fix-sessions';
 import { ACCESS_TTL_S, GRANT_TTL_S, REFRESH_TTL_S } from '../../api/_lib/oauth';
-import { BLOB_KEEP_S, IMMUTABLE_KEEP_S, KEEP_S, USER_KEEP_S } from '../../api/_lib/team-read';
+import { BLOB_KEEP_S, ETAG_KEEP_S, IMMUTABLE_KEEP_S, KEEP_S, USER_KEEP_S } from '../../api/_lib/team-read';
+import { TOKEN_SHARE_MS } from '../../api/_lib/shared-token';
 import { JOIN_REQUEST_TTL_MS } from '../../api/_lib/teams';
 import { BACKUPS_KEPT, CODE_TTL_S, MAX_TRIES } from '../../api/account/index';
 import { SIGNIN_TTL_MS as CONTRIB_SIGNIN_TTL_MS, WRITE_LIMIT_DEFAULT } from '../../api/contribute/index';
@@ -38,6 +39,8 @@ describe('Security and data page: the numbers come from the code', () => {
     ['email sign-in link (contribute)', CONTRIB_SIGNIN_TTL_MS / 1000],
     ['email sign-in link (library)', LIBRARY_SIGNIN_TTL_MS / 1000],
     ['cache, most answers', KEEP_S],
+    ['cache, kept to ask GitHub whether it changed', ETAG_KEEP_S],
+    ['shared read token', TOKEN_SHARE_MS / 1000],
     ['cache, public profiles', USER_KEEP_S],
     ['cache, immutable answers', IMMUTABLE_KEEP_S],
     ['cache, file contents', BLOB_KEEP_S],

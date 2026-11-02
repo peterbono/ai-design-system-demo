@@ -127,7 +127,7 @@ As described on the security page, at the date of this template:
 - **Sessions.** Cookie signed with HMAC-SHA256, HttpOnly, Secure, SameSite=Lax, 30 days. "Sign out everywhere" ends every session.
 - **Encryption of kept GitHub tokens.** AES-256-GCM under a key derived with HKDF-SHA256 for that purpose only.
 - **Tokens Bridge issues** (AI connector, sign-in links, invite links): only their SHA-256 is stored.
-- **Access control by GitHub.** Each person acts with their own GitHub permissions; GitHub Apps are installed on selected repositories only; the server's installation tokens are minted per request, limited to one repository, and never stored.
+- **Access control by GitHub.** Each person acts with their own GitHub permissions; GitHub Apps are installed on selected repositories only; the server's installation tokens are limited to one repository and minted per request; the one read-only token of team reads is shared by Bridge's functions for 50 minutes at most, stored encrypted (AES-256-GCM), and no other installation token is stored.
 - **No AI keys on Bridge's servers.** The AI connector sees tool calls, not conversations, and cannot merge.
 - **Network.** Strict Content-Security-Policy, Cache-Control: no-store on every function, Origin checks on calls that change data, OAuth 2.1 with PKCE (S256) for the connector, the Figma plugin limited by Figma to two domains.
 - **Logging.** No analytics or tracking script. Bridge's functions log nothing about people; the hosting platform keeps its own request logs.

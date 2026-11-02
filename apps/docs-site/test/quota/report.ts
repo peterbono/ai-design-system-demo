@@ -26,14 +26,14 @@ export function table(rs: Result[]): string {
 /** Bridge's side: its own limits and what readers see. */
 export function limits(rs: Result[]): string {
   return md(
-    ['Scenario', 'Reader cap hits (readers)', 'Team budget hits', 'Member budget hits', 'Busy answers (readers)', 'Changes left out', 'Peak member weight / 10 min', 'Peak team weight / 10 min', 'Counted but unchanged', 'Concurrent duplicate misses'],
-    rs.map((r) => [r.name, `${r.capHits} (${r.readersAtCap})`, String(r.teamBudgetHits), String(r.memberBudgetHits), `${r.busyAnswers} (${r.readersBusy})`, String(r.changesLeftOut), String(r.peakMemberWeight), String(r.peakTeamWeight), String(r.unchanged), String(r.overlapping)]),
+    ['Scenario', 'Reader cap hits (readers)', 'Team budget hits', 'Member budget hits', 'Busy answers (readers)', 'Changes left out', 'Peak member weight / 10 min', 'Peak team GitHub calls / 10 min', 'Counted but unchanged', 'Concurrent duplicate misses'],
+    rs.map((r) => [r.name, `${r.capHits} (${r.readersAtCap})`, String(r.teamBudgetHits), String(r.memberBudgetHits), `${r.busyAnswers} (${r.readersBusy})`, String(r.changesLeftOut), String(r.peakMemberWeight), String(r.peakTeamCalls), String(r.unchanged), String(r.overlapping)]),
   );
 }
 
 /** Counted calls by kind of read, one line per scenario. */
 export function kinds(rs: Result[]): string {
   return rs
-    .map((r) => `- ${r.name}: ${Object.entries(r.byKind).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}; answers by source: ${Object.entries(r.bySource).map(([k, n]) => `${k} ${n}`).join(', ')}`)
+    .map((r) => `- ${r.name}: ${Object.entries(r.byKind).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}; answers by source: ${Object.entries(r.bySource).map(([k, n]) => `${k} ${n}`).join(', ')}; tokens minted: ${r.mints}`)
     .join('\n');
 }

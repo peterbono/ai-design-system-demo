@@ -6,7 +6,11 @@
 // the same misses a real burst would), steps run one after the other. A page load sends its reads in phases
 // (pages.ts), PHASE_MS apart, as the browser does once the first answers are back.
 
+import { createHmac } from 'node:crypto';
+import { handleGithubWebhook } from '../../api/_lib/github-webhook';
 import { memoryRedis } from '../../api/_lib/redis';
+import { sharedAppTokens } from '../../api/_lib/shared-token';
+import type { AppTokens } from '../../api/_lib/github-app';
 import { budgetOf, clearReadMemory, countKey, noteWrite, READ_LIMITS } from '../../api/_lib/team-read';
 import { type ContribDeps, cookieName, handleContribute, signSession } from '../../api/contribute/index';
 import { memberStore } from '../../api/_lib/members';
@@ -58,12 +62,21 @@ export interface Scenario {
   viaBridge?: number;
   seed: number;
   env?: Record<string, string>;
-  /**
-   * Warm functions serving the reads, each with its own installation token (api/contribute cachedApp keeps one 30
-   * minutes). Only matters with `tokenBoundEtags`. Default 1.
-   */
+  /** Warm functions serving the reads (each request lands on one at random). Only matters with `tokenBoundEtags`. Default 1. */
   instances?: number;
   tokenBoundEtags?: boolean;
+  /**
+   * How the functions get their installation token: 'shared' (api/_lib/shared-token.ts, one token per repository for
+   * every function, as Bridge does now) or 'per-function' (each function mints its own and keeps it 30 minutes, as
+   * before; the C3 worst case). Default 'shared'.
+   */
+  tokens?: 'shared' | 'per-function';
+  /**
+   * GitHub's webhooks arrive (api/_lib/github-webhook.ts, signed, through the real handler): each update sends its
+   * events (push, pull_request, check_suite, then check_run, check_suite and status when the checks finish), and the
+   * installation's other activity sends a delivery every 5 minutes, so the webhooks look alive (HOOK_HEALTHY_MS).
+   */
+  webhooks?: boolean;
 }
 
 export interface Result {
@@ -96,10 +109,12 @@ export interface Result {
   unchanged: number;
   /** Counted calls made while another call for the same path was in flight (no request coalescing). */
   overlapping: number;
-  /** Highest request weight one member reached in a 10 min window (READ_MAX_IP, 1,200 by default). */
+  /** Highest request weight one member reached in a 10 min window (READ_MAX_IP, abuse protection). */
   peakMemberWeight: number;
-  /** Highest request weight the team reached in a 10 min window (READ_MAX_TEAM, 6,000 by default). */
-  peakTeamWeight: number;
+  /** Highest number of GitHub calls the team's reads cost in a 10 min window (READ_MAX_TEAM). */
+  peakTeamCalls: number;
+  /** Installation tokens minted (one per function and 30 minutes before; one per 50 minutes shared now). */
+  mints: number;
   /** 1 - counted / reads: the share of reads that cost GitHub's limit nothing. */
   hitRatio: number;
   /** Counted calls by kind of read, for the report. */
@@ -133,17 +148,24 @@ export async function runScenario(s: Scenario): Promise<Result> {
   const world: FakeWorld = fakeWorld(s.changes);
   const gh = fakeGitHub(world, () => now, { tokenBoundEtags: s.tokenBoundEtags });
   const redis = memoryRedis(() => now);
-  const deps: ContribDeps = {
-    fetch: gh.fetch,
-    now: () => now,
-    redis,
-    app: {
-      // One token per warm function and per 30 minutes (api/contribute cachedApp); requests land on any of them.
-      installationToken: async () => {
-        return `ghs_read_${Math.floor(pick() * (s.instances ?? 1))}_${Math.floor((now - T0) / (30 * 60 * 1000))}`;
-      },
-    },
-  };
+  let mints = 0;
+  /** GitHub's token endpoint: a new token on every mint. */
+  const minter: AppTokens = { installationToken: async () => `ghs_read_m${mints++}` };
+  // Each warm function: its own memory, the same Redis. Per function (before): its own token, kept 30 minutes.
+  const instances = Array.from({ length: s.instances ?? 1 }, (_, i): ContribDeps => {
+    const memory = new Map<string, { token: string; until: number; check: number }>();
+    let own: { token: string; until: number } | null = null;
+    const app: AppTokens =
+      s.tokens === 'per-function'
+        ? {
+            installationToken: async () => {
+              if (!own || own.until <= now) own = { token: `ghs_read_f${i}_${mints++}`, until: now + 30 * MIN };
+              return own.token;
+            },
+          }
+        : sharedAppTokens(minter, { redis, secret: SECRET, now: () => now, scope: 'read', memory, wait: () => new Promise((r) => setImmediate(r)) });
+    return { fetch: gh.fetch, now: () => now, redis, app };
+  });
   const env = { LIBRARY_SESSION_SECRET: SECRET, ...(s.env ?? {}) };
   const team = `${world.owner}/${world.repo}`;
   const members = memberStore(redis);
@@ -152,6 +174,16 @@ export async function runScenario(s: Scenario): Promise<Result> {
     await members.put(team, { email: p.email, name: p.email.split('@')[0]!, role: p.role === 'lead' ? 'admin' : 'edit', version: 1, addedBy: 'dana', at: new Date(now).toISOString() });
     cookies.set(p.email, `${cookieName(team)}=${signSession({ repo: team, email: p.email, name: p.email.split('@')[0]!, v: 1, exp: now + 1e10 }, SECRET)}`);
   }
+  // GitHub's webhook deliveries, signed with the secret, through the real handler.
+  const HOOK_SECRET = 'h'.repeat(40);
+  let deliveries = 0;
+  const hook = async (event: string, payload: Record<string, unknown>) => {
+    const body = JSON.stringify({ ...payload, installation: { id: 7 } });
+    const sig = `sha256=${createHmac('sha256', HOOK_SECRET).update(body).digest('hex')}`;
+    const r = await handleGithubWebhook(new Request(`${ORIGIN}/api/github-webhook`, { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-hub-signature-256': sig, 'x-github-delivery': `d-${deliveries++}`, 'x-github-event': event } }), { redis, secret: HOOK_SECRET, now: () => now });
+    if (r.status !== 200) throw new Error(`webhook ${event}: ${r.status}`);
+  };
+  const repository = { full_name: team, default_branch: 'main' };
   const upLimit = Number(s.env?.READ_MAX_UPSTREAM ?? READ_LIMITS.upstream);
   const teamLimit = Number(s.env?.READ_MAX_TEAM ?? READ_LIMITS.team);
 
@@ -178,7 +210,8 @@ export async function runScenario(s: Scenario): Promise<Result> {
     unchanged: 0,
     overlapping: 0,
     peakMemberWeight: 0,
-    peakTeamWeight: 0,
+    peakTeamCalls: 0,
+    mints: 0,
     hitRatio: 0,
     byKind: {},
     bySource: {},
@@ -192,18 +225,17 @@ export async function runScenario(s: Scenario): Promise<Result> {
 
   /** One read the page asks for, through the real handler; the follow-ups it implies (a change left out) come back. */
   const send = async (email: string, read: ClientRead): Promise<ClientRead[]> => {
-    // The person's tab keeps answers (and shares a read in flight): scripts/contribute-session.ts. The status batch
-    // is never shared (prefetchChangeStatuses), so the badge's and the page's both go out.
-    if (!read.changes) {
-      const tab = tabs.get(email) ?? new Map<string, number>();
-      tabs.set(email, tab);
-      const key = JSON.stringify([read.repo, read.gh, read.users]);
-      if ((tab.get(key) ?? 0) > now) {
-        res.tabKept += 1;
-        return [];
-      }
-      tab.set(key, now + (read.keep ?? (read.gh !== undefined && BY_SHA.test(read.gh) ? 10 * MIN : 20 * 1000)));
+    // The person's tab keeps answers (and shares a read in flight): scripts/contribute-session.ts. A status batch is
+    // shared too (prefetchChangeStatuses: one in flight per batch, its reads kept 20 s), so the badge's and Home's
+    // go out once.
+    const tab = tabs.get(email) ?? new Map<string, number>();
+    tabs.set(email, tab);
+    const key = JSON.stringify([read.repo, read.gh, read.users, read.changes?.map((c) => `${c.number}:${c.sha}`)]);
+    if ((tab.get(key) ?? 0) > now) {
+      res.tabKept += 1;
+      return [];
     }
+    tab.set(key, now + (read.keep ?? (read.gh !== undefined && BY_SHA.test(read.gh) ? 10 * MIN : 20 * 1000)));
     let q: string;
     if (read.gh !== undefined) q = `gh=${encodeURIComponent(`/repos/${read.repo ?? team}${read.gh}`)}`;
     else if (read.changes) q = `changes=${read.changes.map((c) => `${c.number}:${c.sha}`).join(',')}`;
@@ -214,11 +246,11 @@ export async function runScenario(s: Scenario): Promise<Result> {
     const request = req(email, q, read.headers);
     const upKey = countKey('up', budgetOf(request, { kind: 'member', email }).who, now);
     const spentBefore = Number(await redis.cmd('GET', upKey)) || 0;
-    const answer = await handleContribute(request, env, deps);
+    const answer = await handleContribute(request, env, instances[Math.floor(pick() * instances.length)]!);
     const who = budgetOf(request, { kind: 'member', email }).who;
     const [mine, all] = (await redis.pipe([['GET', countKey('member', who, now)], ['GET', countKey('team', team.toLowerCase(), now)]])).map((x) => Number(x) || 0);
     res.peakMemberWeight = Math.max(res.peakMemberWeight, mine!);
-    res.peakTeamWeight = Math.max(res.peakTeamWeight, all!);
+    res.peakTeamCalls = Math.max(res.peakTeamCalls, all!);
     const source = answer.headers.get('x-bridge-cache') ?? (read.gh !== undefined ? String(answer.status) : 'batch');
     res.bySource[source] = (res.bySource[source] ?? 0) + 1;
     if (spentBefore >= upLimit) {
@@ -228,8 +260,9 @@ export async function runScenario(s: Scenario): Promise<Result> {
     if (answer.status === 429) {
       res.busyAnswers += 1;
       sawBusy.add(email);
+      // The team's GitHub calls, the reader's, else the member's requests (abuse protection).
       const teamCount = Number(await redis.cmd('GET', countKey('team', team.toLowerCase(), now))) || 0;
-      if (teamCount > teamLimit) res.teamBudgetHits += 1;
+      if (teamCount >= teamLimit) res.teamBudgetHits += 1;
       else if (spentBefore < upLimit) res.memberBudgetHits += 1;
       return [];
     }
@@ -279,12 +312,25 @@ export async function runScenario(s: Scenario): Promise<Result> {
       at,
       run: async () => {
         pushCommit(world, c.number, i + 1);
+        if (s.webhooks) {
+          await hook('push', { ref: `refs/heads/bridge/change-${c.number}`, repository });
+          await hook('pull_request', { action: 'synchronize', repository });
+          await hook('check_suite', { action: 'requested', repository });
+        }
         // A write through Bridge marks the team (api/contribute noteWrite): kept answers are revalidated at once.
         if (viaBridge) await noteWrite(redis, team, now);
       },
     });
-    jobs.push({ at: at + 4 * 60 * 1000, run: async () => finishChecks(world, c.number) });
+    jobs.push({
+      at: at + 4 * 60 * 1000,
+      run: async () => {
+        finishChecks(world, c.number);
+        if (s.webhooks) for (const e of ['check_run', 'check_suite', 'status']) await hook(e, { action: 'completed', repository });
+      },
+    });
   }
+  // The installation's other activity: a delivery every 5 minutes keeps the webhooks healthy (no repository Bridge keeps).
+  if (s.webhooks) for (let t = 0; t < s.duration; t += 5 * MIN) jobs.push({ at: T0 + t, run: async () => hook('ping', { zen: 'Keep it logically awesome.' }) });
 
   // A tiny event loop over the fake clock: every job due in one tick runs together.
   const pending: Job[] = [];
@@ -320,6 +366,7 @@ export async function runScenario(s: Scenario): Promise<Result> {
   res.peakInFlight = gh.peak();
   res.readersAtCap = atCap.size;
   res.readersBusy = sawBusy.size;
+  res.mints = mints;
   res.hitRatio = res.reads ? 1 - res.counted / res.reads : 1;
   return res;
 }
@@ -373,8 +420,13 @@ export function scenarios(o: { duration?: number } = {}): Scenario[] {
     { name: 'C', label: '50 designers + 5 leads, same rates', changes: 20, people: team(c, 50, 5, MIN, 3 * MIN), duration, updates: Math.round(5 * scale), seed: 13 },
     // C again with the team budget out of the way: what the same people ask of GitHub when nobody is turned away.
     { name: 'C2', label: 'C with READ_MAX_TEAM lifted (the demand)', changes: 20, people: team(rng(3), 50, 5, MIN, 3 * MIN), duration, updates: Math.round(5 * scale), seed: 13, env: { READ_MAX_TEAM: '100000000' } },
-    // C2 if GitHub's ETags were bound to the token: 4 warm functions, a new token each 30 minutes.
+    // C2 if GitHub's ETags were bound to the token, 4 warm functions: the regression for the shared token (one token
+    // per repository for every function). `tokens: 'per-function'` gives the old worst case back.
     { name: 'C3', label: 'C2 with token-bound ETags, 4 warm functions', changes: 20, people: team(rng(3), 50, 5, MIN, 3 * MIN), duration, updates: Math.round(5 * scale), seed: 13, env: { READ_MAX_TEAM: '100000000' }, instances: 4, tokenBoundEtags: true },
+    // C3 as Bridge was before the shared token: each function mints its own (the reference for the regression).
+    { name: 'C3b', label: 'C3 with a token per function (before)', changes: 20, people: team(rng(3), 50, 5, MIN, 3 * MIN), duration, updates: Math.round(5 * scale), seed: 13, env: { READ_MAX_TEAM: '100000000' }, instances: 4, tokenBoundEtags: true, tokens: 'per-function' },
+    // C2 with GitHub's webhooks arriving: answers of a topic no event touched stay fresh 10 minutes (HOOK_FRESH_MS).
+    { name: 'E', label: 'C2 with webhooks healthy', changes: 20, people: team(rng(3), 50, 5, MIN, 3 * MIN), duration, updates: Math.round(5 * scale), seed: 13, env: { READ_MAX_TEAM: '100000000' }, webhooks: true },
     {
       name: 'D',
       label: 'Burst: 50 people open Home within 1 minute',
