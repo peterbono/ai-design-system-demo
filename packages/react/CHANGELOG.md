@@ -1,5 +1,11 @@
 # @bridge-ds/react
 
+## 1.8.4
+
+### Patch Changes
+
+- 80d6bf4: Usage guidance for Button.
+
 ## 1.8.3
 
 ### Patch Changes
