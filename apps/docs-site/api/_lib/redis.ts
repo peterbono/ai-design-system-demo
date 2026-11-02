@@ -63,8 +63,8 @@ export type RedisSnapshot = (
 
 /**
  * In-memory Redis for tests (and the local server, `npm run dev:full`): strings, sets and sorted sets, EX and NX,
- * GET, SET, GETDEL, DEL, MGET, INCRBY, EXPIRE, SADD, SREM, SMEMBERS, SISMEMBER, ZADD, ZREM, ZRANGE (all),
- * ZREMRANGEBYSCORE, TYPE and SCAN (one page, MATCH glob with `*`, `?` and backslash escapes). TTLs follow `now`.
+ * GET, SET, GETDEL, DEL, MGET, INCRBY, EXPIRE, SADD, SREM, SMEMBERS, SISMEMBER, ZADD (NX), ZREM, ZRANGE (all), ZCARD,
+ * ZSCORE, ZRANGEBYSCORE (LIMIT), ZREMRANGEBYSCORE, TYPE and SCAN (one page, MATCH glob with `*`, `?` and backslash escapes). TTLs follow `now`.
  * `snapshot()` and `restore()` carry every live key across restarts.
  */
 export function memoryRedis(now: () => number = Date.now): Redis & {
@@ -146,9 +146,32 @@ export function memoryRedis(now: () => number = Date.now): Redis & {
         return set(k)?.has(rest[1]!) ? 1 : 0;
       case 'ZADD': {
         const z = zset(k) ?? new Map<string, number>();
-        z.set(rest[2]!, Number(rest[1]));
-        items.set(k, { value: z, until: items.get(k)?.until ?? Infinity });
-        return 1;
+        // ZADD key [NX] score member [score member ...]
+        const nx = rest[1]!.toUpperCase() === 'NX';
+        const pairs = rest.slice(nx ? 2 : 1);
+        let added = 0;
+        for (let i = 0; i + 1 < pairs.length; i += 2) {
+          const m = pairs[i + 1]!;
+          if (nx && z.has(m)) continue;
+          if (!z.has(m)) added++;
+          z.set(m, Number(pairs[i]));
+        }
+        if (z.size) items.set(k, { value: z, until: items.get(k)?.until ?? Infinity });
+        return added;
+      }
+      case 'ZCARD':
+        return zset(k)?.size ?? 0;
+      case 'ZSCORE': {
+        const sc = zset(k)?.get(rest[1]!);
+        return sc === undefined ? null : String(sc);
+      }
+      case 'ZRANGEBYSCORE': {
+        // ZRANGEBYSCORE key min max [LIMIT offset count]; min and max numbers or -inf / +inf.
+        const bound = (v: string) => (v === '-inf' ? -Infinity : v === '+inf' ? Infinity : Number(v));
+        const [min, max] = [bound(rest[1]!), bound(rest[2]!)];
+        const li = rest.findIndex((x) => x.toUpperCase() === 'LIMIT');
+        const all = [...(zset(k) ?? new Map<string, number>()).entries()].filter(([, sc]) => sc >= min && sc <= max).sort((a, b) => a[1] - b[1]).map(([m]) => m);
+        return li >= 0 ? all.slice(Number(rest[li + 1]), Number(rest[li + 1]) + Number(rest[li + 2])) : all;
       }
       case 'ZREM': {
         const z = zset(k);

@@ -62,6 +62,28 @@ afterEach(() => {
 
 const posts = (action: string) => calls.filter((c) => c.body?.action === action);
 
+describe('Account > Email', () => {
+  it('one line says what Bridge emails; Change opens the two choices, each saved as picked', async () => {
+    const withNotify = { ...ACCOUNT, notify: { needs: 'soon', news: 'daily' } };
+    reply = (c) => (c.method === 'GET' ? json(200, { available: true, account: withNotify }) : json(200, { account: { ...withNotify, notify: { needs: 'off', news: 'daily' } } }));
+    const user = userEvent.setup();
+    render(createElement(AccountSettings));
+    expect(await screen.findByText('Things that need me: right away. What moved: in the daily summary, at 9:00.')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Things that need me' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Change' }));
+    await user.click(await screen.findByRole('combobox', { name: 'Things that need me' }));
+    await user.click(await screen.findByRole('option', { name: 'Never' }));
+    await waitFor(() => expect(posts('notify')[0]?.body).toEqual({ action: 'notify', needs: 'off' }));
+    expect(await screen.findByText('Email choices saved.')).toBeInTheDocument();
+    await expectNoAxeViolations(document.body);
+  });
+  it('an older server without the choices: no Email row', async () => {
+    render(createElement(AccountSettings));
+    expect(await screen.findByText('leo@acme.design')).toBeInTheDocument();
+    expect(screen.queryByText('Email')).toBeNull();
+  });
+});
+
 describe('the account', () => {
   it('shows the account, its teams and roles, and why to link GitHub', async () => {
     const { container } = render(createElement(AccountSettings));

@@ -45,7 +45,24 @@ export interface Account {
   github: { login: string; id: number } | null;
   /** The AI tools the person picked (lib/ai-tools.ts), null while they never answered. */
   aiTools?: AiTool[] | null;
+  /** What Bridge emails them about their work (Account > Email); absent from an older server. */
+  notify?: NotifyChoices;
   teams: AccountTeam[];
+}
+
+/** Account > Email: things that need them (right away, daily, never) and what moved (daily, never). */
+export interface NotifyChoices {
+  needs: 'soon' | 'daily' | 'off';
+  news: 'daily' | 'off';
+}
+
+/** The choices an answer carries, or null when it carries none Bridge offers. */
+export function parseNotify(v: unknown): NotifyChoices | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const needs = o.needs === 'soon' || o.needs === 'daily' || o.needs === 'off' ? o.needs : null;
+  const news = o.news === 'daily' || o.news === 'off' ? o.news : null;
+  return needs && news ? { needs, news } : null;
 }
 
 export interface AccountInfo {
@@ -80,7 +97,8 @@ export function parseAccount(v: unknown): Account | null {
         return [{ repo, name: str(x.name), role: str(x.role) ?? 'view', via: str(x.via) ?? 'email' }];
       })
     : [];
-  return { email, name: str(o.name), nameSet: o.nameSet !== false && Boolean(str(o.name)), github: login ? { login, id: typeof gh?.id === 'number' ? gh.id : 0 } : null, aiTools: parseAiTools(o.aiTools), teams };
+  const notify = parseNotify(o.notify);
+  return { email, name: str(o.name), nameSet: o.nameSet !== false && Boolean(str(o.name)), github: login ? { login, id: typeof gh?.id === 'number' ? gh.id : 0 } : null, aiTools: parseAiTools(o.aiTools), ...(notify ? { notify } : {}), teams };
 }
 
 /** Only a same-site path is a place to go after signing in; never the sign-in screen itself or the GitHub callback. */
@@ -250,6 +268,17 @@ export const ACCOUNT_WORDS = {
   makeAdmin: (name: string) => `Make ${name} admin`,
   madeAdmin: (name: string) => `${name} is now admin.`,
   handOver: 'Hand over the team',
+  // Account > Email (notifications, api/_lib/notify.ts).
+  emailTitle: 'Email',
+  emailLead: 'Bridge emails you about your own work: a question for you, something ready for your look, what shipped.',
+  emailNeeds: 'Things that need me',
+  emailNews: 'What moved',
+  emailSoon: 'Right away',
+  emailDaily: 'In the daily summary, at 9:00',
+  emailNever: 'Never',
+  emailSaved: 'Email choices saved.',
+  emailChange: 'Change',
+  emailDone: 'Done',
   checking: 'Checking your teams',
 } as const;
 

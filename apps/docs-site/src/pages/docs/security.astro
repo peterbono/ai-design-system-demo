@@ -29,7 +29,7 @@ const sections = [
 
 const RUNS = [
   { piece: 'Bridge Studio pages', where: 'Static pages on Vercel’s global network, run in the person’s browser', talks: 'GitHub’s API directly, with the person’s own GitHub sign-in; Bridge’s functions' },
-  { piece: 'Bridge functions (/api, /mcp, /oauth)', where: 'Vercel Functions in Frankfurt, Germany', talks: 'Upstash Redis (records), GitHub, Resend (sign-in and invite emails), Vercel Blob (daily backup)' },
+  { piece: 'Bridge functions (/api, /mcp, /oauth)', where: 'Vercel Functions in Frankfurt, Germany', talks: 'Upstash Redis (records), GitHub, Resend (sign-in and invite emails), Brevo (work notification emails), Vercel Blob (daily backup)' },
   { piece: 'Figma plugin', where: 'Figma desktop, on the designer’s computer', talks: 'api.github.com and bridge.floriangouloubi.com only' },
   { piece: 'Connector for your AI assistant', where: 'A Vercel Function at /mcp', talks: 'GitHub, as the person who connected it; answers your assistant' },
   { piece: 'CLI and local MCP server', where: 'Your own machine, from npm', talks: 'GitHub with a token you pass, or files on disk. No Bridge server' },
@@ -40,6 +40,7 @@ const SUBPROCESSORS = [
   { who: 'Vercel Inc. (United States)', does: 'Hosts the site and runs Bridge’s functions; keeps the daily backup (Vercel Blob)', where: 'Functions in Frankfurt, Germany. Backup in Paris, France. Static pages from Vercel’s global network', data: 'Everything Bridge stores passes through its functions; the backup holds accounts, members, invites and team records' },
   { who: 'Upstash Inc. (United States)', does: 'The Redis database that holds Bridge’s records', where: 'Frankfurt, Germany', data: 'The records in the table above' },
   { who: 'Resend Inc. (United States)', does: 'Sends sign-in codes, sign-in links and invites by email', where: 'Not chosen by Bridge', data: 'The recipient’s email address and the email’s text' },
+  { who: 'Brevo (Sendinblue SAS, France)', does: 'Sends the emails about a person’s own work (a question for them, something ready for their look, what shipped) and the daily summary', where: 'European Union', data: 'The recipient’s email address and the email’s text: names and titles, never a comment' },
 ];
 
 const STORED = [
@@ -51,6 +52,7 @@ const STORED = [
   { what: 'One-time sign-in code by email', kept: '10 minutes, 5 tries', how: 'Only its SHA-256' },
   { what: 'Email sign-in links for Library readers and email members', kept: '15 minutes, once', how: 'Only its SHA-256' },
   { what: 'Which branches and issues an email member made through Bridge', kept: '1 year', how: 'Record in Redis' },
+  { what: 'Work notifications for an email member: what happened (kind, title, who did it, team, link), their email choices and time zone', kept: '30 days, or until the daily summary sends them; choices and time zone with the account', how: 'Record in Redis; names and titles, never a comment; the unsubscribe link is sealed (AES-256-GCM), never the address in clear' },
   { what: 'Short-lived copies of GitHub reads for team pages', kept: '24 hours for most answers, only to ask GitHub whether they changed (shown without asking GitHub for 30 seconds, 10 minutes while GitHub’s change notices arrive, and for 20 minutes at most while GitHub is busy); 24 hours for public names and pictures and for answers that never change, 7 days at most for file contents', how: 'Cache in Redis' },
   { what: 'The Bridge GitHub App’s read-only token for a repository, shared by Bridge’s functions', kept: '50 minutes at most (GitHub ends it after an hour)', how: 'Encrypted (AES-256-GCM)' },
   { what: 'AI connector connection: team repository, app name, GitHub login, display name, dates, the person’s GitHub tokens', kept: '90 days after last use', how: 'GitHub tokens encrypted (AES-256-GCM); the rest as a record' },
@@ -89,8 +91,8 @@ const STORED = [
     </Table>
     <DevDetail id="what-dev" client:visible>
       <ul>
-        <li>Public addresses and the daily backup job: <Link href={src('apps/docs-site/vercel.json')}><code>apps/docs-site/vercel.json</code></Link> (rewrites of <code>/mcp</code>, <code>/oauth/*</code> and <code>/.well-known/*</code> to <code>api/mcp</code>; cron on <code>/api/account?export=1</code>).</li>
-        <li>Storage: Upstash Redis over its REST API, <Link href={src('apps/docs-site/api/_lib/redis.ts')}><code>api/_lib/redis.ts</code></Link>. Email: Resend, <Link href={src('apps/docs-site/api/_lib/email.ts')}><code>api/_lib/email.ts</code></Link>. Backup: Vercel Blob with <code>access: 'private'</code>, <Link href={src('apps/docs-site/api/account/index.ts')}><code>api/account/index.ts</code></Link>.</li>
+        <li>Public addresses and the daily backup job: <Link href={src('apps/docs-site/vercel.json')}><code>apps/docs-site/vercel.json</code></Link> (rewrites of <code>/mcp</code>, <code>/oauth/*</code> and <code>/.well-known/*</code> to <code>api/mcp</code>; crons on <code>/api/account?export=1</code> and <code>/api/account?digest=1</code>).</li>
+        <li>Storage: Upstash Redis over its REST API, <Link href={src('apps/docs-site/api/_lib/redis.ts')}><code>api/_lib/redis.ts</code></Link>. Email: Resend for access emails, Brevo for work notifications, both in <Link href={src('apps/docs-site/api/_lib/email.ts')}><code>api/_lib/email.ts</code></Link>; who gets a notification and when: <Link href={src('apps/docs-site/api/_lib/notify.ts')}><code>api/_lib/notify.ts</code></Link>. Backup: Vercel Blob with <code>access: 'private'</code>, <Link href={src('apps/docs-site/api/account/index.ts')}><code>api/account/index.ts</code></Link>.</li>
         <li>Regions: functions run in <code>fra1</code> (Frankfurt), set by <code>regions</code> in <code>apps/docs-site/vercel.json</code>. The Upstash database’s primary region is Frankfurt, with no read copies elsewhere. The Vercel Blob backup store is in Paris (<code>cdg1</code>). These last two are settings of the stores, not of the code.</li>
         <li>CLI tokens: <Link href={src('packages/cli/src/auth.ts')}><code>packages/cli/src/auth.ts</code></Link>. A write only uses a token passed on purpose (<code>GITHUB_TOKEN</code>, <code>--token</code>, or <code>--use-gh-auth</code>).</li>
       </ul>

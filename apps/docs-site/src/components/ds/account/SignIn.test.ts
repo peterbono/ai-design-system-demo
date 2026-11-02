@@ -106,7 +106,7 @@ describe('sign-in screen, email', () => {
     await user.click(field);
     await user.paste('123 456');
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/tokens/'));
-    await waitFor(() => expect(posts('verify')[0]?.body ?? null).toEqual({ action: 'verify', email: 'leo@acme.design', code: '123456' }));
+    await waitFor(() => expect(posts('verify')[0]?.body ?? null).toEqual({ action: 'verify', email: 'leo@acme.design', code: '123456', tz: expect.any(String) }));
     expect(document.documentElement.hasAttribute('data-account')).toBe(true);
     // ?next= wins: Bridge does not pick a room.
     expect(entryCalls).toHaveLength(0);
@@ -233,7 +233,7 @@ describe('sign-in screen, email', () => {
     await user.click(await screen.findByRole('button', { name: 'I have a code' }));
     expect(await screen.findByRole('heading', { name: 'Check your inbox' })).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: 'Code' }), '123456');
-    await waitFor(() => expect(posts('verify')[0]!.body).toEqual({ action: 'verify', email: 'leo@acme.design', code: '123456' }));
+    await waitFor(() => expect(posts('verify')[0]!.body).toEqual({ action: 'verify', email: 'leo@acme.design', code: '123456', tz: expect.any(String) }));
   });
 
   it("says the server's own sentence when the daily cap is reached", async () => {
@@ -315,7 +315,7 @@ describe('sign-in screen, the other ways', () => {
       render(createElement(SignIn));
     });
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/tokens/'));
-    await waitFor(() => expect(posts('github')[0]?.body ?? null).toEqual({ action: 'github', token: 'ghu_abc' }));
+    await waitFor(() => expect(posts('github')[0]?.body ?? null).toEqual({ action: 'github', token: 'ghu_abc', tz: expect.any(String) }));
     expect(sessionStorage.getItem(GITHUB_PENDING_KEY)).toBeNull();
   });
 
@@ -705,7 +705,7 @@ describe('the invite link: one identity, the account of the invited email', () =
     await waitFor(() => expect(posts('code')[0]?.body ?? null).toEqual({ action: 'code', invite: TOKEN }));
     expect(screen.queryByRole('button', { name: 'Use another email' })).toBeNull();
     await user.type(screen.getByRole('textbox', { name: 'Code' }), '123456');
-    await waitFor(() => expect(posts('verify')[0]?.body ?? null).toEqual({ action: 'verify', invite: TOKEN, code: '123456' }));
+    await waitFor(() => expect(posts('verify')[0]?.body ?? null).toEqual({ action: 'verify', invite: TOKEN, code: '123456', tz: expect.any(String) }));
     await user.type(await screen.findByRole('textbox', { name: 'Your name' }), 'Mia Rossi{Enter}');
     expect(await screen.findByRole('heading', { name: 'Acme Product invited you' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Join Acme Product' }));

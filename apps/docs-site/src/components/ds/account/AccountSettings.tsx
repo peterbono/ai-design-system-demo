@@ -1,17 +1,18 @@
 // The account, for a Bridge account (GET /api/account), in the Account dialog of the account menu (AccountMenu.tsx):
 // Settings starts with the team, never the person (board D9). One row per thing, each action on the line of what it
 // acts on. The name and email with Rename (inline form); GitHub linked, or Link GitHub with the one line saying
-// why (only to review on GitHub or connect a repository); the person's teams, each opening its space with its role; Sign out and
+// why (only to review on GitHub or connect a repository); the person's teams, each opening its space with its role;
+// Email, one line saying what Bridge emails them, Change opening the two choices (things that need me, what moved); Sign out and
 // Sign out everywhere; then Delete my account, confirmed in the page (type DELETE), never window.confirm. Before the
 // confirm field, Bridge asks the server whether a team would refuse it (the only admin of a team with other members):
 // that team is named first, with "Make <name> admin" inline or "Hand over the team", and the field comes once it is
 // clear. Nothing shows signed out or on a site without accounts.
 import { useId, useState, type FormEvent } from 'react';
 import { LogOut, Trash2 } from 'lucide-react';
-import { Alert, Avatar, Badge, Button, Dialog, DialogContent, Divider, Icon, Input, Link } from '@bridge-ds/react';
+import { Alert, Avatar, Badge, Button, Dialog, DialogContent, Divider, Icon, Input, Link, Select } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
 import { useAccount, useFace } from './AccountMenu';
-import { ACCOUNT_WORDS as W, accountName, PRIVACY_PAGE, roleWord, signedOutHref, type Account, type BlockedTeam } from '../../../lib/account';
+import { ACCOUNT_WORDS as W, accountName, PRIVACY_PAGE, roleWord, signedOutHref, type Account, type BlockedTeam, type NotifyChoices } from '../../../lib/account';
 import { teamDisplayName } from '../../../lib/demo';
 import { isTeamKey, teamHref } from '../../../lib/team-path';
 import '../../../styles/account.css';
@@ -152,6 +153,72 @@ function TeamsRow({ account }: { account: Account }) {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+const NEEDS_OPTIONS = [
+  { value: 'soon', label: W.emailSoon },
+  { value: 'daily', label: W.emailDaily },
+  { value: 'off', label: W.emailNever },
+];
+const NEWS_OPTIONS = [
+  { value: 'daily', label: W.emailDaily },
+  { value: 'off', label: W.emailNever },
+];
+const optionLabel = (options: { value: string; label: string }[], v: string) => options.find((o) => o.value === v)?.label ?? v;
+
+/**
+ * Account > Email: one line saying what Bridge emails today, Change opens the two choices (things that need me, what
+ * moved), each saved as it is picked. Only when the server sends the choices (an older server has none).
+ */
+function EmailRow({ account }: { account: Account }) {
+  const notify = account.notify;
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [said, setSaid] = useState('');
+  if (!notify) return null;
+  const save = async (choice: Partial<NotifyChoices>) => {
+    setBusy(true);
+    setError(null);
+    setSaid('');
+    const { saveNotify } = await import('../../../scripts/account-session');
+    try {
+      await saveNotify(choice);
+      setSaid(W.emailSaved);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : W.failed);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const summary = `${W.emailNeeds}: ${optionLabel(NEEDS_OPTIONS, notify.needs).toLowerCase()}. ${W.emailNews}: ${optionLabel(NEWS_OPTIONS, notify.news).toLowerCase()}.`;
+  return (
+    <div className="acc-set-text" data-account-email>
+      <div className="acc-set-row">
+        <div className="acc-set-text">
+          <p className="acc-set-title">{W.emailTitle}</p>
+          <p className="acc-set-sub">{open ? W.emailLead : summary}</p>
+        </div>
+        <Button variant="ghost" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? W.emailDone : W.emailChange}
+        </Button>
+      </div>
+      {open && (
+        <div className="acc-set-form">
+          <Select label={W.emailNeeds} options={NEEDS_OPTIONS} value={notify.needs} disabled={busy} onValueChange={(v) => v && v !== notify.needs && void save({ needs: v as NotifyChoices['needs'] })} />
+          <Select label={W.emailNews} options={NEWS_OPTIONS} value={notify.news} disabled={busy} onValueChange={(v) => v && v !== notify.news && void save({ news: v as NotifyChoices['news'] })} />
+        </div>
+      )}
+      {error && (
+        <p className="acc-set-sub" role="alert">
+          {error}
+        </p>
+      )}
+      <p className="sr-only" role="status" aria-live="polite">
+        {said}
+      </p>
     </div>
   );
 }
@@ -357,6 +424,7 @@ export function AccountRows({ account }: { account: Account }) {
       <NameRow account={account} />
       <GitHubRow account={account} />
       <TeamsRow account={account} />
+      <EmailRow account={account} />
       <SessionRow />
       <Divider spacing="none" />
       <DeleteRow />

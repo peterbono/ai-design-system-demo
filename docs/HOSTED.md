@@ -630,7 +630,8 @@ The code is `apps/docs-site/api/_lib/github-webhook.ts`, served by `/api/contrib
   back to 30 seconds on its own. A webhook that stops never leaves an answer unchecked for more than 10 minutes, and
   the next delivery brings the long window back.
 - **Only what Bridge reads**: a repository Bridge keeps no answer of (`bridge:read:known:<repo>`, written with each
-  kept answer, 20 minutes) is ignored: `200`, nothing written.
+  kept answer, 20 minutes) is ignored: `200`, nothing written. Notifications do not depend on it: they watch their
+  own list (`bridge:notify:teams`, see [Notifications](#notifications)).
 - **Security**: the delivery's `X-Hub-Signature-256` (HMAC SHA-256 of the raw body with `GITHUB_WEBHOOK_SECRET`) is
   checked in constant time before anything is parsed; unsigned or wrong answers `401`, no secret set answers `503`,
   a delivery over 4.5 MB `413`. Each `X-GitHub-Delivery` is done once (`bridge:hook:delivery:<id>`, a day; a
@@ -844,6 +845,75 @@ It reuses storage, Resend (`RESEND_API_KEY`, `INVITE_EMAIL_FROM`) and `LIBRARY_S
 
 Redeploy. `GET /api/account` answers `{ "available": true, "account": null }` once storage and the secret are set;
 the cron's run shows under the project's **Cron Jobs**.
+
+## Notifications
+
+Designers who joined by email have no GitHub account, so GitHub tells them nothing: what they file goes to GitHub as
+the Bridge app. Bridge emails them about their own work instead (phase 1). Designers signed in with GitHub get
+nothing from Bridge yet: GitHub notifies them (a follow-up may add the daily summary for them). Developers stay in
+GitHub.
+
+| Event                                                                                  | When                     |
+| -------------------------------------------------------------------------------------- | ------------------------ |
+| A developer asked a question on their open task (or labeled it `needs-design`)         | Right away               |
+| The developers' version is ready for their look (a change that closes the task, ready) | Right away               |
+| A lead asked for changes on their library suggestion                                   | Right away               |
+| The developers closed their task as not planned                                        | Daily summary            |
+| It shipped (the task closed as done, or the change that closes it merged)              | Daily summary            |
+| Their library suggestion was closed without being added                                | Daily summary            |
+
+- **Trigger**: the GitHub webhook ([Changes pushed by GitHub](#changes-pushed-by-github)). A pure mapper,
+  `notifyEventsOf` in `apps/docs-site/api/_lib/notify-events.ts`, turns a delivery into notices; `deliverNotices` in
+  `api/_lib/notify.ts` finds the designer and sends or keeps each one. Same signature check and once per delivery id
+  as the rest of the webhook; a failure there never fails the delivery. Anything the Bridge app did for a member, a
+  comment Bridge posted for them, and anything another bot did are never news.
+- **Watched repositories**: `bridge:notify:teams` (no expiry), with `bridge:notify:repo:<repo>` (team, kind, product
+  key, a year). Filled by `/api/contribute` when an email member files a task, a suggestion or an exploration, and
+  each time one opens Studio (`?mine=1`): the team's repository and its products' copies and developers' repositories.
+- **Who it is for**: the member Bridge keeps as the author (`bridge:contrib:issue:<repo>:<n>`), else the author of the
+  exploration the task links. Never an address read from or written to GitHub. Skipped: `gh:<login>` authors
+  (designers signed in with GitHub), people no longer on the team, the person who did it.
+- **Right away**: at most one email per thing per hour (`bridge:notify:soon:*`); more in that hour goes in the summary.
+- **Daily summary**: at 9:00 in the person's time zone (kept from the browser at sign-in, else Europe/Paris), "Needs
+  you" first, then "What moved". Never sent empty. Kept in `bridge:notify:digest:<email>` (30 days), due times in
+  `bridge:notify:due`. Sent by a daily Vercel cron, `GET /api/account?digest=1` (`Authorization: Bearer
+  $CRON_SECRET`, 08:05 UTC in `vercel.json`), and between two crons by webhook deliveries (at most one round per 5
+  minutes). On the Hobby plan a cron runs once a day: a summary for a time zone far from Europe may arrive later than
+  9:00 on a quiet day. On Pro, set the schedule to `5 * * * *` for 9:00 everywhere.
+- **Choices**: Account settings, Email: "Things that need me" (Right away, In the daily summary, Never) and "What
+  moved" (In the daily summary, Never). `POST /api/account { action: 'notify', needs, news }`.
+- **Unsubscribe**: every email carries `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
+  with `/api/account?unsub=<token>`. The token is sealed (AES-256-GCM under `LIBRARY_SESSION_SECRET`, purpose
+  `notify-unsubscribe`): nobody can make one and the address never appears in a link or a log. GET shows one button,
+  POST stops those emails (right away ones from a right away email, both from the summary).
+- **Privacy**: names, titles and links only, never a comment body. Nothing logged but one line when the key is
+  missing. Deleting the account deletes the kept notifications.
+- **Copy**: one sentence, one button to the exact Studio page, Bridge voice, no em dash, no "issue", "pull request",
+  "repository" or "webhook". Plain text and simple HTML.
+
+### Set it up (owner of the site)
+
+Brevo sends the notifications (Resend keeps the sign-in codes and invites, so notifications never spend their
+quota). Without `BREVO_API_KEY` nothing is sent: notices are kept for the summary and the function logs it once.
+
+1. **Brevo account.** At brevo.com, create the account (EU). **Senders, Domains & Dedicated IPs**, **Domains**, add
+   `floriangouloubi.com` and add the DKIM and DMARC records Brevo shows at the DNS host, then **Authenticate**. Add the
+   sender `notifications@floriangouloubi.com` (name "Bridge").
+2. **API key.** **SMTP & API**, **API Keys**, **Generate a new API key** ("bridge-docs").
+3. **Vercel**, project `bridge-docs`, Production (and Preview if wanted):
+
+| Name                | Value                                                                       |
+| ------------------- | --------------------------------------------------------------------------- |
+| `BREVO_API_KEY`     | Step 2. Sensitive                                                           |
+| `NOTIFY_FROM`       | `Bridge <notifications@floriangouloubi.com>` (else `INVITE_EMAIL_FROM`)     |
+| `CRON_SECRET`       | Already set for the backup ([Accounts](#accounts)); the summary cron uses it |
+| `PUBLIC_SITE_URL`   | Already set: links in emails point there                                    |
+
+4. **Webhook events**: the ones of [Changes pushed by GitHub](#changes-pushed-by-github) cover it (Issues, Issue
+   comment, Pull request, Pull request review).
+5. Redeploy. Check: a comment by a developer on a task an email member filed sends them "<name> has a question about
+   <task>"; the delivery answers `{ "ok": true, ..., "notices": 1 }` in **Recent Deliveries**. The summary cron shows
+   under **Cron Jobs** as `/api/account?digest=1` and answers `{ "ok": true, "sent": n, "empty": n, "later": n }`.
 
 ## Test everything locally
 

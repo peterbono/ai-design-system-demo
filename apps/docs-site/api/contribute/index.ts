@@ -122,6 +122,9 @@
 // (optional), CONTRIB_MAX_WRITES (optional). Without storage, the secret or the app, `available` is false and every
 // action answers 503.
 // GITHUB_WEBHOOK_SECRET: the Bridge GitHub App's webhook (?hook=github, api/_lib/github-webhook.ts); without it, 503.
+// BREVO_API_KEY + NOTIFY_FROM: the notifications that webhook turns deliveries into for members who joined by email
+// (api/_lib/notify.ts); without the key they are kept, not sent. What a member files here, and the team's products
+// when they open Studio (?mine=1), are watched for them (bridge:notify:teams).
 
 import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
@@ -130,6 +133,8 @@ import { explorationBlockOf, memberRef, withMemberInBlock } from '../_lib/explor
 import { branchKey, issueKey, mineKey } from '../_lib/former-member.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { handleGithubWebhook } from '../_lib/github-webhook.js';
+import { cleanTitle, linkedCopy } from '../_lib/notify-events.js';
+import { itemWrite, notifySenderFromEnv, watchWrites, type RepoMeta } from '../_lib/notify.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import {
   b64url,
@@ -185,6 +190,9 @@ export interface ContribEnv {
   READ_MAX_UPSTREAM?: string | undefined;
   /** The Bridge GitHub App's webhook secret (api/_lib/github-webhook.ts, POST /api/github-webhook). */
   GITHUB_WEBHOOK_SECRET?: string | undefined;
+  /** Notifications through Brevo (api/_lib/notify.ts); without the key they are kept, not sent. */
+  BREVO_API_KEY?: string | undefined;
+  NOTIFY_FROM?: string | undefined;
 }
 
 export interface ContribDeps {
@@ -195,6 +203,8 @@ export interface ContribDeps {
   redis?: Redis;
   members?: MemberStore;
   email?: EmailSender;
+  /** The notification sender (tests); otherwise Brevo from the env, or null. */
+  notifySender?: EmailSender | null;
   app?: AppTokens;
   /** `npm run dev:full` only (api/_lib/local-admin.ts): admins seeded locally, ignored outside local mode. */
   localAdmins?: LocalAdmins;
@@ -1014,6 +1024,8 @@ export interface ProductPair {
   code: string;
   /** The design team's copy, lower case. */
   copy: string;
+  /** The product's key (products[].key), when the config gives one: notification links open its exploration. */
+  key?: string;
 }
 
 /** Which product repository a write lands in, and its other half. */
@@ -1030,7 +1042,8 @@ export function productPairsFrom(config: unknown, team: string): ProductPair[] {
     if (!p || typeof p !== 'object') continue;
     const code = repo((p as { repo?: unknown }).repo);
     const copy = repo(((p as { design?: { repo?: unknown } }).design ?? {}).repo);
-    if (code && copy && code !== copy && code !== t && copy !== t) out.push({ code, copy });
+    const key = (p as { key?: unknown }).key;
+    if (code && copy && code !== copy && code !== t && copy !== t) out.push({ code, copy, ...(typeof key === 'string' && /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(key) ? { key } : {}) });
   }
   return out;
 }
@@ -1565,6 +1578,32 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
   }
 }
 
+/** The team's repository and its products' repositories, as notifications watch them for a member. */
+function watchedOf(team: string, pairs: readonly ProductPair[]): { repo: string; meta: RepoMeta }[] {
+  const product = (p: ProductPair) => (p.key ? { product: p.key } : {});
+  return [
+    ...(isTeamKeyRepo(team) ? [] : [{ repo: team, meta: { team, kind: 'team' as const } }]),
+    ...pairs.flatMap((p) => [
+      { repo: p.copy, meta: { team, kind: 'copy' as const, ...product(p) } },
+      { repo: p.code, meta: { team, kind: 'code' as const, ...product(p) } },
+    ]),
+  ];
+}
+const isTeamKeyRepo = (r: string) => r.startsWith('_team/');
+
+/**
+ * After a member who joined by email filed something (a task, a suggestion, an exploration): its repositories are
+ * watched for notifications and Bridge keeps what it is called and, for a task, the exploration it comes from.
+ * Designers signed in with GitHub are left out: GitHub tells them (phase 1).
+ */
+async function noteForNotifications(ctx: Ctx, team: string, repo: string, member: ProxyMember, scope: ProductScope | null, data: any, sent: Record<string, unknown> | null): Promise<void> {
+  if (!member.email.includes('@') || member.login || typeof data?.number !== 'number') return;
+  // What GitHub answered, else what Bridge sent.
+  const title = cleanTitle(data.title ?? sent?.title);
+  const copy = scope?.kind === 'code' ? linkedCopy(data.body ?? sent?.body, repo) : null;
+  await ctx.svc.redis.pipe([...watchWrites(watchedOf(team, scope ? [scope.pair] : [])), itemWrite(repo, data.number, { ...(title ? { title } : {}), ...(copy ? { copy } : {}) })]);
+}
+
 const ACCEPT = /^application\/(json|vnd\.github(\.[A-Za-z0-9.+-]+)?)$/;
 const PASS_TYPE = /^(application\/(json|vnd\.github[^;]*)|text\/plain)\b/i;
 
@@ -1653,6 +1692,10 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
       data = null;
     }
     await plan.after(data);
+    // A task or suggestion filed for a member who joined by email: watched for their notifications (api/_lib/notify.ts).
+    if (method === 'POST' && (target.rest.join('/') === 'issues' || target.rest.join('/') === 'pulls')) {
+      await noteForNotifications(ctx, full, at.full, member, scope, data, plan.body).catch(() => undefined);
+    }
   }
   const type = res.headers.get('content-type') ?? '';
   const headers: Record<string, string> = {
@@ -1857,7 +1900,13 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
       const kvUrl = (env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL)?.trim();
       const kvToken = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
       const redis = deps.redis ?? (kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, STORAGE_DOWN) : null);
-      return await handleGithubWebhook(req, { redis, secret: env.GITHUB_WEBHOOK_SECRET, now: deps.now ?? Date.now });
+      const session = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
+      // Notifications need the session secret (unsubscribe links); the sender is optional (kept, not sent).
+      const notify =
+        session.length >= MIN_SECRET_LENGTH
+          ? { sender: deps.notifySender !== undefined ? deps.notifySender : notifySenderFromEnv(env, deps.fetch), secret: session, publicUrl: env.PUBLIC_SITE_URL, ...(deps.members ? { members: deps.members } : {}) }
+          : undefined;
+      return await handleGithubWebhook(req, { redis, secret: env.GITHUB_WEBHOOK_SECRET, now: deps.now ?? Date.now, ...(notify ? { notify } : {}) });
     }
     if (method !== 'GET') requireCsrf(req);
     const svc = services(env, deps);
@@ -1886,7 +1935,14 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
         const d = m ? null : await githubDesignerOf(ctx, req, { ...parseRepo(full), full: full.toLowerCase() });
         const who = m?.email ?? (d?.kind === 'designer' ? d.member.email : null);
         if (!who) return fail(401, 'signin', SIGNIN);
-        return json(200, await mineWithProducts(ctx, full, who));
+        const mine = await mineWithProducts(ctx, full, who);
+        // A member who joined by email and opens Studio: their team and products are watched for their notifications,
+        // also for what they filed before Bridge sent any (never expires with the read cache).
+        if (m) {
+          const pairs = await productPairs(ctx, { ...parseRepo(full), full: full.toLowerCase() }).catch(() => [] as ProductPair[]);
+          await ctx.svc.redis.pipe(watchWrites(watchedOf(full.toLowerCase(), pairs))).catch(() => undefined);
+        }
+        return json(200, mine);
       }
       // Local mode only: a member seeded as admin reads as admin, so Studio shows them the admin screens (the server
       // checks again on every admin action).
@@ -1922,6 +1978,8 @@ const envFromProcess = (): ContribEnv => ({
   READ_MAX_TEAM: process.env.READ_MAX_TEAM,
   READ_MAX_UPSTREAM: process.env.READ_MAX_UPSTREAM,
   GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET,
+  BREVO_API_KEY: process.env.BREVO_API_KEY,
+  NOTIFY_FROM: process.env.NOTIFY_FROM,
 });
 
 // Answers to calls with the Bridge app's tokens are metered per installation (api/_lib/github-quota.ts).

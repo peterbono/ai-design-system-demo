@@ -138,7 +138,7 @@ async function signedIn() {
 
 describe('which product repositories', () => {
   it('reads the pairs of products with a design copy from the team config, nothing malformed, never the team', () => {
-    expect(productPairsFrom(JSON.parse(CONFIG), TEAM)).toEqual([{ code: 'acme/shop', copy: 'acme/shop-design' }]);
+    expect(productPairsFrom(JSON.parse(CONFIG), TEAM)).toEqual([{ code: 'acme/shop', copy: 'acme/shop-design', key: 'shop' }]);
     expect(productPairsFrom({ products: [{ repo: 'acme/design', design: { repo: 'acme/x' } }, { repo: 'bad', design: { repo: 'acme/y' } }, { repo: 'acme/z', design: { repo: 'acme/z' } }] }, TEAM)).toEqual([]);
     expect(productPairsFrom(null, TEAM)).toEqual([]);
     const pairs = productPairsFrom(JSON.parse(CONFIG), TEAM);
@@ -280,6 +280,10 @@ describe("the developers' repository", () => {
     expect(ok.r.status).toBe(201);
     expect(ok.sent!.body.body).toBe(`${TASK}\n\nRequested by Dino through Bridge.`);
     expect(await redis.cmd('GET', 'bridge:contrib:issue:acme/shop:7')).toBe('dino@yopmail.com');
+    // Watched for Dino's notifications: the team and the product's two repositories, and what the task is called.
+    expect(((await redis.cmd('SMEMBERS', 'bridge:notify:teams')) as string[]).sort()).toEqual(['acme/design', 'acme/shop', 'acme/shop-design']);
+    expect(JSON.parse((await redis.cmd('GET', 'bridge:notify:repo:acme/shop')) as string)).toEqual({ team: 'acme/design', kind: 'code', product: 'shop' });
+    expect(JSON.parse((await redis.cmd('GET', 'bridge:notify:item:acme/shop:7')) as string)).toEqual({ title: 'Orders', copy: { repo: 'acme/shop-design', number: 3 } });
     expect((await call('POST', `${D}/issues`, { title: 'Design: Orders', body: TASK.replace('/pull/3', '/pull/4'), labels: ['from-design'] })).r.status).toBe(403);
     expect((await call('POST', `${D}/issues`, { title: 'Orders', body: TASK, labels: ['from-design'] })).r.status).toBe(403);
     expect((await call('POST', `${D}/issues`, { title: 'Design: Orders', body: TASK, labels: ['from-design', 'urgent'] })).r.status).toBe(403);
