@@ -84,7 +84,7 @@ describe('the webhook turns a signed delivery into a notification', () => {
     const s = setup();
     await s.member();
     expect((await s.hook('issue_comment', comment, { signature: 'sha256=' + '0'.repeat(64) })).status).toBe(401);
-    expect(await (await s.hook('issue_comment', comment)).json()).toEqual({ ok: true, ignored: true });
+    expect(await (await s.hook('issue_comment', comment)).json()).toEqual({ ok: true, ignored: true, outcomes: ['question:skipped:unwatched'] });
     expect(s.sent).toEqual([]);
   });
   it('news is kept, and a later delivery sends the summary once it is due', async () => {
