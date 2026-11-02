@@ -1,5 +1,16 @@
 # @bridge-ds/docs-site
 
+## 0.26.15
+
+### Patch Changes
+
+- 94c6db7: Demo: the home line, Changes > Waiting on me and the Changes badge now count the same things in the lead's seat (one function, `leadWaitingCount`). An exploration promoted to review counts as in review on the home too, the badge shows on the demo, and its link reads "Changes, 17 waiting for a review", never the clause without its number.
+- 60ae2e3: Studio no longer spends each viewer's own GitHub limit. Anyone on the team signed in with GitHub (leads, admins, designers) now reads the team's library, its products and people's profiles through Bridge with the app's token and the team's shared cache (30 s for lists and statuses, ETag checks that GitHub does not count, a day for answers by commit sha). Membership is checked on the server, the read allow-list holds (now with releases), and a read right after a write on GitHub asks Bridge for a fresh answer. Each reader may cost the app at most 300 GitHub calls per 10 minutes (`READ_MAX_UPSTREAM`), so one viewer cannot use up the team's limit. Writes keep their routes.
+- cfe3f74: Private products read for everyone on the team. Studio reads a product's code repository and its design copy through Bridge with the app's token for anyone signed in with GitHub (leads and admins too), not only email members and designers, so a private copy shows its explorations instead of "Make my copy". Writes keep their routes.
+- 6d29674: Branch status sentences now say what the viewer does next: the only design owner who wrote a change reads that they add it to the library with a reason, an owner who can approve reads "Then you approve it". The Invite collaborators dialog can now cancel a pending invite from its "More" menu, as the Settings table does.
+- Updated dependencies [80d6bf4]
+  - @bridge-ds/react@1.8.4
+
 ## 0.26.14
 
 ### Patch Changes
