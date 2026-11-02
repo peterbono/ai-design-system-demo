@@ -1,5 +1,12 @@
 # @bridge-ds/cli
 
+## 0.17.3
+
+### Patch Changes
+
+- Updated dependencies [b126080]
+  - @bridge-ds/mcp@0.13.0
+
 ## 0.17.2
 
 ### Patch Changes
