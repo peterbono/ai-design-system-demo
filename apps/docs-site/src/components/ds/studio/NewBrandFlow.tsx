@@ -47,6 +47,7 @@ import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
 import { suggestionHref } from '../../../lib/suggestions-view';
 import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SENT_FOR_REVIEW, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
 import { parseJiraKey } from '../../../lib/vocabulary';
+import { JIRA_IN_BRIDGE } from '../../../lib/studio-flags';
 import { studioHref } from '../../../lib/team-path';
 
 export interface NewBrandFlowProps {
@@ -445,9 +446,11 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
               </dd>
             </div>
           </dl>
-          <div className="nb-jira">
-            <Input label="Jira ticket" value={jira} onChange={(e) => setJira(e.currentTarget.value)} placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'change'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
-          </div>
+          {JIRA_IN_BRIDGE && (
+            <div className="nb-jira">
+              <Input label="Jira ticket" value={jira} onChange={(e) => setJira(e.currentTarget.value)} placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'change'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
+            </div>
+          )}
           {(errors.length > 0 || slugIssues.length > 0) && (
             <Alert tone="danger" title="Fix these first">
               <ul className="nb-issues">

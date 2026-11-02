@@ -28,6 +28,7 @@ import {
 import type { ThumbSpec } from './branch-thumb';
 import { daysSince, type PillTone } from './home-model';
 import { safeUrl } from './html';
+import { JIRA_IN_BRIDGE } from './studio-flags';
 import { authorFor } from './author';
 import { isProductBranch } from './product-branch';
 import { explorationHref } from './explorations-view';
@@ -279,10 +280,13 @@ export const EMPTY_FILTER: Record<BuildTab, string> = {
   'shipped-this-week': 'Nothing shipped this week yet.',
 };
 
+/** Where developers pick build requests up: GitHub, and Jira too when it is on in Bridge (lib/studio-flags). */
+export const PICKED_UP_IN = JIRA_IN_BRIDGE ? 'GitHub or Jira' : 'GitHub';
+
 /** The empty state: what a build request is, where it comes from, who picks it up. */
 export const EMPTY_WORDS = {
   title: 'Nothing is being built yet.',
-  text: 'When you push a change from the Bridge Figma plugin that needs code, like a new variant, a new option or a new layout, or ask for one from Components, it becomes a build request. An exploration comes here too once you say Done exploring. Developers pick them up where they work, in GitHub or Jira, and you follow each one here until it is in the library.',
+  text: `When you push a change from the Bridge Figma plugin that needs code, like a new variant, a new option or a new layout, or ask for one from Components, it becomes a build request. An exploration comes here too once you say Done exploring. Developers pick them up where they work, in ${PICKED_UP_IN}, and you follow each one here until it is in the library.`,
   more: 'Token values ship by themselves after the automatic checks, so they never wait here.',
 };
 

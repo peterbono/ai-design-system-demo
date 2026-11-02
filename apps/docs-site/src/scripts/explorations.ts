@@ -55,7 +55,7 @@ import { changesModeOnPage } from './changes-mode';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, loadRequestRows, requestRow } from './requests';
 import { setSelect } from '../lib/select-bridge';
-import { jiraKeyOf, parseJiraKey, VOCAB } from '../lib/vocabulary';
+import { parseJiraKey, shownJiraKey, VOCAB } from '../lib/vocabulary';
 import { isProductBranch } from '../lib/product-branch';
 import { attrUrl } from '../lib/html';
 import { studioHref } from '../lib/team-path';
@@ -106,7 +106,7 @@ export function rowHtml(r: ExplorationRow) {
   const preview = r.previews[0];
   const w = workOf(r);
   const nature = w.nature.nature;
-  const key = jiraKeyOf(pullOf(r)?.title ?? '');
+  const key = shownJiraKey(pullOf(r)?.title);
   const reqs = r.requests.length ? `, ${r.requests.length} ${r.requests.length === 1 ? 'request' : 'requests'}` : '';
   const product = r.product ? ` data-product="${esc(r.product)}"` : '';
   return `<li class="cg-row ex-row" data-exploration="${esc(explorationKey(r))}" ${natureAttr(nature)}>
@@ -431,7 +431,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
     ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">${esc(subjectTitle(q.component, q.title))}</a> <span class="cg-muted">#${q.number}, ${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
     : '<p class="cg-muted">No request is built on this exploration yet.</p>';
   const purpose = purposeLine(r.name, r.purpose);
-  const key = jiraKeyOf(pullOf(r)?.title ?? '');
+  const key = shownJiraKey(pullOf(r)?.title);
   return `${crumbs(r.number, r.product)}
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}${esc(r.name)} <span class="cg-num">#${r.number}</span></h1>

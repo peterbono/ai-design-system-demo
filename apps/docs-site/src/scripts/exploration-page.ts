@@ -48,7 +48,7 @@ import { connectorUrl, copilotSetup, terminalSetup } from '../lib/claude-connect
 import { ARCHIVED_LINE, BACK_TO_EXPLORING_LINE, UNARCHIVED_LINE, explorationKey, RENAMED_LINE, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { developerLines, productCrumbs, productProduction, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
 import { touchesVisuals } from '../lib/visual-impact';
-import { jiraKeyOf } from '../lib/vocabulary';
+import { shownJiraKey } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
 import { canKeepExploration, keepExplorationLine, productKeeperLine, startedByDesigner, startedByEmailMember } from '../lib/write-route';
 import type { ExplorationPageProps } from '../components/ds/studio/ExplorationPage';
@@ -253,7 +253,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     key,
     props: {
       number: r.number,
-      crumbs: productCrumbs(product.name, jiraKeyOf(pull.title), r.name),
+      crumbs: productCrumbs(product.name, shownJiraKey(pull.title), r.name),
       title: r.name,
       stage: 'loading',
       author: faceOf(r.author, false, { ...knownNamesOf([r.author]), ...emailAuthorName(r.author, pull.body) }),

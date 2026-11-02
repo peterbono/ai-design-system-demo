@@ -3,6 +3,7 @@ import { loadComponents } from './components';
 import { ABOUT, COMPARE, DOCS_FIGMA_PLUGIN, DOCS_HOME, LANDING, SPACE_LABEL, allPages } from './nav';
 import { loadTokens } from './tokens';
 import { studioHref } from './team-path';
+import { JIRA_IN_BRIDGE } from './studio-flags';
 
 export interface SearchItem {
   kind: 'page' | 'component' | 'token';
@@ -24,9 +25,9 @@ export function searchIndex(): SearchItem[] {
     '/foundations/accessibility/': 'contrast matrix wcag',
     '/agents/': 'for ai agents connect mcp claude',
     [studioHref('changes/')]: 'history versions releases revert undo drafts branches reviews pull requests visual impact',
-    [studioHref('settings/')]: 'settings integrations github token connection figma plugin mcp repository bridge.config.json governance approvals risk tiers owners',
+    [studioHref('settings/')]: `settings${JIRA_IN_BRIDGE ? ' integrations' : ''} github token connection figma plugin mcp repository bridge.config.json governance approvals risk tiers owners`,
     '/how-review-works/': 'governance review risk tiers approvals gates owner override agent rules',
-    [studioHref('building/')]: 'build requests component change requests figma push developers jira in progress shipped',
+    [studioHref('building/')]: `build requests component change requests figma push developers${JIRA_IN_BRIDGE ? ' jira' : ''} in progress shipped`,
     [studioHref('quality/')]: 'checks contrast gate token validation adoption audit docs completeness guidance',
   };
   const seen = new Set<string>();

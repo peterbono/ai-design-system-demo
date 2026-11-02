@@ -8,6 +8,9 @@
 // "Open on GitHub" link on the line of the thing it concerns is the way to them. Pure: no DOM. Unit tested in
 // vocabulary.test.ts.
 
+import { jiraKeyOf } from '@bridge-ds/core';
+import { JIRA_IN_BRIDGE } from './studio-flags';
+
 export const VOCAB = {
   /** The unit of work: a change to the library (a branch and its pull request on GitHub). */
   branch: 'change',
@@ -78,3 +81,6 @@ export const branchCount = (n: number) => `${n} ${n === 1 ? VOCAB.branch : VOCAB
 
 // The rules live in @bridge-ds/core (jira.ts), shared with the MCP server and the CLI.
 export { branchWithJiraKey, isJiraKey, jiraKeyOf, parseJiraKey, titleWithJiraKey, withoutJiraKey } from '@bridge-ds/core';
+
+/** The Jira key a title starts with, to show apart in mono; null while Jira is off in Bridge (lib/studio-flags). */
+export const shownJiraKey = (title: string | null | undefined, on: boolean = JIRA_IN_BRIDGE): string | null => (on ? jiraKeyOf(title ?? '') : null);

@@ -42,7 +42,7 @@ import { productClient, productRepoByKey } from './product-repos';
 import { touchesVisuals } from '../lib/visual-impact';
 import { ghAction, sendButton, suggestionSentLine } from '../lib/gh-wording';
 import { assertBranchWrites, changesModeOnPage } from './changes-mode';
-import { jiraKeyOf } from '../lib/vocabulary';
+import { shownJiraKey } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
 import { askDoneExploring } from './exploration-done';
 import type { ProductBranchProps } from '../components/ds/studio/ProductBranch';
@@ -257,7 +257,7 @@ export function pieceActor(x: { r: ExplorationRow; gh: ReturnType<typeof client>
 export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull: ExplorationPullLike, product: ProductConfig, products: readonly ProductConfig[], reopen: (said?: string) => void, said?: string) {
   mod ??= await import('../components/ds/studio/ProductBranch');
   const record = parsePiecesRecord(pull.body);
-  const jira = jiraKeyOf(pull.title);
+  const jira = shownJiraKey(pull.title);
   // An exploration in the product's own repository is written there; the library side is the design system's.
   const own = productRepoByKey(r.product);
   const lib = client();

@@ -19,7 +19,7 @@ import { TOKEN_CHANGES_ID } from '../../lib/history-moved';
 import { parseOverrideComment, type OverrideRecord } from '../../lib/review-rules';
 import { overrideLine, suggestionOverrideLine } from '../../lib/history-view';
 import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
-import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
+import { shownJiraKey, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
 import { agentMade } from '../../lib/work-nature';
 import { displayName, paintPeople, personHtml } from '../people';
 import { attrUrl } from '../../lib/html';
@@ -77,8 +77,8 @@ const dayMonth = (iso: string) => {
 };
 /** A human summary (the changeset line the author wrote, else the cleaned title), never a raw commit subject. */
 const title = (e: HistoryEntry) => withoutJiraKey(historySummary(e));
-/** The Jira key the branch title started with, shown apart in mono. */
-const jiraOf = (e: HistoryEntry) => jiraKeyOf(e.title) ?? jiraKeyOf(historySummary(e));
+/** The Jira key the branch title started with, shown apart in mono (none while Jira is off). */
+const jiraOf = (e: HistoryEntry) => shownJiraKey(e.title) ?? shownJiraKey(historySummary(e));
 
 /** A row: summary and #, what approval it needed in plain words (or Demo), the date. Counts live in the detail. */
 function row(e: HistoryEntry, demo: boolean): string {

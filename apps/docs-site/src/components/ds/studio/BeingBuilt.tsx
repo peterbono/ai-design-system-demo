@@ -6,7 +6,7 @@
 //     review", "Changes requested by Lee"); a merged library change reads In the next release until it is published.
 //     The whole row opens the detail in place (?request=N, ?pull=N); no row buttons.
 //   - The detail: what was sent (summary, before and after, props needed, the Figma link), the status line, and a
-//     "For developers" fold with the GitHub and Jira links and "Copy brief for Claude".
+//     "For developers" fold with the GitHub links (and Jira, with JIRA_IN_BRIDGE) and "Copy brief for Claude".
 //   - Claude's fixes (the fix sessions of the team's Claude) are rows of the same list, with the same tags and filters:
 //     "Button" then "Claude's fix from Figma, asked by Dana" and where it stands, from its pull request when the list
 //     read it (lib/claude-connector fixRows). Such a row opens Claude's fix in Studio; while Claude works, the page reads
@@ -47,6 +47,7 @@ import { Drawing } from "./Drawing";
 import { Who } from "./faces";
 import { person } from "../../../lib/home-model";
 import { safeUrl } from "../../../lib/html";
+import { JIRA_IN_BRIDGE } from "../../../lib/studio-flags";
 import {
   BUILD_TABS,
   EMPTY_FILTER,
@@ -361,7 +362,7 @@ function Detail({
               {data.sample && (
                 <p className="t-ui t-muted bb-measure">
                   On a real team, these open the build request and its pull
-                  request on GitHub, and the ticket in Jira.
+                  request on GitHub{JIRA_IN_BRIDGE ? ", and the ticket in Jira" : ""}.
                 </p>
               )}
               <ul className="t-ui bb-links" hidden={data.sample}>
@@ -379,7 +380,7 @@ function Detail({
                     </Link>
                   </li>
                 )}
-                {v.jira && (
+                {JIRA_IN_BRIDGE && v.jira && (
                   <li>
                     {jira ? (
                       <Link href={jira} {...external}>

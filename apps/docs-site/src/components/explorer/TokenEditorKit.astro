@@ -11,6 +11,7 @@ import EditorPreview from '../EditorPreview.tsx';
 import { explorerTokens } from '../../lib/explorer';
 import { loadComponents } from '../../lib/components';
 import { ghAction, ghVerb, sendButton, sendDialogTitle, sendGoal, SUGGEST_NEXT } from '../../lib/gh-wording';
+import { JIRA_IN_BRIDGE } from '../../lib/studio-flags';
 import { siteRepo } from '../../lib/config';
 import { signInConfig } from '../../lib/signin-config';
 
@@ -84,7 +85,7 @@ const previews = hosted ? [] : loadComponents().flatMap((c) => (c.docs?.preview 
       <div class="xe-propose-new" data-ed-field="propose-new">
         <Input label="Title" data-ed-field="propose-title" placeholder="Darker primary action fill" />
         <Textarea label="Why" data-ed-field="propose-notes" rows={3} placeholder="What problem this solves, and where reviewers should look." />
-        <Input label="Jira ticket" data-ed-field="propose-jira" placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'change'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
+        {JIRA_IN_BRIDGE && <Input label="Jira ticket" data-ed-field="propose-jira" placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'change'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />}
       </div>
       <div class="xe-propose-conflict" data-ed-field="propose-conflict" hidden></div>
       <p class="small xe-propose-status" id="ed-propose-status" role="status" aria-live="polite"></p>

@@ -68,11 +68,13 @@ describe('requests HTML (untrusted issue data)', () => {
     expect(box.textContent).toContain(TEXT);
   });
 
-  it('keeps https links', () => {
+  it('keeps https links, and shows no Jira key or link while Jira is off in Bridge', () => {
     page('https://acme.atlassian.net');
     const box = expectInert(renderRequestDetail(row('https://github.com/o/r/issues/12')));
     expect(box.querySelector('a.cg-gh')?.getAttribute('href')).toBe('https://github.com/o/r/issues/12');
-    expect(box.querySelector('a[href^="https://acme.atlassian.net/browse/DS-1"]')).not.toBeNull();
+    expect(box.querySelector('a[href^="https://acme.atlassian.net"]')).toBeNull();
+    expect(box.textContent).not.toContain('DS-1');
+    expect(expectInert(rowHtml(row('https://github.com/o/r/issues/12'))).textContent).not.toContain('DS-1');
   });
 
   it('a tampered session cache cannot put markup in a request number', async () => {

@@ -10,6 +10,7 @@ import { inline } from '../../../../lib/markdown';
 import { configApprovals, configGates, type RuleHeading } from '../../../../lib/library/use-pages';
 import { LibraryHeader } from '../FoundationParts';
 import { studioLink, type LibraryData } from '../library-data';
+import { JIRA_IN_BRIDGE } from '../../../../lib/studio-flags';
 
 export const REVIEW_PAGE = { title: 'How review works', art: 'guide', studio: 'settings/#approvals' } as const;
 
@@ -135,7 +136,7 @@ export default function ReviewView({ data }: { data: LibraryData }) {
         <Section id="requests" title="Component change requests" n={`${REQUEST_STEPS.length} steps`}>
           <p>
             Variables are data: a variable edit is a pull request you approve. Components are code: a component change is a request, and a pull request that closes it does the work. Teams
-            triage requests where they plan: in GitHub by the <code>component-change</code> label, or in Jira when Settings connects it.
+            triage requests where they plan: in GitHub by the <code>component-change</code> label{JIRA_IN_BRIDGE ? ', or in Jira when Settings connects it' : ''}.
           </p>
           <Steps steps={REQUEST_STEPS} />
         </Section>
