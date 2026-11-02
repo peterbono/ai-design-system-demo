@@ -63,10 +63,13 @@ describe('the Ask to join button', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('shows an earlier request as sent, from the server', async () => {
+  it('shows an earlier request as sent, from the server, and the banner stops asking', async () => {
     entry.asked = true;
     show();
     expect(await screen.findByText(ASK_WORDS.sent)).toBeInTheDocument();
+    // Asked already: the sentence no longer invites to ask; the sent line beside it says what happens next.
+    expect(await screen.findByText(ASK_WORDS.waiting)).toBeInTheDocument();
+    expect(screen.queryByText(/ask to join/i)).toBeNull();
   });
 
   it('signs in with GitHub first when there is no Bridge account', async () => {

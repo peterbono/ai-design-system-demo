@@ -25,7 +25,13 @@
   line-height: var(--typography-ui-line-height);
 }
 
-/* Nothing to pick yet: the one way to give Bridge access, under the field it fills. */
+/* Nothing to pick yet: one sentence, then the one way to give Bridge access. */
+.addp-none-line {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
 .addp-access {
   justify-self: start;
 }

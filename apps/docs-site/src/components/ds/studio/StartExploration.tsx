@@ -326,6 +326,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
     }
   }
 
+  // The picked product is blocked (no copy yet, or Bridge cannot open it): starting cannot work until it is fixed.
+  const stuck = Boolean(blocked) && !error;
   const footer = (left: ReactNode, right: ReactNode) => (
     <div className="sc-foot">
       <span className="sc-foot-left">{left}</span>
@@ -404,9 +406,10 @@ export default function StartExploration({ components, appearance = 'menu', prod
         {blocked?.reason === 'no-copy' && !error && (
           <Alert
             tone="info"
+            id="sc-blocked"
             actions={
               <Button
-                variant="secondary"
+                variant="primary"
                 loading={making}
                 onClick={() =>
                   void (async () => {
@@ -435,8 +438,9 @@ export default function StartExploration({ components, appearance = 'menu', prod
         {blocked && blocked.reason !== 'no-copy' && !error && blockIsAdmins({ admin, email, reason: blocked.reason }) && (
           <Alert
             tone="warning"
+            id="sc-blocked"
             actions={
-              <Button variant="secondary" iconStart={ExternalLink} onClick={() => window.open(installUrl(), '_blank', 'noopener')}>
+              <Button variant="primary" iconStart={ExternalLink} onClick={() => window.open(installUrl(), '_blank', 'noopener')}>
                 {adminBlockedFix(blocked.product, blocked.reason).label}
               </Button>
             }
@@ -447,10 +451,11 @@ export default function StartExploration({ components, appearance = 'menu', prod
         {blocked && blocked.reason !== 'no-copy' && !error && !blockIsAdmins({ admin, email, reason: blocked.reason }) && (
           <Alert
             tone="warning"
+            id="sc-blocked"
             actions={
               <>
                 <Button
-                  variant="secondary"
+                  variant="primary"
                   iconStart={copied ? Check : Copy}
                   onClick={() => void copy(askAdmin(blocked.product, blocked.repo, blocked.reason as 'not-connected' | 'read-only', installUrl(), email).message, 'Message copied. Paste it to an admin.')}
                 >
@@ -477,7 +482,9 @@ export default function StartExploration({ components, appearance = 'menu', prod
       <Button variant="link" onClick={() => setStep('report')} disabled={busy}>
         Something looks wrong? Report it
       </Button>,
-      <Button size="lg" type="submit" form="sc-start" loading={busy}>
+      // While the product is blocked, starting cannot work: the warning's action is the one primary, and Start waits,
+      // disabled, its reason the warning it points to (aria-describedby). Picking another place clears it.
+      <Button size="lg" type="submit" form="sc-start" loading={busy} disabled={stuck} aria-describedby={stuck ? 'sc-blocked' : undefined}>
         {startLabel(tools.tab)}
       </Button>,
     );

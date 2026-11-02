@@ -112,6 +112,8 @@ export const ASK_WORDS = {
   sending: 'Asking',
   sent: 'Request sent. An admin lets you in.',
   sentTitle: 'Request sent',
+  /** The banner's sentence once asked: no second call to ask, the sent line beside it says what happens next. */
+  waiting: 'You are not on this team yet. You can look around while you wait.',
   fallback: 'Bridge could not send the request from here, so the message is copied: paste it to your lead.',
 } as const;
 

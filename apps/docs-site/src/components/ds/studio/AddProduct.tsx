@@ -3,7 +3,9 @@
 // previews from Vercel when it can, then proposes the new entry for review (scripts/roles.ts proposeNewProduct), the
 // same path as a product rename. Words and rules: lib/add-product.ts. Never the sample team, never an email admin.
 import { useEffect, useId, useState } from 'react';
-import { Button, ButtonGroup, Checkbox, Combobox, Dialog, DialogClose, DialogContent, Input, Link, Spinner } from '@bridge-ds/react';
+import { ExternalLink } from 'lucide-react';
+import { Button, ButtonGroup, Checkbox, Combobox, Dialog, DialogClose, DialogContent, Input, Spinner } from '@bridge-ds/react';
+import ButtonLink from '../ButtonLink';
 import { installUrl } from '../../../lib/access-view';
 import type { ProductConfig } from '@bridge-ds/core';
 import '../../../styles/add-product.css';
@@ -92,6 +94,9 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   }, [open, repos]);
 
   const choice = repos?.find((r) => r.full === repo) ?? null;
+  // Nothing to pick yet: the one thing to do is give Bridge access on GitHub. The empty field, the name and the copy
+  // choice wait until there is a product to pick (progressive disclosure), and the dialog has that one action.
+  const none = repos !== null && repos.length === 0;
   useEffect(() => {
     if (!choice) return;
     let live = true;
@@ -146,50 +151,56 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
           footer={
             <ButtonGroup align="end">
               <DialogClose render={<Button variant="secondary" disabled={busy} />}>{W.cancel}</DialogClose>
-              <Button type="submit" form={formId} variant="primary" loading={busy} disabled={busy || !repo}>
-                {W.send}
-              </Button>
+              {!none && (
+                <Button type="submit" form={formId} variant="primary" loading={busy} disabled={busy || !repo}>
+                  {W.send}
+                </Button>
+              )}
             </ButtonGroup>
           }
         >
-          <form id={formId} onSubmit={(e) => void submit(e)} noValidate className="addp-form">
-            <Combobox
-              label={W.code}
-              hint={repos && !repos.length ? W.codeNone : W.codeHelp}
-              options={(repos ?? []).map((r) => ({ value: r.full, label: r.name, description: r.full }))}
-              loading={!repos}
-              loadingMessage={W.codeLoading}
-              value={repo}
-              onValueChange={(v) => {
-                const full = typeof v === 'string' ? v : null;
-                setRepo(full);
-                setError(null);
-                const r = repos?.find((x) => x.full === full);
-                if (r && !name.trim()) setName(nameFromRepo(r.name));
-              }}
-              emptyMessage={W.codeNone}
-            />
-            {repos && !repos.length && (
-              <Link href={installUrl()} target="_blank" rel="noreferrer" className="addp-access">
+          {none ? (
+            <div className="addp-form addp-none">
+              <p className="addp-none-line">{W.codeNone}</p>
+              <ButtonLink variant="primary" href={installUrl()} target="_blank" rel="noreferrer" iconEnd={ExternalLink} className="addp-access">
                 {W.giveAccess}
-              </Link>
-            )}
-            <Input label={W.name} hint={W.nameHelp} value={name} onValueChange={(v) => setName(v)} autoComplete="off" />
-            <Checkbox label={W.copy} description={W.copyHelp} checked={copy} onCheckedChange={setCopy} />
-            <div role="status" aria-live="polite" className="addp-status">
-              {choice && previews === 'checking' && (
-                <>
-                  <Spinner size="xs" /> {W.checking}
-                </>
-              )}
-              {choice && previews !== 'checking' && (previews ? W.previewsFound : W.previewsLater)}
+              </ButtonLink>
             </div>
-            {error && (
-              <p className="addp-error" role="alert">
-                {error}
-              </p>
-            )}
-          </form>
+          ) : (
+            <form id={formId} onSubmit={(e) => void submit(e)} noValidate className="addp-form">
+              <Combobox
+                label={W.code}
+                hint={W.codeHelp}
+                options={(repos ?? []).map((r) => ({ value: r.full, label: r.name, description: r.full }))}
+                loading={!repos}
+                loadingMessage={W.codeLoading}
+                value={repo}
+                onValueChange={(v) => {
+                  const full = typeof v === 'string' ? v : null;
+                  setRepo(full);
+                  setError(null);
+                  const r = repos?.find((x) => x.full === full);
+                  if (r && !name.trim()) setName(nameFromRepo(r.name));
+                }}
+                emptyMessage={W.codeNone}
+              />
+              <Input label={W.name} hint={W.nameHelp} value={name} onValueChange={(v) => setName(v)} autoComplete="off" />
+              <Checkbox label={W.copy} description={W.copyHelp} checked={copy} onCheckedChange={setCopy} />
+              <div role="status" aria-live="polite" className="addp-status">
+                {choice && previews === 'checking' && (
+                  <>
+                    <Spinner size="xs" /> {W.checking}
+                  </>
+                )}
+                {choice && previews !== 'checking' && (previews ? W.previewsFound : W.previewsLater)}
+              </div>
+              {error && (
+                <p className="addp-error" role="alert">
+                  {error}
+                </p>
+              )}
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </>

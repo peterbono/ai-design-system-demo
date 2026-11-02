@@ -725,6 +725,14 @@
     grid-template-rows: auto;
   }
 
+  /* While exploring (the activity is in the side column): its one-row areas ('preview side') would bring back a
+     second column, squeezing the preview to a sliver. */
+  .xp-board:not(.is-handoff) {
+    grid-template-areas:
+      'preview'
+      'side';
+  }
+
   /* One column: the frame keeps the ratio of a capture. */
   .xp-preview > .xp-frame {
     aspect-ratio: 16 / 10;
