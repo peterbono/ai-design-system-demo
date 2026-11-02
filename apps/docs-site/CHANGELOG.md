@@ -1,5 +1,14 @@
 # @bridge-ds/docs-site
 
+## 0.26.10
+
+### Patch Changes
+
+- aa2b67e: Previews on any host, not only Vercel. Core reads a branch's preview from GitHub deployments of any host, commit statuses (Vercel, Netlify) and Cloudflare Pages check runs (`parseCloudflareCheck`, `isCloudflareCheck`), matches links to an app by its template's host (`appForUrl`), and fills `{branch}` with each host's alias rule (`previewHostOf`, `cloudflareBranchAlias`). Studio reads check runs for non-Vercel products, Add a product detects Netlify and Cloudflare Pages, the developers' version link falls back to Cloudflare's check run, and the toolbar treats a page whose host matches the preview template as a preview when the build sets no deploy environment.
+- 7768ba0: Work Bridge's app opened for someone (an email member, a designer writing through Bridge) shows that person, never "bridge-design-studio[bot]": the exploration headline's "started by", Done exploring's face, Changes and Being built rows. A person known by name only keeps their drawn face, never a GitHub photo of that name.
+- Updated dependencies [aa2b67e]
+  - @bridge-ds/core@0.27.0
+
 ## 0.26.9
 
 ### Patch Changes
