@@ -188,7 +188,7 @@ describe('what each scenario is for', () => {
     await w.seed();
     const sam = await w.cookieFor('sam@acme.com', 'Sam Rivera');
     const get = async (q: string) => (await handleContribute(new Request(`${ORIGIN}/api/contribute${q}`, { headers: { Cookie: sam } }), ENV, w.deps())).json() as Promise<any>;
-    expect((await get('?repo=acme/acme-product')).member).toEqual({ email: 'sam@acme.com', name: 'Sam Rivera', role: 'admin' });
+    expect((await get('?repo=acme/acme-product')).member).toEqual({ email: 'sam@acme.com', name: 'Sam Rivera', role: 'admin', ref: expect.stringMatching(/^[0-9a-f]{16}$/) });
     const conf = await get(`?repo=acme/acme-product&gh=${encodeURIComponent('/repos/acme/acme-product/contents/bridge.config.json')}`);
     expect(JSON.parse(Buffer.from(conf.content, 'base64').toString('utf8'))).toMatchObject({ name: 'Acme Product', repo: { owner: 'acme', name: 'acme-product' } });
     const people = await get('?repo=acme/acme-product&members=1');

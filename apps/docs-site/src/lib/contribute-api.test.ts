@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { composeBuildRequestIssue, parseBuildRequestIssue } from '@bridge-ds/core';
 import { describe, expect, it } from 'vitest';
+import { memberRef } from '../../api/_lib/exploration-member';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import {
@@ -181,7 +182,7 @@ describe('session cookie and CSRF', () => {
     expect(cookieName(REPO)).toBe(`bridge_contrib_${createHash('sha256').update(REPO).digest('hex').slice(0, 16)}`);
     for (const part of ['Path=/api/contribute', 'HttpOnly', 'Secure', 'SameSite=Lax', `Max-Age=${SESSION_TTL_MS / 1000}`]) expect(set).toContain(part);
     const cookie = await join(s);
-    expect(await (await handleContribute(status(cookie), ENV, s.deps)).json()).toEqual({ available: true, member: { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit' } });
+    expect(await (await handleContribute(status(cookie), ENV, s.deps)).json()).toEqual({ available: true, member: { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit', ref: memberRef('mia@acme.design') } });
   });
 
   it('needs the X-Bridge-Contribute header, JSON, and a page of this site when there is an Origin', async () => {
@@ -281,7 +282,7 @@ describe('sign-in links', () => {
     expect(s.redis.keys().some((k) => k.includes(token))).toBe(false);
     const v = await handleContribute(act({ action: 'verify', repo: REPO, token }), ENV, s.deps);
     expect(v.status).toBe(200);
-    expect(await v.json()).toEqual({ member: { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit' } });
+    expect(await v.json()).toEqual({ member: { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit', ref: memberRef('mia@acme.design') } });
     expect((await handleContribute(gh('GET', `${P}/pulls`, cookieOf(v)), ENV, s.deps)).status).toBe(200);
     expect((await handleContribute(act({ action: 'verify', repo: REPO, token }), ENV, s.deps)).status).toBe(410);
 

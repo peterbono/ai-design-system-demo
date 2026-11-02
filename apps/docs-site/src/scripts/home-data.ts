@@ -254,6 +254,7 @@ export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
 export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: (d: HomeData) => void, onRepaint?: (repaint: () => void) => void, settings?: Promise<unknown>): Promise<void> {
   const facts = typeof stat === 'function' ? stat : () => stat;
   const viewer = currentViewer()?.login ?? null;
+  const viewerRef = currentContributor()?.ref ?? null;
   const now = Date.now();
   // An email contributor is known at once; a GitHub account once the owner teams are read (below). The same role as
   // the nav badge and Branches (needs-you viewerRole).
@@ -457,6 +458,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
         return u ? taskStages.get(u) : null;
       },
       viewer,
+      viewerRef,
       files: (p) => (xpFiles.has(xpKey(p)) ? xpFiles.get(xpKey(p)) : undefined),
       author: (p) => {
         const r = requesterOf(p.body);
@@ -544,7 +546,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   // The explored screens of the first cards a lead sees, and of every one of the viewer's own: each costs reads.
   const all = [...pulls, ...closed].filter((p) => isHomeExploration(p, products));
   const firstShown = new Set(homeExplorations(all, { products, author: () => CLAUDE }).slice(0, 6).map((c) => c.number));
-  const mine = all.filter((p) => firstShown.has(p.number) || isOwnExploration(p, viewer));
+  const mine = all.filter((p) => firstShown.has(p.number) || isOwnExploration(p, viewer, viewerRef));
   await Promise.all([
     ...order.map(async (x) => {
       // The files come from the read the before/after makes (one request per head commit, shared).
