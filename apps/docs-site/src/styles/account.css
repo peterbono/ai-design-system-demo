@@ -56,6 +56,30 @@
   margin-top: var(--space-2);
 }
 
+/* Already signed in (board E1, like Figma in the browser): who, then Continue as them, then another account. */
+.acc-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width-1) solid var(--color-border-subtle);
+  border-radius: var(--radius-container);
+}
+
+.acc-who-text {
+  display: grid;
+  min-width: 0;
+}
+
+.acc-who-name {
+  font-weight: var(--typography-h3-weight);
+  overflow-wrap: anywhere;
+}
+
+.acc-wide {
+  width: 100%;
+}
+
 /* The code: wide, spaced digits, like the email it came from. */
 .acc-code input {
   font-family: var(--font-family-mono);

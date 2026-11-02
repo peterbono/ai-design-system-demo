@@ -18,7 +18,7 @@
 // lib/account.ts holds the words and rules, scripts/account-session.ts the calls.
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Mail } from 'lucide-react';
-import { Alert, Button, Icon, Input, Link } from '@bridge-ds/react';
+import { Alert, Avatar, Button, Icon, Input, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
 import { Drawing } from '../studio/Drawing';
 import { ACCOUNT_WORDS as W, codeDigits, GITHUB_PENDING_KEY, CODE_LENGTH, defaultNext, PRIVACY_PAGE, readSignInQuery, RESEND_COOLDOWN, SIGNED_OUT_PARAM, signedOutNote, type Account, type SignedIn } from '../../../lib/account';
@@ -26,14 +26,16 @@ import { ENTRY_SHOWN_KEY, ENTRY_WORDS as EW, INVITE_TOKEN_KEY, JOINED_KEY, entry
 import { DomainRoom, InviteLinkRoom, InviteRoom, PickRoom } from './EntryRooms';
 import { isEmail } from '../../../lib/invites';
 import { maskEmail } from '../../../lib/library-access';
-import { loadRecentTeams } from '../../../lib/recent-teams';
+import { loadRecentTeams, loadTeamNames } from '../../../lib/recent-teams';
+import { continueAs, readLastEmail, rememberEmail, type ContinueAs } from '../../../lib/signin-continue';
+import { useFace } from './AccountMenu';
 import { DEMO_HOME, START_PAGE } from '../../../lib/start';
 import '../../../styles/account.css';
 
 /** Tests replace it. */
 export const navigate = { to: (href: string) => location.replace(href) };
 
-type Step = 'loading' | 'start' | 'code' | 'name' | 'room' | 'leaving';
+type Step = 'loading' | 'continue' | 'start' | 'code' | 'name' | 'room' | 'leaving';
 
 /** The invite link's token: read from #t= (then out of the address bar at once), else the one kept in this tab. */
 export function readInviteToken(): string | null {
@@ -69,6 +71,29 @@ function useCooldown(): [number, () => void, () => void] {
   return [left, () => setLeft(RESEND_COOLDOWN), () => setLeft(0)];
 }
 
+/** This browser's localStorage, or null when blocked. */
+function safeStore(): Storage | null {
+  try {
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** The GitHub login of this browser's GitHub sign-in, when it still works; null otherwise (one GitHub call). */
+async function gitHubLogin(api: { workingGitHubToken: () => Promise<string | null> }): Promise<string | null> {
+  try {
+    const token = await api.workingGitHubToken();
+    if (!token) return null;
+    const r = await fetch('https://api.github.com/user', { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
+    if (!r.ok) return null;
+    const u = (await r.json()) as { login?: unknown };
+    return typeof u.login === 'string' ? u.login : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function SignIn({ invite = false }: { invite?: boolean }) {
   const [{ next }] = useState(() => readSignInQuery(location.search));
   // Just signed out, or the account was just deleted: said once, above the email field.
@@ -88,6 +113,9 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
   /** The room shows on the way to `next` (a sign-in through a link): its ways on lead there. */
   const [onward, setOnward] = useState<string | null>(null);
   const [me, setMe] = useState<Account | null>(null);
+  /** Someone already signed in who opened this screen from the site (no ?next=): Continue as them. */
+  const [already, setAlready] = useState<ContinueAs | null>(null);
+  const face = useFace(already && me ? me : null);
   /** The daily code limit answered: "I have a code" opens the code field. */
   const [limited, setLimited] = useState(false);
   /** The invite link this screen opened from (invite mode), and what the server said it is. */
@@ -222,6 +250,7 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
 
   /** A finished sign-in: an account without a name of its own says it once, then goes on. */
   const done = (r: SignedIn) => {
+    rememberEmail(safeStore(), r.account.email);
     setEmail((e) => e || r.account.email);
     setMe(r.account);
     if (r.account.nameSet === false) {
@@ -281,8 +310,19 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
       }
       if (info.account) {
         setEmail(info.account.email);
-        return go({ account: info.account, created: false, next: '' }, false);
+        // From inside Bridge (?next=): straight on. From the site: Continue as them, or another account.
+        if (next) return go({ account: info.account, created: false, next: '' }, false);
+        setAlready(continueAs({ account: info.account, recent: loadRecentTeams(), teamNames: loadTeamNames() }));
+        return setStep('continue');
       }
+      // A GitHub sign-in on this browser without a Bridge account (a site without accounts, or never linked).
+      const ghLogin = await gitHubLogin(api);
+      if (!live) return;
+      if (ghLogin && !next) {
+        setAlready(continueAs({ account: null, github: { login: ghLogin }, recent: loadRecentTeams() }));
+        return setStep('continue');
+      }
+      setEmail((e) => e || readLastEmail(safeStore()));
       setStep('start');
     })();
     return () => {
@@ -499,6 +539,40 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
         : invite && step === 'loading'
           ? { title: EW.opening, lead: '' }
           : startHeader;
+
+  if (step === 'continue' && already) {
+    return (
+      <section className="zone acc" aria-labelledby="acc-title">
+        <div className="acc-art" aria-hidden="true">
+          <Drawing name="guide" width={96} />
+        </div>
+        {header({ title: W.welcomeBack, lead: W.welcomeBackLead })}
+        <div className="acc-ways acc-continue">
+          <div className="acc-who">
+            <Avatar name={already.name} src={face ?? already.avatar ?? undefined} size="lg" decorative />
+            <span className="acc-who-text">
+              <span className="acc-who-name">{already.name}</span>
+              {already.detail && <span className="t-ui t-muted">{already.detail}</span>}
+            </span>
+          </div>
+          <Button variant="primary" size="lg" className="acc-wide" onClick={() => (me ? go({ account: me, created: false, next: '' }, false) : leave(already.href))}>
+            {W.continueAs(already.name)}
+          </Button>
+          <Button
+            variant="ghost"
+            className="acc-wide"
+            onClick={() => {
+              setAlready(null);
+              setEmail('');
+              setStep('start');
+            }}
+          >
+            {W.anotherAccount}
+          </Button>
+        </div>
+      </section>
+    );
+  }
 
   if (step === 'room' && room) {
     const rooms = { leave, onward, onJoined, onOtherEmail: () => void otherEmail(), onConnectGitHub: () => void connectGitHub() };

@@ -173,6 +173,10 @@ export const accountName = (a: Pick<Account, 'name' | 'email'>): string => a.nam
 /** Every designer-facing sentence of accounts, in one place. */
 export const ACCOUNT_WORDS = {
   /** Sign in and sign up alike (board E1): email only. */
+  welcomeBack: 'Welcome back',
+  welcomeBackLead: 'You are signed in on this browser.',
+  continueAs: (name: string) => `Continue as ${name}`,
+  anotherAccount: 'Use another account',
   signInTitle: 'Welcome to Bridge',
   signInShort: 'Sign in',
   signInLead: "Use your work email. We'll take you to your team, or help you start one.",

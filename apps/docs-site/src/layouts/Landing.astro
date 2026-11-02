@@ -67,6 +67,8 @@ const path = Astro.url.pathname.replace(/\/?$/, '/');
     <script>
       import { initSiteNav } from '../scripts/site-nav';
       initSiteNav();
+      // Someone already signed in: "Sign in" and "Get started" read "Open Studio" and go to their team.
+      void import('../scripts/session-cta').then(({ initSessionCta }) => initSessionCta());
     </script>
   </body>
 </html>

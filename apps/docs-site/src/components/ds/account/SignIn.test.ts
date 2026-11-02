@@ -7,7 +7,7 @@
 // site without accounts keeps GitHub only, the way back from GitHub links the sign-in. Axe clean.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
@@ -334,9 +334,24 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     history.replaceState(null, '', '/signin/');
     reply = (c) => (c.method === 'GET' ? json(200, { available: true, account: account({ email: 'jordan.lee@acme.com', name: 'Jordan Lee', ...over }) }) : json(200, { ok: true }));
     entryReply = entry;
-    return render(createElement(SignIn));
+    const view = render(createElement(SignIn));
+    // Already signed in, opened from the site: Continue as them, which takes them on (the entry rooms).
+    void screen.findByRole('button', { name: `Continue as ${String(over.name ?? 'Jordan Lee')}` }).then((b) => fireEvent.click(b));
+    return view;
   }
   const entryPosts = (action: string) => entryCalls.filter((c) => c.body?.action === action);
+
+  it('already signed in from the site: Continue as them first, or Use another account for the usual form', async () => {
+    history.replaceState(null, '', '/signin/?new=1');
+    reply = (c) => (c.method === 'GET' ? json(200, { available: true, account: account({ email: 'jordan.lee@acme.com', name: 'Jordan Lee', teams: [{ repo: 'acme/ds', name: 'Acme Design', role: 'edit', via: 'email' }] }) }) : json(200, { ok: true }));
+    render(createElement(SignIn));
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+    expect(screen.getByText('Acme Design · Can edit')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Work email')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Use another account' }));
+    expect(await screen.findByRole('heading', { name: 'Welcome to Bridge' })).toBeInTheDocument();
+    expect(navigate.to).not.toHaveBeenCalled();
+  });
 
   it('opens the one team', async () => {
     signedIn(() => json(200, { kind: 'teams', teams: [{ repo: 'acme/ds', name: 'Acme Design', role: 'edit', via: 'email' }] }));

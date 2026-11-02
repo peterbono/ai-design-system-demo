@@ -440,6 +440,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       initShell();
       initSpaceSwitch();
       initSignInLinks();
+      // Someone who joined by email: Bridge's own Studio and Library lead to their team's Studio (a no-op otherwise).
+      void import('../scripts/email-studio').then(({ initEmailStudio }) => initEmailStudio());
       // The account block names the team in the address on a team shell (a no-op elsewhere).
       if (document.documentElement.hasAttribute('data-hosted')) fillTeamShell();
     </script>

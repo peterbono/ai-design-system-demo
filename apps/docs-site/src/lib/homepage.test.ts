@@ -54,7 +54,7 @@ describe('homepage sections', () => {
   it('tells the hero as a drawn story, with no slider left, and keeps one call to action', () => {
     expect(page).toContain('<HpHeroScene />');
     expect(page).not.toMatch(/type="range"|data-range|data-hero|Drag: your|HpPencil|HpGhost|HpProfile/);
-    expect(page).toContain('>Get started</ButtonLink>');
+    expect(page).toContain('<span data-session-cta-label>Get started</span></ButtonLink>');
     expect(page).not.toContain('no account needed');
     const scene = readFileSync(join(ROOT, 'apps/docs-site/src/components/home/HpHeroScene.astro'), 'utf8');
     expect(scene).toMatch(/role="img" aria-label="Dana[^"]+Profile header[^"]+code and the Figma kit follow\."/);
