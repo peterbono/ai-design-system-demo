@@ -148,6 +148,27 @@ describe('Invite collaborators', () => {
     expect(await screen.findByText('This invite was just sent. Wait a few minutes, then send it again.')).toBeInTheDocument();
   });
 
+  it('cancels a pending invite from its "More" menu, as in the Settings table', async () => {
+    page.data = real();
+    const { user, dialog } = await openDialog();
+    await user.click(within(dialog).getByRole('button', { name: 'More for priya@acme.design' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Cancel invite' }));
+    await waitFor(() => expect(api.cancelInvite).toHaveBeenCalledWith('acme/ds', 'p1'));
+    expect(await within(dialog).findByText('The invite to priya@acme.design was cancelled.')).toBeInTheDocument();
+    expect(within(dialog).queryByText('priya@acme.design')).toBeNull();
+    await expectNoAxeViolations(document.body);
+  });
+
+  it('on the sample team, cancelling an invite opens the demo dialog and calls no server', async () => {
+    const { user, dialog } = await openDialog();
+    const more = within(dialog).getAllByRole('button', { name: /^More for / });
+    expect(more.length).toBeGreaterThan(0);
+    await user.click(more[0]!);
+    await user.click(await screen.findByRole('menuitem', { name: 'Cancel invite' }));
+    await waitFor(() => expect(demo.openMakeItYours).toHaveBeenCalled());
+    expect(api.cancelInvite).not.toHaveBeenCalled();
+  });
+
   it('says invites are not available on a site without them, and cannot send', async () => {
     page.data = real({ invites: false });
     const { user, dialog } = await openDialog();
@@ -165,6 +186,7 @@ describe('Invite collaborators', () => {
     expect(within(dialog).queryByLabelText('Work email')).toBeNull();
     expect(within(dialog).queryByRole('button', { name: /Send/ })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: /Resend/ })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /^More for / })).toBeNull();
   });
 
   it('says to connect a design system first in the workspace', async () => {

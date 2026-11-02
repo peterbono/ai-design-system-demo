@@ -1162,7 +1162,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     const f = failingSentence({ story, author, viewerIsAuthor: isAuthor, viewerApprovesDesign: Boolean(designRow) && !story.designFails, approvalsMissing: gate.missing.length > 0, forDesigner: !developer });
     sentence = f.sentence;
     yourTurn = f.yourTurn;
-  } else if (who.yourTurn && who.action === 'override' && showOverride) sentence = 'Your turn: no other owner can approve, so add it to the library with the owner override.';
+  } else if (who.yourTurn && who.action === 'override' && showOverride && !who.onlyOwner) sentence = 'Your turn: no other owner can approve, so add it to the library with the owner override.';
   const dismissed = open ? dismissedSentence(dismissedApprovals(reviews as never, pull.head.sha)) : null;
   const status = detailStatus({ pull, tier, approvals, story, checks: x.checks, files: files.map((f) => f.filename), exploration, isAuthor, sentence, yourTurn });
   if (dismissed) status.sentence = `${dismissed} ${status.sentence}`;

@@ -240,6 +240,12 @@
   min-height: var(--size-12);
 }
 
+/* Keeps the role column aligned on member rows when the pending invites carry a "More" menu. */
+.inv-more-space {
+  width: var(--control-height-md);
+  flex: none;
+}
+
 .inv-access-row > :first-child {
   flex: 1;
 }

@@ -3,14 +3,14 @@
 // Then the work email field, a DS Combobox that takes several emails as chips and suggests people Bridge
 // already knows (on a real team, the people who committed to it; on the sample team, Acme's people), with the role
 // picker on the same line (RolePicker, board I2). "Who has access" lists the team and the pending invites, with Resend
-// on their line. The footer ends with Cancel and the one primary action, "Send N
-// invites". No team link, no GitHub words. Admins see no "only admins" note: it is for the people it stops, and they
+// on their line and a "More" menu with Cancel invite, as in the Settings table (MembersSection PendingRow). The
+// footer ends with Cancel and the one primary action, "Send N invites". No team link, no GitHub words. Admins see no "only admins" note: it is for the people it stops, and they
 // read it in the body (MEMBERS_WORDS.readOnly).
 // Someone who is not an admin sees who has access and why they cannot invite. The browser workspace has no team: it
 // says to connect the design system first. When this site cannot send invites, the dialog says so and sends nothing.
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react';
-import { Link2Off } from 'lucide-react';
-import { Alert, Button, ButtonGroup, Combobox, Dialog, DialogClose, DialogContent, EmptyState, Skeleton } from '@bridge-ds/react';
+import { Link2Off, MoreHorizontal } from 'lucide-react';
+import { Alert, Button, ButtonGroup, Combobox, Dialog, DialogClose, DialogContent, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton } from '@bridge-ds/react';
 import RolePicker from './RolePicker';
 import { NoticeLine, PersonCell } from './MemberParts';
 import { memberActions, noRepo, useMembers, type Notice } from './members-state';
@@ -51,6 +51,8 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
   const admins = adminCount(data.members);
   const now = data.context === 'sample' ? SAMPLE_NOW : Date.now();
   const members = sortMembers(data.members);
+  // Pending invites carry a "More" menu at the row's end: member rows keep the same space, so every role lines up.
+  const moreSpace = data.canManage && data.pending.length > 0;
   const run = async (fn: () => Promise<Notice | null>) => {
     const n = await fn();
     if (n) onNotice(n);
@@ -71,6 +73,7 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
               ) : (
                 <span className="mem-role-text">{roleText(m)}</span>
               )}
+              {moreSpace && <span className="inv-more-space" aria-hidden="true" />}
             </li>
           );
         })}
@@ -86,6 +89,16 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
               <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} variant="ghost" onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
             ) : (
               <span className="mem-role-text">{roleLabel(inviteChoice(p))}</span>
+            )}
+            {data.canManage && (
+              <Menu>
+                <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${p.email}`} variant="ghost" size="md" />} />
+                <MenuContent align="end">
+                  <MenuItem tone="danger" onClick={() => void run(() => act.cancel(p))}>
+                    {MEMBERS_WORDS.cancelInvite}
+                  </MenuItem>
+                </MenuContent>
+              </Menu>
             )}
           </li>
         ))}
