@@ -40,6 +40,11 @@ export interface ContextOptions {
    * repository, so "mine" finds explorations GitHub shows under the app's name. Absent: mine is the token's account.
    */
   owned?: () => Promise<{ repo: string; branch: string }[] | null>;
+  /**
+   * Who this session acts as (bridge_whoami), when the server knows it from its grant (the hosted connector). Absent:
+   * the local server asks GitHub who owns the token.
+   */
+  identity?: () => Promise<import('./whoami.js').WhoAmI | null>;
 }
 
 /** Whether a request only reads: GET and HEAD, and GraphQL queries (POST /graphql without a mutation). */

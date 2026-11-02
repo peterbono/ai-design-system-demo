@@ -45,7 +45,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 
 <!-- tools:start (generated from the server: npm run readme:tools -w @bridge-ds/mcp) -->
 
-76 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
+77 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
 
 | Tool | Access | What it does |
 | --- | --- | --- |
@@ -124,6 +124,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_validate_tokens` | reads | Validate tokens: DTCG 2025.10 shape per $type, names, broken and circular aliases in every mode, alias type mismatches, missing layer files, and mode parity (a semantic token must exist in both light and dark). |
 | `bridge_visual_impact` | writes | Screenshots what a design system change touches, before and after, and pixel-diffs them. |
 | `bridge_what_needs_me` | reads | The review queue, as Studio counts it (open branches, without running explorations and the release automation), each with its status in designer words, and first the ones where the person acts now: an approval they can give, their own branch blocked, ready for them to merge. |
+| `bridge_whoami` | reads | Who this session acts as: the person's name, their role in the team (Admin, Reviewer, Can edit or Reader), how they signed in (GitHub login, or email member with the address masked), the team, and in one line what a save means for them (through Bridge as them, or with their own GitHub access). |
 | `bridge_write_drafts` | writes | Write the titles, summaries and change lines (or, for docs items, the docs sections or the rewritten passage) you drafted for a session from bridge_pending_drafts. |
 
 <!-- tools:end -->

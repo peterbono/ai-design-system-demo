@@ -113,3 +113,4 @@ export function optionsFromArgv(argv: string[], env: NodeJS.ProcessEnv = process
   const ref = get('--ref') ?? env.BRIDGE_REF;
   return { ...(root ? { root } : {}), ...(repo ? { repo } : {}), ...(ref ? { ref } : {}), ...(token ? { token } : {}), tokenSource };
 }
+export { maskEmail, whoami, whoamiLine, type WhoAmI, type WhoAmIRole } from './whoami.js';

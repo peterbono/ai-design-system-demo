@@ -29,6 +29,7 @@ beforeEach(() => {
   history.replaceState(null, '', PAGE);
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
     if (url === 'https://api.github.com/repos/peterbono/ai-design-system-demo') return new Response(JSON.stringify({ permissions: { admin: true, push: true, pull: true } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url === 'https://api.github.com/user') return new Response(JSON.stringify({ login: 'peterbono', name: 'Florian', avatar_url: 'https://avatars.example/f.png' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (url.startsWith('/oauth/request')) return new Response(JSON.stringify(info), { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (url === '/oauth/approve') {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -119,5 +120,25 @@ describe('Use Bridge in Claude: the consent card', () => {
       expect(assigned.at(-1)).toContain('error=access_denied');
       cleanup();
     }
+  });
+
+  it('says who Claude will act as before Allow: the email member on the email path, with their role', async () => {
+    reply({ name: 'Dino', email: 'd***@yopmail.com', teams: [{ repo: 'acme/design', name: 'Acme Design', email: true, role: 'edit' }] });
+    const { container } = render(createElement(ConnectClaude));
+    expect(await screen.findByText("You're connecting Claude as Dino (Can edit, signed in with email).")).toBeTruthy();
+    expect(screen.getByText(/Bridge account d\*\*\*@yopmail\.com\./)).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Use another account' })).toHaveLength(1);
+    await expectNoAxeViolations(container);
+  });
+
+  it('says the GitHub account GitHub will confirm, with its role, when the GitHub path is taken', async () => {
+    githubToken = 'ghu_signed_in_token_0000000000';
+    reply({ name: 'Dino', email: 'd***@yopmail.com', teams: [{ repo: 'peterbono/ai-design-system-demo', name: 'Bridge DS', email: true, role: 'edit' }] });
+    render(createElement(ConnectClaude));
+    expect(await screen.findByText("You're connecting Claude as Florian (Admin, signed in with GitHub).")).toBeTruthy();
+    expect(screen.getByText(/GitHub account @peterbono\./)).toBeTruthy();
+    // The quiet switch to the email path names the Bridge account instead.
+    await userEvent.click(screen.getByRole('button', { name: /No GitHub account/ }));
+    expect(await screen.findByText("You're connecting Claude as Dino (Can edit, signed in with email).")).toBeTruthy();
   });
 });

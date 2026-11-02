@@ -17,6 +17,7 @@ import * as pieces from './pieces.js';
 import * as figma from './figma.js';
 import * as figmaFixes from './figma-fixes.js';
 import * as suggestions from './suggestions.js';
+import { whoami } from './whoami.js';
 import { CHANGE_MARKER_RULE, DRAFT_LINE_MAX, DRAFT_PHRASE, FIX_LOOP_MAX_ROUNDS, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
 declare const __BRIDGE_MCP_VERSION__: string | undefined;
@@ -95,6 +96,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
         'Bridge exposes a design system repo (DTCG tokens, components, docs) to you.',
         'Bridge never writes to the default branch: changes become suggestions (GitHub issues), branches and pull requests, or local branches that are never pushed. The library only changes through reviewed pull requests, and on a protected repo GitHub refuses direct pushes anyway.',
         `Access now: ${ctx.access()} bridge_get_config says the same.`,
+        'Who you act as: bridge_whoami says which person this session is (name, role, how they signed in) and what a save means for them. Call it when the person asks who they are or which account Bridge uses, and before the first save of an exploration when you are not sure; never guess the account from the repository owner or past activity.',
         'How changes reach the code is the "changes" setting of bridge.config.json (bridge_get_config says which): "suggest" (the default) files token, docs, brand, revert, missing piece and Figma changes as suggestions, GitHub issues with the exact change that the owners approve (bridge_review_suggestion) and a developer applies (bridge_apply_suggestion, or `bridge apply <n>`); "direct" opens branches and pull requests. Writing tools take "changes" to pick one for a call; only pass it when the person asked. When the person says "Apply Bridge suggestion #n", call bridge_apply_suggestion with mode "dry-run" first, show the result, then apply it on a branch.',
         'Read before you write: bridge_get_guidelines for the repo rules, bridge_search_tokens / bridge_get_token before using or proposing a token.',
         'Never hardcode a value in UI code when a token exists; never invent a token name (check it with bridge_get_token).',
@@ -132,6 +134,17 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     'bridge_get_config',
     { title: 'Get Bridge config', description: 'Where the design system lives and what Bridge may do: source (local path or GitHub repo), write access, token tiers, modes (brand/theme/density...) and the full bridge.config.json. Call first in a new repo.', inputSchema: {}, annotations: RO },
     run(async () => ops.getConfig(ctx)),
+  );
+
+  server.registerTool(
+    'bridge_whoami',
+    {
+      title: 'Who am I in Bridge',
+      description: 'Who this session acts as: the person\'s name, their role in the team (Admin, Reviewer, Can edit or Reader), how they signed in (GitHub login, or email member with the address masked), the team, and in one line what a save means for them (through Bridge as them, or with their own GitHub access). Call it when the person asks which account Bridge uses, or before a first save when unsure.',
+      inputSchema: {},
+      annotations: RO,
+    },
+    run(async () => whoami(ctx)),
   );
 
   server.registerTool(

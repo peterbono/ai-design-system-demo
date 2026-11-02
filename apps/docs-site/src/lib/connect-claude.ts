@@ -27,6 +27,8 @@ export interface ClaudeTeam {
   name: string;
   /** The account is on this team by its email: Claude can connect with the Bridge sign-in alone, no GitHub. */
   email?: boolean;
+  /** The person's role there, when known: 'admin', 'edit' (email members), or a GitHub role ("Admin", "Can edit"). */
+  role?: string;
 }
 
 /** What GET /oauth/request answers. */
@@ -36,6 +38,8 @@ export interface RequestInfo {
   sameBrowser: boolean;
   signedIn: boolean;
   name: string | null;
+  /** The signed-in Bridge account's email, masked (d***@yopmail.com). */
+  email: string | null;
   teams: ClaudeTeam[];
 }
 
@@ -45,10 +49,12 @@ export function parseRequestInfo(d: unknown): RequestInfo | null {
   const teams = Array.isArray(o.teams)
     ? o.teams.flatMap((t): ClaudeTeam[] => {
         const x = t as Record<string, unknown>;
-        return x && typeof x.repo === 'string' ? [{ repo: x.repo, name: typeof x.name === 'string' && x.name.trim() ? x.name.trim() : x.repo.split('/')[1] ?? x.repo, ...(x.email === true ? { email: true } : {}) }] : [];
+        return x && typeof x.repo === 'string'
+          ? [{ repo: x.repo, name: typeof x.name === 'string' && x.name.trim() ? x.name.trim() : x.repo.split('/')[1] ?? x.repo, ...(x.email === true ? { email: true } : {}), ...(typeof x.role === 'string' && x.role ? { role: x.role } : {}) }]
+          : [];
       })
     : [];
-  return { client: o.client, redirectHost: o.redirectHost, sameBrowser: o.sameBrowser === true, signedIn: o.signedIn === true, name: typeof o.name === 'string' ? o.name : null, teams };
+  return { client: o.client, redirectHost: o.redirectHost, sameBrowser: o.sameBrowser === true, signedIn: o.signedIn === true, name: typeof o.name === 'string' ? o.name : null, email: typeof o.email === 'string' ? o.email : null, teams };
 }
 
 export type ClaudeConnectStep =
@@ -81,6 +87,27 @@ export function connectPath(team: ClaudeTeam | undefined, hasGitHub: boolean): {
   return hasGitHub ? { path: 'github', other: 'email' } : { path: 'email', other: 'github' };
 }
 
+/** The role in Studio's words: Admin, Reviewer, Can edit. Null when not known. */
+export function roleLabel(role: string | null | undefined): string | null {
+  const r = role?.trim().toLowerCase();
+  if (!r) return null;
+  if (r === 'admin') return 'Admin';
+  if (r === 'review' || r === 'reviewer') return 'Reviewer';
+  if (r === 'edit' || r === 'can edit' || r === 'write' || r === 'push') return 'Can edit';
+  return role!.trim();
+}
+
+/**
+ * Who Claude will act as, before Allow: the person this consent gives Claude, with their role on the picked team and
+ * how they sign in. On the GitHub path it is the GitHub account (GitHub confirms it), on the email path the Bridge
+ * account. "You're connecting Claude as Dino (Can edit, signed in with email)."
+ */
+export function identityLine(x: { name: string; role?: string | null; via: 'email' | 'github' }): string {
+  const role = roleLabel(x.role);
+  const how = x.via === 'email' ? 'signed in with email' : 'signed in with GitHub';
+  return `You're connecting Claude as ${x.name} (${role ? `${role}, ` : ''}${how}).`;
+}
+
 /** "Claude" for the hosted apps, the app's own name otherwise. */
 export const appName = (info: Pick<RequestInfo, 'client'>) => info.client.trim() || 'An app';
 
@@ -108,6 +135,8 @@ export const CLAUDE_CONNECT_WORDS = {
   createTeam: 'Create your team',
   askInvite: 'Or ask your admin for an invite, then connect Claude again.',
   otherAccount: 'Use another account',
+  identityEmail: (email: string) => `Bridge account ${email}.`,
+  identityGitHub: (login: string) => `GitHub account @${login}.`,
   noRequest: 'Open this page from Claude: Settings, Connectors, Add custom connector, then Connect.',
   noAccess: "Your GitHub account cannot change this team's design system. Start again from Claude and pick a team you can edit, or ask its admin for access.",
   expired: 'This sign-in took too long. Start again from Claude.',

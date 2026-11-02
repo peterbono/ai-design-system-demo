@@ -10,7 +10,7 @@ import { QUIET_AFTER_MS, stepOf, STEP_WORDS } from '../../api/_lib/fix-sessions'
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { redirectMatches } from '../../api/_lib/oauth';
-import { EMAIL_REFUSED_TOOLS, EMAIL_REFUSED_WORDS, handleConnector, HOSTED_REFUSED_TOOLS, HOSTED_REFUSED_WORDS, LIBRARY_LEADS_WORDS, type ConnectorEnv, type FetchLike, type McpHandler } from '../../api/mcp/index';
+import { EMAIL_REFUSED_TOOLS, EMAIL_REFUSED_WORDS, grantIdentity, handleConnector, HOSTED_REFUSED_TOOLS, HOSTED_REFUSED_WORDS, LIBRARY_LEADS_WORDS, type ConnectorEnv, type FetchLike, type McpHandler } from '../../api/mcp/index';
 import { handleFixSessions } from '../../api/fix-sessions/index';
 
 const HOST = 'bridge.example.com';
@@ -90,14 +90,14 @@ async function signIn(w: ReturnType<typeof world>, clientId?: string, redirectUr
   const request = page.searchParams.get('request')!;
   const cookie = cookieOf(auth);
   const info = await (await w.call(`/api/mcp?oauth=request&id=${request}`, { headers: { cookie: `bridge_oauth=${cookie}` } })).json();
-  expect(info).toEqual({ client: id!.startsWith('https://') ? 'Claude Code' : 'Claude', redirectHost: new URL(redirectUri).host, sameBrowser: true, signedIn: false, name: null, teams: [] });
+  expect(info).toEqual({ client: id!.startsWith('https://') ? 'Claude Code' : 'Claude', redirectHost: new URL(redirectUri).host, sameBrowser: true, signedIn: false, name: null, email: null, teams: [] });
   await putAccount(w.redis, { id: 'a1', email: 'dana@acme.design', name: 'Dana', github: { login: 'dana', id: 7 }, createdAt: '2026-10-01T00:00:00Z', version: 1 });
   const account = `${ACCOUNT_COOKIE}=${signAccountSession({ email: 'dana@acme.design', v: 1, exp: w.now() + 60_000 }, SECRET)}`;
   // Signed in now: the same read says who, and the account's teams that have a design system (not a team made in Bridge).
   await memberStore(w.redis).put('acme/design', { email: 'dana@acme.design', name: 'Dana', role: 'admin', version: 1, addedBy: 'x', at: '2026-10-01T00:00:00Z' });
   await memberStore(w.redis).put('_team/0123456789abcdef', { email: 'dana@acme.design', name: 'Dana', role: 'admin', version: 1, addedBy: 'x', at: '2026-10-01T00:00:00Z' });
   const signed = await (await w.call(`/api/mcp?oauth=request&id=${request}`, { headers: { cookie: `bridge_oauth=${cookie}; ${account}` } })).json();
-  expect(signed).toMatchObject({ signedIn: true, name: 'Dana', teams: [{ repo: 'acme/design', name: 'Design' }] });
+  expect(signed).toMatchObject({ signedIn: true, name: 'Dana', email: 'd***@acme.design', teams: [{ repo: 'acme/design', name: 'Design', role: 'admin' }] });
   const approve = await w.call('/api/mcp?oauth=approve', { method: 'POST', headers: { 'content-type': 'application/json', origin: SITE, cookie: `bridge_oauth=${cookie}; ${account}` }, body: JSON.stringify({ request, repo: 'acme/design', allow: true }) });
   expect(approve.status).toBe(200);
   const gh = new URL((await approve.json()).redirect);
@@ -511,7 +511,7 @@ describe('an email member connects Claude with their Bridge sign-in (no GitHub)'
   it('lists the team as reachable by email, and Allow returns to Claude with a code, without GitHub', async () => {
     const w = world({ app: true });
     const { id, info, approve } = await emailSignIn(w);
-    expect(info.teams).toEqual([{ repo: 'acme/design', name: 'Design', email: true }]);
+    expect(info.teams).toEqual([{ repo: 'acme/design', name: 'Design', email: true, role: 'edit' }]);
     expect(approve.status).toBe(200);
     const to = new URL((await approve.json()).redirect);
     expect(to.origin + to.pathname).toBe(CALLBACK);
@@ -549,5 +549,26 @@ describe('an email member connects Claude with their Bridge sign-in (no GitHub)'
     const t = await tokens(w, id, new URL((await approve.json()).redirect).searchParams.get('code')!);
     await memberStore(w.redis).remove('acme/design', 'dino@yopmail.com');
     expect((await mcpPost(w, t.body.access_token, rpc(4, 'bridge_list_explorations', {}))).status).toBe(401);
+  });
+});
+
+describe('bridge_whoami on the hosted connector: who a grant acts as', () => {
+  const grant = { repo: 'acme/design', name: 'Florian', login: 'peterbono' };
+  const gh = (admin: boolean): FetchLike => async (url) => (url.endsWith('/repos/acme/design') ? new Response(JSON.stringify({ permissions: { admin, push: true } }), { status: 200 }) : new Response('{}', { status: 404 }));
+
+  it('an email member: their name, role and masked email; saves go through Bridge', async () => {
+    const w = await grantIdentity({ grant: { ...grant, name: 'Dino', login: '' }, emailMember: { email: 'dinosolo@yopmail.com', name: 'Dino', role: 'edit' }, designer: false, routed: true, token: 'x', redis: memoryRedis(), fetch: gh(false) });
+    expect(w).toEqual({ name: 'Dino', email: 'd***@yopmail.com', role: 'Can edit', via: 'email', team: expect.any(String), writes: 'bridge' });
+    expect(JSON.stringify(w)).not.toContain('dinosolo');
+  });
+
+  it('a designer signed in with GitHub: Can edit, saves in products through Bridge', async () => {
+    const w = await grantIdentity({ grant: { ...grant, name: 'Goulou', login: 'gouloufoto' }, emailMember: null, designer: true, routed: true, token: 'x', redis: memoryRedis(), fetch: gh(false) });
+    expect(w).toMatchObject({ name: 'Goulou', login: 'gouloufoto', role: 'Can edit', via: 'github', writes: 'bridge' });
+  });
+
+  it('a lead: Admin when they administer the repository, else Reviewer, with their own GitHub access', async () => {
+    expect(await grantIdentity({ grant, emailMember: null, designer: false, routed: false, token: 'x', redis: memoryRedis(), fetch: gh(true) })).toMatchObject({ name: 'Florian', login: 'peterbono', role: 'Admin', via: 'github', writes: 'own' });
+    expect(await grantIdentity({ grant, emailMember: null, designer: false, routed: false, token: 'x', redis: memoryRedis(), fetch: gh(false) })).toMatchObject({ role: 'Reviewer', writes: 'own' });
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CLAUDE_CONNECT_WORDS as W, connectClaudeStep, connectPath, parseRequestInfo, readQuery, type RequestInfo } from './connect-claude';
+import { CLAUDE_CONNECT_WORDS as W, connectClaudeStep, connectPath, identityLine, parseRequestInfo, readQuery, roleLabel, type RequestInfo } from './connect-claude';
 
-const base: RequestInfo = { client: 'Claude', redirectHost: 'claude.ai', sameBrowser: true, signedIn: true, name: 'Dana', teams: [] };
+const base: RequestInfo = { client: 'Claude', redirectHost: 'claude.ai', sameBrowser: true, signedIn: true, name: 'Dana', email: 'd***@acme.com', teams: [] };
 const q = { request: 'abcdefghijklmnopqrstuvwx', error: null };
 
 describe('Use Bridge in Claude: the steps', () => {
@@ -26,7 +26,7 @@ describe('Use Bridge in Claude: the steps', () => {
 
   it('parses the server answer defensively', () => {
     expect(parseRequestInfo(null)).toBeNull();
-    expect(parseRequestInfo({ client: 'Claude', redirectHost: 'claude.ai', teams: [{ repo: 'a/b' }, { nope: 1 }] })).toEqual({ client: 'Claude', redirectHost: 'claude.ai', sameBrowser: false, signedIn: false, name: null, teams: [{ repo: 'a/b', name: 'b' }] });
+    expect(parseRequestInfo({ client: 'Claude', redirectHost: 'claude.ai', teams: [{ repo: 'a/b' }, { nope: 1 }] })).toEqual({ client: 'Claude', redirectHost: 'claude.ai', sameBrowser: false, signedIn: false, name: null, email: null, teams: [{ repo: 'a/b', name: 'b' }] });
   });
 
   it('is true and never asks to come back by hand: what Claude gets, a person approves, no em dash', () => {
@@ -51,5 +51,28 @@ describe('Use Bridge in Claude: with GitHub or with the Bridge sign-in', () => {
     expect(connectPath({ repo: 'acme/design', name: 'Design' }, false)).toEqual({ path: 'github', other: null });
     expect(connectPath(undefined, false)).toEqual({ path: 'github', other: null });
     for (const words of [W.backEmail('claude.ai'), W.useEmail, W.useGitHub, W.allowingEmail]) expect(words).not.toContain('\u2014');
+  });
+});
+
+describe('who Claude connects as', () => {
+  it('keeps the role and the masked email the server sends', () => {
+    const info = parseRequestInfo({ ...base, email: 'd***@yopmail.com', teams: [{ repo: 'acme/design', name: 'Design', email: true, role: 'edit' }] })!;
+    expect(info.email).toBe('d***@yopmail.com');
+    expect(info.teams[0]).toEqual({ repo: 'acme/design', name: 'Design', email: true, role: 'edit' });
+  });
+
+  it('says the role in Studio words', () => {
+    expect(roleLabel('admin')).toBe('Admin');
+    expect(roleLabel('edit')).toBe('Can edit');
+    expect(roleLabel('Can edit')).toBe('Can edit');
+    expect(roleLabel('review')).toBe('Reviewer');
+    expect(roleLabel(null)).toBeNull();
+  });
+
+  it('names the person, their role and how they sign in, before Allow', () => {
+    expect(identityLine({ name: 'Dino', role: 'edit', via: 'email' })).toBe("You're connecting Claude as Dino (Can edit, signed in with email).");
+    expect(identityLine({ name: 'Florian', role: 'Admin', via: 'github' })).toBe("You're connecting Claude as Florian (Admin, signed in with GitHub).");
+    expect(identityLine({ name: 'Ana', via: 'github' })).toBe("You're connecting Claude as Ana (signed in with GitHub).");
+    for (const line of [identityLine({ name: 'Dino', role: 'edit', via: 'email' }), W.identityEmail('d***@yopmail.com'), W.identityGitHub('peterbono')]) expect(line).not.toContain('\u2014');
   });
 });

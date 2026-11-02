@@ -85,6 +85,7 @@ const TOOLS = [
   'bridge_validate_tokens',
   'bridge_visual_impact',
   'bridge_what_needs_me',
+  'bridge_whoami',
   'bridge_write_drafts',
 ];
 

@@ -34,7 +34,7 @@
 // (email members in Studio), PUBLIC_SITE_URL (the issuer; else the request's origin). Nothing here logs.
 
 import { randomBytes } from 'node:crypto';
-import { BridgeContext, handleHttp, pieces } from '@bridge-ds/mcp';
+import { BridgeContext, handleHttp, maskEmail, pieces, type WhoAmI } from '@bridge-ds/mcp';
 import { cookieName, designerProductsFor, handleContribute, ownedWorkFor, signSession, type ContribEnv } from '../contribute/index.js';
 import { displayName, sessionAccount } from '../_lib/account.js';
 import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/fix-sessions.js';
@@ -103,7 +103,7 @@ export interface ConnectorDeps {
   app?: AppTokens;
   mcp?: McpHandler;
   /** How the context is made (tests: a context without GitHub calls). */
-  context?: (opts: { repo: string; token: string; fetch?: FetchLike; owned?: () => Promise<{ repo: string; branch: string }[] | null> }) => Promise<BridgeContext>;
+  context?: (opts: { repo: string; token: string; fetch?: FetchLike; owned?: () => Promise<{ repo: string; branch: string }[] | null>; identity?: () => Promise<WhoAmI | null> }) => Promise<BridgeContext>;
   /** The library check of an exploration (tests replace it; default: the MCP server's bridge_missing_pieces, recorded). */
   checkPieces?: (ctx: BridgeContext, pr: number | string) => Promise<{ pieces: unknown[]; recorded: boolean }>;
 }
@@ -196,19 +196,48 @@ const requestCookie = (value: string, maxAge: number) => `${REQUEST_COOKIE}=${va
 
 const tokenError = (e: TokenError) => new Response(JSON.stringify({ error: e.error, error_description: e.message }), { status: e.status, headers: { 'Content-Type': 'application/json', ...NO_STORE } });
 
+/**
+ * Who a grant acts as, for bridge_whoami: an email member (their name, role and masked email; saves go through Bridge),
+ * a designer signed in with GitHub (Can edit; their saves in products go through Bridge), or a lead with their own
+ * GitHub access (Admin when they administer the design system repository, else Reviewer).
+ */
+export async function grantIdentity(x: {
+  grant: { repo: string; name: string; login: string };
+  emailMember: { email: string; name: string; role?: string } | null;
+  designer: boolean;
+  routed: boolean;
+  token: string;
+  redis: Redis;
+  fetch: FetchLike;
+}): Promise<WhoAmI> {
+  const names = await getTeamNames(x.redis, [x.grant.repo]).catch(() => new Map<string, { name: string }>());
+  const team = teamDisplayName(x.grant.repo, { name: names.get(x.grant.repo.toLowerCase())?.name });
+  if (x.emailMember) return { name: x.emailMember.name || 'Email member', email: maskEmail(x.emailMember.email), role: x.emailMember.role === 'admin' ? 'Admin' : 'Can edit', via: 'email', team, writes: 'bridge' };
+  const login = x.grant.login || undefined;
+  if (x.designer) return { name: x.grant.name || x.grant.login, ...(login ? { login } : {}), role: 'Can edit', via: 'github', team, writes: x.routed ? 'bridge' : 'own' };
+  const [owner, repo] = x.grant.repo.split('/');
+  const r = await githubGet(x.fetch, x.token, `/repos/${owner}/${repo}`, 'bridge-mcp').catch(() => ({ status: 0, data: null }));
+  const admin = r.status === 200 && r.data?.permissions?.admin === true;
+  return { name: x.grant.name || x.grant.login, ...(login ? { login } : {}), role: admin ? 'Admin' : 'Reviewer', via: 'github', team, writes: 'own' };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // OAuth steps
 
 /** The teams of a Bridge account that have a repository (a design system), by the name their settings gave. */
-async function teamsWithDesignSystem(redis: Redis, email: string): Promise<{ repo: string; name: string }[]> {
+async function teamsWithDesignSystem(redis: Redis, email: string): Promise<{ repo: string; name: string; email: true; role: 'admin' | 'edit' }[]> {
   const raw = await redis.cmd('SMEMBERS', accountTeamsKey(email));
   const repos = (Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []).filter((r) => !isTeamKey(r) && /^[^/_][^/]*\/[^/]+$/.test(r)).sort();
   const members = memberStore(redis);
-  const live: string[] = [];
-  for (const repo of repos) if (await members.get(repo, email)) live.push(repo);
-  const names = await getTeamNames(redis, live).catch(() => new Map<string, { name: string }>());
-  // Every team here knows the account by its email: Claude can connect with the Bridge sign-in alone (no GitHub).
-  return live.map((repo) => ({ repo, name: teamDisplayName(repo, { name: names.get(repo.toLowerCase())?.name }), email: true }));
+  const live: { repo: string; role: 'admin' | 'edit' }[] = [];
+  for (const repo of repos) {
+    const m = await members.get(repo, email);
+    if (m) live.push({ repo, role: m.role === 'admin' ? 'admin' : 'edit' });
+  }
+  const names = await getTeamNames(redis, live.map((t) => t.repo)).catch(() => new Map<string, { name: string }>());
+  // Every team here knows the account by its email: Claude can connect with the Bridge sign-in alone (no GitHub). Its
+  // role there is shown on the page ("You're connecting Claude as Dino, Can edit").
+  return live.map(({ repo, role }) => ({ repo, name: teamDisplayName(repo, { name: names.get(repo.toLowerCase())?.name }), email: true as const, role }));
 }
 
 async function onOAuth(step: string, req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: Services, site: Site): Promise<Response> {
@@ -239,7 +268,7 @@ async function onOAuth(step: string, req: Request, env: ConnectorEnv, deps: Conn
       const teams = account ? await teamsWithDesignSystem(redis, account.email) : [];
       return json(
         200,
-        { client: r.clientName, redirectHost: new URL(r.redirectUri).host, sameBrowser: sameBrowser(r, readCookie(req, REQUEST_COOKIE)), signedIn: Boolean(account), name: account?.name ?? null, teams },
+        { client: r.clientName, redirectHost: new URL(r.redirectUri).host, sameBrowser: sameBrowser(r, readCookie(req, REQUEST_COOKIE)), signedIn: Boolean(account), name: account?.name ?? null, email: account ? maskEmail(account.email) : null, teams },
         NO_STORE,
       );
     }
@@ -459,7 +488,7 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
   const grant = await grantOfAccessToken(svc.redis, bearer);
   if (!grant) return unauthorized('invalid_token');
   // An email grant: still a member of the team (removed, or joined again since, ends it), acting through the proxy.
-  let emailMember: { email: string; name: string; version: number } | null = null;
+  let emailMember: { email: string; name: string; version: number; role?: string } | null = null;
   if (grant.via === 'email') {
     const email = openGrantEmail(grant, svc.key);
     const m = email ? await (deps.members ?? memberStore(svc.redis)).get(grant.repo, email) : null;
@@ -501,9 +530,11 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
   const routed = Boolean(emailMember || designerProducts?.length);
   // "mine" for a member Bridge writes for: what its app made for them (GitHub names the app as the author).
   const owned = routed ? () => ownedWorkFor(emailMember ? { email: emailMember.email } : { token }, grant.repo, env, deps).catch(() => null) : undefined;
+  // bridge_whoami: who this grant is, read on demand (one team-name read; a lead's role needs one GitHub read).
+  const identity = () => grantIdentity({ grant, emailMember, designer: designerProducts !== null, routed, token, redis: svc.redis, fetch: deps.fetch });
   const ctx = deps.context
-    ? await deps.context({ repo: grant.repo, token, ...(routed ? { fetch: ghFetch } : {}), ...(owned ? { owned } : {}) })
-    : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: ghFetch as unknown as typeof fetch, ...(owned ? { owned } : {}) });
+    ? await deps.context({ repo: grant.repo, token, ...(routed ? { fetch: ghFetch } : {}), ...(owned ? { owned } : {}), identity })
+    : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: ghFetch as unknown as typeof fetch, ...(owned ? { owned } : {}), identity });
   // The body was read here (to record the steps): the transport takes it parsed, the request goes on without it.
   const headers = new Headers(req.headers);
   headers.delete('content-length');
