@@ -54,6 +54,29 @@ describe('ExplorationPage, archived', () => {
     expect(onUnarchive).toHaveBeenCalledOnce();
   });
 
+  it('offers nothing to keep working on: no Open in Claude Code, no Continue, no Bring it in; the preview fills the bar', () => {
+    const latest = { line: 'Art print shop changed since this exploration started.', onBring: async () => 'In.' };
+    const { container } = render(createElement(ExplorationPage, { ...base, archived: true, onUnarchive: async () => '', latest, claudeCodeUrl: 'https://claude.ai/code?x=1' }));
+    expect(screen.queryByText('Open in Claude Code')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Bring it in' })).toBeNull();
+    expect(screen.queryByText(/^Continue/)).toBeNull();
+    expect(container.querySelector('.xp-preview-acts.is-one')!.children).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Unarchive' })).toBeTruthy();
+  });
+
+  it('archived before anything was built: no AI tool panel and no way to continue', () => {
+    render(createElement(ExplorationPage, { ...base, stage: 'not-started', previewUrl: null, archived: true, onUnarchive: async () => '', claudeCodeUrl: 'https://claude.ai/code?x=1' }));
+    expect(screen.getByText('Nothing built yet')).toBeTruthy();
+    expect(screen.queryByText('Open in Claude Code')).toBeNull();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByText(/^Continue/)).toBeNull();
+  });
+
+  it('a running exploration of the copy still offers Open in Claude Code', () => {
+    render(createElement(ExplorationPage, { ...base, claudeCodeUrl: 'https://claude.ai/code?x=1' }));
+    expect(screen.getByText('Open in Claude Code')).toBeTruthy();
+  });
+
   it('a viewer who cannot unarchive reads the line without the button', () => {
     render(createElement(ExplorationPage, { ...base, archived: true, onUnarchive: null }));
     expect(screen.getByText(ARCHIVED_LINE)).toBeTruthy();

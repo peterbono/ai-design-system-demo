@@ -6,6 +6,7 @@
 // Members (who is in the team, who asks to join, invites and roles, MembersSection.tsx) reads the team from the address
 // and GitHub; the team's rules (how changes reach the code, review rules, safety) render read only, in designer words,
 // from its repository model in the browser (components/ds/studio/TeamSettings.tsx), each with a "For developers" fold.
+// Products (TeamProducts.tsx), for leads and admins only: the team's products and Add a product.
 // On the demo, that is the demo's sample team. Appearance (light or dark) is this browser's own choice, there for
 // everyone whatever the team read gives (AppearanceSetting.tsx).
 import '../../../styles/settings.css';
@@ -14,6 +15,7 @@ import MembersSection from '../../../components/ds/studio/MembersSection';
 import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
 import ClaudeConnector from '../../../components/ds/studio/ClaudeConnector';
 import TeamSettings from '../../../components/ds/studio/TeamSettings';
+import TeamProducts from '../../../components/ds/studio/TeamProducts';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import AiToolsSetting from '../../../components/ds/studio/AiToolsSetting';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
@@ -35,6 +37,7 @@ import { TEAM_NAME_WORDS } from '../../../lib/team-name';
   <section class="ts-band" id="team-claude" aria-labelledby="set-claude">
     <ClaudeConnector client:only="react" />
   </section>
+  <TeamProducts client:only="react" />
   <TeamSettings client:load />
   <section class="ts-band" id="ai-tools" aria-labelledby="ts-ai-tools">
     <h2 id="ts-ai-tools" class="ts-h">Your AI tools</h2>
