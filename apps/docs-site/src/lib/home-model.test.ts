@@ -166,7 +166,8 @@ describe('rows', () => {
   it('guidance drafts are Claude waiting', () => {
     const g = guidanceNeed({ name: 'Tooltip', href: '/components/tooltip/?edit=1', since: daysAgo(2) }, NOW);
     expect(g).toMatchObject({ kind: 'guidance', title: 'Tooltip usage guidance', person: CLAUDE, waitsOnYou: true, pill: { label: 'Waiting 2 days' }, thumb: { kind: 'text' } });
-    expect(guidanceNeed({ name: 'X', href: '#', since: null }, NOW).pill).toBeNull();
+    // No date known: still one status tag, like every row that waits on the viewer.
+    expect(guidanceNeed({ name: 'X', href: '#', since: null }, NOW).pill).toEqual({ label: 'Waiting', tone: 'warning' });
   });
   it('a guidance draft someone already sent no longer waits on you', () => {
     const pulls = [

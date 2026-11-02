@@ -336,6 +336,8 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
         : null,
       archived: Boolean(r.archived),
       state: r.archived ? ARCHIVED_LINE : r.status === 'active' ? null : explorationStateLine(r.status),
+      status: r.status,
+      seed: key,
       keepNote: emailOnProduct && open ? productKeeperLine(product.name) : connected() && open && changesModeOnPage() === 'direct' && !keeper ? keepExplorationLine(r.author) : null,
       developer: developerLines({ number: r.number, branch: r.branch, links: record?.links ?? [], ...(own ? { product: own.product.key, repo: own.repo } : {}) }),
       take: r.status === 'closed' ? null : takeItLines(r.branch),

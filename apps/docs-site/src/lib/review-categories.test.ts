@@ -158,6 +158,8 @@ describe('filters', () => {
     expect(queueSummary(15, 15, false)).toBe('15 changes wait on you.');
     expect(queueSummary(1, 1, false)).toBe('1 change waits on you.');
     expect(queueSummary(0, 0, false)).toBe('Nothing waits on you.');
+    // Claude's documentation drafts counted apart, as on the Home.
+    expect(queueSummary(17, 17, false, 1)).toBe('16 changes and 1 documentation draft wait on you.');
     expect(queueSummary(4, 15, true)).toBe('4 of 15 changes.');
   });
 });

@@ -173,9 +173,15 @@ export function groupByCategory<R extends { category: ReviewCategory }>(rows: re
 }
 
 /** The summary sentence over the groups: "15 changes wait on you." / "3 of 15 changes, filtered." */
-export function queueSummary(shown: number, total: number, filtered: boolean): string {
+export function queueSummary(shown: number, total: number, filtered: boolean, drafts = 0): string {
   const word = (n: number) => (n === 1 ? 'change' : 'changes');
-  if (!filtered) return total === 0 ? 'Nothing waits on you.' : `${total} ${word(total)} ${total === 1 ? 'waits' : 'wait'} on you.`;
+  if (!filtered) {
+    if (total === 0) return 'Nothing waits on you.';
+    // Claude's documentation drafts named apart, as the Home counts them ("16 changes and 1 documentation draft").
+    const n = total - drafts;
+    const what = [n > 0 || !drafts ? `${n} ${word(n)}` : '', drafts ? `${drafts} documentation ${drafts === 1 ? 'draft' : 'drafts'}` : ''].filter(Boolean).join(' and ');
+    return `${what} ${total === 1 ? 'waits' : 'wait'} on you.`;
+  }
   return `${shown} of ${total} ${word(total)}.`;
 }
 

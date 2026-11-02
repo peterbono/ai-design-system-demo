@@ -56,6 +56,7 @@ import type { ProductConfig, ToolingConfig } from '@bridge-ds/core';
 import { studioHref } from '../../../lib/team-path';
 import { LIFECYCLE_LABEL, type LifecycleStage } from '../../../lib/review-state';
 import { productHref } from '../../../lib/product-page';
+import { demoWaiting } from '../../../lib/demo';
 
 export interface ListRow {
   number: number;
@@ -319,6 +320,10 @@ export function BranchesList(p: BranchesListProps) {
         });
   useEffect(() => setPageSummary(summary), [summary]);
   const waitingView = tab === 'waiting' && Boolean(viewer);
+  // Waiting on me counts Claude's documentation drafts apart; in the demo lead's seat it says exactly what the demo
+  // Home says ("16 changes and 1 documentation draft need your review."), the same count with the same words.
+  const drafts = queue.filter((q) => q.kind === 'extra' && q.w.need.kind === 'guidance').length;
+  const waitingLine = p.seat && !filtered ? demoWaiting(queue.length - drafts, null, p.seat, drafts).count : queueSummary(kept.length, queue.length, filtered, drafts);
   const rowKey = (r: ListRow) => (r.product ? `${r.product}#${r.number}` : String(r.number));
   const rows = kept.flatMap((q) => (q.kind === 'branch' ? [q.x] : []));
   // Token branches carry a checkbox to preview them together, except in the demo lead's read-only Waiting on me.
@@ -521,7 +526,7 @@ export function BranchesList(p: BranchesListProps) {
             />
           </span>
           <p className="t-ui t-muted bl-summary" aria-live="polite">
-            {waitingView ? queueSummary(kept.length, queue.length, filtered) : listSummary(kept.length, queue.length, filtered)}
+            {waitingView ? waitingLine : listSummary(kept.length, queue.length, filtered)}
             {/* With nothing left, the empty line under it offers Clear filters instead. */}
             {filtered && kept.length > 0 && <> {clearLink}</>}
           </p>

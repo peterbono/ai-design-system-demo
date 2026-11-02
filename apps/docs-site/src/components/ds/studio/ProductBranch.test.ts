@@ -43,9 +43,14 @@ describe('ProductBranch while exploring', () => {
   });
 
   it('shows the pieces once checked, or once done exploring', () => {
-    paint({ checked: true, sentence: { lead: 'Built with the library.', strong: '', rest: '' } });
+    paint({ checked: true, rows: null, sentence: { lead: 'Built with the library.', strong: '', rest: '' } });
     expect(screen.getByRole('heading', { name: 'Missing from the library' })).toBeTruthy();
     expect(screen.getByText('Built with the library.')).toBeTruthy();
+    cleanup();
+    // Nothing missing: the zone says it once, the sentence above it does not repeat it.
+    paint({ checked: true, rows: [], sentence: { lead: 'Built with the library. ', strong: 'Nothing is missing', rest: ': every value and component comes from it.' } });
+    expect(screen.getByText('Nothing: every value and component comes from the library.')).toBeTruthy();
+    expect(screen.queryByText('Nothing is missing')).toBeNull();
     cleanup();
     paint({ exploring: false });
     expect(screen.getByRole('heading', { name: 'Missing from the library' })).toBeTruthy();
@@ -57,6 +62,22 @@ describe('ProductBranch while exploring', () => {
     expect(link.getAttribute('href')).toBe('https://bridge-demo.example.com/');
     expect(link.getAttribute('aria-describedby')).toBe('pb-try-note');
     expect(screen.getByText(TRY_TODAY_NOTE)).toBeTruthy();
+  });
+
+  it('no build and nothing known about it: the reason in words beside the disabled button', () => {
+    paint({ tryUrl: null, tryNote: null });
+    const button = screen.getByRole('button', { name: 'Try it in the product' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-describedby')).toBe('pb-try-note');
+    expect(screen.getByText('Preview not available yet')).toBeTruthy();
+  });
+
+  it('once done exploring: its tag and one sentence, and the plate while there is no before and after', () => {
+    const { container } = paint({ status: 'promoted', state: 'Promoted to review: it is in review now, and goes through the usual approvals.', visual: 'none', exploring: false });
+    const line = container.querySelector('.pb-status')!;
+    expect(line.textContent).toContain('In review');
+    expect(line.textContent).toContain('Promoted to review');
+    expect(container.querySelector('.pb-screen .xp-plate')).toBeTruthy();
   });
 
   it('while the preview builds: the button is disabled and says why', () => {

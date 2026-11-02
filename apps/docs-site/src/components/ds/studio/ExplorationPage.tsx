@@ -578,6 +578,10 @@ function LatestLine({ latest, say }: { latest: NonNullable<ExplorationPageProps[
 /** A question on the task the viewer has not answered yet and can answer here: what waits on them. */
 const waitsOnAnswer = (h: HandoffView | null): boolean => Boolean(h && !h.declined && h.status !== 'shipped' && h.question && !h.question.answered && h.question.onReply);
 
+/** The developers' version waits for the viewer's eyes (Review is now, and they can answer): opening it is the next step. */
+const reviewsVersion = (h: HandoffView | null): boolean =>
+  Boolean(h && !h.declined && h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && h.steps.some((s) => s.link));
+
 /** The one Harbor zone after Done exploring: the hand-off in four steps, then the library part. */
 function HandoffCard({ h, p, say, onBack }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void; onBack?: (() => void) | null }) {
   const version = h.steps.find((s) => s.link)?.link ?? null;
@@ -602,7 +606,12 @@ function HandoffCard({ h, p, say, onBack }: { h: HandoffView; p: ExplorationPage
         ))}
       </Checklist>
       {/* The developers' version opens under the steps, not inside a row: a row action squeezed every detail to a word. */}
-      {version && (
+      {version && reviewsVersion(h) ? (
+        // Their version is what the viewer has to look at before answering: the view's one primary action.
+        <ButtonLink variant="primary" size="lg" className="xp-fill" href={version.href} target="_blank" rel="noopener" iconEnd={ExternalLink}>
+          {version.label}
+        </ButtonLink>
+      ) : version && (
         <p className="xp-version">
           <Link href={version.href} target="_blank" rel="noopener">
             {version.label}
@@ -685,7 +694,7 @@ function ExplorationBody(p: ExplorationPageProps) {
   const declined = Boolean(handoff?.declined);
   // The Harbor zone holds what waits on the viewer (Back to exploring, or the answer to a question): the preview's
   // button steps back to secondary, one primary action per view.
-  const zoneLeads = declined || waitsOnAnswer(handoff);
+  const zoneLeads = declined || waitsOnAnswer(handoff) || reviewsVersion(handoff);
   return (
     <ToolContext.Provider value={tab}>
     <div className="xp-page">

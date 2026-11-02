@@ -472,7 +472,8 @@ export function guidanceNeed(g: GuidanceDraft, now: number, change: GuidanceChan
     line: `${CLAUDE.name} drafted it from the code`,
     since: g.since,
     waitsOnYou: true,
-    pill: g.since ? { label: waitingLabel(g.since, now), tone: 'warning' } : null,
+    // Its status tag like every row that waits on the viewer, even when Bridge cannot say since when.
+    pill: { label: g.since ? waitingLabel(g.since, now) : 'Waiting', tone: 'warning' },
   };
 }
 
