@@ -351,6 +351,8 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
         } catch (e) {
           // Not sent: it waits in the summary. The reason (the provider's status and code) shows in the delivery.
           why = `not-sent ${e instanceof Error ? e.message.slice(0, 80) : 'error'}`;
+          // A send that failed does not use up the hour: the next event on this thing tries again right away.
+          await d.redis.cmd('DEL', soonKey(email, n.repo, found.item)).catch(() => null);
           console.warn(`notifications: ${why}`);
         }
       } else why = first ? 'no-sender' : 'within-the-hour';
