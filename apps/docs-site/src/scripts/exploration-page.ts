@@ -26,6 +26,7 @@ import {
   handoffActivity,
   handoffSteps,
   headlineOf,
+  linkAuthors,
   isHandoffStatus,
   libraryPreviewApp,
   pageLines,
@@ -94,7 +95,8 @@ function branchCommits(r: ExplorationRow): Promise<BranchCommitLike[]> {
   let c = commitsBy.get(k);
   if (!c) {
     c = ghGet<BranchCommitLike[]>(`${own ? `/repos/${own.repo}` : R}/pulls/${r.number}/commits?per_page=100`)
-      .then((f) => f.data)
+      // Each commit with its GitHub account (lib/exploration-page linkAuthors): the same face in every row, Done exploring included.
+      .then((f) => linkAuthors(f.data))
       .catch(() => []);
     commitsBy.set(k, c);
   }
