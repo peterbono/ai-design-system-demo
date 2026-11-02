@@ -5,7 +5,7 @@
 // slot; a page that does not yet says so and offers the same page on the demo, so a team link never lands on a blank
 // screen. The header is the Studio one (StudioHeader.astro): title, one summary sentence the page's island writes,
 // the section's Field Guide scene; no team name under the title (the side nav says which team). The "actions" slot
-// goes to the end of the title line, the "how" slot to the header's "How it works" fold.
+// goes to the end of the title line.
 import '../styles/team-shell.css';
 import '../styles/team-pages.css';
 import Layout from '../layouts/Layout.astro';
@@ -36,7 +36,6 @@ const { route, title, what, description, summary, scene, wide = true } = Astro.p
   <div class="ts" data-team-shell={route || 'home'}>
     <StudioHeader title={title} summary={summary} scene={scene}>
       {Astro.slots.has('actions') && <Fragment slot="actions"><slot name="actions" /></Fragment>}
-      {Astro.slots.has('how') && <Fragment slot="how"><slot name="how" /></Fragment>}
     </StudioHeader>
     {Astro.slots.has('default') ? <slot /> : <TeamShellEmpty what={what} demoHref={studioHref(route)} />}
   </div>
