@@ -109,7 +109,7 @@ describe('release card', () => {
   });
 
   it('names the products that receive it', () => {
-    expect(card.lines).toEqual(['Product admin gets it when it updates @bridge-ds/react and @bridge-ds/tokens.']);
+    expect(card.lines).toEqual(['Product admin gets it through the update Bridge sends its developers.']);
     expect(card.breaking).toBe(false);
   });
 

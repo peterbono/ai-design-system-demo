@@ -20,6 +20,14 @@
 //   POST { action: 'sign-in', repo, email }              always { ok: true }; emails a link to members only
 //   POST { action: 'verify', repo, token }               spends that link, sets the session cookie; { member }
 //   POST { action: 'sign-out', repo }                    clears it
+//   POST { action: 'library-update', repo, product }     a lead or an admin of the team: Bridge opens (or updates in
+//                                                        place) the "Update the Bridge library" pull request in the
+//                                                        product's own repository with its app, under the policy of
+//                                                        api/_lib/library-update.ts (an update branch, package.json and
+//                                                        package-lock.json only, never the default branch, never a
+//                                                        merge); { state, pr, lockfile }
+//   GET  /api/contribute?npm=<name>,<name>,...           { latest: { <name>: <version> | null } }  the latest published
+//                                                        versions (public data, kept 5 minutes), at most 12 names
 //   GET  /api/contribute?repo=owner/name&gh=<GitHub REST path and query, URL-encoded, starting with />
 //   GET  /api/contribute?repo=owner/name&blobs=<sha>,<sha>,...
 //   GET  /api/contribute?repo=owner/name&users=<login>,...   (members only: public names and avatars)
@@ -144,6 +152,8 @@ import { sharedAppTokens } from '../_lib/shared-token.js';
 import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { accountTeamsKey } from '../_lib/members.js';
+import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-update.js';
+import { validPackageName } from '../../src/lib/library-update.js';
 import { corsHeaders, isPublicRepo, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
@@ -522,9 +532,64 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
       return json(200, { ok: true }, { 'Set-Cookie': clearSession(full) });
     }
 
+    case 'library-update':
+      return await onLibraryUpdate(req, ctx, body);
+
     default:
       return fail(400, 'bad_request', 'Unknown action.');
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The library update of a product (api/_lib/library-update.ts)
+
+/** Library updates sent per team per UTC day (each one is about ten GitHub calls). */
+export const LIBRARY_UPDATE_LIMIT = 30;
+export const LIBRARY_UPDATE_WORDS = {
+  notLead: 'Leads and admins send library updates to the developers.',
+  noProduct: 'This team lists no such product with its own repository.',
+  limit: 'Bridge already sent many updates today. Try again tomorrow.',
+};
+
+/**
+ * POST { action: 'library-update', repo, product }: a lead or an admin of the team (an email admin, or a GitHub
+ * account that administers the team's repository or is one of its leads) asks Bridge to send the library update to the
+ * developers of `product`. Bridge opens one pull request in the product's own repository with its app (or updates the
+ * open one in place), under the policy of api/_lib/library-update.ts. Never merges.
+ */
+async function onLibraryUpdate(req: Request, ctx: Ctx, body: Record<string, unknown>): Promise<Response> {
+  const team = parseRepo(body.repo);
+  const t = { ...team, full: team.full.toLowerCase() };
+  let who: string | null = null;
+  const m = await sessionMember(ctx, req, team.full);
+  if (m && (m.role === 'admin' || (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(team.full, m.email))))) who = m.name;
+  if (!who && req.headers.get('authorization')) {
+    const a = await githubAccountOn(ctx, req, t);
+    if (a?.kind === 'expired') return fail(401, 'signin', GITHUB_EXPIRED);
+    if (a?.kind === 'account' && githubRoleOf(a.perms, a.login, (await teamFacts(ctx, t)).leads) === 'lead') who = a.name;
+  }
+  if (!who) return fail(403, 'not-allowed', LIBRARY_UPDATE_WORDS.notLead);
+  const facts = await teamFacts(ctx, t);
+  const key = typeof body.product === 'string' ? body.product.trim().toLowerCase() : '';
+  const product = facts.products.find((p) => p.key === key);
+  if (!product) return fail(404, 'no_product', LIBRARY_UPDATE_WORDS.noProduct);
+  const [owner, name] = product.repo.split('/') as [string, string];
+  const token = await ctx.svc.app.installationToken(owner, name);
+  if (!token) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
+  await bumpOrRefuse(ctx, [`bridge:contrib:count:library-update:${t.full}:${dayOf(ctx.now())}`], [LIBRARY_UPDATE_LIMIT], LIBRARY_UPDATE_WORDS.limit, 'library-update');
+  const r = await sendLibraryUpdate({
+    f: ctx.f,
+    token,
+    repo: product.repo,
+    product: product.name,
+    extra: facts.packages,
+    changelog: `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}/library/${encodeURIComponent(team.owner)}/${encodeURIComponent(team.repo)}/changelog/`,
+    requestedBy: who,
+    redis: ctx.svc.redis,
+  });
+  // The team's next reads of the product ask GitHub again (the open pull requests moved).
+  if (r.state === 'opened' || r.state === 'updated') await noteWrite(ctx.svc.redis, t.full, ctx.now()).catch(() => undefined);
+  return json(200, r);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -989,19 +1054,58 @@ export function teamLeadsFrom(config: unknown): string[] {
 }
 
 /** The team's product pairs and leads, read from its default branch with the app, cached 5 minutes per warm function. */
-const pairsCache = new Map<string, { at: number; pairs: ProductPair[]; leads: string[] }>();
+const pairsCache = new Map<string, TeamFacts>();
 export const clearProductPairCache = () => pairsCache.clear();
 
 async function productPairs(ctx: Ctx, team: { owner: string; repo: string; full: string }): Promise<ProductPair[]> {
   return (await teamFacts(ctx, team)).pairs;
 }
 
-async function teamFacts(ctx: Ctx, team: { owner: string; repo: string; full: string }): Promise<{ pairs: ProductPair[]; leads: string[] }> {
+/** A product of the team with a developers' repository of its own (products[].repo), for its library update. */
+export interface CodeProduct {
+  key: string;
+  name: string;
+  /** "owner/name" as the settings write it. */
+  repo: string;
+}
+
+/** The products of a team's bridge.config.json with their own repository (not the team's). Anything malformed is left out. */
+export function codeProductsFrom(config: unknown, team: string): CodeProduct[] {
+  const products = config && typeof config === 'object' ? (config as { products?: unknown }).products : null;
+  if (!Array.isArray(products)) return [];
+  const out: CodeProduct[] = [];
+  for (const p of products) {
+    if (!p || typeof p !== 'object') continue;
+    const { key, name, repo } = p as { key?: unknown; name?: unknown; repo?: unknown };
+    if (typeof key !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/i.test(key) || typeof repo !== 'string' || !/^[\w.-]+\/[\w.-]+$/.test(repo.trim())) continue;
+    if (repo.trim().toLowerCase() === team.toLowerCase()) continue;
+    out.push({ key: key.toLowerCase(), name: typeof name === 'string' && name.trim() ? name.trim() : key, repo: repo.trim() });
+  }
+  return out;
+}
+
+/** The library packages a team's settings name besides the Bridge scope (previews.packages). */
+export function libraryPackagesFrom(config: unknown): string[] {
+  const list = config && typeof config === 'object' ? (config as { previews?: { packages?: unknown } }).previews?.packages : null;
+  return Array.isArray(list) ? list.filter((n): n is string => typeof n === 'string' && validPackageName(n)) : [];
+}
+
+interface TeamFacts {
+  at: number;
+  pairs: ProductPair[];
+  leads: string[];
+  products: CodeProduct[];
+  packages: string[];
+}
+
+const NO_FACTS = (): TeamFacts => ({ at: 0, pairs: [], leads: [], products: [], packages: [] });
+
+async function teamFacts(ctx: Ctx, team: { owner: string; repo: string; full: string }): Promise<TeamFacts> {
   const hit = pairsCache.get(team.full);
   if (hit && ctx.now() - hit.at < 5 * 60 * 1000) return hit;
   const token = await ctx.svc.app.installationToken(team.owner, team.repo);
   // Deny by default: a team Bridge cannot read lists no product (and no lead: nobody is a designer of it either).
-  if (!token) return { pairs: [], leads: [] };
+  if (!token) return NO_FACTS();
   let res: Response;
   try {
     res = await ctx.f(`${API}/repos/${team.owner}/${team.repo}/contents/bridge.config.json`, {
@@ -1011,18 +1115,22 @@ async function teamFacts(ctx: Ctx, team: { owner: string; repo: string; full: st
   } catch {
     throw new HttpError(502, 'unreachable', GITHUB_DOWN);
   }
-  if (res.status !== 200) return { pairs: [], leads: [] };
+  if (res.status !== 200) return NO_FACTS();
   let pairs: ProductPair[] = [];
   let leads: string[] = [];
+  let products: CodeProduct[] = [];
+  let packages: string[] = [];
   try {
     const config: unknown = JSON.parse(await res.text());
     pairs = productPairsFrom(config, team.full);
     leads = teamLeadsFrom(config);
+    products = codeProductsFrom(config, team.full);
+    packages = libraryPackagesFrom(config);
   } catch {
     pairs = [];
     leads = [];
   }
-  const facts = { at: ctx.now(), pairs, leads };
+  const facts: TeamFacts = { at: ctx.now(), pairs, leads, products, packages };
   pairsCache.set(team.full, facts);
   return facts;
 }
@@ -1667,6 +1775,10 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
     // Another origin reads one thing: gh= or blobs=, nothing else (no member facts, no people, no change status).
     if (cross && ((gh === null) === (blobs === null) || users !== null || changes !== null)) throw new HttpError(403, 'origin', CROSS_ORIGIN);
 
+    // The latest published version of library packages (the product page's library line): public, kept a few minutes.
+    if (method === 'GET' && params.get('npm') !== null && gh === null && blobs === null) {
+      return json(200, { latest: await npmLatest(deps.fetch, svc?.redis ?? null, parseNpmNames(params.get('npm'))) });
+    }
     if (method === 'GET' && gh === null && blobs === null && users === null && changes === null) {
       const repoArg = params.get('repo');
       if (repoArg === null || !svc) {

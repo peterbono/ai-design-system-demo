@@ -4,7 +4,11 @@
 //     flow, StartExploration). No drawing in the header: the action owns the end of the line.
 //   - One quiet line under the header: "Open the live product", a warning only when Bridge cannot reach it, and, for a
 //     product explored in the design team's copy (products[].design), "Art print shop changed since your copy. Get the
-//     latest" only when the product moved on (scripts/design-copy.ts, lib/design-copy.ts).
+//     latest" only when the product moved on (scripts/design-copy.ts, lib/design-copy.ts). For a product with its own
+//     repository, on the same line, which library it uses ("Art print shop uses the library from 1.8.3. The latest is
+//     1.8.4.") and, for a lead or an admin, "Send the update to the developers"; once sent, "Update sent to the
+//     developers." with "Open their update" for people signed in with GitHub (lib/library-update.ts,
+//     scripts/library-update.ts). Never on the sample team.
 //   - No copy of such a product yet: one calm card in place of the list, "Make my copy" its one action.
 //   - Its explorations, grouped by where they stand (Exploring, Waiting for code, Being built, In review, Shipped: the lifecycle's words), each
 //     the exploration card of the home (ExplorationCards.tsx); archived ones only counted in one quiet line at the end
@@ -35,6 +39,8 @@ import { studioHref } from '../../../lib/team-path';
 import { PRODUCT_NAME_MAX, PRODUCT_NAME_WORDS, productNameProblem } from '../../../lib/product-name';
 import { COPY_WORDS, latestLine, madeLine, showsBehind } from '../../../lib/design-copy';
 import type { ProductPageData } from '../../../scripts/product-page';
+import { LIBRARY_UPDATE_WORDS, libraryLine, type LibraryLine } from '../../../lib/library-update';
+import type { LibraryView } from '../../../scripts/library-update';
 import type { GitHubBusy } from '../../../lib/github-busy';
 import type { HomeComponent } from './StudioHome';
 import { BusyNotice } from './BusyNotice';
@@ -61,6 +67,15 @@ export interface ProductPageViewProps {
   onRetry?: () => void;
   /** Signed in: GitHub's wait is "for your account". */
   signedIn?: boolean;
+  /** The library line (lib/library-update libraryLine): how far behind the product is, and the update to send. */
+  library?: LibraryUpdate | null;
+}
+
+/** The library line of a product with its own repository, and the update a lead or an admin sends. */
+export interface LibraryUpdate {
+  line: LibraryLine;
+  /** Sends the update to the developers; rejects with Bridge's words. Absent: the viewer may not. */
+  send?: () => Promise<void>;
 }
 
 /** The pencil after the title, the name in place while editing, or the rename waiting for review. */
@@ -172,7 +187,49 @@ export interface CopyActions {
   latest: () => Promise<string>;
 }
 
-function Facts({ product, data, copy }: { product: ProductConfig; data: ProductPageData; copy?: CopyActions | null }) {
+/**
+ * "Art print shop uses the library from 1.8.3. The latest is 1.8.4." and, on the same line, the one thing to do:
+ * "Send the update to the developers" (a lead or an admin), or "Update sent to the developers." with "Open their
+ * update" for people signed in with GitHub. No package name, lockfile or pull request in a designer's words.
+ */
+function LibraryFact({ library }: { library: LibraryUpdate }) {
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { line } = library;
+  const send = async () => {
+    if (!library.send || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      await library.send();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : LIBRARY_UPDATE_WORDS.failed);
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <span className="pp-behind pp-library" data-library-line="">
+      <span>{line.text}</span>
+      {line.send && library.send && (
+        <Button variant="link" size="sm" loading={sending} onClick={() => void send()}>
+          {LIBRARY_UPDATE_WORDS.send}
+        </Button>
+      )}
+      {line.sent && <span data-library-sent="">{LIBRARY_UPDATE_WORDS.sent}</span>}
+      {line.sent && line.link && (
+        <Link href={line.link} variant="subtle" external>
+          {LIBRARY_UPDATE_WORDS.open}
+        </Link>
+      )}
+      <span role="status" aria-live="polite">
+        {error}
+      </span>
+    </span>
+  );
+}
+
+function Facts({ product, data, copy, library }: { product: ProductConfig; data: ProductPageData; copy?: CopyActions | null; library?: LibraryUpdate | null }) {
   const f = productFacts(product, data.ownRepo, data.reached);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
@@ -181,7 +238,7 @@ function Facts({ product, data, copy }: { product: ProductConfig; data: ProductP
   // developer facts and noise here (Settings has them).
   const off = f.connection && !f.connection.ok && !data.copy ? f.connection.text : null;
   const behind = showsBehind(data.copy) && !said;
-  if (!f.production && !off && !behind && !said) return null;
+  if (!f.production && !off && !behind && !said && !library) return null;
   const latest = async () => {
     if (!copy || busy) return;
     setBusy(true);
@@ -210,6 +267,7 @@ function Facts({ product, data, copy }: { product: ProductConfig; data: ProductP
         </span>
       )}
       {copy && <span aria-live="polite">{said}</span>}
+      {library && <LibraryFact library={library} />}
     </p>
   );
 }
@@ -247,7 +305,7 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
 }
 
 /** The page, painted from what is read so far. Pure render: tested in ProductPage.test.ts. */
-export function ProductPageView({ productKey, data, components, rename, copy, lead = true, onRetry = () => location.reload(), signedIn = true }: ProductPageViewProps) {
+export function ProductPageView({ productKey, data, components, rename, copy, lead = true, onRetry = () => location.reload(), signedIn = true, library: libraryUpdate = null }: ProductPageViewProps) {
   const product = data?.product ?? null;
   const head = useRenameTitle(product?.name ?? '', product?.key ?? productKey, data?.products ?? [], product ? rename : null);
   const loading = !data || data.loading;
@@ -293,7 +351,7 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
         // One primary action: on the title's line, or in the empty moment when there is nothing yet.
         actions={product && !empty && !noCopy ? start('menu') : null}
       >
-        {product && data && <Facts product={product} data={data} copy={copy ?? null} />}
+        {product && data && <Facts product={product} data={data} copy={copy ?? null} library={libraryUpdate} />}
         <p className="t-ui t-muted pp-rename-note" role="status">
           {head.note}
         </p>
@@ -380,6 +438,26 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   /** May change the library, as the start action reads it (StartExploration): a designer of the team may not. */
   const [lead, setLead] = useState(true);
   const [signedIn, setSignedIn] = useState(true);
+  /** A real team (never the sample one): the library line reads the product's own repository. */
+  const [realTeam, setRealTeam] = useState(false);
+  /** A lead or an admin: may send the library update to the developers. */
+  const [canSend, setCanSend] = useState(false);
+  const [libView, setLibView] = useState<LibraryView | null>(null);
+  const [withGitHub, setWithGitHub] = useState(false);
+  useEffect(() => {
+    const p = data?.product;
+    if (!realTeam || !p || p.default) return;
+    let live = true;
+    void (async () => {
+      const [{ readLibraryView }, { signedInWithGitHub }] = await Promise.all([import('../../../scripts/library-update'), import('../../../scripts/github-session')]);
+      if (live) setWithGitHub(signedInWithGitHub());
+      const v = await readLibraryView(p);
+      if (live) setLibView(v);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [realTeam, data?.product?.key, reload]);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -391,7 +469,13 @@ export default function ProductPage({ productKey, components = [] }: { productKe
       ]);
       const c = siteConfig();
       if (isSampleTeam(c.owner && c.repo ? `${c.owner}/${c.repo}` : null)) return;
-      onAccess((a) => live && setLead(libraryLead(a) && !designerRoute()));
+      setRealTeam(true);
+      onAccess((a) => {
+        if (!live) return;
+        setLead(libraryLead(a) && !designerRoute());
+        // Leads and admins (an email admin too) send the library update; the server checks again.
+        setCanSend((libraryLead(a) && !designerRoute()) || Boolean(a?.admin));
+      });
     })().catch(() => undefined);
     return () => {
       live = false;
@@ -493,5 +577,21 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           },
         }
       : null;
-  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} copy={copy} lead={lead} onRetry={() => setReload((n) => n + 1)} signedIn={signedIn} />;
+  const libLine = data?.product && libView ? libraryLine(data.product.name, libView.state, { update: libView.update, canSend, github: withGitHub }) : null;
+  const library: LibraryUpdate | null = libLine
+    ? {
+        line: libLine,
+        ...(libLine.send && data?.product
+          ? {
+              send: async () => {
+                const { sendLibraryUpdate } = await import('../../../scripts/library-update');
+                const r = await sendLibraryUpdate(data.product!);
+                // Sent (or already there): the line says so at once, with the link for people with GitHub.
+                if (r.pr) setLibView((v) => (v ? { ...v, update: { number: r.pr!.number, url: r.pr!.url, version: r.pr!.version } } : v));
+              },
+            }
+          : {}),
+      }
+    : null;
+  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} copy={copy} lead={lead} onRetry={() => setReload((n) => n + 1)} signedIn={signedIn} library={library} />;
 }

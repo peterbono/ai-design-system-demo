@@ -132,27 +132,24 @@ export function inNextRelease(mergeSha: string | null | undefined, ids: Readonly
 export interface ReleaseCard {
   /** "Library update ready: 3 changes. Publish so your products can update." */
   title: string;
-  /** Which products receive it: "Product admin gets it when it updates @bridge-ds/react." */
+  /** Which products receive it: "Product admin gets it through the update Bridge sends its developers." */
   lines: string[];
   breaking: boolean;
 }
 
-const andList = (xs: readonly string[]) => (xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
-
 /**
  * The release card of Being built, Figma-like: the library changes only (Bridge's tool updates never count). Null
  * when the release holds no library change: no card then. Under it, the products that receive it (a product with its
- * own repository gets it when it updates the library packages); without such a product, the packages in plain words.
+ * own repository gets it through the update Bridge sends its developers, lib/library-update.ts); without such a product, the packages in plain words.
  */
 export function releaseCard(plan: ReleasePlan, scope: LibraryScope = {}): ReleaseCard | null {
   const lib = libraryRelease(plan, scope);
   if (!lib.packages.length) return null;
   const n = lib.changes || lib.packages.length;
-  const names = andList(lib.packages.map((p) => p.name));
   const receivers = (scope.products ?? []).filter((p) => p.repo && !p.default);
   return {
     title: `Library update ready: ${n} ${n === 1 ? 'change' : 'changes'}. Publish so your products can update.`,
-    lines: receivers.length ? receivers.map((p) => `${p.name} gets it when it updates ${names}.`) : lib.packages.map(packageLine),
+    lines: receivers.length ? receivers.map((p) => `${p.name} gets it through the update Bridge sends its developers.`) : lib.packages.map(packageLine),
     breaking: lib.packages.some((p) => p.bump === 'major'),
   };
 }
