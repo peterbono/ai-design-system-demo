@@ -193,7 +193,7 @@ describe('right away, at most once per thing per hour', () => {
     await w.member();
     await w.task();
     expect(await deliverNotices([question], w.d, 'd1')).toEqual([{ kind: 'question', status: 'sent' }]);
-    expect(await deliverNotices([question], w.d, 'd2')).toEqual([{ kind: 'question', status: 'kept' }]);
+    expect(await deliverNotices([question], w.d, 'd2')).toEqual([{ kind: 'question', status: 'kept', reason: 'within-the-hour' }]);
     expect(await w.redis.cmd('ZRANGE', digestKey(MIA), 0, -1)).toHaveLength(1);
     w.tick(61 * 60 * 1000);
     expect(await deliverNotices([question], w.d, 'd3')).toEqual([{ kind: 'question', status: 'sent' }]);
@@ -226,7 +226,7 @@ describe('right away, at most once per thing per hour', () => {
     await w.watch();
     await w.member();
     await w.task();
-    expect(await deliverNotices([question], w.d, 'd1')).toEqual([{ kind: 'question', status: 'kept' }]);
+    expect(await deliverNotices([question], w.d, 'd1')).toEqual([{ kind: 'question', status: 'kept', reason: 'no-sender' }]);
     await deliverNotices([{ ...question, items: [12] }], w.d, 'd2');
     expect(w.warnings).toEqual(['notifications: BREVO_API_KEY is not set, notifications are kept but not sent']);
     expect(w.warnings.join(' ')).not.toContain('@');

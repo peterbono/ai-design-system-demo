@@ -70,7 +70,14 @@ export function brevoSender(apiKey: string, from: string, f: FetchLike): EmailSe
       } catch {
         throw new Error('email provider unreachable');
       }
-      if (!res.ok) throw new Error(`email provider answered ${res.status}`);
+      if (!res.ok) {
+        // Brevo's error code ("unauthorized", "invalid_parameter"...) says why, never the address or the key.
+        const code = await res
+          .json()
+          .then((b: { code?: unknown }) => (typeof b?.code === 'string' && /^[a-z_]{1,40}$/.test(b.code) ? ` ${b.code}` : ''))
+          .catch(() => '');
+        throw new Error(`email provider answered ${res.status}${code}`);
+      }
     },
   };
 }

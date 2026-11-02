@@ -238,7 +238,7 @@ function linksFor(d: NotifyDeps, email: string, kind: UnsubKind, home: string): 
 
 export type Outcome =
   | { kind: NotifyKind; status: 'sent' }
-  | { kind: NotifyKind; status: 'kept' }
+  | { kind: NotifyKind; status: 'kept'; reason?: string }
   | { kind: NotifyKind; status: 'skipped'; reason: 'unwatched' | 'not-library' | 'no-owner' | 'github' | 'not-member' | 'off' | 'repeat' };
 
 /** Who a notice is for: the first of its items Bridge keeps an author for, else the author of the exploration it links. */
@@ -339,6 +339,7 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
       at: d.now(),
     };
     const tz = validTimeZone(account?.tz) ?? DEFAULT_TZ;
+    let why: string | undefined;
     if (needs && prefs.needs === 'soon') {
       // At most one right-away email per thing per hour: more folds into the summary.
       const first = (await d.redis.cmd('SET', soonKey(email, n.repo, found.item), '1', 'NX', 'EX', SOON_S)) !== null;
@@ -347,14 +348,16 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
           await d.sender.send(instantEmail(item, linksFor(d, email, 'needs', teamBase(d.origin, repoMeta.team))));
           out.push({ kind: n.kind, status: 'sent' });
           continue;
-        } catch {
-          // Not sent: it waits in the summary.
+        } catch (e) {
+          // Not sent: it waits in the summary. The reason (the provider's status and code) shows in the delivery.
+          why = `not-sent ${e instanceof Error ? e.message.slice(0, 80) : 'error'}`;
+          console.warn(`notifications: ${why}`);
         }
-      }
-      noSender(d);
+      } else why = first ? 'no-sender' : 'within-the-hour';
+      if (!d.sender) noSender(d);
     }
     await keep(d, email, item, tz);
-    out.push({ kind: n.kind, status: 'kept' });
+    out.push({ kind: n.kind, status: 'kept', ...(why ? { reason: why } : {}) });
   }
   return out;
 }
