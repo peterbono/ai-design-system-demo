@@ -364,6 +364,8 @@ export interface WhoActs {
   sentence: string;
   /** Row form: "Design owner to approve", "Your turn: approve design". Null when it adds nothing to the status. */
   short: string | null;
+  /** The viewer wrote it and is the only owner for the missing approval: the sentence already names their way through. */
+  onlyOwner?: boolean;
 }
 
 const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
@@ -412,6 +414,32 @@ export function namesFor(role: ApprovalRole, logins: string[], p: Pick<People, '
   if (!p.entries) return at(logins);
   const labels = entriesFor(listedFor(role, p.entries), logins, p.teams);
   return labels.length ? or(labels) : at(logins);
+}
+
+const ONLY_NAME: Record<ApprovalRole, string> = { design: 'design owner', tech: 'tech owner', approval: 'owner' };
+
+/**
+ * The viewer wrote the change and is the only owner listed for the role (after teams expanded). GitHub refuses their
+ * own approval, so their way through is the owner override with a written reason (docs/GOVERNANCE.md).
+ */
+export function viewerIsOnlyOwnerAuthor(role: ApprovalRole, p: People): boolean {
+  if (p.reviews === false || !p.viewer || !same(p.viewer, p.author)) return false;
+  const listed = listedFor(role, p.owners);
+  return listed.length > 0 && listed.every((l) => same(l, p.viewer));
+}
+
+/**
+ * What comes after a wait (tests running, checking the merge), for the viewer: the only owner who wrote it adds it
+ * with a reason, an owner who can approve approves, everyone else reads who approves.
+ */
+function thenApproves(role: ApprovalRole, p: People): string {
+  if (viewerIsOnlyOwnerAuthor(role, p)) {
+    return p.overridable
+      ? ` Then you add it to the library with a reason: you are the only ${ONLY_NAME[role]}.`
+      : ` Then it needs another ${ONLY_NAME[role]}: you are the only one. Add one in Settings.`;
+  }
+  if (viewerCanApprove(role, p)) return ' Then you approve it.';
+  return ` Then ${namedRole(role, eligibleFor(role, p).logins, p)} approves.`;
 }
 
 /** "the design owner (@a)", "a reviewer", "the design owner (@acme/design (4 people))". */
@@ -480,12 +508,12 @@ export function whoActs(need: Need, p: People): WhoActs {
       return authorTurn('resolve-conflict', `resolve a conflict with ${VOCAB.main}`, `resolve a conflict with ${VOCAB.main}`, conflict, conflict);
     case 'checks-running': {
       const next = need.then[0];
-      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to add to the library.';
+      const then = next ? thenApproves(next, p) : ' Then it is ready to add to the library.';
       return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Tests are still running.${then}`, short: 'Tests running' };
     }
     case 'checking-merge': {
       const next = need.then[0];
-      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : '';
+      const then = next ? thenApproves(next, p) : '';
       return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Checking that it fits ${VOCAB.main}.${then}`, short: 'Checking' };
     }
     case 'approve': {
@@ -498,6 +526,11 @@ export function whoActs(need: Need, p: People): WhoActs {
       // Every listed owner wrote the change or already approved: only the owner override can merge it.
       if (!e.open && e.logins.length === 0) {
         const by = (p.overrideBy ?? []).map((x) => x.replace(/^@/, ''));
+        if (viewerIsOnlyOwnerAuthor(role, p)) {
+          const only = ONLY_NAME[role];
+          if (p.overridable) return { who: 'you', logins: [p.viewer!], yourTurn: true, action: 'override', sentence: `Your turn: you are the only ${only}, so add it to the library with a reason, under More.`, short: 'Your turn: owner override', onlyOwner: true };
+          return { who: 'owner', logins: by, yourTurn: false, action: 'override', sentence: `You are the only ${only}, so nobody else can approve. Add another ${only} in Settings.`, short: 'Owner override needed', onlyOwner: true };
+        }
         if (p.overridable) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: 'override', sentence: `Your turn: no other ${ROLE_NAME[role]} can approve, so add it to the library with the owner override, under More.`, short: 'Your turn: owner override' };
         const via = by.length ? ` @${by.join(' or @')} can add it to the library with the owner override.` : ' Add an owner in Settings.';
         return { who: 'owner', logins: by, yourTurn: false, action: 'override', sentence: `No other ${ROLE_NAME[role]} can approve.${via}`, short: 'Owner override needed' };

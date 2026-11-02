@@ -300,7 +300,32 @@ describe('who acts now', () => {
   it('asks for the owner override when the only owner wrote the change', () => {
     const solo = { design: ['pat'], tech: ['pat'] };
     expect(whoActs(detail({}), { owners: solo, author: 'pat', overrideBy: ['pat'] }).sentence).toBe('No other design owner can approve. @pat can add it to the library with the owner override.');
-    expect(whoActs(detail({}), { owners: solo, author: 'pat', viewer: 'pat', overridable: true })).toMatchObject({ yourTurn: true, action: 'override' });
+    expect(whoActs(detail({}), { owners: solo, author: 'pat', viewer: 'pat', overridable: true })).toMatchObject({
+      yourTurn: true,
+      action: 'override',
+      onlyOwner: true,
+      sentence: 'Your turn: you are the only design owner, so add it to the library with a reason, under More.',
+    });
+    expect(whoActs(detail({}), { owners: solo, author: 'pat', viewer: 'pat' }).sentence).toBe('You are the only design owner, so nobody else can approve. Add another design owner in Settings.');
+  });
+
+  it('tells the viewer what they do once the tests pass', () => {
+    const solo = { design: ['pat'], tech: ['pat'] };
+    const wait = detail({ ci: running });
+    // The only owner wrote it: they add it with a reason (owner override), never "a design owner approves".
+    expect(whoActs(wait, { owners: solo, author: 'pat', viewer: 'pat', overridable: true }).sentence).toBe('Tests are still running. Then you add it to the library with a reason: you are the only design owner.');
+    expect(whoActs(wait, { owners: solo, author: 'pat', viewer: 'pat' }).sentence).toBe('Tests are still running. Then it needs another design owner: you are the only one. Add one in Settings.');
+    // An owner who did not write it approves it.
+    expect(whoActs(wait, { owners, author: 'ann', viewer: 'dana' }).sentence).toBe('Tests are still running. Then you approve it.');
+    // Anyone else reads who approves.
+    expect(whoActs(wait, { owners, author: 'ann', viewer: 'zoe' }).sentence).toBe('Tests are still running. Then the design owner (@dana) approves.');
+    expect(whoActs(wait, { owners, author: 'ann', viewer: 'ann' }).sentence).toBe('Tests are still running. Then the design owner (@dana) approves.');
+    // A reader without the review right never reads "you approve".
+    expect(whoActs(wait, { owners, author: 'ann', viewer: 'dana', reviews: false }).sentence).toBe('Tests are still running. Then the design owner (@dana) approves.');
+    // Same words while GitHub checks the merge.
+    expect(whoActs({ kind: 'checking-merge', then: ['design'] }, { owners: solo, author: 'pat', viewer: 'pat', overridable: true }).sentence).toBe(
+      'Checking that it fits the library. Then you add it to the library with a reason: you are the only design owner.',
+    );
   });
 
   it('asks any reviewer when the config names no owner, never the author', () => {
