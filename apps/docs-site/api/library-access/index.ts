@@ -61,7 +61,7 @@
 // Shared pieces (HTTP, Redis, email, the GitHub App, signed cookies) live in api/_lib, which is not a function.
 
 import { createHmac, randomBytes } from 'node:crypto';
-import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
+import { escHtml, mailButton, mailP, mailPage, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app.js';
 import {
   b64url,
@@ -430,12 +430,16 @@ export function signInEmail(x: { to: string; repo: string; link: string }): Emai
     'The link works once and expires in 15 minutes. It keeps you signed in to this library in that browser for 30 days.',
     'If you did not ask for it, you can ignore this email.',
   ];
-  const html = [
-    `<p>Open the <strong>${escHtml(x.repo)}</strong> design system library on Bridge.</p>`,
-    `<p><a href="${escHtml(x.link)}">Open the library</a></p>`,
-    '<p>The link works once and expires in 15 minutes. It keeps you signed in to this library in that browser for 30 days.</p>',
-    '<p>If you did not ask for it, you can ignore this email.</p>',
-  ].join('\n');
+  const html = mailPage({
+    subject,
+    preheader: 'The link works once and expires in 15 minutes.',
+    body: [
+      mailP(`Open the <strong>${escHtml(x.repo)}</strong> design system library on Bridge.`, true),
+      mailButton(x.link, 'Open the library'),
+      `<p style="margin:16px 0 0">The link works once and expires in 15 minutes. It keeps you signed in to this library in that browser for 30 days.</p>`,
+    ].join('\n'),
+    footer: 'If you did not ask for it, you can ignore this email.',
+  });
   return { to: x.to, subject, text: lines.join('\n'), html };
 }
 

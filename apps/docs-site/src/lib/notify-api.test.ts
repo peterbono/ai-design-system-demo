@@ -75,8 +75,12 @@ describe('the webhook turns a signed delivery into a notification', () => {
     expect(r.status).toBe(200);
     expect(await r.json()).toMatchObject({ ok: true, notices: 1 });
     expect(s.sent.map((m) => [m.to, m.subject])).toEqual([[MIA, 'ana has a question about Pill buttons']]);
-    // The comment itself is never kept or sent: the email links to Bridge.
-    expect(JSON.stringify(s.sent) + s.redis.keys().join(' ')).not.toContain('Which radius');
+    // The start of the question is quoted in the email, so the designer understands it without opening Bridge...
+    expect(s.sent[0]!.text).toContain('> Which radius do you want?');
+    expect(s.sent[0]!.html).toContain('<blockquote');
+    // ...and never kept: nothing in storage holds it.
+    const stored = await Promise.all(s.redis.keys().map((k) => s.redis.cmd('GET', k).catch(() => s.redis.cmd('ZRANGE', k, 0, -1)).catch(() => null)));
+    expect(JSON.stringify(stored) + s.redis.keys().join(' ')).not.toContain('Which radius');
     expect(await (await s.hook('issue_comment', comment, { delivery: 'abc-1' })).json()).toEqual({ ok: true, duplicate: true });
     expect(s.sent).toHaveLength(1);
   });

@@ -299,6 +299,16 @@
   gap: var(--space-3) var(--space-4);
 }
 
+/* A row whose action is a short ghost toggle (Rename, Change): it stays on the line of what it acts on, at the end,
+   on a phone too, so its text never sits indented on a line of its own. */
+.acc-set-row-inline {
+  flex-wrap: nowrap;
+}
+
+.acc-set-row-inline > .acc-set-text {
+  flex-basis: 0;
+}
+
 .acc-set-text {
   display: grid;
   flex: 1 1 var(--size-60);
@@ -330,6 +340,15 @@
 
 .acc-set-form > :first-child {
   flex: 1 1 var(--size-60);
+}
+
+/* Account > Email, the two choices: equal columns side by side, one full-width column on a phone, apart from the line
+   above them. */
+.acc-set-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-60), 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
 }
 
 .acc-set-teams {

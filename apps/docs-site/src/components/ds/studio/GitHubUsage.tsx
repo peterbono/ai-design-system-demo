@@ -3,7 +3,8 @@
 // (api/mcp ?view=github-usage), and the row stays hidden on any other answer, on the sample team and before sign-in.
 //   "Bridge used 1,240 of 5,000 GitHub reads this hour. Resets at 14:00."
 //   "Bridge is close to GitHub's hourly limit for this team. Pages may load from the last saved copy until 14:00."
-// A thin meter under the sentence, warning-toned when close. Words: lib/github-usage.ts.
+// A thin meter under the sentence, warning-toned when close or when GitHub asked Bridge to slow down this hour (the
+// row's tone, so the slow-down is never only a muted help line). Words: lib/github-usage.ts.
 import { useEffect, useState } from 'react';
 import { Card, CardBody, Progress } from '@bridge-ds/react';
 import { accessContext } from '../../../lib/library-access';
@@ -45,7 +46,7 @@ export default function GitHubUsage() {
             <p className="set-row-label">{W.label}</p>
             <div className="set-row-value">
               <p>{lines.sentence}</p>
-              {u && <Progress value={Math.min(u.used, u.limit)} max={u.limit} size="sm" tone={u.low ? 'warning' : 'signal'} aria-label={W.meter} showValue={false} className="set-usage-meter" />}
+              {u && <Progress value={Math.min(u.used, u.limit)} max={u.limit} size="sm" tone={lines.tone === 'warning' ? 'warning' : 'signal'} aria-label={W.meter} showValue={false} className="set-usage-meter" />}
               {lines.help.map((h) => (
                 <p className="set-row-help" key={h}>
                   {h}

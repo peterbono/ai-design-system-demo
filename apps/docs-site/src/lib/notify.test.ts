@@ -6,7 +6,7 @@ import { putAccount, type Account } from '../../api/_lib/account';
 import { brevoSender, parseSender, type EmailMessage, type EmailSender } from '../../api/_lib/email';
 import { issueKey } from '../../api/_lib/former-member';
 import { memberStore } from '../../api/_lib/members';
-import { cleanTitle, closedIssues, DESIGN_REVIEW_PREFIX, linkedCopy, NEEDS_DESIGN_LABEL, notifyEventsOf, TASK_BACK_PREFIX, type Notice } from '../../api/_lib/notify-events';
+import { cleanTitle, closedIssues, DESIGN_REVIEW_PREFIX, linkedCopy, NEEDS_DESIGN_LABEL, notifyEventsOf, QUOTE_MAX, quoteOf, TASK_BACK_PREFIX, type Notice } from '../../api/_lib/notify-events';
 import { DESIGN_TASK_BACK_COMMENT } from '@bridge-ds/core';
 import { DESIGN_REVIEW_PREFIX as STUDIO_REVIEW_PREFIX, NEEDS_DESIGN_LABEL as STUDIO_NEEDS_DESIGN } from './review-state';
 import { digestEmail, digestSubject, instantEmail, linesOf, readUnsubToken, unsubToken, type NotifyItem } from '../../api/_lib/notify-mail';
@@ -27,6 +27,7 @@ import {
   watchWrites,
 } from '../../api/_lib/notify';
 import { memoryRedis } from '../../api/_lib/redis';
+import { profileNameOf, userKey } from '../../api/_lib/team-read';
 
 const SECRET = 's'.repeat(40);
 const T0 = Date.parse('2026-11-02T10:00:00Z');
@@ -42,7 +43,16 @@ describe('notifyEventsOf, the mapper', () => {
   const repo = { full_name: 'Acme/Shop' };
   it('a developer comment on a task: a question, the exploration it links kept', () => {
     const n = notifyEventsOf('issue_comment', { action: 'created', repository: repo, sender: dev, issue: { number: 12, title: 'Design: Pill buttons', body: taskBody }, comment: { user: dev, body: 'Which radius?' } });
-    expect(n).toEqual([{ kind: 'question', repo: CODE, items: [12], title: 'Pill buttons', actor: { login: 'ana', id: 42 }, copy: { repo: COPY, number: 7 }, scope: 'any' }]);
+    expect(n).toEqual([{ kind: 'question', repo: CODE, items: [12], title: 'Pill buttons', actor: { login: 'ana', id: 42 }, copy: { repo: COPY, number: 7 }, scope: 'any', quote: 'Which radius?' }]);
+  });
+  it('quotes what was written: plain text, the start of it, cut on a word', () => {
+    expect(quoteOf('<!-- bot -->Which radius?\r\n\r\n\r\n![shot](https://x/y.png) <b>here</b>')).toBe('Which radius?\n\n(image) here');
+    expect(quoteOf('Pill \u2014 or square?')).toBe('Pill, or square?');
+    const long = quoteOf('word '.repeat(200));
+    expect(long.length).toBeLessThanOrEqual(QUOTE_MAX + 1);
+    expect(long.endsWith('word…')).toBe(true);
+    expect(quoteOf('  ')).toBe('');
+    expect(quoteOf(undefined)).toBe('');
   });
   it('never a comment Bridge posted for the designer, nor one by a bot, nor one on a pull request', () => {
     const base = { action: 'created', repository: repo, issue: { number: 12, title: 'X' } };
@@ -85,6 +95,9 @@ describe('notifyEventsOf, the mapper', () => {
   it('changes requested on a suggestion; an approval or a comment review is not phase 1', () => {
     const review = (state: string) => notifyEventsOf('pull_request_review', { action: 'submitted', repository: { full_name: TEAM }, sender: dev, pull_request: { number: 5, title: 'Badge: overdue tone' }, review: { state, user: dev } });
     expect(review('changes_requested')).toMatchObject([{ kind: 'changes', items: [5], scope: 'library' }]);
+    const noted = notifyEventsOf('pull_request_review', { action: 'submitted', repository: { full_name: TEAM }, sender: dev, pull_request: { number: 5, title: 'x' }, review: { state: 'changes_requested', user: dev, body: 'Use the 8px radius.' } });
+    expect(noted).toMatchObject([{ kind: 'changes', quote: 'Use the 8px radius.' }]);
+    expect(review('changes_requested')[0]).not.toHaveProperty('quote');
     expect(review('approved')).toEqual([]);
     expect(review('commented')).toEqual([]);
   });
@@ -95,6 +108,10 @@ describe('notifyEventsOf, the mapper', () => {
   });
   it('titles in the designer words, closing keywords, the linked exploration', () => {
     expect(cleanTitle('Design: Pill buttons')).toBe('Pill buttons');
+    // As Studio names it: a capital first, no conventional prefix.
+    expect(cleanTitle('Design: add a toast alert')).toBe('Add a toast alert');
+    expect(cleanTitle('add a toast alert')).toBe('Add a toast alert');
+    expect(cleanTitle('feat(toast): add a toast alert')).toBe('Add a toast alert');
     expect(cleanTitle('Badge \u2014 overdue')).toBe('Badge, overdue');
     expect(closedIssues('Closes #12, fixes #3 and resolves https://github.com/acme/shop/issues/7. See #9.', CODE)).toEqual([12, 3, 7]);
     expect(linkedCopy(taskBody, CODE)).toEqual({ repo: COPY, number: 7 });
@@ -154,6 +171,43 @@ describe('who a notice is for', () => {
     await w.redis.cmd('SET', 'bridge:account:gh:42', 'ana@acme.dev');
     await deliverNotices([question], w.d, 'd1');
     expect(w.sent[0]!.subject).toBe('Ana Ruiz has a question about Pill buttons');
+  });
+  it('else by their GitHub profile name, as Studio names them; the login only when they set none', async () => {
+    const w = world();
+    await w.watch();
+    await w.member();
+    await w.task(MIA, 12);
+    await w.task(MIA, 13);
+    const asked: string[] = [];
+    w.d.profileName = async (login, repo) => (asked.push(`${login}@${repo}`), login === 'peterbono' ? 'Florian' : null);
+    await deliverNotices([{ ...question, actor: { login: 'peterbono', id: 7 } }], w.d, 'd1');
+    expect(w.sent[0]!.subject).toBe('Florian has a question about Pill buttons');
+    expect(w.sent[0]!.text).toContain('Answer Florian:');
+    expect(asked).toEqual([`peterbono@${CODE}`]);
+    await deliverNotices([{ ...question, items: [13], actor: { login: 'nobody', id: 8 } }], w.d, 'd2');
+    expect(w.sent[1]!.subject).toBe('nobody has a question about Pill buttons');
+  });
+  it('a title kept in lower case reads as Studio names it', async () => {
+    const w = world();
+    await w.watch();
+    await w.member();
+    await w.redis.pipe([['SET', issueKey(CODE, 12), MIA], itemWrite(CODE, 12, { title: 'add a toast alert', copy: { repo: COPY, number: 7 } })]);
+    await deliverNotices([question], w.d, 'd1');
+    expect(w.sent[0]!.subject).toBe('ana has a question about Add a toast alert');
+  });
+  it('quotes the question in the email, never in the summary', async () => {
+    const w = world();
+    await w.watch();
+    await w.member();
+    await w.task();
+    await deliverNotices([{ ...question, quote: 'Which <radius> do you want?' }], w.d, 'd1');
+    const m = w.sent[0]!;
+    expect(m.text).toContain('> Which <radius> do you want?');
+    expect(m.html).toContain('Which &lt;radius&gt; do you want?');
+    expect(m.html).not.toContain('<radius>');
+    // Within the hour: it folds into the summary, without the words.
+    await deliverNotices([{ ...question, quote: 'And the color?' }], w.d, 'd2');
+    expect(JSON.stringify(await w.redis.cmd('ZRANGE', digestKey(MIA), 0, -1))).not.toContain('color');
   });
   it('a task Bridge kept no author for: the author of the exploration it links', async () => {
     const w = world();
@@ -295,6 +349,16 @@ describe('the emails', () => {
     expect(linesOf(item('look')).subject).toBe('Pill buttons is ready for your look');
     const m = instantEmail(item('shipped'), { to: MIA, settings: 'https://b/#account', unsubscribe: 'https://b/u' });
     expect(m.html).toContain('<html lang="en">');
+    // One shell for every Bridge email: a preheader, layout tables, a bulletproof button, dark mail apps.
+    expect(m.html).toContain('role="presentation"');
+    expect(m.html).toContain('<meta name="color-scheme" content="light dark">');
+    expect(m.html).toContain('prefers-color-scheme: dark');
+    expect(m.html).toMatch(/<td class="b-btn" bgcolor="#0B4A8B"/);
+    expect(m.html).toContain('What you designed is now in the product. Nice work.&#847;');
+    const q = instantEmail({ ...item('changes'), quote: 'Use the 8px radius.\nAnd a lighter border.' }, { to: MIA, settings: 'https://b/#account', unsubscribe: 'https://b/u' });
+    expect(q.text).toContain('> Use the 8px radius.\n> And a lighter border.');
+    expect(q.html).toContain('Use the 8px radius.<br>And a lighter border.');
+    expect(q.text).toContain("See Ana's notes: https://b/x");
     expect(m.html).toContain('Change what Bridge emails you');
     expect(m.text).toContain('Stop these emails: https://b/u');
   });
@@ -334,6 +398,26 @@ describe('choices and time zone', () => {
     expect(validTimeZone('Europe/Paris')).toBe('Europe/Paris');
     expect(validTimeZone('Mars/Olympus')).toBeNull();
     expect(validTimeZone('<script>')).toBeNull();
+  });
+});
+
+describe('profileNameOf, the name Studio shows for a GitHub person', () => {
+  it("Studio's kept profile first; else one GitHub read with the team's read token, kept; null without a name", async () => {
+    const redis = memoryRedis(() => T0);
+    const calls: string[] = [];
+    const f = (async (url: string, init?: RequestInit) => {
+      calls.push(`${url} ${(init?.headers as Record<string, string>)?.Authorization}`);
+      return new Response(JSON.stringify({ login: 'peterbono', name: 'Florian', type: 'User' }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const ctx = { f, now: () => T0, redis, token: async () => 'tok' };
+    await redis.cmd('SET', userKey('ana'), JSON.stringify({ login: 'ana', name: 'Ana Ruiz', avatar_url: null, type: 'User' }));
+    expect(await profileNameOf(ctx, 'acme', 'shop', 'ana')).toBe('Ana Ruiz');
+    expect(calls).toEqual([]);
+    expect(await profileNameOf(ctx, 'acme', 'shop', 'peterbono')).toBe('Florian');
+    expect(calls).toEqual(['https://api.github.com/users/peterbono Bearer tok']);
+    expect(await profileNameOf(ctx, 'acme', 'shop', 'peterbono')).toBe('Florian');
+    expect(calls).toHaveLength(1);
+    expect(await profileNameOf({ ...ctx, token: async () => null }, 'acme', 'shop', 'someone')).toBeNull();
   });
 });
 

@@ -16,6 +16,8 @@ import { useEffect, useState } from 'react';
 import { Alert, Avatar, Button, Icon, Radio, RadioGroup, Spinner } from '@bridge-ds/react';
 import { Check } from 'lucide-react';
 import { signInHref } from '../../../lib/account';
+import { nameFace } from '../../../lib/people';
+import { useFaces } from './faces';
 import { CREATE_TEAM_HREF } from '../../../lib/entry';
 import { appName, CLAUDE_CONNECT_WORDS as W, connectClaudeStep, connectPath, identityLine, parseRequestInfo, readQuery, type ClaudeConnectStep, type RequestInfo } from '../../../lib/connect-claude';
 
@@ -28,6 +30,8 @@ export async function readRequestInfo(id: string): Promise<RequestInfo | null> {
 }
 
 export default function ConnectClaude() {
+  // The drawn face, as the account menu and Members show this person (never initials).
+  const draw = useFaces();
   const [step, setStep] = useState<ClaudeConnectStep | null>(null);
   const [team, setTeam] = useState('');
   const [busy, setBusy] = useState<'allow' | 'cancel' | null>(null);
@@ -161,14 +165,15 @@ export default function ConnectClaude() {
       const who =
         path === 'github' && ghUser
           ? { name: ghUser.name, avatar: ghUser.avatar, seed: ghUser.login, role: ghRoles[team] ?? null, sub: W.identityGitHub(ghUser.login) }
-          : { name: step.info.name ?? 'You', avatar: null, seed: step.info.name ?? 'you', role: path === 'email' ? (picked?.role ?? null) : (ghRoles[team] ?? null), sub: path === 'email' && step.info.email ? W.identityEmail(step.info.email) : null };
+          : { name: step.info.name ?? 'You', avatar: null, seed: nameFace(step.info.name ?? 'you'), role: path === 'email' ? (picked?.role ?? null) : (ghRoles[team] ?? null), sub: path === 'email' && step.info.email ? W.identityEmail(step.info.email) : null };
       return (
         <div className="cc-step">
           <p className="cc-lede">{W.lede(appName(step.info))}</p>
           <div className="cc-who" data-connect-identity="">
-            <Avatar name={who.name} {...(who.avatar ? { src: who.avatar } : {})} seed={who.seed} size="lg" decorative />
+            <Avatar name={who.name} {...(who.avatar ? { src: who.avatar } : {})} seed={who.seed} fallback="illustrated" illustration={draw?.(who.seed)} size="lg" decorative />
             <div className="cc-who-text">
-              <p className="cc-who-line">{identityLine({ name: who.name, role: who.role, via: path })}</p>
+              {/* On the GitHub path with no GitHub sign-in here yet, nobody is "signed in with GitHub": say what happens. */}
+              <p className="cc-who-line">{path === 'github' && !ghUser ? W.identityGitHubLater : identityLine({ name: who.name, role: who.role, via: path })}</p>
               <p className="t-ui t-muted">
                 {who.sub ? `${who.sub} ` : ''}
                 <Button variant="link" onClick={() => void otherAccount()}>

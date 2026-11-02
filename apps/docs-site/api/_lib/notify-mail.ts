@@ -1,12 +1,13 @@
 // The notification emails (api/_lib/notify.ts): one sentence, one button to the exact Studio page, a footer to change
 // what Bridge emails you and a one-click unsubscribe (List-Unsubscribe + List-Unsubscribe-Post, RFC 8058). Plain text
-// and simple HTML, light on brand (the Bridge name in Deep Harbor, one button), no image. Bridge voice: no em dash,
+// and HTML in the shell every Bridge email shares (mailPage in email.ts: the Bridge name in Deep Harbor, one button,
+// a preheader, dark mail apps), no image. Bridge voice: no em dash,
 // no "issue", "pull request", "repository", "merge", "check" or "webhook": a designer reads it.
 //
 // The unsubscribe token is sealed (AES-256-GCM under LIBRARY_SESSION_SECRET, purpose notify-unsubscribe, sealed.ts):
 // signed, so nobody can make one, and opaque, so the address never sits in a link or a request log.
 
-import { escHtml, type EmailMessage } from './email.js';
+import { escHtml, mailButton, mailH2, mailLink, mailP, mailPage, mailQuote, type EmailMessage } from './email.js';
 import { b64url, fromB64url } from './http.js';
 import type { NotifyKind } from './notify-events.js';
 import { NEEDS_KINDS } from './notify-events.js';
@@ -27,6 +28,8 @@ export interface NotifyItem {
   /** The exact Studio page, absolute. */
   href: string;
   at: number;
+  /** What they wrote (notify-events quoteOf), for the right-away email only: never kept for the summary. */
+  quote?: string;
 }
 
 /** The lines of one notice: the subject, the sentence, the button. */
@@ -34,11 +37,11 @@ export function linesOf(i: Pick<NotifyItem, 'kind' | 'title' | 'actor'>): { subj
   const { title, actor } = i;
   switch (i.kind) {
     case 'question':
-      return { subject: `${actor} has a question about ${title}`, sentence: `${actor} asked something about your exploration and is waiting for your answer.`, button: `Answer ${actor}` };
+      return { subject: `${actor} has a question about ${title}`, sentence: `${actor} asked something about ${title} and is waiting for your answer.`, button: `Answer ${actor}` };
     case 'look':
       return { subject: `${title} is ready for your look`, sentence: `${actor} built ${title} and would like you to check it matches your design.`, button: 'Look at it' };
     case 'changes':
-      return { subject: `${actor} asked for changes on ${title}`, sentence: `${actor} left a few notes on your library suggestion. Send a new version when you are ready.`, button: `See ${actor}'s notes` };
+      return { subject: `${actor} asked for changes on ${title}`, sentence: `${actor} left a few notes on ${title}, your library suggestion. Send a new version when you are ready.`, button: `See ${actor}'s notes` };
     case 'declined':
       return { subject: `${title} will not be built for now`, sentence: `${actor} decided not to build it this time and left a note.`, button: 'Read the note' };
     case 'shipped':
@@ -92,10 +95,6 @@ export interface MailLinks {
   unsubscribe: string;
 }
 
-const HARBOR = '#0B4A8B';
-const INK = '#1A2433';
-const MUTED = '#4A5568';
-
 /** The teams named in a footer: "Acme", "Acme and Shop", "Acme, Shop and Ops". */
 export function teamsInWords(teams: readonly string[]): string {
   const t = [...new Set(teams)];
@@ -103,22 +102,8 @@ export function teamsInWords(teams: readonly string[]): string {
   return `${t.slice(0, -1).join(', ')} and ${t[t.length - 1]}`;
 }
 
-function page(subject: string, inner: string, teams: readonly string[], l: MailLinks): string {
-  return [
-    '<!doctype html>',
-    '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<title>${escHtml(subject)}</title></head>`,
-    `<body style="margin:0;padding:24px 16px;background:#F5F7FA;color:${INK};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5">`,
-    '<div style="max-width:520px;margin:0 auto;background:#FFFFFF;border-radius:12px;padding:24px">',
-    `<p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:600;color:${HARBOR}">Bridge</p>`,
-    inner,
-    `<p style="margin:24px 0 0;font-size:13px;color:${MUTED}">You get this because you are on ${escHtml(teamsInWords(teams))}. <a href="${escHtml(l.settings)}" style="color:${HARBOR}">Change what Bridge emails you</a> or <a href="${escHtml(l.unsubscribe)}" style="color:${HARBOR}">stop these emails</a>.</p>`,
-    '</div></body></html>',
-  ].join('\n');
-}
-
-const button = (href: string, label: string) =>
-  `<p style="margin:20px 0 0"><a href="${escHtml(href)}" style="display:inline-block;background:${HARBOR};color:#FFFFFF;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">${escHtml(label)}</a></p>`;
+const footerHtml = (teams: readonly string[], l: MailLinks) =>
+  `You get this because you are on ${escHtml(teamsInWords(teams))}. ${mailLink(l.settings, 'Change what Bridge emails you')} or ${mailLink(l.unsubscribe, 'stop these emails')}.`;
 
 const footerText = (teams: readonly string[], l: MailLinks) => [`You get this because you are on ${teamsInWords(teams)}.`, `Change what Bridge emails you: ${l.settings}`, `Stop these emails: ${l.unsubscribe}`];
 
@@ -127,8 +112,11 @@ const unsubHeaders = (l: MailLinks) => ({ 'List-Unsubscribe': `<${l.unsubscribe}
 /** One notice, sent right away: one sentence, one button. */
 export function instantEmail(i: NotifyItem, l: MailLinks): EmailMessage {
   const { subject, sentence, button: label } = linesOf(i);
-  const text = [sentence, '', `${label}: ${i.href}`, '', ...footerText([i.team], l)].join('\n');
-  const html = page(subject, `<p style="margin:0">${escHtml(sentence)}</p>\n${button(i.href, label)}`, [i.team], l);
+  // What they wrote, quoted, so the designer understands without opening Bridge; the button takes them there to answer.
+  const quote = i.quote?.trim() ?? '';
+  const text = [sentence, ...(quote ? ['', ...quote.split('\n').map((x) => `> ${x}`.trimEnd())] : []), '', `${label}: ${i.href}`, '', ...footerText([i.team], l)].join('\n');
+  const body = [mailP(escHtml(sentence), true), ...(quote ? [mailQuote(quote)] : []), mailButton(i.href, label)].join('\n');
+  const html = mailPage({ subject, preheader: quote ? `"${quote.replace(/\s+/g, ' ').slice(0, 120)}"` : sentence, body, footer: footerHtml([i.team], l) });
   return { to: l.to, subject, text, html, headers: unsubHeaders(l) };
 }
 
@@ -155,17 +143,18 @@ export function digestEmail(items: readonly NotifyItem[], l: MailLinks & { home:
   const subject = digestSubject(teams.length === 1 ? teams[0]! : 'Bridge', needs.length, moved.length);
   const MAX = 20;
   const textGroup = (title: string, list: NotifyItem[]) => (list.length ? [title, ...list.slice(0, MAX).map((i) => `- ${linesOf(i).subject}: ${i.href}`), ...(list.length > MAX ? [`- And ${list.length - MAX} more in Bridge.`] : []), ''] : []);
-  const htmlGroup = (title: string, list: NotifyItem[]) =>
+  const htmlGroup = (title: string, list: NotifyItem[], first: boolean) =>
     list.length
       ? [
-          `<h2 style="margin:20px 0 8px;font-size:15px;color:${INK}">${escHtml(title)}</h2>`,
+          mailH2(title, first),
           '<ul style="margin:0;padding-left:20px">',
-          ...list.slice(0, MAX).map((i) => `<li style="margin:4px 0"><a href="${escHtml(i.href)}" style="color:${HARBOR}">${escHtml(linesOf(i).subject)}</a></li>`),
-          ...(list.length > MAX ? [`<li style="margin:4px 0">And ${list.length - MAX} more in Bridge.</li>`] : []),
+          ...list.slice(0, MAX).map((i) => `<li style="margin:0 0 8px">${mailLink(i.href, linesOf(i).subject)}</li>`),
+          ...(list.length > MAX ? [`<li style="margin:0 0 8px">And ${list.length - MAX} more in Bridge.</li>`] : []),
           '</ul>',
         ].join('\n')
       : '';
   const text = [...textGroup('Needs you', needs), ...textGroup('What moved', moved), `Open Bridge: ${l.home}`, '', ...footerText(teams, l)].join('\n');
-  const inner = [htmlGroup('Needs you', needs), htmlGroup('What moved', moved), button(l.home, 'Open Bridge')].filter(Boolean).join('\n');
-  return { to: l.to, subject, text, html: page(subject, inner, teams, l), headers: unsubHeaders(l) };
+  const inner = [htmlGroup('Needs you', needs, true), htmlGroup('What moved', moved, !needs.length), mailButton(l.home, 'Open Bridge')].filter(Boolean).join('\n');
+  const preheader = needs.length ? needs.map((i) => linesOf(i).subject).join('. ') : moved.map((i) => linesOf(i).subject).join('. ');
+  return { to: l.to, subject, text, html: mailPage({ subject, preheader, body: inner, footer: footerHtml(teams, l) }), headers: unsubHeaders(l) };
 }

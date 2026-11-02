@@ -33,7 +33,7 @@ import { brevoSender, type EmailSender } from './email.js';
 import { issueKey } from './former-member.js';
 import type { FetchLike } from './http.js';
 import { memberStore, type MemberStore } from './members.js';
-import { NEEDS_KINDS, type Notice, type NotifyKind } from './notify-events.js';
+import { cleanTitle, NEEDS_KINDS, type Notice, type NotifyKind } from './notify-events.js';
 import { digestEmail, instantEmail, unsubToken, type NotifyItem, type UnsubKind } from './notify-mail.js';
 import type { Redis, RedisArg } from './redis.js';
 import { getTeamNames } from './teams.js';
@@ -203,6 +203,11 @@ export interface NotifyDeps {
   /** Where "not sent" is said, once; never an address. */
   warn?: (msg: string) => void;
   random?: (n: number) => Uint8Array;
+  /**
+   * A GitHub person's profile name (team-read profileNameOf: Studio's kept profile, else one GitHub read with the
+   * repository's read token), for someone with no Bridge account. Absent or null: their login.
+   */
+  profileName?: (login: string, repo: string) => Promise<string | null>;
 }
 
 function noSender(d: NotifyDeps) {
@@ -259,8 +264,11 @@ async function ownerOf(d: NotifyDeps, n: Notice): Promise<{ owner: string; item:
   return null;
 }
 
-/** The name Bridge gives the person who did it: their Bridge account name when their GitHub is linked to one. */
-async function actorName(d: NotifyDeps, a: Notice['actor']): Promise<string> {
+/**
+ * The name Bridge gives the person who did it, as Studio names them: their Bridge account name when their GitHub is
+ * linked to one, else their GitHub profile name, else their login.
+ */
+export async function actorName(d: Pick<NotifyDeps, 'redis' | 'profileName'>, a: Notice['actor'], repo: string): Promise<string> {
   if (a.id !== null) {
     const email = await d.redis.cmd('GET', `bridge:account:gh:${a.id}`);
     if (typeof email === 'string') {
@@ -269,7 +277,8 @@ async function actorName(d: NotifyDeps, a: Notice['actor']): Promise<string> {
       if (name && !name.includes('@')) return name;
     }
   }
-  return a.login;
+  const profile = d.profileName ? ((await d.profileName(a.login, repo).catch(() => null))?.trim() ?? '') : '';
+  return profile && !profile.includes('@') ? profile : a.login;
 }
 
 async function keep(d: NotifyDeps, email: string, item: NotifyItem, tz: string): Promise<void> {
@@ -331,12 +340,14 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
     const item: NotifyItem = {
       id: `${eventId}:${idx}`,
       kind: n.kind,
-      title: found.meta?.title?.trim() || n.title || 'Your work',
-      actor: await actorName(d, n.actor),
+      // A title kept before Bridge named things the way Studio does ("add a toast alert") reads "Add a toast alert".
+      title: cleanTitle(found.meta?.title) || n.title || 'Your work',
+      actor: await actorName(d, n.actor, n.repo),
       team,
       teamRepo: repoMeta.team,
       href: hrefOf(d.origin, repoMeta.team, n.kind, found.item, found.meta?.copy ?? null, repoMeta.product),
       at: d.now(),
+      ...(n.quote ? { quote: n.quote } : {}),
     };
     const tz = validTimeZone(account?.tz) ?? DEFAULT_TZ;
     let why: string | undefined;
@@ -358,7 +369,9 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
       } else why = first ? 'no-sender' : 'within-the-hour';
       if (!d.sender) noSender(d);
     }
-    await keep(d, email, item, tz);
+    // The summary names things, it never quotes them: what they wrote is not kept.
+    const { quote: _said, ...kept } = item;
+    await keep(d, email, kept, tz);
     out.push({ kind: n.kind, status: 'kept', ...(why ? { reason: why } : {}) });
   }
   return out;

@@ -14,8 +14,9 @@
 //   - notifications (api/_lib/notify.ts): in the same first round trip, whether the repository is watched for designers
 //     who joined by email (bridge:notify:teams, not the 20-minute read cache) and whether a daily summary is due. A
 //     watched delivery goes through notifyEventsOf (pure) and deliverNotices (who it is for, sent or kept): only
-//     names and titles are kept, never a comment body. Once per delivery id, like everything else here. A failure
-//     there never fails the delivery.
+//     names and titles are kept, never a comment body (its start is quoted in a right-away email, then dropped). The
+//     one GitHub call it may make: the profile name of someone Bridge has no name for, kept a day like Studio's.
+//     Once per delivery id, like everything else here. A failure there never fails the delivery.
 //
 // Keys (besides those of team-read.ts it writes: bridge:read:changed, bridge:read:hook:last, bridge:read:hook:inst):
 //   bridge:hook:delivery:<X-GitHub-Delivery>   "1", DELIVERY_KEEP_S
@@ -50,7 +51,7 @@ export interface WebhookDeps {
    * Notifications (api/_lib/notify.ts): the sender (null: kept, not sent), LIBRARY_SESSION_SECRET for unsubscribe
    * links and PUBLIC_SITE_URL for links. Absent: deliveries only move the read cache.
    */
-  notify?: Pick<NotifyDeps, 'sender' | 'secret' | 'warn' | 'members' | 'random'> & { publicUrl?: string | undefined };
+  notify?: Pick<NotifyDeps, 'sender' | 'secret' | 'warn' | 'members' | 'random' | 'profileName'> & { publicUrl?: string | undefined };
 }
 
 /** Whether `signature` (the X-Hub-Signature-256 header, "sha256=<hex>") is GitHub's for `body` with `secret`. */

@@ -886,10 +886,16 @@ GitHub.
   with `/api/account?unsub=<token>`. The token is sealed (AES-256-GCM under `LIBRARY_SESSION_SECRET`, purpose
   `notify-unsubscribe`): nobody can make one and the address never appears in a link or a log. GET shows one button,
   POST stops those emails (right away ones from a right away email, both from the summary).
-- **Privacy**: names, titles and links only, never a comment body. Nothing logged but one line when the key is
-  missing. Deleting the account deletes the kept notifications.
+- **Privacy**: names, titles and links are kept, never a comment body. A right-away email quotes the start of what
+  was written (the question, the lead's review note: plain text, at most 400 characters) and drops it once sent; the
+  daily summary never quotes. Nothing logged but one line when the key is missing. Deleting the account deletes the
+  kept notifications.
+- **Names**: the person who did it by their Bridge account name, else their GitHub profile name (the profile Studio
+  keeps, `bridge:read:user:<login>`, else one read with the team's read token, kept a day), else their login. Titles
+  as Studio shows them ("Design: add a toast alert" reads "Add a toast alert").
 - **Copy**: one sentence, one button to the exact Studio page, Bridge voice, no em dash, no "issue", "pull request",
-  "repository" or "webhook". Plain text and simple HTML.
+  "repository" or "webhook". Plain text and HTML in the shell every Bridge email shares (`mailPage`,
+  `api/_lib/email.ts`): the Bridge name, a preheader, layout tables, a bulletproof button, dark mail apps.
 
 ### Set it up (owner of the site)
 

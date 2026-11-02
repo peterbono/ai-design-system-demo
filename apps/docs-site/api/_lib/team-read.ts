@@ -1094,6 +1094,23 @@ async function askUser(ctx: ReadCtx, login: string, token: string): Promise<User
 }
 
 /**
+ * A GitHub person's profile name, for a sentence written once (a notification email): the profile Studio keeps
+ * (bridge:read:user:<login>, the same names as on avatars and rows), else one GitHub read with the team's read token,
+ * kept like Studio's. Null when they set no name, the app is not on the repository, or GitHub did not answer.
+ */
+export async function profileNameOf(ctx: Pick<ReadCtx, 'f' | 'now' | 'redis' | 'token'>, owner: string, repo: string, login: string): Promise<string | null> {
+  if (!LOGIN.test(login)) return null;
+  const kept = parseProfile(await ctx.redis.cmd('GET', userKey(login)).catch(() => null));
+  if (kept !== undefined) return kept?.name ?? null;
+  const token = await ctx.token(owner, repo).catch(() => null);
+  if (!token) return null;
+  const got: UserAnswer = await askUser(ctx as ReadCtx, login, token).catch((): UserAnswer => ({ kind: 'later' }));
+  if (got.kind !== 'profile') return null;
+  await ctx.redis.cmd('SET', userKey(login), got.profile ? JSON.stringify(got.profile) : 'null', 'EX', USER_KEEP_S).catch(() => null);
+  return got.profile?.name ?? null;
+}
+
+/**
  * The public profiles of `logins`, for a member of the team (never a visitor): from Redis, then GitHub with the team's
  * read token (4 at a time). Counts against the member's budget like a blob batch (1 per 20 logins).
  */
