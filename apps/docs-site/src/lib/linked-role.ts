@@ -13,6 +13,18 @@ export function linkedAccessState(role: LinkedRole | null | undefined): RepoAcce
   return role === 'admin' ? 'admin' : role === 'edit' ? 'writer' : role === 'view' ? 'reader' : null;
 }
 
+const MEMBER_RANK: Partial<Record<RepoAccessState, number>> = { reader: 1, writer: 2, admin: 3 };
+
+/**
+ * The role the page shows: the stronger of what this browser's GitHub sign-in reads (`access`, null without one or
+ * until read) and the account's linked GitHub role (`linked`, linkedAccessState). A GitHub admin is never shown as
+ * "Can view" because one of the two said less.
+ */
+export function strongerAccess(access: RepoAccessState | null, linked: RepoAccessState | null): RepoAccessState | null {
+  if (!linked) return access;
+  return (MEMBER_RANK[linked] ?? 0) > (access ? (MEMBER_RANK[access] ?? 0) : 0) ? linked : access;
+}
+
 /** On the team: makes changes once GitHub is reconnected. A GitHub reader stays a visitor of the page as before. */
 export const linkedMember = (role: LinkedRole | null | undefined): boolean => role === 'admin' || role === 'edit';
 

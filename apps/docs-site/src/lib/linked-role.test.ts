@@ -1,7 +1,7 @@
 // A Bridge account whose linked GitHub is on the team, in a browser without the GitHub sign-in: its role words, the
 // reconnect banner, and the one read per page (scripts/linked-role.ts).
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { linkedAccessState, linkedMember, reconnectScreen, RECONNECT_WORDS } from './linked-role';
+import { linkedAccessState, linkedMember, reconnectScreen, RECONNECT_WORDS, strongerAccess } from './linked-role';
 import { memberRole, roleBadge } from './access-view';
 import { exploresDemo } from './demo';
 import { linkedRole, onLinkedRole, readLinkedRole, resetLinkedRole } from '../scripts/linked-role';
@@ -67,5 +67,19 @@ describe('the read, once per page', () => {
     const refresh = vi.fn(async () => undefined);
     expect(await readLinkedRole('acme/ds', { account: async () => ({ github: { id: 1 } }), role: async () => Promise.reject(new Error('down')), refresh })).toBeNull();
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('the role shown: the stronger of the GitHub sign-in and the linked GitHub account (strongerAccess)', () => {
+  it('a sign-in read as "Can view" and a linked admin: Admin', () => {
+    expect(strongerAccess('reader', 'admin')).toBe('admin');
+    expect(strongerAccess('outside-contributor', 'writer')).toBe('writer');
+    expect(strongerAccess(null, 'admin')).toBe('admin');
+  });
+  it('never weaker than the GitHub sign-in, and unchanged without a linked role', () => {
+    expect(strongerAccess('admin', 'reader')).toBe('admin');
+    expect(strongerAccess('writer', 'writer')).toBe('writer');
+    expect(strongerAccess('reader', null)).toBe('reader');
+    expect(strongerAccess(null, null)).toBeNull();
   });
 });

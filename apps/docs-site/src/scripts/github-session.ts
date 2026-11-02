@@ -7,7 +7,7 @@
 
 import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
-import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, lastKnownAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
+import { ACCESS_READ, accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, lastKnownAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
 import { busyRetryDelay, githubBusy, type GitHubBusy } from '../lib/github-busy';
 import { repoContext, siteConfig } from './repo-context';
 import { productRouteFor, teamReadRoute } from '../lib/write-route';
@@ -216,12 +216,21 @@ function linkedEligible(): boolean {
 
 /**
  * The role the signed-in Bridge account's linked GitHub account has on this page's team, read by the server with the
- * Bridge app (scripts/linked-role.ts), only while this browser holds no GitHub sign-in and is not an email member here:
- * the page shows the real role and asks to reconnect GitHub, never the visitor's read-only view. Null otherwise.
+ * Bridge app (scripts/linked-role.ts), for a browser that is not an email member here: without a GitHub sign-in, and
+ * with one whose own access here is below edit (another GitHub account, or GitHub has not said yet). The page shows the
+ * strongest of the two, never the visitor's read-only view. Null otherwise.
  */
 export function linkedGitHubRole(): LinkedRole | null {
-  if (githubToken() || currentContributor() || !linkedEligible()) return null;
+  if (currentContributor() || !linkedEligible() || currentAccess()?.write) return null;
   return linkedRole(pageRepo());
+}
+
+/** Worth asking the server for the linked role: no GitHub sign-in, or one whose access here was read below edit. */
+function linkedWorthReading(): boolean {
+  if (currentContributor() || !linkedEligible()) return false;
+  if (!githubToken()) return true;
+  const a = currentAccess();
+  return Boolean(a && !a.write);
 }
 
 /**
@@ -1223,11 +1232,13 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       onLinkedRole(() => fn());
     },
   });
-  // No GitHub sign-in here: the account's linked GitHub role, once per page (the server reads it with the app).
+  // No GitHub sign-in here, or one GitHub reads below edit: the account's linked GitHub role, once per page (the
+  // server reads it with the app). The page shows the strongest of the two.
   const readLinked = () => {
-    if (!githubToken() && !currentContributor() && linkedEligible()) void readLinkedRole(pageRepo());
+    if (linkedWorthReading()) void readLinkedRole(pageRepo());
   };
   listeners.push(readLinked);
+  onAccess(readLinked);
   readLinked();
   if (onChange) listeners.push(onChange);
   if (wired) {
@@ -1701,7 +1712,7 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
     }
     const last = signedIn && !opts.probe ? currentCheck() : null;
     if (last?.ok) {
-      writeCheck({ ...last, write: read.write, reach: typeof read.reach === 'boolean' ? read.reach : null, access: { repo: name, state: read.state } });
+      writeCheck({ ...last, write: read.write, reach: typeof read.reach === 'boolean' ? read.reach : null, access: { repo: name, state: read.state, read: ACCESS_READ } });
     }
     return read;
   } catch (err) {

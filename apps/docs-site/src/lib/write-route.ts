@@ -109,6 +109,17 @@ export function productReadRoute(x: { method: string | undefined; url: string; p
 /** Where a signed-in GitHub read of the team goes (teamReadRoute): which repository, or a person's public profile. */
 export type TeamReadRoute = { via: 'bridge'; scope: 'library' | 'product' | 'user' } | { via: 'github' };
 
+/** `path` (under api.github.com) is the repository `team` itself, with or without a query. */
+function isRepoRoot(path: string, team: string): boolean {
+  const m = /^\/repos\/([^/?#]+)\/([^/?#]+)\/?(?:[?#].*)?$/.exec(path);
+  if (!m) return false;
+  try {
+    return `${decodeURIComponent(m[1]!)}/${decodeURIComponent(m[2]!)}`.toLowerCase() === team.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
 /** A person's public profile on api.github.com (/users/<login>): names and avatars of builders and reviewers. */
 const USER_PATH = /^\/users\/([A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:%5Bbot%5D|\[bot\])?)$/;
 
@@ -125,6 +136,9 @@ export function teamReadRoute(x: { method: string | undefined; url: string; team
   if (!x.session || !x.team || (x.method ?? 'GET').toUpperCase() !== 'GET' || !x.url.startsWith(GITHUB_API)) return { via: 'github' };
   const path = x.url.slice(GITHUB_API.length);
   if (USER_PATH.test(path)) return { via: 'bridge', scope: 'user' };
+  // The library repository itself (GET /repos/owner/name): its `permissions` are the reader's own (admin, push), and
+  // Bridge would answer the app's, shared by the whole team (every flag false). Read with the viewer's token, always.
+  if (isRepoRoot(path, x.team)) return { via: 'github' };
   if (productReadRoute({ ...x, products: [x.team] }) === 'bridge') return { via: 'bridge', scope: 'library' };
   if (productReadRoute(x) === 'bridge') return { via: 'bridge', scope: 'product' };
   return { via: 'github' };

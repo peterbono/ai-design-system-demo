@@ -81,11 +81,13 @@ export function accessView(a: Pick<CoreRepoAccess, 'state' | 'private' | 'instal
  * before states existed. Null when the check says nothing usable.
  */
 export function accessFromCheck(
-  check: { write?: boolean | null; reach?: boolean | null; access?: { repo: string; state: RepoAccessState } | null } | null | undefined,
+  check: { write?: boolean | null; reach?: boolean | null; access?: { repo: string; state: RepoAccessState; read?: number } | null } | null | undefined,
   repo: string,
   hosted: boolean,
 ): RepoAccess | null {
   if (!check) return null;
+  // An access kept before ACCESS_READ: nothing to show at once (it may be the app's permissions), GitHub says it again.
+  if (check.access && check.access.read !== ACCESS_READ) return null;
   if (check.access && check.access.repo.toLowerCase() === repo.toLowerCase()) {
     const { state } = check.access;
     return {
@@ -101,7 +103,14 @@ export function accessFromCheck(
 }
 
 /** The sessionStorage key of one access: per app slot, account and repository. */
-export const accessStorageKey = (slot: string, login: string, repo: string) => `bridge.github.access:${slot}:${login.toLowerCase()}:${repo.toLowerCase()}`;
+export const accessStorageKey = (slot: string, login: string, repo: string) => `bridge.github.access:${ACCESS_READ}:${slot}:${login.toLowerCase()}:${repo.toLowerCase()}`;
+
+/**
+ * The version of an access read, kept with it (the sessionStorage key above, the token check's `access.read`). Reads
+ * kept before it may hold the Bridge app's permissions instead of the viewer's (a GitHub admin kept as "Can view"):
+ * they are never shown again, the page asks GitHub once more.
+ */
+export const ACCESS_READ = 2;
 
 /** A stored access, when it is still fresh. */
 export function freshAccess(raw: string | null, now: number, maxAge = ACCESS_MAX_AGE_MS): RepoAccess | null {
@@ -119,10 +128,10 @@ export function freshAccess(raw: string | null, now: number, maxAge = ACCESS_MAX
  * this tab's kept read (`raw`, freshAccess's form), else the token check's last state for this repository. Null when
  * nothing was ever read here: the badge then reads neutral, never "Checking" for the whole wait.
  */
-export function lastKnownAccess(raw: string | null, check: { repo: string; state: RepoAccessState } | null | undefined, repo: string, app: boolean): RepoAccess | null {
+export function lastKnownAccess(raw: string | null, check: { repo: string; state: RepoAccessState; read?: number } | null | undefined, repo: string, app: boolean): RepoAccess | null {
   const kept = freshAccess(raw, Date.now(), Number.POSITIVE_INFINITY);
   if (kept) return kept;
-  return check && check.repo.toLowerCase() === repo.toLowerCase() ? accessView({ state: check.state, private: undefined, installationId: undefined }, app) : null;
+  return check && check.read === ACCESS_READ && check.repo.toLowerCase() === repo.toLowerCase() ? accessView({ state: check.state, private: undefined, installationId: undefined }, app) : null;
 }
 
 /** The badge text of an access ('' when signed out, 'Unknown' until read). */
