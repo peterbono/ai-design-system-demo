@@ -53,6 +53,8 @@ export function ExplorationCardItem({ c, showProduct = true }: { c: ExplorationC
  * its name and what is in progress. Content first: nothing explored yet shows only the name and the line, no empty pane.
  */
 export function ProductFolderCard({ f }: { f: ProductFolder }) {
+  // The mosaic is decorative (aria-hidden): who explores its screens is said once, in words, for screen readers.
+  const people = [...new Set(f.shots.map((s) => s.who.name))];
   return (
     <li className="sh-card-item">
       <Card interactive padding="none" className="sh-card pf-card">
@@ -62,6 +64,10 @@ export function ProductFolderCard({ f }: { f: ProductFolder }) {
             {f.shots.map((s, i) => (
               <span key={s.key} className={`pf-pane pf-pane-${i}`}>
                 <BranchThumb spec={s.spec} size="card" />
+                {/* Who explores this screen, on its top-left corner: the same face as on their cards and in Members. */}
+                <span className="pf-pane-who" title={s.who.name}>
+                  <Who p={s.who} size="xs" />
+                </span>
               </span>
             ))}
           </span>
@@ -74,6 +80,7 @@ export function ProductFolderCard({ f }: { f: ProductFolder }) {
           </span>
           <span className="sh-card-foot">
             <span className="t-ui t-muted sh-card-product">{f.line}</span>
+            {people.length > 0 && <span className="sr-only">Explored by {people.join(', ')}.</span>}
           </span>
         </div>
       </Card>
