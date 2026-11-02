@@ -162,17 +162,24 @@ export async function handleGithubWebhook(req: Request, d: WebhookDeps): Promise
   const r = await d.redis.pipe(first);
   if (r[0] === null) return done({ ok: true, duplicate: true });
   let notified: number | null = null;
+  // What became of each notice (kind, status, reason): words only, never an address, so GitHub's Recent Deliveries
+  // tell why a designer got nothing.
+  let outcomes: string[] = [];
   if (d.notify) {
     const nd: NotifyDeps = { ...d.notify, redis: d.redis, now: d.now, origin: siteOrigin(req, d.notify.publicUrl) };
     // Never in the way of the read cache: a notification that fails is lost, the delivery still answers.
     try {
-      if (watchAt >= 0 && Number(r[watchAt]) === 1) notified = (await deliverNotices(notices, nd, delivery)).length;
+      if (watchAt >= 0 && Number(r[watchAt]) === 1) {
+        const out = await deliverNotices(notices, nd, delivery);
+        notified = out.length;
+        outcomes = out.map((o) => [o.kind, o.status, 'reason' in o ? o.reason : ''].filter(Boolean).join(':'));
+      } else if (notices.length) outcomes = notices.map((n) => `${n.kind}:skipped:unwatched`);
       if (Array.isArray(r[dueAt]) && (r[dueAt] as unknown[]).length) await sweepSometimes(nd);
     } catch {
       console.warn('notifications: a delivery could not be turned into notifications');
     }
   }
-  const extra = notified !== null ? { notices: notified } : {};
+  const extra = { ...(notified !== null ? { notices: notified } : {}), ...(outcomes.length ? { outcomes } : {}) };
   const known = effect.repos.filter((_, i) => r[at + i] !== null && r[at + i] !== undefined);
   if (!known.length || !effect.topics.length) return done({ ok: true, ignored: true, ...extra });
 
