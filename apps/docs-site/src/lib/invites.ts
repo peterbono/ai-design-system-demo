@@ -22,7 +22,7 @@
 
 import type { Owners } from '@bridge-ds/core';
 import { isSampleTeam } from './demo';
-import { loginKey } from './people';
+import { loginKey, nameFace } from './people';
 
 export type MemberRole = 'view' | 'edit' | 'reviewer' | 'admin';
 
@@ -173,6 +173,13 @@ export interface Member {
    */
   via?: 'email';
 }
+
+/**
+ * The face seed of a member row: an email member's name (lib/people nameFace), the one every other place uses for them
+ * (account menu, exploration cards, activity), else their login. Never a row index nor an email, which would draw a
+ * different face on each surface.
+ */
+export const memberSeed = (m: Pick<Member, 'login' | 'name' | 'via'>): string => (m.via === 'email' ? nameFace(m.name) : m.login);
 
 /** An email contributor as the invites server lists them (GET /api/invites?repo=, `members`, `via: 'email'`). */
 export interface EmailMemberRow {

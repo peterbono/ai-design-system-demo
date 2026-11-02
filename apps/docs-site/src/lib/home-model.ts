@@ -14,7 +14,7 @@
 import type { ThumbSpec } from './branch-thumb';
 import { isDocsProposalBranch, PUBLISH_ROUTE_COPY } from '@bridge-ds/core';
 import { STATUS_WORDS, VOCAB } from './vocabulary';
-import { isClaudeLogin } from './people';
+import { isClaudeLogin, nameFace } from './people';
 import { studioHref } from './team-path';
 
 /** Rows of the Needs you list before the grouped row. */
@@ -614,6 +614,6 @@ export function requesterPerson(r: { name: string | null; login: string | null }
     return r.name ? { ...p, name: displayName(r.login, r.name) } : p;
   }
   if (!r.name) return null;
-  const slug = r.name.toLowerCase().normalize('NFD').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
-  return { login: `~${slug}`, name: displayName(slug, r.name), avatar: null };
+  const face = nameFace(r.name);
+  return { login: face, name: displayName(face.slice(1), r.name), avatar: null };
 }

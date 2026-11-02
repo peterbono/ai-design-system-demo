@@ -23,7 +23,7 @@ import {
   MAX_INVITES,
   memberActions as allowed,
   MEMBERS_WORDS,
-  memberLine,
+  memberLine, memberSeed,
   parseEmails,
   pendingLine,
   roleLabel,
@@ -64,7 +64,7 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
           const can = allowed(m, { canManage: data.canManage, admins });
           return (
             <li key={m.login} className="inv-access-row">
-              <PersonCell name={m.name} seed={m.login} line={memberLine(m)} you={m.you} avatar={m.avatar} />
+              <PersonCell name={m.name} seed={memberSeed(m)} line={memberLine(m)} you={m.you} avatar={m.avatar} />
               {can.changeRole ? (
                 <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} shown={roleText(m)} personal={data.personal} variant="ghost" onChange={(c) => void run(() => act.changeRole(m, c))} />
               ) : (

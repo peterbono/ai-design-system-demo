@@ -4,6 +4,7 @@
 // Later states keep their own pages. No DOM, no fetch: tested in exploration-page.test.ts.
 import { DEV_VERSION_READY, LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
 import { changedThings, continueLines, explorationActivity, humanAuthorOf, parseExplorationBody, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
+import { emailMemberFace, isEmailAddress, nameFace } from './people';
 
 /** A person or Claude on the page: the login (for the face), the name to show, and whether it is Claude. */
 export interface PageFace {
@@ -16,11 +17,34 @@ export interface PageFace {
 /** GitHub's public photo of an account (no API read); none for an email or Claude. */
 export const avatarOf = (login: string): string | null => (/^[A-Za-z0-9-]+(\[bot\])?$/.test(login) && !/\[bot\]$/.test(login) ? `https://github.com/${login}.png?size=64` : null);
 
-/** The face of an actor; a person's change Claude co-wrote reads "Florian with Claude" with the person's photo. */
-export const faceOf = (who: string, claude: boolean, names: Record<string, string> = {}, withClaude = false): PageFace =>
-  claude
-    ? { login: 'claude', name: 'Claude', agent: true, avatar: null }
-    : { login: who, name: `${names[who] ?? who}${withClaude ? ' with Claude' : ''}`, agent: false, avatar: avatarOf(who) };
+/**
+ * The people a branch knows by name only: commit authors with no GitHub account behind them (an email member's saves
+ * through Bridge, "Dino <...@contributors.bridge.invalid>"). Their name is never a login: no GitHub photo, no lookup.
+ */
+export function nameOnlyAuthors(commits: readonly BranchCommitLike[]): Set<string> {
+  const out = new Set<string>();
+  for (const c of commits) {
+    const name = c.commit.author?.name?.trim();
+    if (name && !c.author?.login) out.add(name);
+  }
+  return out;
+}
+
+/**
+ * The face of an actor; a person's change Claude co-wrote reads "Florian with Claude" with the person's photo. Someone
+ * known by name only (`nameOnly`, or an email address recorded as the author) gets the drawn face of their name, the
+ * same one as on their cards and in the account menu (lib/people nameFace), never a GitHub account's photo.
+ */
+export const faceOf = (who: string, claude: boolean, names: Record<string, string> = {}, withClaude = false, nameOnly: ReadonlySet<string> = new Set()): PageFace => {
+  if (claude) return { login: 'claude', name: 'Claude', agent: true, avatar: null };
+  const tail = withClaude ? ' with Claude' : '';
+  if (isEmailAddress(who)) {
+    const name = names[who] ?? who.split('@')[0]!;
+    return { login: emailMemberFace(names[who], who), name: `${name}${tail}`, agent: false, avatar: null };
+  }
+  if (nameOnly.has(who)) return { login: nameFace(who), name: `${names[who] ?? who}${tail}`, agent: false, avatar: null };
+  return { login: who, name: `${names[who] ?? who}${tail}`, agent: false, avatar: avatarOf(who) };
+};
 
 /**
  * Display names readable without signing in: the git author name of each person's commits, when it is not the login
@@ -49,13 +73,13 @@ export interface ActivityRow {
 
 /** The last 3 events: Claude's and people's changes, then "started the exploration" when it fits. */
 export function activityRows(input: { commits: readonly BranchCommitLike[]; author: string; startedAt?: string | null | undefined; reopened?: { at: string; by?: string | null | undefined } | null; names?: Record<string, string>; now?: Date }): ActivityRow[] {
-  return explorationActivity({ commits: input.commits, author: input.author, startedAt: input.startedAt, reopened: input.reopened, limit: 3 }).map((e) => ({ who: faceOf(e.who, e.claude, input.names, e.withClaude), text: e.text, when: shortAgo(e.at, input.now) }));
+  return explorationActivity({ commits: input.commits, author: input.author, startedAt: input.startedAt, reopened: input.reopened, limit: 3 }).map((e) => ({ who: faceOf(e.who, e.claude, input.names, e.withClaude, nameOnlyAuthors(input.commits)), text: e.text, when: shortAgo(e.at, input.now) }));
 }
 
 /** "Claude changed Orders table and Bulk actions bar, 2 h ago": the line under the title once something changed. */
 export function headlineOf(input: { commits: readonly BranchCommitLike[]; files: readonly string[] | null; author: string; names?: Record<string, string>; now?: Date }): ActivityRow | null {
   const last = lastActivity({ commits: input.commits, files: input.files, author: input.author });
-  return last ? { who: faceOf(last.who, last.claude, input.names, last.withClaude), text: last.text, when: shortAgo(last.at, input.now) } : null;
+  return last ? { who: faceOf(last.who, last.claude, input.names, last.withClaude, nameOnlyAuthors(input.commits)), text: last.text, when: shortAgo(last.at, input.now) } : null;
 }
 
 /** Back to exploring, from the exploration block: when, and who said it when known. */
@@ -287,7 +311,7 @@ export function handoffActivity(input: { commits: readonly BranchCommitLike[]; a
   return all
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, 3)
-    .map((e) => ({ who: faceOf(e.who, e.claude, input.names, 'withClaude' in e && Boolean(e.withClaude)), text: e.text, when: shortAgo(e.at, input.now) }));
+    .map((e) => ({ who: faceOf(e.who, e.claude, input.names, 'withClaude' in e && Boolean(e.withClaude), nameOnlyAuthors(input.commits)), text: e.text, when: shortAgo(e.at, input.now) }));
 }
 
 /** One piece the library gets from this exploration, with its request status. */

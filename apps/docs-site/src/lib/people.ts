@@ -16,6 +16,21 @@ export const NAME_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /** Logins compare without case and without a leading @. */
 export const loginKey = (login: string) => login.trim().replace(/^@/, '').toLowerCase();
 
+/**
+ * The face of someone Bridge knows by name only: an email member ("Requested by Dino through Bridge.", a commit by
+ * "Dino", the account menu of a member who joined by email). One seed for all of them, `~` and the name as a slug
+ * ("~dino", "~priya-shah"), the same convention as the sample team's personas: every surface that only has the name
+ * draws the same face, and the `~` keeps it from ever being read as a GitHub login.
+ */
+export const nameFace = (name: string): string =>
+  `~${name.trim().toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'someone'}`;
+
+/** The face of a member signed in by email: their name, else the part of the email before the @ (as Bridge names them). */
+export const emailMemberFace = (name: string | null | undefined, email: string): string => nameFace(name?.trim() || email.split('@')[0] || email);
+
+/** True for an address rather than a login ("dino@acme.com"): never a face seed, never looked up on GitHub. */
+export const isEmailAddress = (who: string): boolean => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(who.trim());
+
 /** GitHub bots and apps ("renovate[bot]", "github-actions[bot]"): never looked up, named without the suffix. */
 export const isBotLogin = (login: string) => /\[bot\]$/i.test(login.trim());
 

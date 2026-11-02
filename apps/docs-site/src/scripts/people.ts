@@ -5,7 +5,7 @@
 // samplePersonOf): a sample member's login reads as that member, any other human login as the lead (Dana), Claude
 // stays Claude AI ("Claude AI, with Dana"). Nothing is looked up on GitHub there.
 import { avatarHtml, type AvatarSize } from '@bridge-ds/react/dom';
-import { AGENT_NAME, authorLine, isClaudeLogin, loginKey, loginsToFetch, nameBudget, personName, readNameCache, type NameCache } from '../lib/people';
+import { AGENT_NAME, authorLine, isClaudeLogin, isEmailAddress, loginKey, nameFace, loginsToFetch, nameBudget, personName, readNameCache, type NameCache } from '../lib/people';
 import { isSampleTeam, samplePersonOf } from '../lib/demo';
 import { sampleTeam } from '../lib/invites';
 import { currentViewer, esc, ghGet, hasWorkingToken } from './github-session';
@@ -85,18 +85,26 @@ export interface PersonOptions {
   agent?: boolean;
   /** Write the name next to the avatar (default). Without it, the name is for screen readers only. */
   withName?: boolean;
+  /**
+   * The person's name when Bridge knows them by name only (an email member: the "Requested by" line), for an author
+   * recorded as an address: shown as written, face drawn from it (lib/people nameFace), never looked up on GitHub.
+   */
+  name?: string | null;
 }
 
 /** The avatar and the name of a person (or Claude) for plain-script markup. Call paintPeople() after inserting it. */
-export function personHtml(login: string, { size = 'xs', agent = false, withName = true }: PersonOptions = {}): string {
+export function personHtml(login: string, { size = 'xs', agent = false, withName = true, name = null }: PersonOptions = {}): string {
   const claude = agent || isClaudeLogin(login);
-  // A name instead of a login (an email member Bridge recorded as "Requested by Priya Shah"): shown as written, never
-  // looked up on GitHub nor repainted from its lower-cased key.
-  const written = !claude && /\s/.test(login.trim());
-  const label = written ? login.trim() : displayName(login, claude);
+  // A name instead of a login (an email member Bridge recorded as "Requested by Priya Shah", or an address with its
+  // name given): shown as written, never looked up on GitHub, its face the name's (the same as on cards and in Members).
+  const email = !claude && isEmailAddress(login);
+  const writtenName = claude ? null : name?.trim() || (email ? login.trim().split('@')[0]! : /\s/.test(login.trim()) ? login.trim() : null);
+  const written = writtenName !== null;
+  const label = written ? writtenName : displayName(login, claude);
+  const face = written ? nameFace(writtenName) : personKey(login);
   const avatar = claude
     ? avatarHtml({ kind: 'agent', brand: 'claude', size, decorative: true, className: 'person-avatar' })
-    : avatarHtml({ name: label, size, decorative: true, fallback: 'illustrated', className: 'person-avatar', attributes: { 'data-face': personKey(login), 'data-face-size': size } });
+    : avatarHtml({ name: label, size, decorative: true, fallback: 'illustrated', className: 'person-avatar', attributes: { 'data-face': face, 'data-face-size': size } });
   const nameAttrs = written || (claude && isClaudeLogin(login)) ? '' : ` data-person="${esc(personKey(login))}"${claude ? ' data-person-agent' : ''}`;
   // Without a written name (dense rows) the avatar stays decorative and screen readers hear ", by <name>".
   if (!withName) return `${avatar}<span class="sr-only">, by <span${nameAttrs}>${esc(label)}</span></span>`;
