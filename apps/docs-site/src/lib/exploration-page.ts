@@ -156,6 +156,9 @@ export function explorationTag(status: string, opts: { notStarted?: boolean; sta
   // The lifecycle stage, once read (lib/review-state): Being built splits into In review, Shipped into In the next release.
   if (opts.stage === 'in-review') return { label: LIFECYCLE_LABEL['in-review'], tone: 'warning', dot: false };
   if (opts.stage === 'next-release') return { label: LIFECYCLE_LABEL['next-release'], tone: 'info', dot: false };
+  // The designer said it looks right: the developers ship it next. Declined: grey, nothing moves.
+  if (opts.stage === 'approved') return { label: LIFECYCLE_LABEL.approved, tone: 'info', dot: false };
+  if (opts.stage === 'not-planned') return { label: LIFECYCLE_LABEL['not-planned'], tone: 'neutral', dot: false };
   if (status === 'active') return opts.notStarted ? { label: 'Not started', tone: 'neutral', dot: false } : { label: 'Exploring', tone: 'info', dot: true };
   if (status === 'ready') return { label: 'Waiting to be picked up', tone: 'warning', dot: false };
   if (status === 'building') return { label: 'Being built', tone: 'info', dot: true };
@@ -167,7 +170,8 @@ export function explorationTag(status: string, opts: { notStarted?: boolean; sta
 
 /** One row of the hand-off progress (the DS Checklist): done or waiting, a title, one line. */
 export interface HandoffStep {
-  status: 'done' | 'waiting';
+  /** warning: the developers wait on the designer (a question), or closed it without building it. */
+  status: 'done' | 'waiting' | 'warning';
   title: string;
   detail: string;
   /** The step happening now (aria-current). */
@@ -216,7 +220,22 @@ export interface HandoffReview {
  * developers' work checked before it ships), Shipped. `builders`: the developers known on it (assigned, or who pushed
  * after Done exploring). `review`: read once the developers have started; without it, they are still building.
  */
-export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | null; doneAt: string | null; builders: readonly PageFace[]; shippedAt?: string | null; product: string; library?: boolean; review?: HandoffReview | null; nextRelease?: boolean; now?: Date }): HandoffStep[] {
+export function handoffSteps(input: {
+  status: HandoffStatus;
+  doneBy: PageFace | null;
+  doneAt: string | null;
+  builders: readonly PageFace[];
+  shippedAt?: string | null;
+  product: string;
+  library?: boolean;
+  review?: HandoffReview | null;
+  nextRelease?: boolean;
+  /** The developers asked the designer something on their task (lib/review-state devQuestionOf), answered or not. */
+  question?: { answered: boolean } | null;
+  /** The developers closed their task without building it. */
+  declined?: boolean;
+  now?: Date;
+}): HandoffStep[] {
   const when = dayOf(input.doneAt, input.now);
   // Say where the work went: Done exploring put it in the developers' task list.
   const sentTo = `Sent to the ${input.library ? 'library' : input.product} developers.`;
@@ -246,8 +265,19 @@ export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | 
               : rv && !rv.draft
                 ? 'review'
                 : 'building';
-  const build: HandoffStep =
-    stage === 'ready'
+  if (input.declined && stage !== 'shipped') {
+    return [
+      done,
+      { status: 'warning', title: 'Developers build it', detail: DECLINED_LINE, current: true },
+      { status: 'waiting', title: 'Review', detail: 'Not built' },
+      { status: 'waiting', title: 'Shipped', detail: 'Not built' },
+    ];
+  }
+  // A question the designer has not answered yet: the developers wait on them before they build on.
+  const asks = Boolean(input.question && !input.question.answered) && (stage === 'ready' || stage === 'building');
+  const build: HandoffStep = asks
+    ? { status: 'warning', title: 'Developers build it', detail: DEV_QUESTION_LINE, current: true }
+    : stage === 'ready'
       ? { status: 'waiting', title: 'Developers build it', detail: who ? `Waiting for ${who}` : 'In their task list. You see here when one picks it up.', current: true }
       : stage === 'building'
         ? { status: 'waiting', title: 'Developers build it', detail: who ? `${who} ${input.builders.length === 1 ? 'is' : 'are'} building it` : 'Being built', current: true }
@@ -263,7 +293,11 @@ export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | 
     if (stage === 'building') return { status: 'waiting', title: 'Review', detail: 'When the developers ask' };
     if (stage === 'changes') return { status: 'waiting', title: 'Review', detail: `Changes requested by ${rv!.verdict!.by.name}`, current: true };
     if (stage === 'approved') return { status: 'done', title: 'Reviewed', detail: `Approved by ${rv!.verdict!.by.name}` };
-    if (stage === 'shipped') return { status: 'done', title: 'Reviewed', detail: rv?.verdict?.kind === 'approved' ? `Approved by ${rv.verdict.by.name}` : 'Before it shipped' };
+    if (stage === 'shipped') {
+      // A design copy exploration keeps who said it looks right on the developers' version (read once it shipped).
+      if (dev?.answer?.kind === 'looks-right') return { status: 'done', title: 'Reviewed', detail: `${dev.answer.by.name} said it looks right` };
+      return { status: 'done', title: 'Reviewed', detail: rv?.verdict?.kind === 'approved' ? `Approved by ${rv.verdict.by.name}` : 'Before it shipped' };
+    }
     const viewer = rv?.viewer?.toLowerCase() ?? null;
     const asked = rv?.asked ?? [];
     if (viewer && asked.some((p) => p.login.toLowerCase() === viewer)) {
@@ -278,6 +312,28 @@ export function handoffSteps(input: { status: HandoffStatus; doneBy: PageFace | 
       ? { status: 'done', title: 'Shipped', detail: [`In ${input.product}`, dayOf(input.shippedAt, input.now)].filter(Boolean).join(', '), current: true }
       : { status: 'waiting', title: 'Shipped', detail: `Then live in ${input.product}`, ...(stage === 'approved' ? { current: true } : {}) };
   return [done, build, review, ship];
+}
+
+/** The "Developers build it" step when the developers asked the designer something on their task. */
+export const DEV_QUESTION_LINE = 'Developers asked a question';
+/** The "Developers build it" step when they closed their task without building it (core's Not planned sentence). */
+export const DECLINED_LINE = 'Developers closed it without building it.';
+/** Said after the designer's reply went to the developers. */
+export const REPLY_SENT_LINE = 'Sent to the developers.';
+
+/** How much of a quoted comment shows before "Show more". */
+export const QUOTE_CLIP = 280;
+
+/**
+ * A quoted comment cut for the first look: whole when short, else cut at a word before `max` characters with an
+ * ellipsis, and `clipped` so the page offers "Show more". Plain text in, plain text out.
+ */
+export function clipQuote(text: string, max = QUOTE_CLIP): { short: string; clipped: boolean } {
+  const t = text.trim();
+  if (t.length <= max) return { short: t, clipped: false };
+  const cut = t.slice(0, max);
+  const at = cut.lastIndexOf(' ');
+  return { short: `${(at > max * 0.6 ? cut.slice(0, at) : cut).trimEnd()}…`, clipped: true };
 }
 
 /**

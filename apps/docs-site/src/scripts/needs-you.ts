@@ -11,6 +11,7 @@ import { reviewQueue } from '../lib/review-queue';
 import { currentAccess, currentContributor, currentViewer, hasWorkingToken } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullForStatus, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
+import { rememberedQuestions } from './design-task';
 import { loadSuggestionNeeds } from './suggestions';
 import { agentMade, workNature, type VisualSignal } from '../lib/work-nature';
 import { rowLifecycle } from '../lib/change-status';
@@ -116,7 +117,9 @@ export async function loadReviewNeedsYou(pulls: QueuePullFull[]): Promise<number
     queue.map((p) => waitChange(p, todoChange(p, statuses.get(p.number)))),
     { login: viewer, role },
   );
-  const n = branches + (role === 'reviewer' ? (await suggestions).length : 0);
+  // The developers' questions that wait on the viewer, as Home last read them (lib/waiting-on 'dev-question').
+  const questions = rememberedQuestions(viewer).length;
+  const n = branches + questions + (role === 'reviewer' ? (await suggestions).length : 0);
   rememberMine(n);
   return n;
 }

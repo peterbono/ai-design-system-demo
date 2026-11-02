@@ -7,7 +7,7 @@
 // each reviewer's last say (approved or changes requested; changes requested wins, as on GitHub), and the draft flag.
 // The reviews themselves (GET pulls/{n}/reviews) are read only for open, handed-off pull requests that are not drafts
 // (needsReviewRead): a few per page, never one per row. Pure: no DOM, no fetch. Tested in review-state.test.ts.
-import { explorationStatus, isArchivedExploration, isExplorationPull, parseExplorationBody, type ExplorationStatus } from '@bridge-ds/core';
+import { DESIGN_TASK_BACK_COMMENT, explorationStatus, isArchivedExploration, isExplorationPull, parseExplorationBody, type ExplorationStatus } from '@bridge-ds/core';
 
 /** A review of the pull request as GitHub lists it (GET pulls/{n}/reviews). */
 export interface PullReviewLike {
@@ -126,7 +126,7 @@ export function reviewLine(s: ReviewState, opts: { viewer?: string | null; nameO
 // The lifecycle
 
 /** Where a piece of work stands, on every page. */
-export type LifecycleStage = 'exploring' | 'waiting-for-code' | 'being-built' | 'in-review' | 'next-release' | 'shipped' | 'archived' | 'closed';
+export type LifecycleStage = 'exploring' | 'waiting-for-code' | 'being-built' | 'in-review' | 'approved' | 'next-release' | 'shipped' | 'archived' | 'closed' | 'not-planned';
 
 /** The words of each stage: the tab, the tag and the line say the same. */
 export const LIFECYCLE_LABEL: Record<LifecycleStage, string> = {
@@ -134,10 +134,14 @@ export const LIFECYCLE_LABEL: Record<LifecycleStage, string> = {
   'waiting-for-code': 'Waiting to be picked up',
   'being-built': 'Being built',
   'in-review': 'In review',
+  // A design copy exploration the designer said looks right on: the developers ship it next.
+  approved: 'Approved, waiting to ship',
   'next-release': 'In the next release',
   shipped: 'Shipped',
   archived: 'Archived',
   closed: 'Closed',
+  // The developers closed their task without building it (a design copy exploration still handed off).
+  'not-planned': 'Not planned',
 };
 
 /**
@@ -220,7 +224,105 @@ export interface DesignTaskRead {
   closedAt: string | null;
   /** The developers' open pull request that links the task (devPullOfTimeline), when one was read. */
   devPull?: DevPull | null;
+  /** The task's label names (a `needs-design` label asks the designer something). */
+  labels?: readonly string[];
+  /** The comments on the task since Done exploring, oldest first: read once, only when the task has any. */
+  comments?: readonly TaskCommentLike[] | null;
+  /**
+   * Shipped: who said it looks right on the developers' merged pull request (Bridge's design review comment), read
+   * once and kept, so the Reviewed step still names them.
+   */
+  shippedAnswer?: { kind: 'looks-right' | 'changes'; login: string } | null;
 }
+
+/** A comment on the developers' task, the fields Bridge reads (GET issues/{n}/comments). */
+export interface TaskCommentLike {
+  body?: string | null;
+  user?: { login?: string; type?: string } | null;
+  created_at?: string;
+}
+
+/** The label developers put on their task when they need the designer's input. */
+export const NEEDS_DESIGN_LABEL = 'needs-design';
+
+/** A reply Bridge posted for someone without GitHub (api/contribute prefixes it with their name). */
+const VIA_BRIDGE = /^\*\*[^*\n]{1,120}\*\* \(via Bridge\):/;
+
+/** Bridge's own words on the task (an app or bot account, a design review, a member's reply, taking it back). */
+const fromBridge = (c: TaskCommentLike) => {
+  const login = c.user?.login ?? '';
+  const body = (c.body ?? '').trim();
+  return isBot(login) || c.user?.type === 'Bot' || body.startsWith(DESIGN_REVIEW_PREFIX) || VIA_BRIDGE.test(body) || body === DESIGN_TASK_BACK_COMMENT;
+};
+
+/** What the developers asked the designer on their task, and whether the designer answered since. */
+export interface DevQuestion {
+  /** Their words, as plain text; null when only the `needs-design` label asks. */
+  text: string | null;
+  /** Who asked (a GitHub login), and when; null for the label alone. */
+  login: string | null;
+  at: string | null;
+  /** The designer (or Bridge for them) wrote on the task after it. */
+  answered: boolean;
+}
+
+/**
+ * The developers' question on an open design task: the latest comment posted after Done exploring by someone who is
+ * neither Bridge (its app, a bot, a reply it posted for a member) nor the designer (`designers`: logins). Answered once
+ * a later comment is there (by construction the designer's, or Bridge's for them). A `needs-design` label with no
+ * such comment asks too, with no words. Null when nothing asks.
+ */
+export function devQuestionOf(t: Pick<DesignTaskRead, 'state' | 'labels' | 'comments'>, opts: { doneAt?: string | null; designers?: readonly (string | null | undefined)[] } = {}): DevQuestion | null {
+  if (t.state !== 'open') return null;
+  const designers = new Set((opts.designers ?? []).filter((l): l is string => Boolean(l)).map(lower));
+  const since = opts.doneAt ?? '';
+  const after = (t.comments ?? []).filter((c) => !since || (c.created_at ?? '') > since);
+  const isQuestion = (c: TaskCommentLike) => !fromBridge(c) && Boolean(c.user?.login) && !designers.has(lower(c.user!.login!)) && Boolean((c.body ?? '').trim());
+  let i = after.length - 1;
+  while (i >= 0 && !isQuestion(after[i]!)) i--;
+  if (i >= 0) {
+    const c = after[i]!;
+    return { text: plainText(c.body ?? ''), login: c.user!.login!, at: c.created_at ?? null, answered: i < after.length - 1 };
+  }
+  if ((t.labels ?? []).some((l) => l.toLowerCase() === NEEDS_DESIGN_LABEL)) return { text: null, login: null, at: null, answered: after.length > 0 };
+  return null;
+}
+
+/**
+ * The developers' last word on a task they closed without building it: their latest comment that is neither Bridge's
+ * nor the designer's (plain text, who and when). Null when they closed it without a word.
+ */
+export function declineNoteOf(t: Pick<DesignTaskRead, 'comments'>, opts: { designers?: readonly (string | null | undefined)[] } = {}): { text: string; login: string; at: string | null } | null {
+  const designers = new Set((opts.designers ?? []).filter((l): l is string => Boolean(l)).map(lower));
+  const list = t.comments ?? [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const c = list[i]!;
+    const login = c.user?.login;
+    if (!login || fromBridge(c) || designers.has(lower(login)) || !(c.body ?? '').trim()) continue;
+    return { text: plainText(c.body ?? ''), login, at: c.created_at ?? null };
+  }
+  return null;
+}
+
+/**
+ * A comment as plain words: no HTML comments or tags, no Markdown images, links kept as their words, code fences and
+ * emphasis marks dropped, at most two line breaks in a row. React renders it as text: nothing here is ever HTML.
+ */
+export function plainText(body: string): string {
+  return body
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/```[a-z]*\n?/gi, '')
+    .replace(/(\*\*|__|`)/g, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** Whether the developers closed their task without building it (any close but done). */
+export const taskDeclined = (t: Pick<DesignTaskRead, 'state' | 'stateReason'>): boolean => t.state === 'closed' && t.stateReason !== 'completed';
 
 /** The developers' pull request for a design task: in their repository, linked to the task. */
 export interface DevPull {
@@ -258,13 +360,14 @@ export interface TimelineEventLike {
  * The developers' pull request that links a design task, from the task's timeline: the newest open pull request of
  * the developers' repository that mentions the task ("Closes #7" or its URL). Null when none is open.
  */
-export function devPullOfTimeline(events: readonly TimelineEventLike[], devRepo: string): DevPull | null {
+export function devPullOfTimeline(events: readonly TimelineEventLike[], devRepo: string, opts: { merged?: boolean } = {}): DevPull | null {
   const repo = devRepo.trim().toLowerCase();
   let found: DevPull | null = null;
   for (const e of events) {
     if (e.event !== 'cross-referenced') continue;
     const i = e.source?.issue;
-    if (!i?.pull_request || i.state !== 'open' || i.pull_request.merged_at) continue;
+    // `merged`: the one that shipped it instead (a shipped task's review, read once).
+    if (!i?.pull_request || (opts.merged ? !i.pull_request.merged_at : i.state !== 'open' || i.pull_request.merged_at)) continue;
     if ((i.repository?.full_name ?? '').toLowerCase() !== repo || !i.number || !i.html_url) continue;
     found = { number: i.number, url: i.html_url, ...(i.draft !== undefined ? { draft: i.draft } : {}) };
   }
@@ -273,14 +376,16 @@ export function devPullOfTimeline(events: readonly TimelineEventLike[], devRepo:
 
 /**
  * Where a design copy exploration stands from its task, in the lifecycle's words: closed as done = Shipped, closed
- * otherwise = Closed, an open pull request of the developers on it = In review (their version is ready for the
- * designer's eyes; a draft stays Being built), someone assigned = Being built, else Waiting to be picked up.
+ * otherwise = Not planned (the developers declined it; Bridge's own Back to exploring also closes it so, but then the
+ * exploration runs again and every caller reads that first), an open pull request of the developers on it = In review
+ * (their version is ready for the designer's eyes; a draft stays Being built; once the designer said it looks right,
+ * Approved, waiting to ship), someone assigned = Being built, else Waiting to be picked up.
  */
 export function taskStage(t: DesignTaskRead): LifecycleStage {
   const s = taskStatus(t);
   if (s === 'shipped') return 'shipped';
-  if (s === 'closed') return 'closed';
-  if (t.devPull) return t.devPull.draft ? 'being-built' : 'in-review';
+  if (s === 'closed') return 'not-planned';
+  if (t.devPull) return t.devPull.draft ? 'being-built' : t.devPull.answer?.kind === 'looks-right' ? 'approved' : 'in-review';
   return s === 'building' ? 'being-built' : 'waiting-for-code';
 }
 

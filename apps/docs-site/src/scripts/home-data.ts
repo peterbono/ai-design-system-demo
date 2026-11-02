@@ -7,8 +7,9 @@
 // asking to join it (board E7b, GET /api/entry?requests=), first in the list.
 import { isGuardedExploration, isHandedOff, isToolingPull, productsOf, requesterOf, type ProductConfig, type ToolingConfig } from '@bridge-ds/core';
 import { siteConfig } from './repo-context';
-import { designTaskStages, taskUrlOf } from './design-task';
-import type { LifecycleStage } from '../lib/review-state';
+import { designTaskReads, rememberQuestions, taskUrlOf } from './design-task';
+import { devQuestionOf, taskStage, type DesignTaskRead } from '../lib/review-state';
+import { parseExplorationBody } from '@bridge-ds/core';
 import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, limitLine, readRepo, RateLimitError, resolveAccess } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
@@ -28,7 +29,9 @@ import { shotThumb } from '../lib/preview-shots';
 import { previewShotOf } from './preview-shots';
 import {
   CLAUDE,
+  badgeRows,
   changeNeed,
+  devQuestionNeed,
   explorationReviewNeed,
   joinNeed,
   contrastNeed,
@@ -300,8 +303,9 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     .catch(() => (productOpen = []));
   // A design copy exploration handed to the developers: its card says what its task says (Being built's words). Read
   // once the products' explorations are in; the cards paint again when it lands.
-  let taskStages = new Map<string, LifecycleStage>();
-  const taskRead = productRead.then(() => designTaskStages(productOpen)).then((m) => (taskStages = m)).catch(() => undefined);
+  // The same read says when the developers asked the viewer something on a task (their Needs you row).
+  let taskReads = new Map<string, DesignTaskRead>();
+  const taskRead = productRead.then(() => designTaskReads(productOpen)).then((m) => (taskReads = m)).catch(() => undefined);
   let pulls: HomePull[];
   try {
     pulls = (await openRead).data;
@@ -394,7 +398,8 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
         { author: pull.user.login, draft: pull.draft, labels: pull.labels, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested, changesRequested: c.changesBy, autoShip: c.autoShip },
         { login: viewer, role },
       );
-      if (!task) return base;
+      // A developers' question is an exploration's (its own rows below), never a change's.
+      if (!task || task === 'dev-question') return base;
       if (task === 'own-changes') return { ...base, task, changesBy: c.changesBy ?? [] };
       return { ...base, task, onlyReviewer: isReviewTask(task) && isOnlyReviewer({ eligible: task === 'tech' ? tech : design, requested, author: pull.user.login, viewer }) };
     });
@@ -446,6 +451,21 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       const asker = pick(p.user.login)!;
       needs.push(explorationReviewNeed({ number: p.number, product: p.product ?? null, author: asker, asker, since: null, thumb: { kind: 'icon', icon: 'branch' }, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`) }, now));
     }
+    // The developers asked a question on the task of an exploration the viewer handed off: theirs to answer (the one
+    // rule, lib/waiting-on). Remembered for the nav badge on the other pages.
+    const questions: string[] = [];
+    for (const p of productOpen) {
+      const u = taskUrlOf(p.body);
+      const t = u ? taskReads.get(u) : null;
+      if (!u || !t) continue;
+      const block = parseExplorationBody(p.body);
+      const q = devQuestionOf(t, { doneAt: block?.doneAt ?? null, designers: [p.user.login, block?.author, block?.doneBy] });
+      const mine = isOwnExploration(p, viewer, viewerRef);
+      if (!q || waitingOn({ author: mine ? (viewer ?? '') : p.user.login, devQuestion: q, who: null }, { login: viewer, role: reviewer ? 'reviewer' : 'contributor' }) !== 'dev-question') continue;
+      questions.push(u);
+      needs.push(devQuestionNeed({ key: `${p.product ?? ''}#${p.number}`, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`), asker: q.login ? pick(q.login) : null, since: q.at, thumb: { kind: 'icon', icon: 'branch' } }, now));
+    }
+    if (taskReads.size) rememberQuestions(viewer, questions);
     // A guidance draft whose change already has its own row (a review waits on you) shows once, as that change.
     for (let i = needs.length - 1; i >= 0; i--) if (needs[i]!.kind === 'guidance' && needs[i]!.number && asked.has(needs[i]!.number!)) needs.splice(i, 1);
     // Explorations are the home's cards; the viewer's library changes are counted under them (Changes lists them).
@@ -455,7 +475,8 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       products,
       taskStage: (p) => {
         const u = taskUrlOf(p.body);
-        return u ? taskStages.get(u) : null;
+        const t = u ? taskReads.get(u) : null;
+        return t ? taskStage(t) : null;
       },
       viewer,
       viewerRef,
@@ -479,7 +500,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     // Suggestions wait on their reviewers only.
     if (reviewer) needs.push(...suggestions);
     const sorted = sortNeeds(needs);
-    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches: [...branches, ...ownSuggestions], explorations, decisions: sorted.filter((r) => r.kind === 'review').length, reviewer });
+    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches: [...branches, ...ownSuggestions], explorations, decisions: badgeRows(sorted), reviewer });
   };
 
   repaint = paint;
@@ -542,7 +563,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   await closedRead;
   paint();
   // The tasks of handed-off copy explorations: their cards take the task's words once read.
-  void taskRead.then(() => taskStages.size && paint());
+  void taskRead.then(() => taskReads.size && paint());
   // The explored screens of the first cards a lead sees, and of every one of the viewer's own: each costs reads.
   const all = [...pulls, ...closed].filter((p) => isHomeExploration(p, products));
   const firstShown = new Set(homeExplorations(all, { products, author: () => CLAUDE }).slice(0, 6).map((c) => c.number));

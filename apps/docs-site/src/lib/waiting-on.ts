@@ -23,6 +23,9 @@
 //   - A branch opened from Figma (decision RT-1, core claudeStage): labelled `waiting-for-claude` it waits on a
 //     developer who builds it with Claude, never on anyone in the Studio; labelled `drafted-by-claude` it is ready for
 //     review even while GitHub still calls it a draft, so it waits on the reviewers like any branch in review.
+//   - A design copy exploration handed to developers whose developers asked a question on their task (lib/review-state
+//     devQuestionOf), not answered yet: it waits on whoever explored it (author: the explorer), never on anyone else.
+//     Explorations otherwise never wait on anyone.
 //   - The demo lead's seat (a visitor in the persona's place, statuses never read): every branch in review that is not
 //     an exploration, a draft or developer work waits on the lead, as their home says.
 import type { WhoActs } from './changes';
@@ -31,7 +34,7 @@ import type { Lifecycle } from './change-status';
 import type { WorkNature } from './work-nature';
 
 /** What the change asks of the viewer: a review (design, guidance, requested), a merge, or their own branch's next step. */
-export type WaitTask = 'design' | 'tech' | 'ship' | 'guidance' | 'requested' | 'look-again' | 'own-changes' | 'own-ship';
+export type WaitTask = 'design' | 'tech' | 'ship' | 'guidance' | 'requested' | 'look-again' | 'own-changes' | 'own-ship' | 'dev-question';
 
 /** Reviewer: holds a review right. Contributor: makes changes, never reviews. */
 export type ViewerRole = 'reviewer' | 'contributor';
@@ -69,6 +72,8 @@ export interface WaitChange {
    * never waits on anyone (docs/BUILD-REQUESTS.md).
    */
   autoShip?: boolean;
+  /** A design copy exploration's task: the developers asked the explorer something (answered or not). */
+  devQuestion?: { answered: boolean } | null;
 }
 
 const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
@@ -83,6 +88,8 @@ const reviews = (v: WaitViewer) => v.role === 'reviewer' && (Boolean(v.login) ||
 
 /** What the change asks of the viewer now, or null when it waits on someone else (or on nobody in the Studio). */
 export function waitingOn(c: WaitChange, v: WaitViewer): WaitTask | null {
+  // The developers wait on the person who explored it for an answer: theirs alone, the demo seat never.
+  if (c.devQuestion) return !c.devQuestion.answered && !v.seat && v.login && same(c.author, v.login) && c.lifecycle !== 'shipped' && c.lifecycle !== 'closed' ? 'dev-question' : null;
   if (c.exploration || c.autoShip || c.lifecycle === 'shipped' || c.lifecycle === 'closed') return null;
   // Spec only, no code yet: a developer builds it with Claude. Nobody in the Studio is waited on, the designer least.
   if (claudeStage(c.labels) === 'waiting') return null;
@@ -132,6 +139,12 @@ export const waitsOnMe = (c: WaitChange, v: WaitViewer): boolean => waitingOn(c,
 
 /** How many changes wait on the viewer's review (not their own branches): the review count of the nav badge. */
 export const reviewCount = (changes: WaitChange[], v: WaitViewer): number => changes.filter((c) => isReviewTask(waitingOn(c, v))).length;
+
+/**
+ * What the nav badge counts: the reviews that wait on the viewer, and the developers' questions that wait on them (an
+ * answer is a decision too: someone is blocked until it comes).
+ */
+export const countsInBadge = (t: WaitTask | null | undefined): boolean => isReviewTask(t) || t === 'dev-question';
 
 /**
  * What a screen reader hears after "Changes" for the nav badge: ", 17 waiting for a review", or nothing at all when no

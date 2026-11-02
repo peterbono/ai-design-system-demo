@@ -177,6 +177,8 @@ export interface LifecycleExtra {
   reviewLine?: string | null;
   /** Merged, and the next library release lists it: "In the next release" until it is published. */
   nextRelease?: boolean;
+  /** The designer said the developers' version looks right: "Approved, waiting to ship", still in the In review tab. */
+  approved?: boolean;
 }
 
 /** The tabs of Being built: the lifecycle's words (All, Waiting to be picked up, In progress, In review, Shipped this week). */
@@ -205,6 +207,7 @@ export function matchesBuildTab(v: Pick<BuildRequestView, 'status' | 'shippedAt'
 export function statusTag(v: Pick<BuildRequestView, 'status' | 'label' | 'stale'> & LifecycleExtra): { label: string; tone: PillTone | 'info' } {
   if (v.nextRelease) return { label: LIFECYCLE_LABEL['next-release'], tone: 'info' };
   const tone: Record<BuildStatus, PillTone | 'info'> = { requested: 'neutral', 'picked-up': 'info', 'in-progress': 'info', 'in-review': 'warning', shipped: 'success', 'not-planned': 'neutral' };
+  if (v.approved) return { label: LIFECYCLE_LABEL.approved, tone: 'info' };
   return { label: v.status === 'in-review' ? LIFECYCLE_LABEL['in-review'] : v.label, tone: v.stale ? 'warning' : tone[v.status] };
 }
 
@@ -420,7 +423,7 @@ export interface ExplorationBuildRow extends BuildRequestView {
 
 const DAY = 86_400_000;
 /** The lifecycle stages Being built lists, as core's build statuses (the tabs and the order read them). */
-const STAGE_BUILD_STATUS: Partial<Record<LifecycleStage, BuildStatus>> = { 'waiting-for-code': 'requested', 'being-built': 'in-progress', 'in-review': 'in-review', 'next-release': 'shipped', shipped: 'shipped' };
+const STAGE_BUILD_STATUS: Partial<Record<LifecycleStage, BuildStatus>> = { 'waiting-for-code': 'requested', 'being-built': 'in-progress', 'in-review': 'in-review', approved: 'in-review', 'next-release': 'shipped', shipped: 'shipped' };
 
 /** What the exploration rows read besides the pull requests: the review reads and the release. */
 export interface ExplorationRowsContext {
@@ -463,11 +466,15 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
     const taskUrl = parseExplorationBody(p.body)?.task;
     const task = taskUrl && !merged ? (ctx.task?.(taskUrl) ?? null) : null;
     const fromTask = task ? taskStage(task) : null;
-    if (fromTask === 'closed') return [];
+    // Taken back (the exploration runs again): its own row is Exploring, not here. Still handed off while the task is
+    // closed without being built: the developers declined it, the row says so instead of leaving.
+    const handedOff = lifecycle.stage === 'waiting-for-code' || lifecycle.stage === 'being-built' || lifecycle.stage === 'in-review';
+    if (fromTask === 'closed' || (fromTask === 'not-planned' && !handedOff)) return [];
     const stage: LifecycleStage = fromTask ?? lifecycle.stage;
-    const status = STAGE_BUILD_STATUS[stage];
+    const status = stage === 'not-planned' ? 'not-planned' : STAGE_BUILD_STATUS[stage];
     if (!status) return [];
     const shippedAt = status === 'shipped' ? (task?.closedAt ?? p.merged_at ?? null) : null;
+    const declinedAt = status === 'not-planned' ? (task?.closedAt ?? null) : null;
     if (status === 'shipped' && !nextRelease && !(shippedAt && ctx.now - Date.parse(shippedAt) <= 7 * DAY)) return [];
     const block = parseExplorationBody(p.body);
     const raw = block?.name?.trim() || (p.title ?? '').replace(/^Exploration:\s*/i, '').trim() || `Exploration #${p.number}`;
@@ -481,14 +488,14 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
     const done = `Done exploring${doneBy ? ` by ${nameOf(doneBy)}` : ''}${doneAt ? ` on ${shortDate(doneAt)}` : ''}`;
     const s = shippedAt ? daysSince(shippedAt, ctx.now) : 0;
     // The developers' version of a design copy exploration waits for the designer's eyes, not for a code review.
-    const reviewWords = stage === 'in-review' ? (task?.devPull ? devReviewLine(task.devPull, nameOf) : reviewLine(review, { viewer: ctx.viewer ?? null, nameOf })) : null;
+    const reviewWords = stage === 'in-review' || stage === 'approved' ? (task?.devPull ? devReviewLine(task.devPull, nameOf) : reviewLine(review, { viewer: ctx.viewer ?? null, nameOf })) : null;
     const where: Record<BuildStatus, string | null> = {
       requested: null,
       'picked-up': null,
       'in-progress': 'Developers are building it',
       'in-review': reviewWords,
       shipped: nextRelease ? LIFECYCLE_LABEL['next-release'] : s === 0 ? 'Shipped today' : `Shipped ${s} ${s === 1 ? 'day' : 'days'} ago`,
-      'not-planned': null,
+      'not-planned': 'Developers closed it without building it',
     };
     const line = [product, status === 'shipped' ? null : done, where[status]].filter(Boolean).join(' · ');
     const sentence: Record<BuildStatus, string> = {
@@ -497,10 +504,12 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
       'in-progress': 'Developers are building it.',
       'in-review': `${reviewWords ?? 'In review'}.`,
       shipped: nextRelease ? 'In the next release of the library.' : 'Shipped.',
-      'not-planned': '',
+      'not-planned': 'Developers closed it without building it.',
     };
     const timeline: BuildRequestView['timeline'] = [{ status: 'requested', at: createdAt, ...(doneBy ? { who: doneBy } : {}) }];
-    if (status !== 'requested') timeline.push({ status: 'in-progress' });
+    // Not planned replaces the steps after Requested (core's timeline), on the day they closed it.
+    if (status === 'not-planned') timeline.push({ status: 'not-planned', ...(declinedAt ? { at: declinedAt } : {}) });
+    else if (status !== 'requested') timeline.push({ status: 'in-progress' });
     if (status === 'in-review' || status === 'shipped') timeline.push({ status: 'in-review' });
     if (shippedAt) timeline.push({ status: 'shipped', at: shippedAt });
     return [
@@ -529,6 +538,7 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
         exploration: { href: `changes/${explorationHref({ number: Number(p.number), product: p.product })}`, line, product },
         ...(reviewWords ? { reviewLine: reviewWords } : {}),
         ...(nextRelease ? { nextRelease: true } : {}),
+        ...(stage === 'approved' ? { approved: true } : {}),
       },
     ];
   });

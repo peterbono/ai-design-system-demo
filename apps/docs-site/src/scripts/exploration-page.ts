@@ -38,6 +38,7 @@ import {
   type PullReviewLike,
   type SentPiece,
   libraryTodayRoute,
+  REPLY_SENT_LINE,
   todayLinkLabel,
 } from '../lib/exploration-page';
 import { libraryHref } from '../lib/library-shells';
@@ -73,8 +74,8 @@ import { siteApprovers } from './teams';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
-import { explorationLifecycle, reviewStateOf, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
-import { answerDevPull, readDesignTask, readDevPull, taskRef } from './design-task';
+import { declineNoteOf, devQuestionOf, explorationLifecycle, reviewStateOf, taskDeclined, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
+import { answerDevPull, forgetQuestion, readDesignTask, readDevPull, replyOnTask, taskRef } from './design-task';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -411,7 +412,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const block = parseExplorationBody(pull.body);
   // From the design team's copy, the developers work from their task in their own repository: who is assigned to it,
   // and whether they closed it as done (shipped). One read.
-  const task = inCopy && block?.task ? await readDesignTask(block.task) : null;
+  // Its comments since Done exploring too, only when it has any (a question, or their word when they closed it), and
+  // once shipped who said it looks right on their version.
+  const task = inCopy && block?.task ? await readDesignTask(block.task, { doneAt: block.doneAt ?? null, shipped: true }) : null;
   // The developers' own pull request on that task (their version), with its branch and the designer's last answer.
   const devRepo = task?.devPull && block?.task ? (taskRef(block.task)?.repo ?? null) : null;
   const devRead = devRepo && task?.devPull ? await readDevPull(devRepo, task.devPull) : null;
@@ -420,6 +423,13 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const label = doneByOf(commits) ? null : await readyLabelEvent(r);
   const doneLogin = doneByOf(commits) ?? label?.login ?? r.author;
   const doneAt = block?.doneAt ?? label?.at ?? null;
+  // Who explored it: their own comments on the task are answers, never a question of the developers.
+  const designers = [r.author, block?.author, block?.doneBy, doneLogin];
+  const question = task ? devQuestionOf(task, { doneAt, designers }) : null;
+  // Closed without being built while the exploration still waits on them (Bridge's own Back to exploring would have
+  // made it run again): the developers declined it.
+  const declined = Boolean(task && taskDeclined(task));
+  const declineNote = declined && task ? declineNoteOf(task, { designers }) : null;
   const builders = buildersOf({ assignees: task ? task.assignees : ((pull as { assignees?: { login: string }[] }).assignees ?? []), commits: inCopy ? [] : commits, doneAt, author: r.author });
   // The review step: the pull request's reviews (one read, once the developers have started), its draft state, and who
   // is asked: the requested reviewers, else the design approvers of the team.
@@ -433,7 +443,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const fromTaskStage = task ? taskStage({ ...task, devPull: devRead?.pull ?? task.devPull ?? null }) : null;
   const lifecycle = fromTaskStage && fromTaskStage !== 'closed' ? fromTaskStage : explorationLifecycle({ status, review: reviewStateOf({ draft: pull.draft ?? null, requested, approvers: siteApprovers().design, builders, reviews }), nextRelease });
   const answer = devRead?.answer ?? null;
-  const more = connected() ? await namesOf([...new Set([doneLogin, ...builders, ...asked, ...(verdict ? [verdict.login] : []), ...(answer?.login ? [answer.login] : [])])]).catch(() => ({}) as Record<string, string>) : {};
+  const shippedAnswer = status === 'shipped' ? (task?.shippedAnswer ?? null) : null;
+  const askers = [question?.login, declineNote?.login, shippedAnswer?.login].filter((l): l is string => Boolean(l));
+  const more = connected() ? await namesOf([...new Set([doneLogin, ...builders, ...asked, ...(verdict ? [verdict.login] : []), ...(answer?.login ? [answer.login] : []), ...askers])]).catch(() => ({}) as Record<string, string>) : {};
   if (current?.key !== key) return;
   const allNames = { ...names, ...knownNamesOf([...asked, ...(verdict ? [verdict.login] : [])]), ...more };
   // Done exploring by someone known by name only (an email member's commit, or the requester of the app's pull
@@ -453,10 +465,13 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
           url: devVersionUrl(devRead.pull, (products.find((p) => p.key === product.key) ?? product).preview, branchPreviewUrl),
           answer: answer?.login ? { kind: answer.kind, by: faceOf(answer.login, false, allNames) } : null,
         }
-      : null,
+      : shippedAnswer?.login
+        ? { url: null, answer: { kind: shippedAnswer.kind, by: faceOf(shippedAnswer.login, false, allNames) } }
+        : null,
   };
   if (devRead) review.draft = devRead.pull.draft === true;
-  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease });
+  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease, question, declined });
+  const taskUrl = block?.task ?? null;
   const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
   // Who may run the check: someone who can write it, in a team that writes branches. Bridge's server runs it for them:
   // with their GitHub sign-in, or for an email member in the design team's copy with their Bridge session.
@@ -505,6 +520,25 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
               return said;
             }
           : null,
+      // The developers' question on their task, and the designer's reply through their own write route.
+      question: question
+        ? {
+            text: question.text,
+            by: question.login ? faceOf(question.login, false, allNames) : null,
+            when: question.at ? startedWhen(question.at) : '',
+            answered: question.answered,
+            onReply:
+              taskUrl && writable && !question.answered
+                ? async (text: string) => {
+                    await replyOnTask(gh, taskUrl, text);
+                    forgetQuestion(viewer, taskUrl);
+                    reopen(REPLY_SENT_LINE);
+                    return REPLY_SENT_LINE;
+                  }
+                : null,
+          }
+        : null,
+      declined: declined ? { note: declineNote ? { text: declineNote.text, by: faceOf(declineNote.login, false, allNames), when: declineNote.at ? startedWhen(declineNote.at) : '' } : null } : null,
     },
   });
   if (!shot) {

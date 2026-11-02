@@ -172,7 +172,8 @@ async function read(): Promise<BuildData> {
   const [names, reviews, tasks, olderFixPulls] = await Promise.all([
     lookUpNames([...new Set(logins)]).catch(() => knownNames()),
     readReviews(toRead.filter((x, i, all) => all.findIndex((y) => y.key === x.key) === i)),
-    Promise.all(taskUrls.map(async (u) => [u, await readDesignTask(u)] as const)).then((all) => new Map(all)),
+    // Their comments are not read here: Being built says where it stands, the exploration page shows a question.
+    Promise.all(taskUrls.map(async (u) => [u, await readDesignTask(u, { comments: false })] as const)).then((all) => new Map(all)),
     readFixPulls(R, missingFixPulls(sessions, pulls.data)),
   ]);
   const nameOf = (l: string) => personName(l, names);

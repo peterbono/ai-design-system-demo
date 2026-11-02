@@ -219,6 +219,34 @@ describe('after Done exploring (Waiting to be picked up, Being built, Shipped)',
       expect(JSON.stringify(steps)).not.toMatch(/merge|pull request|branch|commit|draft|—/i);
     });
 
+    it("shipped from the developers' version: who said it looks right stays on Reviewed", () => {
+      const steps = handoffSteps({ ...base, status: 'shipped', review: { draft: false, asked: [], verdict: null, dev: { url: null, answer: { kind: 'looks-right', by: dana } } } });
+      expect(row(steps, 2)).toEqual(['done', 'Reviewed', 'Dana said it looks right', false]);
+      // Without the answer read: the old words.
+      expect(handoffSteps({ ...base, status: 'shipped', review: { draft: false, asked: [], verdict: null, dev: null } })[2]!.detail).toBe('Before it shipped');
+    });
+
+    it('a question of the developers: the build step says they asked, until the designer answers', () => {
+      const asked = handoffSteps({ ...base, status: 'ready', builders: [], question: { answered: false } });
+      expect(row(asked, 1)).toEqual(['warning', 'Developers build it', 'Developers asked a question', true]);
+      const building = handoffSteps({ ...base, status: 'building', question: { answered: false } });
+      expect(row(building, 1)).toEqual(['warning', 'Developers build it', 'Developers asked a question', true]);
+      const answered = handoffSteps({ ...base, status: 'building', question: { answered: true } });
+      expect(row(answered, 1)).toEqual(['waiting', 'Developers build it', 'Sam is building it', true]);
+      expect(JSON.stringify([asked, answered])).not.toMatch(/issue|pull request|state_reason|—/i);
+    });
+
+    it('declined: the developers closed it without building it, nothing after it moves', () => {
+      const steps = handoffSteps({ ...base, status: 'ready', builders: [], declined: true });
+      expect(steps.map((_, i) => row(steps, i))).toEqual([
+        ['done', 'Done exploring', 'Florian. Sent to the Admin demo developers.', false],
+        ['warning', 'Developers build it', 'Developers closed it without building it.', true],
+        ['waiting', 'Review', 'Not built', false],
+        ['waiting', 'Shipped', 'Not built', false],
+      ]);
+      expect(JSON.stringify(steps)).not.toMatch(/issue|pull request|not_planned|state_reason|—/i);
+    });
+
     it('reads the verdict from the reviews: last say per person, changes requested wins, a dismissal clears', () => {
       expect(reviewVerdictOf([])).toBeNull();
       expect(reviewVerdictOf([{ user: { login: 'dana' }, state: 'COMMENTED' }])).toBeNull();

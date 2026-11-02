@@ -580,6 +580,49 @@
   gap: var(--space-3);
 }
 
+/* The reply to their question: the field takes the width, its button sits at its start. */
+.xp-reply {
+  justify-items: start;
+}
+
+.xp-reply > :first-child {
+  justify-self: stretch;
+}
+
+/* The developers' question, or their word when they closed it: a quote under the steps, then the one way forward. */
+.xp-question,
+.xp-declined {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.xp-quote {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* A rule on the start edge, no plate: nothing to round inside the zone's corners. */
+.xp-quote-text {
+  margin: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: var(--border-width-2) solid var(--color-border-strong);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.xp-quote-by {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* A lone action fills its bar. */
+.xp-fill {
+  inline-size: 100%;
+}
+
 .xp-h3 {
   font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);

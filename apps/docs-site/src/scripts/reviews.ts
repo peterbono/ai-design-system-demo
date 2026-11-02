@@ -364,10 +364,12 @@ const STAGE_TONE: Record<LifecycleStage, NonNullable<ListRow['pill']>['tone']> =
   'waiting-for-code': 'warning',
   'being-built': 'info',
   'in-review': 'warning',
+  approved: 'info',
   'next-release': 'info',
   shipped: 'success',
   archived: 'neutral',
   closed: 'neutral',
+  'not-planned': 'neutral',
 };
 
 /** The library changes the open release pull request lists (lib/release-view libraryRelease): In the next release. */

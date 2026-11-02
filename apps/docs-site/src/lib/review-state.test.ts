@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { designReviewComment, designReviewOf, devPullOfTimeline, taskStage, explorationLifecycle, explorationNameOf, lastSays, LIFECYCLE_LABEL, needsReviewRead, pullLifecycle, reviewAsked, reviewersAsked, reviewLine, reviewsFromStatus, reviewStateOf, reviewVerdictOf, waitsOnViewer, type LifecyclePull } from './review-state';
+import { declineNoteOf, designReviewComment, designReviewOf, devPullOfTimeline, devQuestionOf, plainText, taskDeclined, taskStage, explorationLifecycle, explorationNameOf, lastSays, LIFECYCLE_LABEL, needsReviewRead, pullLifecycle, reviewAsked, reviewersAsked, reviewLine, reviewsFromStatus, reviewStateOf, reviewVerdictOf, waitsOnViewer, type LifecyclePull } from './review-state';
 import { jargonIn } from './vocabulary';
 
 const r = (login: string, state: string) => ({ user: { login }, state });
@@ -162,9 +162,23 @@ describe("the developers' version of a design task", () => {
     expect(taskStage({ ...open, devPull: { number: 9, url: 'u' } })).toBe('in-review');
     expect(taskStage({ ...open, devPull: { number: 9, url: 'u', draft: true } })).toBe('being-built');
     expect(taskStage({ ...open, state: 'closed', stateReason: 'completed', devPull: { number: 9, url: 'u' } })).toBe('shipped');
-    expect(taskStage({ ...open, state: 'closed', stateReason: 'not_planned' })).toBe('closed');
+    // Closed without being built: Not planned (every caller reads an exploration taken back as running first).
+    expect(taskStage({ ...open, state: 'closed', stateReason: 'not_planned' })).toBe('not-planned');
+    expect(taskDeclined({ state: 'closed', stateReason: 'not_planned' })).toBe(true);
+    expect(taskDeclined({ state: 'closed', stateReason: 'completed' })).toBe(false);
+    expect(taskDeclined({ state: 'open', stateReason: null })).toBe(false);
+    // The designer said it looks right on their version: the next state, not In review.
+    expect(taskStage({ ...open, devPull: { number: 9, url: 'u', answer: { kind: 'looks-right', login: 'ann' } } })).toBe('approved');
+    expect(taskStage({ ...open, devPull: { number: 9, url: 'u', answer: { kind: 'changes', login: 'ann' } } })).toBe('in-review');
+    expect(LIFECYCLE_LABEL.approved).toBe('Approved, waiting to ship');
+    expect(LIFECYCLE_LABEL['not-planned']).toBe('Not planned');
   });
 
+  it('finds the pull request that shipped a task, for who said it looks right', () => {
+    const merged = xref(12, 'acme/shop', 'closed', { pull_request: { merged_at: '2026-10-31T00:00:00Z' } });
+    expect(devPullOfTimeline([merged], 'acme/shop')).toBeNull();
+    expect(devPullOfTimeline([xref(11, 'acme/shop'), merged], 'acme/shop', { merged: true })).toEqual({ number: 12, url: 'https://github.com/acme/shop/pull/12' });
+  });
   it('posts the answer in developer words and finds the last one again', () => {
     expect(designReviewComment({ kind: 'looks-right' })).toBe('Design review from Bridge: looks right.');
     expect(designReviewComment({ kind: 'changes', text: ' Bigger title.  ' })).toBe('Design review from Bridge: needs changes: Bigger title.');
@@ -176,4 +190,56 @@ describe("the developers' version of a design task", () => {
     expect(designReviewOf([...comments, { body: designReviewComment({ kind: 'looks-right' }), user: { login: 'ann' }, created_at: '2026-10-31T11:00:00Z' }])).toMatchObject({ kind: 'looks-right', text: null });
     expect(designReviewOf([{ body: 'Looks right to me', user: { login: 'x' } }])).toBeNull();
   });
+});
+
+describe("the developers' question on a design task", () => {
+  const DONE = '2026-10-30T10:00:00Z';
+  const c = (login: string, body: string, at: string, type?: string) => ({ body, user: { login, ...(type ? { type } : {}) }, created_at: at });
+  const open = { state: 'open', labels: [] as string[] };
+
+  it('takes the latest comment after Done exploring by someone who is neither Bridge nor the designer', () => {
+    const comments = [
+      c('sam', 'Old question, before Done exploring', '2026-10-29T10:00:00Z'),
+      c('sam', 'Should the badge be **red** or <b>orange</b>?', '2026-10-31T09:00:00Z'),
+      c('bridge-ds[bot]', 'Done exploring again.', '2026-10-31T09:30:00Z', 'Bot'),
+    ];
+    const q = devQuestionOf({ ...open, comments }, { doneAt: DONE, designers: ['ann'] });
+    expect(q).toEqual({ text: 'Should the badge be red or orange?', login: 'sam', at: '2026-10-31T09:00:00Z', answered: true });
+    // Bridge's own words never ask: its app, a reply posted for a member, a design review, taking it back.
+    const only = devQuestionOf({ ...open, comments: [comments[1]!] }, { doneAt: DONE, designers: ['ann'] });
+    expect(only?.answered).toBe(false);
+  });
+
+  it('reads as answered once the designer (or Bridge for them) wrote after it', () => {
+    const asked = c('sam', 'Which icon?', '2026-10-31T09:00:00Z');
+    expect(devQuestionOf({ ...open, comments: [asked, c('Ann', 'The outline one.', '2026-10-31T10:00:00Z')] }, { doneAt: DONE, designers: ['ann'] })?.answered).toBe(true);
+    expect(devQuestionOf({ ...open, comments: [asked, c('bridge-ds[bot]', '**Ann Leroy** (via Bridge):\n\nThe outline one.', '2026-10-31T10:00:00Z')] }, { doneAt: DONE })?.answered).toBe(true);
+    // A designer's own comment alone is never a question; Bridge's are not either.
+    expect(devQuestionOf({ ...open, comments: [c('ann', 'Note to self', '2026-10-31T09:00:00Z')] }, { doneAt: DONE, designers: ['ann'] })).toBeNull();
+    expect(devQuestionOf({ ...open, comments: [c('lee', 'Design review from Bridge: looks right.', '2026-10-31T09:00:00Z'), c('lee', 'The design team took this back to exploring. It comes back here when they say Done exploring again.', '2026-10-31T09:10:00Z')] }, { doneAt: DONE })).toBeNull();
+  });
+
+  it('honours a needs-design label as a question without words, and nothing on a closed task', () => {
+    expect(devQuestionOf({ state: 'open', labels: ['Needs-Design'], comments: null }, { doneAt: DONE })).toEqual({ text: null, login: null, at: null, answered: false });
+    expect(devQuestionOf({ state: 'open', labels: ['needs-design'], comments: [c('ann', 'See the preview', '2026-10-31T09:00:00Z')] }, { doneAt: DONE, designers: ['ann'] })?.answered).toBe(true);
+    expect(devQuestionOf({ state: 'closed', labels: ['needs-design'], comments: [c('sam', 'Hm?', '2026-10-31T09:00:00Z')] }, { doneAt: DONE })).toBeNull();
+    expect(devQuestionOf({ state: 'open', labels: [], comments: [] }, { doneAt: DONE })).toBeNull();
+  });
+
+  it("keeps the developers' last word when they close it without building it", () => {
+    const comments = [c('sam', 'We are not doing this quarter.', '2026-10-31T09:00:00Z'), c('bridge-ds[bot]', 'x', '2026-10-31T09:10:00Z', 'Bot')];
+    expect(declineNoteOf({ comments }, { designers: ['ann'] })).toEqual({ text: 'We are not doing this quarter.', login: 'sam', at: '2026-10-31T09:00:00Z' });
+    expect(declineNoteOf({ comments: [] })).toBeNull();
+  });
+
+  it('turns a comment into plain words: no HTML, no images, links as their words', () => {
+    expect(plainText('<!-- hidden --><script>alert(1)</script>Hi ![x](http://a/b.png)[the spec](https://x.y) `code`\n\n\n\nBye')).toBe('alert(1)Hi the spec code\n\nBye');
+  });
+});
+
+describe('the lifecycle words stay designer words', () => {
+  it('never uses tech words for the new states', () => {
+    for (const s of [LIFECYCLE_LABEL.approved, LIFECYCLE_LABEL['not-planned']]) expect(jargonIn(s)).toEqual([]);
+  });
+
 });
