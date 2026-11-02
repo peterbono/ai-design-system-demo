@@ -10,6 +10,20 @@
       "route": "/?tenant=northwind",
       "screen": "Orders waiting to ship alert"
     },
+    "art-print-shop-co/art-print-shop-design#3": {
+      "sha": "a4386fe8da7b54e502eff20dfbb5c43304eef03d",
+      "capturedAt": "2026-11-02T00:39:17.970Z",
+      "image": "art-print-shop-co/art-print-shop-design/3.webp",
+      "url": "https://art-print-shop-design-git-explore-te-dd30d8-peterbonos-projects.vercel.app/",
+      "route": "/?tenant=northwind"
+    },
+    "art-print-shop-co/art-print-shop-design#4": {
+      "sha": "a88753f69f12a7d5f39ccdd99f3daff25f962b6c",
+      "capturedAt": "2026-11-02T00:39:13.080Z",
+      "image": "art-print-shop-co/art-print-shop-design/4.webp",
+      "url": "https://art-print-shop-design-git-explore-ad-c8ac81-peterbonos-projects.vercel.app/",
+      "route": "/?tenant=northwind"
+    },
     "peterbono/bridge-product-admin#2": {
       "sha": "5584f9417761d3a95f8c55f4cae19d82e59cfc5d",
       "capturedAt": "2026-10-31T02:58:44.395Z",
