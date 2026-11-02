@@ -12,6 +12,7 @@ import { navProducts, ProductsNavView } from './ProductsNav';
 import { person } from '../../../lib/home-model';
 import type { ExplorationCard } from '../../../lib/home-explorations';
 import type { ProductPageData } from '../../../scripts/product-page';
+import type { LibraryLine } from '../../../lib/library-update';
 
 // The viewer's access: a lead (GitHub write) by default, who may also start in the library.
 const viewer = vi.hoisted(() => ({ access: { state: 'writer', write: true, admin: false, contributor: false } as Record<string, unknown> | null }));
@@ -152,6 +153,57 @@ describe('ProductPageView', () => {
   it('says when the team lists no such product', () => {
     render(createElement(ProductPageView, { productKey: 'shop', components: [], data: data({ product: null }) }));
     expect(screen.getByRole('heading', { level: 1, name: 'Product not found' })).toBeTruthy();
+  });
+});
+
+describe('ProductPageView, the library line', () => {
+  const line = (over: Partial<LibraryLine> = {}): LibraryLine => ({ text: 'Product admin uses the library from 1.8.3. The latest is 1.8.4.', send: false, sent: false, link: null, ...over });
+
+  it('a lead: the line and "Send the update to the developers" on it; once sent, it says so', async () => {
+    let sent = false;
+    const send = vi.fn(async () => {
+      sent = true;
+    });
+    const { container, rerender } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }), library: { line: line({ send: true }), send } }));
+    const at = container.querySelector('[data-library-line]')!;
+    expect(at.textContent).toContain('Product admin uses the library from 1.8.3. The latest is 1.8.4.');
+    // In the header's quiet line, next to what it acts on; one primary action stays on the title's line.
+    expect(at.closest('.pp-facts')).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send the update to the developers' }));
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(sent).toBe(true);
+    rerender(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }), library: { line: line({ sent: true, link: 'https://github.com/acme/product-admin/pull/7' }) } }));
+    expect(container.querySelector('[data-library-sent]')!.textContent).toBe('Update sent to the developers.');
+    expect(screen.getByRole('link', { name: /Open their update/ }).getAttribute('href')).toBe('https://github.com/acme/product-admin/pull/7');
+    expect(screen.queryByRole('button', { name: 'Send the update to the developers' })).toBeNull();
+    await expectNoAxeViolations(container);
+  });
+
+  it('a designer without GitHub: the line and "Update sent to the developers." only, no link, no tech words', () => {
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }), library: { line: line({ sent: true }) } }));
+    const text = container.querySelector('[data-library-line]')!.textContent!;
+    expect(text).toContain('Update sent to the developers.');
+    expect(screen.queryByRole('link', { name: /Open their update/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Send the update to the developers' })).toBeNull();
+    expect(text).not.toMatch(/npm|package|lockfile|pull request|GitHub|branch/i);
+  });
+
+  it('a refused send: one plain sentence on the line', async () => {
+    const send = vi.fn(async () => {
+      throw new Error('Bridge cannot work in this product yet. Ask an admin to connect it to Bridge.');
+    });
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }), library: { line: line({ send: true }), send } }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send the update to the developers' }));
+    });
+    await waitFor(() => expect(container.querySelector('[data-library-line] [role="status"]')!.textContent).toBe('Bridge cannot work in this product yet. Ask an admin to connect it to Bridge.'));
+  });
+
+  it('no line without a library view', () => {
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }) }));
+    expect(container.querySelector('[data-library-line]')).toBeNull();
   });
 });
 

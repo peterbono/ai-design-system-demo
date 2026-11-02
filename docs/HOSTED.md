@@ -660,6 +660,48 @@ The code is `apps/docs-site/api/_lib/github-webhook.ts`, served by `/api/contrib
 5. Check: after a push to a team's repository, **Recent Deliveries** shows `200` with `{ "ok": true, "repos": 1, ... }`
    (`"ignored": true` for a repository nobody read through Bridge in the last 20 minutes).
 
+## Library updates in the products
+
+After the library publishes a new version, each product with a repository of its own (`products[].repo`, never the
+design team's copy) gets it through one pull request Bridge opens for its developers: "Update the Bridge library to
+1.8.4". Bridge never merges it. The rules are `apps/docs-site/src/lib/library-update.ts`, the server
+`apps/docs-site/api/_lib/library-update.ts`, served by `/api/contribute` (no new Vercel function).
+
+- **The product page** says how far behind the product is, in one quiet line under its name: "Art print shop uses
+  the library from 1.8.3. The latest is 1.8.4." A lead or an admin (an email admin too) has "Send the update to the
+  developers" on that line; once sent, "Update sent to the developers.", and "Open their update" for people signed in
+  with GitHub. Designers never read a package, a lockfile or a pull request.
+- **Detection**: the product's `package.json` (and each workspace its npm lockfile names) and `package-lock.json`,
+  read through the team's read path (cached, app token), compared with the latest versions on npm
+  (`GET /api/contribute?npm=<names>`, kept 5 minutes in Redis, `bridge:npm:latest:<name>`). The library packages are
+  the `@bridge-ds/` scope and the team's `previews.packages`; only the ones the product asks for directly count.
+  Another lockfile (pnpm, yarn, bun) or none: the `package.json` range only, and the page says Bridge cannot tell
+  which version is installed unless the range cannot take the latest.
+- **The pull request**: branch `bridge/update-library-<version>` from the default branch, title "Update the Bridge
+  library to <version>", a body with each package (from, to, a link to the team's Library changelog), Bridge's marker
+  (`<!-- bridge:library-update -->`) and "Requested by <name> through Bridge.". `package.json` ranges change only when
+  the range does not take the new version. `package-lock.json` (v2 without the legacy tree, or v3) is patched only
+  when it is safe without npm: one copy of the package, from the public registry, the same dependencies (peer and
+  optional too, bin, os, cpu) in the new version, and every dependent takes it; then only version, resolved and
+  integrity (license, engines, funding) of those entries move. Otherwise Bridge moves the `package.json` ranges to the
+  new versions and the body asks the developers to run `npm install` on the branch.
+- **One at a time**: a product has at most one open update. Sending again updates it in place (a new commit on top of
+  its branch, never forced; new title and body); the same version again writes nothing.
+- **Policy** (deny by default, every GitHub call of the update): reads of the product repository; a tree of only the
+  `package.json` and `package-lock.json` files the update computed (root or a workspace folder, never a dot folder or
+  `node_modules`, regular files only); a commit of that tree; the update branch created or moved forward (never the
+  default branch, never forced); the pull request opened to the default branch with the marker, and only that one
+  edited (title and body). Never a merge, a review, a label, a deleted ref or a `.github/` file. Who: an email admin
+  of the team, or a GitHub account that administers the team's repository or is one of its leads (governance owners
+  and override). At most 30 updates per team per day.
+- **Setup**: nothing new. The Bridge app needs Contents and Pull requests write on the product repository (the
+  installation the proxy already uses); without it the page answers "Bridge cannot work in this product yet. Ask an
+  admin to connect it to Bridge."
+- **Later: automatic updates.** Today a lead sends the update. Next, a team opts a product in with
+  `products[].updates: "auto"` (default `"manual"`) and Bridge sends it on its own when the library releases (the
+  `release` webhook of the library repository, or the registry check on the daily cron). Not built yet: the field is
+  not read today.
+
 ## Accounts
 
 One Bridge account per person, identified by email: no password, no username. "Continue with GitHub" or "Continue
