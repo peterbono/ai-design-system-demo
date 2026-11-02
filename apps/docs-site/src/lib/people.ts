@@ -90,7 +90,7 @@ export function loginsToFetch(logins: string[], cache: NameCache, budget: number
   const seen = new Set<string>();
   for (const l of logins) {
     const k = loginKey(l);
-    if (!k || seen.has(k) || cache[k] || isBotLogin(k) || isClaudeLogin(k)) continue;
+    if (!k || k.includes(':') || seen.has(k) || cache[k] || isBotLogin(k) || isClaudeLogin(k)) continue;
     seen.add(k);
     out.push(k);
     if (out.length >= budget) break;

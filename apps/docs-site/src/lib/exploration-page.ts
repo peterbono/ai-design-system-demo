@@ -5,6 +5,7 @@
 import { DEV_VERSION_READY, LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
 import { changedThings, continueLines, explorationActivity, humanAuthorOf, parseExplorationBody, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
 import { emailMemberFace, isEmailAddress, nameFace } from './people';
+import { isNameAuthor, nameOfAuthor } from './author';
 
 /** A person or Claude on the page: the login (for the face), the name to show, and whether it is Claude. */
 export interface PageFace {
@@ -42,6 +43,7 @@ export const faceOf = (who: string, claude: boolean, names: Record<string, strin
     const name = names[who] ?? who.split('@')[0]!;
     return { login: emailMemberFace(names[who], who), name: `${name}${tail}`, agent: false, avatar: null };
   }
+  if (isNameAuthor(who)) return { login: nameFace(nameOfAuthor(who)), name: `${names[who] ?? nameOfAuthor(who)}${tail}`, agent: false, avatar: null };
   if (nameOnly.has(who)) return { login: nameFace(who), name: `${names[who] ?? who}${tail}`, agent: false, avatar: null };
   return { login: who, name: `${names[who] ?? who}${tail}`, agent: false, avatar: avatarOf(who) };
 };
