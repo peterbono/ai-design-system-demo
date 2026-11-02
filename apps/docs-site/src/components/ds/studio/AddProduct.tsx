@@ -3,7 +3,8 @@
 // previews from Vercel when it can, then proposes the new entry for review (scripts/roles.ts proposeNewProduct), the
 // same path as a product rename. Words and rules: lib/add-product.ts. Never the sample team, never an email admin.
 import { useEffect, useId, useState } from 'react';
-import { Button, ButtonGroup, Checkbox, Combobox, Dialog, DialogClose, DialogContent, Input, Spinner } from '@bridge-ds/react';
+import { Button, ButtonGroup, Checkbox, Combobox, Dialog, DialogClose, DialogContent, Input, Link, Spinner } from '@bridge-ds/react';
+import { installUrl } from '../../../lib/access-view';
 import type { ProductConfig } from '@bridge-ds/core';
 import '../../../styles/add-product.css';
 import { ADD_PRODUCT_WORDS as W, addProductProblem, nameFromRepo, newProductEntry, productKeyFor, type ProductRepoChoice } from '../../../lib/add-product';
@@ -75,6 +76,20 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       live = false;
     };
   }, [open, repos, products]);
+
+  // Nothing to pick: the admin gives the app access on GitHub in another tab; coming back reads the list again.
+  useEffect(() => {
+    if (!open || !repos || repos.length) return;
+    const again = () => {
+      if (document.visibilityState === 'visible') setRepos(null);
+    };
+    window.addEventListener('focus', again);
+    document.addEventListener('visibilitychange', again);
+    return () => {
+      window.removeEventListener('focus', again);
+      document.removeEventListener('visibilitychange', again);
+    };
+  }, [open, repos]);
 
   const choice = repos?.find((r) => r.full === repo) ?? null;
   useEffect(() => {
@@ -154,6 +169,11 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
               }}
               emptyMessage={W.codeNone}
             />
+            {repos && !repos.length && (
+              <Link href={installUrl()} target="_blank" rel="noreferrer" className="addp-access">
+                {W.giveAccess}
+              </Link>
+            )}
             <Input label={W.name} hint={W.nameHelp} value={name} onValueChange={(v) => setName(v)} autoComplete="off" />
             <Checkbox label={W.copy} description={W.copyHelp} checked={copy} onCheckedChange={setCopy} />
             <div role="status" aria-live="polite" className="addp-status">

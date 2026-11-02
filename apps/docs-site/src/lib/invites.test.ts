@@ -2,6 +2,8 @@
 // back, who may change what, the email field and the sample team.
 import { describe, expect, it } from 'vitest';
 import {
+  closeLabel,
+  membersPending,
   adminCount,
   choiceOf,
   GITHUB_PERMISSION,
@@ -201,5 +203,20 @@ describe('contexts', () => {
     expect(s.pending).toEqual([expect.objectContaining({ email: 'priya@acme.design', role: 'edit', face: '~priya-natarajan' })]);
     expect(s.people.some((p) => /priya/i.test(p.email ?? ''))).toBe(false);
     expect(sampleTeam('Robin').members[0]!.name).toBe('Robin');
+  });
+});
+
+describe('journey fixes: the invite dialog way out and the members list wait', () => {
+  it('reads Done once invites went out and nothing is left to send', () => {
+    expect(closeLabel(true, false, 0)).toBe('Cancel');
+    expect(closeLabel(true, true, 0)).toBe('Done');
+    expect(closeLabel(true, true, 2)).toBe('Cancel');
+    expect(closeLabel(false, true, 0)).toBe('Close');
+  });
+  it('waits while a signed-in session is not read yet, never for a signed-out visitor', () => {
+    expect(membersPending({ token: true, viewer: false, access: false })).toBe(true);
+    expect(membersPending({ token: true, viewer: true, access: false })).toBe(true);
+    expect(membersPending({ token: true, viewer: true, access: true })).toBe(false);
+    expect(membersPending({ token: false, viewer: false, access: false })).toBe(false);
   });
 });

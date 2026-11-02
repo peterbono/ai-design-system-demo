@@ -35,6 +35,10 @@ describe('signed in already: Continue as them', () => {
     expect(c!.avatar).toContain('github.com/peterbono.png');
     expect(continueAs({ account: null, github: { login: 'peterbono' }, recent: ['a/one'] })).toMatchObject({ name: '@peterbono' });
     expect(continueAs({ account: null, github: { login: 'peterbono' } })!.href).toBe('/studio/');
+    // A GitHub sign-in with a name, on a team this browser knows: the name, the team and the role, like the consent.
+    expect(
+      continueAs({ account: null, github: { login: 'peterbono', name: 'Florian' }, recent: ['peterbono/ai-design-system-demo'], teamNames: { 'peterbono/ai-design-system-demo': 'Bridge DS' }, teamRoles: { 'peterbono/ai-design-system-demo': 'Admin' } }),
+    ).toMatchObject({ name: 'Florian', detail: 'Bridge DS · Admin' });
   });
 
   it('remembers the last email on this browser, never anything else', () => {

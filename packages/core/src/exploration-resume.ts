@@ -211,8 +211,11 @@ export const isDoneExploringCommit = (c: BranchCommitLike): boolean => /^chore\(
 export const DONE_EXPLORING_WORDS = 'said done exploring';
 export const BACK_TO_EXPLORING_WORDS = 'took it back to exploring';
 
-/** Git's own subject for a merge ("Merge branch 'main' into explore/x", "Merge pull request #3 from ..."). */
-export const isMergeSubject = (subject: string): boolean => /^(Merge (branch|remote-tracking branch|pull request|commit)|Get the latest)\b/.test(subject.trim());
+/**
+ * Git's own subject for a merge ("Merge branch 'main' into explore/x", "Merge pull request #3 from ..."), and Bridge's own
+ * ("Get the latest" on the copy, "Bring the latest main into explore/x" from the exploration page).
+ */
+export const isMergeSubject = (subject: string): boolean => /^(Merge (branch|remote-tracking branch|pull request|commit)|Get the latest|Bring the latest)\b/.test(subject.trim());
 
 /** What a merge of the latest work into the branch reads as, after the actor: never git's own words. */
 export const MERGE_WORDS = 'brought in the latest product';

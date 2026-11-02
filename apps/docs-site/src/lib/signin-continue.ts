@@ -11,12 +11,14 @@ import { emailMemberFace } from './people';
 export interface SessionFacts {
   /** The Bridge account (email, or GitHub linked to it), when there is one. */
   account: Account | null;
-  /** A GitHub sign-in this browser holds without a Bridge account: its login and avatar. */
-  github?: { login: string; avatar?: string | null } | null;
+  /** A GitHub sign-in this browser holds without a Bridge account: its login, display name and avatar. */
+  github?: { login: string; name?: string | null; avatar?: string | null } | null;
   /** Teams this browser opened, newest first (lib/recent-teams.ts). */
   recent?: readonly string[];
   /** Team names this browser knows ("owner/repo" -> name). */
   teamNames?: Readonly<Record<string, string>>;
+  /** The person's role words on the teams this browser knows ("owner/repo" -> "Admin"), lib/recent-teams loadTeamRoles. */
+  teamRoles?: Readonly<Record<string, string>>;
 }
 
 export interface ContinueAs {
@@ -53,12 +55,17 @@ export function continueAs(s: SessionFacts): ContinueAs | null {
     };
   }
   if (s.github?.login) {
-    const last = recent[0]?.split('/');
+    const team = recent[0] ?? null;
+    const last = team?.split('/');
+    const known = (m: Readonly<Record<string, string>> | undefined) => (team ? (m?.[team.toLowerCase()] ?? m?.[team]) : undefined);
+    const teamName = team ? (known(s.teamNames) ?? last?.[1] ?? team) : null;
+    const role = known(s.teamRoles);
     return {
-      name: `@${s.github.login}`,
+      // Their name as GitHub shows it ("Florian"), like the connector's consent; the login when they never set one.
+      name: s.github.name?.trim() || `@${s.github.login}`,
       seed: s.github.login,
       avatar: s.github.avatar ?? `https://github.com/${encodeURIComponent(s.github.login)}.png?size=80`,
-      detail: null,
+      detail: teamName ? (role ? `${teamName} · ${role}` : teamName) : null,
       href: last?.length === 2 && last[0] && last[1] ? teamHref(last[0], last[1], null) : STUDIO_ROOT,
     };
   }

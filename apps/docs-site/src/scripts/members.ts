@@ -13,7 +13,7 @@ import { teamDisplayName } from '../lib/demo';
 import { knownTeamName } from '../lib/recent-teams';
 import { accountName } from '../lib/account';
 import { teamKeyOfPage } from '../lib/team-path';
-import { emailMembers, membersContext, roleOf, sampleTeam, type KnownPerson, type Member, type MembersContext, type PendingInvite } from '../lib/invites';
+import { emailMembers, membersContext, membersPending, roleOf, sampleTeam, type KnownPerson, type Member, type MembersContext, type PendingInvite } from '../lib/invites';
 import { loginKey, personName } from '../lib/people';
 import { currentViewer, getToken, ghGet, resolveAccess } from './github-session';
 import { invitesAvailable, listInvites } from './invites-api';
@@ -150,7 +150,15 @@ async function loadKeyMembers(key: string): Promise<MembersData> {
 }
 
 /** The people of this page's team. */
-export async function loadMembers(): Promise<MembersData> {
+/** The session is signed in but its viewer or access is not read yet: the members list waits (useMembers retries). */
+export class MembersPendingError extends Error {
+  constructor() {
+    super('members-pending');
+  }
+}
+
+/** `settled`: the last try, which paints what it has (the settings' reviewers) rather than wait any longer. */
+export async function loadMembers(settled = true): Promise<MembersData> {
   const key = teamKeyOfPage();
   if (key) return loadKeyMembers(key);
   const ctx = repoContext();
@@ -168,6 +176,9 @@ export async function loadMembers(): Promise<MembersData> {
   const viewer = currentViewer();
   // Bridge's own lists (members by email, invites) never wait on GitHub: a failed access check reads as no access.
   const [access, team0, invites] = await Promise.all([resolveAccess({ owner: ctx.owner, repo: ctx.repo }, { anonymous: ctx.hosted }).catch(() => null), ownersOfTeam(ctx.hosted), invitesAvailable().catch(() => false)]);
+  // Signed in, but who they are or what they may do is not read yet: never paint the settings' reviewers as the team
+  // meanwhile (a list of one that turns into the real team a moment later). useMembers reads again, the list waits.
+  if (!settled && membersPending({ token: Boolean(getToken()), viewer: Boolean(viewer), access: Boolean(access) })) throw new MembersPendingError();
   const owners = team0.owners;
   const canManage = Boolean(viewer && access?.admin);
   const names = knownNames();

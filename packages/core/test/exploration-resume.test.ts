@@ -80,6 +80,8 @@ describe('what changed, in words', () => {
   it('turns commit subjects into words', () => {
     expect(subjectWords('feat(orders): add row selection to the Orders table')).toBe('added row selection to the Orders table');
     expect(subjectWords('Bulk actions bar — three actions')).toBe('made a change: Bulk actions bar, three actions');
+    // Bring it in (the exploration page merges the product's latest into the branch): never the branch names.
+    expect(subjectWords('Bring the latest main into explore/test-journey-2-invoices-header')).toBe('brought in the latest product');
     expect(subjectWords("Preview from the design team's copy")).toBe("made a change: Preview from the design team's copy");
     expect(subjectWords('fix: fix spacing (#12)')).toBe('fixed spacing');
   });

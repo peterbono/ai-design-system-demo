@@ -317,6 +317,9 @@ export function inviteePeople(emails: readonly string[], people: readonly KnownP
 }
 
 /** The primary button: "Send 2 invites" (board I1). */
+/** The dialog's way out: Close for someone who cannot invite, Done once invites went out and nothing is left to send. */
+export const closeLabel = (canManage: boolean, sent: boolean, left: number): string => (!canManage ? 'Close' : sent && left === 0 ? 'Done' : 'Cancel');
+
 export function sendLabel(n: number): string {
   if (n <= 0) return 'Send invites';
   return n === 1 ? 'Send 1 invite' : `Send ${n} invites`;
@@ -414,3 +417,10 @@ export function sampleTeam(lead = 'Dana'): { members: Member[]; pending: Pending
 
 /** The sample team's "now", so its pending line always reads the same ("Invited 2 days ago"). */
 export const SAMPLE_NOW = Date.UTC(2026, 9, 22, 9);
+
+
+/**
+ * Settings > Members must not paint a stand-in list while the session is still being read: signed in (a token) but no
+ * viewer or no access answer yet. Signed out (no token) reads the public list at once.
+ */
+export const membersPending = (s: { token: boolean; viewer: boolean; access: boolean }): boolean => s.token && (!s.viewer || !s.access);

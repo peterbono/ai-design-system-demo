@@ -24,3 +24,8 @@
   font-size: var(--typography-ui-size);
   line-height: var(--typography-ui-line-height);
 }
+
+/* Nothing to pick yet: the one way to give Bridge access, under the field it fills. */
+.addp-access {
+  justify-self: start;
+}
