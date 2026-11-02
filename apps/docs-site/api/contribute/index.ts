@@ -68,9 +68,10 @@
 // read with GET /user and the team's repository, never trusted from the browser); their branches are kept as
 // gh:<login>, and an exploration they opened on GitHub before is theirs when its pull request is their own. In the
 // library they keep their own GitHub path; leads and admins keep GitHub for every write.
-// Reads of the team's products (GET gh=) are for everyone on the team signed in with GitHub, leads and admins too
-// (githubTeamReaderOf: an explicit role on the team's repository, or read on a private one), with the app's read
-// token: a private product or design copy reads for them whatever their own token can see.
+// Reads of the team's library and products (GET gh=, users=, changes=) are for everyone on the team signed in with
+// GitHub, leads and admins too (githubTeamReaderOf: an explicit role on the team's repository, or read on a private
+// one), with the app's read token and the shared read cache (api/_lib/team-read.ts): a private product or design copy
+// reads for them whatever their own token can see, and the Studio no longer spends each viewer's own GitHub limit.
 //
 // In the team's products (bridge.config.json products[] with a design.repo, planProductCall), an email designer
 // explores like everyone: in the design team's copy their explore/* branches (started from the default branch with
@@ -162,6 +163,8 @@ export interface ContribEnv {
   READ_MAX_IP?: string | undefined;
   READ_MAX_GUEST?: string | undefined;
   READ_MAX_TEAM?: string | undefined;
+  /** GitHub calls one reader may cost the app per 10 minutes (api/_lib/team-read.ts READ_LIMITS.upstream). */
+  READ_MAX_UPSTREAM?: string | undefined;
 }
 
 export interface ContribDeps {
@@ -1057,17 +1060,39 @@ type GitHubAccountOn = { kind: 'expired' } | { kind: 'account'; login: string; n
 const designerCache = new Map<string, { at: number; v: GitHubAccountOn }>();
 export const clearDesignerCache = () => designerCache.clear();
 
+/** How long who a GitHub token is on a team is kept (memory of a warm function, and Redis for the other ones). */
+const ACCOUNT_KEEP_S = 5 * 60;
+/** Redis key of who a GitHub token is on a team: a hash of the token, never the token. */
+export const accountOnKey = (tokenHash: string, team: string) => `bridge:read:who:${tokenHash}:${team.toLowerCase()}`;
+
+const parseAccountOn = (raw: unknown): GitHubAccountOn | null => {
+  if (typeof raw !== 'string') return null;
+  try {
+    const v = JSON.parse(raw) as GitHubAccountOn;
+    return v && v.kind === 'account' && typeof v.login === 'string' ? v : null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * The GitHub account behind `Authorization: Bearer` and its permissions on the team's repository, read with its own
- * token (GET /user, GET the team's repository): never what the browser says. Kept 5 minutes per warm function, by a
- * hash of the token. Null without a token.
+ * token (GET /user, GET the team's repository): never what the browser says. Kept 5 minutes by a hash of the token,
+ * in this function's memory and in Redis, so a Studio page that reads through Bridge costs the viewer's own GitHub
+ * limit two calls per 5 minutes, not two per function that answers it. Null without a token.
  */
 async function githubAccountOn(ctx: Ctx, req: Request, team: { owner: string; repo: string; full: string }): Promise<GitHubAccountOn | null> {
   const bearer = /^Bearer\s+([A-Za-z0-9_.-]{20,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
   if (!bearer) return null;
-  const key = `${sha256(bearer)}:${team.full}`;
+  const hash = sha256(bearer);
+  const key = `${hash}:${team.full}`;
   const hit = designerCache.get(key);
-  if (hit && ctx.now() - hit.at < 5 * 60 * 1000) return hit.v;
+  if (hit && ctx.now() - hit.at < ACCOUNT_KEEP_S * 1000) return hit.v;
+  const shared = parseAccountOn(await ctx.svc.redis.cmd('GET', accountOnKey(hash, team.full)).catch(() => null));
+  if (shared) {
+    designerCache.set(key, { at: ctx.now(), v: shared });
+    return shared;
+  }
   const me = await ghApp(ctx, bearer, 'GET', '/user');
   if (me.status === 401 || me.status === 403 || typeof me.data?.login !== 'string') return { kind: 'expired' };
   const r = await ghApp(ctx, bearer, 'GET', `/repos/${team.owner}/${team.repo}`);
@@ -1083,6 +1108,7 @@ async function githubAccountOn(ctx: Ctx, req: Request, team: { owner: string; re
     private: r.status === 200 && r.data?.private === true,
   };
   designerCache.set(key, { at: ctx.now(), v });
+  await ctx.svc.redis.cmd('SET', accountOnKey(hash, team.full), JSON.stringify(v), 'EX', ACCOUNT_KEEP_S).catch(() => undefined);
   return v;
 }
 
@@ -1473,7 +1499,7 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
     now: ctx.now,
     redis: ctx.svc.redis,
     token: (o, r) => ctx.svc.readApp.installationToken(o, r),
-    env: { READ_MAX_IP: ctx.env.READ_MAX_IP, READ_MAX_GUEST: ctx.env.READ_MAX_GUEST, READ_MAX_TEAM: ctx.env.READ_MAX_TEAM },
+    env: { READ_MAX_IP: ctx.env.READ_MAX_IP, READ_MAX_GUEST: ctx.env.READ_MAX_GUEST, READ_MAX_TEAM: ctx.env.READ_MAX_TEAM, READ_MAX_UPSTREAM: ctx.env.READ_MAX_UPSTREAM },
   };
   const blobs = params.get('blobs');
   const usersArg = params.get('users');
@@ -1671,6 +1697,7 @@ const envFromProcess = (): ContribEnv => ({
   READ_MAX_IP: process.env.READ_MAX_IP,
   READ_MAX_GUEST: process.env.READ_MAX_GUEST,
   READ_MAX_TEAM: process.env.READ_MAX_TEAM,
+  READ_MAX_UPSTREAM: process.env.READ_MAX_UPSTREAM,
 });
 
 const realFetch: FetchLike = (url, init) => fetch(url, init);
