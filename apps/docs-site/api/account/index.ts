@@ -64,6 +64,7 @@ import { parseAiTools, type AiTool } from '../../src/lib/ai-tools.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, sameOrigin, secondsToTomorrow, sha256, type FetchLike } from '../_lib/http.js';
+import { meteredFromEnv } from '../_lib/github-quota.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { revokeAccountGrants } from '../_lib/oauth.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
@@ -802,7 +803,8 @@ const envFromProcess = (): AccountEnv => ({
   ACCOUNT_CODES_MAX_SITE_DAY: process.env.ACCOUNT_CODES_MAX_SITE_DAY,
 });
 
-const realFetch: FetchLike = (url, init) => fetch(url, init);
+// Answers to calls with the Bridge app's tokens are metered per installation (api/_lib/github-quota.ts).
+const realFetch: FetchLike = meteredFromEnv();
 const handle = (request: Request) => handleAccount(request, envFromProcess(), { fetch: realFetch });
 
 /** Vercel Functions entries (Web standard signature). */

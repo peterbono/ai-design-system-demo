@@ -148,6 +148,11 @@
   max-width: 65ch;
 }
 
+/* Settings, GitHub usage (admins): the meter spans the value column. */
+.set-usage-meter {
+  justify-self: stretch;
+}
+
 .set-row-action {
   display: flex;
   flex-wrap: wrap;

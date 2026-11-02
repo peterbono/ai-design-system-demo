@@ -9,6 +9,7 @@ import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/a
 import { QUIET_AFTER_MS, stepOf, STEP_WORDS } from '../../api/_lib/fix-sessions';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
+import { quotaMeter } from '../../api/_lib/github-quota';
 import { redirectMatches } from '../../api/_lib/oauth';
 import { EMAIL_REFUSED_TOOLS, EMAIL_REFUSED_WORDS, grantIdentity, handleConnector, HOSTED_REFUSED_TOOLS, HOSTED_REFUSED_WORDS, LIBRARY_LEADS_WORDS, type ConnectorEnv, type FetchLike, type McpHandler } from '../../api/mcp/index';
 import { handleFixSessions } from '../../api/fix-sessions/index';
@@ -570,5 +571,47 @@ describe('bridge_whoami on the hosted connector: who a grant acts as', () => {
   it('a lead: Admin when they administer the repository, else Reviewer, with their own GitHub access', async () => {
     expect(await grantIdentity({ grant, emailMember: null, designer: false, routed: false, token: 'x', redis: memoryRedis(), fetch: gh(true) })).toMatchObject({ name: 'Florian', login: 'peterbono', role: 'Admin', via: 'github', writes: 'own' });
     expect(await grantIdentity({ grant, emailMember: null, designer: false, routed: false, token: 'x', redis: memoryRedis(), fetch: gh(false) })).toMatchObject({ role: 'Reviewer', writes: 'own' });
+  });
+});
+
+describe('Studio Settings: GitHub usage, for the team admins only (?view=github-usage)', () => {
+  const RESET_S = Math.floor(Date.parse('2026-10-25T11:00:00Z') / 1000);
+  const seed = async (w: ReturnType<typeof world>) =>
+    quotaMeter(w.redis, { now: w.now, log: { warn: () => {} } }).observe(
+      { installation: 42, repo: 'acme/design' },
+      new Response('{}', { headers: { 'x-ratelimit-limit': '5000', 'x-ratelimit-remaining': '3760', 'x-ratelimit-used': '1240', 'x-ratelimit-reset': String(RESET_S), 'x-ratelimit-resource': 'core' } }),
+    );
+  const get = (w: ReturnType<typeof world>, headers: Record<string, string>) => w.call('/api/mcp?view=github-usage&repo=acme/design', { headers });
+
+  it('answers a GitHub admin of the team with the numbers of its installation, and nothing else', async () => {
+    const w = world();
+    expect(await (await get(w, { authorization: 'Bearer ghu_admin_token_00000000' })).json()).toEqual({ usage: null, slowedAt: null });
+    await seed(w);
+    const r = await get(w, { authorization: 'Bearer ghu_admin_token_00000000' });
+    expect(r.status).toBe(200);
+    expect(r.headers.get('cache-control')).toBe('no-store');
+    expect(await r.json()).toEqual({ usage: { resource: 'core', limit: 5000, used: 1240, remaining: 3760, resetAt: RESET_S * 1000, low: false }, slowedAt: null });
+  });
+
+  it('refuses a member who is not an admin, a guest, and someone off the team', async () => {
+    const w = world();
+    await seed(w);
+    const member = await get(w, { authorization: 'Bearer ghu_user_token_1_0000000000' });
+    expect(member.status).toBe(403);
+    expect(JSON.stringify(await member.json())).not.toMatch(/5000|3760|1240/);
+    expect((await get(w, {})).status).toBe(401);
+    expect((await get(w, { authorization: 'Bearer ghu_other_token_00000000' })).status).toBe(403);
+  });
+
+  it('answers an email admin of the team signed in to Studio, not an email member who can edit', async () => {
+    const w = world({ app: true });
+    await seed(w);
+    await putAccount(w.redis, { id: 'a1', email: 'ada@acme.design', name: 'Ada', github: null, createdAt: '2026-10-01T00:00:00Z', version: 1 });
+    await memberStore(w.redis).put('acme/design', { email: 'ada@acme.design', name: 'Ada', role: 'admin', version: 1, addedBy: 'x', at: '2026-10-01T00:00:00Z' });
+    await putAccount(w.redis, { id: 'a2', email: 'lee@acme.design', name: 'Lee', github: null, createdAt: '2026-10-01T00:00:00Z', version: 1 });
+    await memberStore(w.redis).put('acme/design', { email: 'lee@acme.design', name: 'Lee', role: 'edit', version: 1, addedBy: 'x', at: '2026-10-01T00:00:00Z' });
+    const as = (email: string) => ({ cookie: `${ACCOUNT_COOKIE}=${signAccountSession({ email, v: 1, exp: w.now() + 60_000 }, SECRET)}`, 'x-bridge-contribute': '1', origin: SITE });
+    expect((await (await get(w, as('ada@acme.design'))).json()).usage).toMatchObject({ used: 1240, limit: 5000 });
+    expect((await get(w, as('lee@acme.design'))).status).toBe(403);
   });
 });

@@ -2,6 +2,7 @@
 // minted per request and never stored. Shared by api/invites, api/library-access and api/contribute.
 
 import { createSign } from 'node:crypto';
+import { noteInstallationToken } from './github-quota.js';
 import { b64url, GITHUB_DOWN, HttpError, type FetchLike } from './http.js';
 
 export type AppPermission = 'read' | 'write';
@@ -71,6 +72,8 @@ export function githubApp(appId: string, privateKey: string, f: FetchLike, now: 
       // Missing a permission the feature needs: say so instead of failing later.
       const perms = tok.data.permissions;
       if (opts.require && perms && Object.entries(opts.require).some(([k, v]) => !grants(perms[k], v))) return null;
+      // Which installation's budget the calls made with it spend (api/_lib/github-quota.ts, memory only).
+      noteInstallationToken(tok.data.token, inst.data.id, `${owner}/${repo}`, now());
       return tok.data.token as string;
     },
   };
