@@ -160,24 +160,24 @@ export function productFacts(product: ProductConfig, ownRepo: string | null, rea
 }
 
 /**
- * The empty product page: why it is worth starting, in one sentence, before the one action (the header says it is
+ * The empty product page: why it is worth starting, in one sentence, under the one action (the header says it is
  * empty). The library is a lead's to change (create-branch libraryLead): a designer of the team (`lead` false) gets no
- * start action there, so the line says where their asks go instead.
+ * start action there, so the line is the page's lead instead: what the page is for, and where their asks go.
  */
 export function emptyProductLine(product: ProductConfig, library: boolean, lead = true): string {
-  if (library && !lead) return 'The design system leads change the library. Ask them for what you need.';
+  if (library && !lead) return 'The library your products use. Leads change it, so ask them for what you need.';
   return library
     ? 'Try a token, a variant or a new component with Claude AI, in a safe copy of the library, before it goes to review.'
     : `Try one of the screens of ${product.name} with Claude AI. Bridge spots what the library does not have, and what works goes to review.`;
 }
 
 /**
- * A designer of the team on the library's page (no start action there): the two ways to ask, each a card to its page.
- * A component change from Components, a token change from Tokens; both reach a lead for review.
+ * A designer of the team on the library's page (no start action there): the two ways to ask, each a card to its page
+ * with its Field Guide drawing. A component change from Components, a token change from Tokens; both reach a lead.
  */
 export const LIBRARY_ASKS = [
-  { key: 'component', title: 'Ask for a component change', line: 'Open a component and say what should change. A lead picks it up.', path: 'components/' },
-  { key: 'token', title: 'Suggest a token change', line: 'Adjust a color, size or spacing. A lead reviews it before it ships.', path: 'tokens/' },
+  { key: 'component', title: 'Ask for a component change', line: 'Open a component and say what should change. A lead picks it up.', path: 'components/', drawing: 'components' },
+  { key: 'token', title: 'Suggest a token change', line: 'Adjust a color, size or spacing. A lead reviews it before it ships.', path: 'tokens/', drawing: 'tokens' },
 ] as const;
 
 /** The quiet line at the end of a product page: "1 archived.", "2 archived.". */
