@@ -570,8 +570,9 @@ instead of one request per file.
 
 ### Cache and limits
 
-- **Cache** (Upstash Redis): an answer is fresh 30 seconds, then revalidated with its `ETag` (GitHub does not count a
-  `304`), kept 10 minutes to stand in when GitHub says slow down. A write made through Bridge
+- **Cache** (Upstash Redis): an answer is fresh 30 seconds (10 minutes while GitHub's webhooks arrive, see "Changes
+  pushed by GitHub" below), then revalidated with its `ETag` (GitHub does not count a `304`), kept 20 minutes to stand
+  in when GitHub says slow down. A write made through Bridge
   (`bridge:read:wrote:<repo>`) makes older answers be checked again at once. Answers that never change (a blob, a tree
   or a commit by its sha, contents at a full sha) are kept a day (blobs a week) and in the function's memory. Keys:
   `bridge:read:get:<repo>:<hash>`, `bridge:read:blob:<repo>:<sha>`. Bodies of private repositories land there: access
@@ -590,6 +591,61 @@ instead of one request per file.
   in N min.", "retryAfter": <seconds> }`. Studio shows that sentence, never "add a GitHub token".
 - **Fallback**: when the server answers that it cannot read (not set up, the app not on the repository), a demo
   team's visitor reads GitHub directly for the rest of the page, as before.
+
+### Changes pushed by GitHub
+
+Without webhooks, each cached answer is asked again every 30 seconds while someone looks at it, so GitHub calls grow
+with the number of viewers. With the Bridge GitHub App's webhook, GitHub tells Bridge what changed and the calls grow
+with activity instead: an answer stays fresh 10 minutes, and an event drops only the answers of the topic it changed.
+The code is `apps/docs-site/api/_lib/github-webhook.ts`, served by `/api/contribute` (`vercel.json` rewrites
+`/api/github-webhook` there, so it adds no Vercel function).
+
+- **Topics**: every cached read belongs to one topic of the repository it reads (a product's own, not the team's):
+  `code` (the repository, branches, commits, compare, contents, readme, git, tags), `pulls`, `issues` (and labels),
+  `checks` (check runs and suites, commit statuses, Actions runs and jobs), `deployments`, `releases`. An event writes
+  `bridge:read:changed:<repo>:<topic>` (the time, 20 minutes); an answer kept before that time, or less than 5 seconds
+  after it (GitHub's API can answer the old state for a moment), is checked again with its `ETag` at the next read.
+  `push`: code and pulls (and the team's product list, `bridge:read:products:<repo>`, on a push to the default
+  branch); `create`: code; `delete`: code and pulls; `pull_request`: pulls and issues; `pull_request_review`,
+  `pull_request_review_comment`, `pull_request_review_thread`: pulls; `check_run`: checks; `check_suite`, `status`:
+  checks and pulls; `deployment`, `deployment_status`: deployments; `issues`: issues; `issue_comment`, `label`: issues
+  and pulls; `release`: releases and code; `repository`, `installation`, `installation_repositories`: every topic.
+  Rulesets, branch rules and collaborators have no topic: they stay fresh 30 seconds.
+- **Health**: each signed delivery (any event, `ping` too) writes `bridge:read:hook:last`, which lives 15 minutes, and
+  `bridge:read:hook:inst:<installation id>` (a week). While `bridge:read:hook:last` is there, answers of a topic stay
+  fresh 10 minutes; without it (a webhook missing, misconfigured or failing, or simply 15 quiet minutes), Bridge falls
+  back to 30 seconds on its own. A webhook that stops never leaves an answer unchecked for more than 10 minutes, and
+  the next delivery brings the long window back.
+- **Only what Bridge reads**: a repository Bridge keeps no answer of (`bridge:read:known:<repo>`, written with each
+  kept answer, 20 minutes) is ignored: `200`, nothing written.
+- **Security**: the delivery's `X-Hub-Signature-256` (HMAC SHA-256 of the raw body with `GITHUB_WEBHOOK_SECRET`) is
+  checked in constant time before anything is parsed; unsigned or wrong answers `401`, no secret set answers `503`,
+  a delivery over 4.5 MB `413`. Each `X-GitHub-Delivery` is done once (`bridge:hook:delivery:<id>`, a day; a
+  redelivery of a done one answers `200` and does nothing). Nothing of the payload is logged or stored but repository
+  names, the installation id and times. Two Redis round trips, no GitHub call.
+- **Writes and `X-Bridge-Fresh`** work as before: a write through Bridge, or a member's read with
+  `X-Bridge-Fresh: 1`, checks the answer with GitHub at once.
+
+#### Set it up (owner of the site)
+
+1. Make a secret: `openssl rand -hex 32`.
+2. On Vercel, project `bridge-docs`, Production and Preview, **Sensitive**: `GITHUB_WEBHOOK_SECRET` = that secret.
+   Redeploy.
+3. On GitHub, the settings of the app whose App ID is `GITHUB_APP_ID` (Bridge Direct: the app the read token comes
+   from; its installations are the repositories Bridge reads), **General**, **Webhook**: check **Active**, **Webhook
+   URL** `https://bridge.floriangouloubi.com/api/github-webhook`, **Webhook secret** the same secret, **Save
+   changes**. GitHub sends a `ping` at once; **Advanced**, **Recent Deliveries** should show it answered `200`.
+4. **Permissions & events**, **Subscribe to events**: check **Push**, **Create**, **Delete**, **Pull request**,
+   **Pull request review**, **Pull request review comment**, **Pull request review thread**, **Issues**, **Issue
+   comment**, **Label**, **Release**, **Repository**, and, when the app has their permission, **Check run** and
+   **Check suite** (Checks: Read-only), **Status** (Commit statuses: Read-only), **Deployment** and **Deployment
+   status** (Deployments: Read-only). GitHub only offers an event once the app has its permission. The permissions
+   Bridge already asks for (Contents, Pull requests and Issues; Checks and Commit statuses when installed with them)
+   cover all but Deployments, which is optional: without it, deployment reads stay fresh 30 seconds, as today.
+   `installation` and `installation_repositories` arrive without subscribing. Adding a permission asks each
+   installation to accept it; subscribing to an event needs no acceptance. **Save changes**.
+5. Check: after a push to a team's repository, **Recent Deliveries** shows `200` with `{ "ok": true, "repos": 1, ... }`
+   (`"ignored": true` for a repository nobody read through Bridge in the last 20 minutes).
 
 ## Accounts
 

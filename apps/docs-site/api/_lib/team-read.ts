@@ -49,11 +49,23 @@
 //
 // Cache (Upstash Redis, keys under bridge:read:):
 //   bridge:read:get:<repo>:<sha256(accept url)>   { status, etag, type, link, body, at }  a GET answer; fresh for
-//                                                 FRESH_MS, then revalidated with If-None-Match (a 304 does not count
-//                                                 against GitHub's limit); kept KEEP_S for stale-on-limit
+//                                                 FRESH_MS (HOOK_FRESH_MS while GitHub's webhooks arrive, below), then
+//                                                 revalidated with If-None-Match (a 304 does not count against
+//                                                 GitHub's limit); kept KEEP_S for stale-on-limit
+//   bridge:read:changed:<repo>:<topic>            when GitHub last said <topic> of <repo> changed (api/_lib/github-
+//                                                 webhook.ts): answers of that topic kept before it (and SETTLE_MS
+//                                                 after) are revalidated at once. <repo> is the repository read (a
+//                                                 product's own), topics in READ_TOPICS
+//   bridge:read:known:<repo>                      Bridge keeps answers of <repo>: its webhook events are worth noting
+//                                                 (others are ignored), KEEP_S after the last kept answer
+//   bridge:read:hook:last                         when the last signed webhook delivery arrived (any repository),
+//                                                 HOOK_HEALTHY_MS: while it is there, an answer of a topic the
+//                                                 webhooks cover stays fresh HOOK_FRESH_MS; without it, FRESH_MS
+//   bridge:read:hook:inst:<installation id>       the last delivery of one installation (for an admin's check), a week
 //   bridge:read:blob:<repo>:<sha>                 a blob's text (content-addressed), BLOB_KEEP_S
 //   bridge:read:change:<repo>:<number>:<sha>      the reads of one change's status { at, reads }, shared by the
-//                                                 team's members while fresh (FRESH_MS, and no write since)
+//                                                 team's members while fresh (as a GET answer, until a write or a pull
+//                                                 request or check change)
 //   bridge:read:products:<repo>                  { repos, origins }: the product repositories and the origins of the
 //                                                 pages and products its bridge.config.json lists, PRODUCTS_KEEP_S
 //   bridge:read:user:<login>                      a public profile { login, name, avatar_url, type } or "null", USER_KEEP_S
@@ -82,7 +94,20 @@ export const READ_PERMISSIONS = { contents: 'read', pull_requests: 'read', issue
 export const READ_BASE = { contents: 'read', pull_requests: 'read', issues: 'read' } as const;
 
 export const FRESH_MS = 30 * 1000;
-export const KEEP_S = 10 * 60;
+/**
+ * How long an answer stays fresh while GitHub's webhooks arrive (hookHealthy): a change reaches Bridge by push
+ * (bridge:read:changed), so the team reads GitHub when something changed, not every FRESH_MS per viewer.
+ */
+export const HOOK_FRESH_MS = 10 * 60 * 1000;
+/** Without a signed delivery for this long, Bridge stops trusting the webhooks and answers stay fresh FRESH_MS only. */
+export const HOOK_HEALTHY_MS = 15 * 60 * 1000;
+/**
+ * An answer kept less than this after a change event is checked again: GitHub's API can answer the old state for a
+ * moment after it sent the event.
+ */
+export const SETTLE_MS = 5 * 1000;
+/** Longer than HOOK_FRESH_MS, so a kept answer past its fresh window is revalidated (a free 304), not read again. */
+export const KEEP_S = 20 * 60;
 export const IMMUTABLE_KEEP_S = 24 * 60 * 60;
 export const BLOB_KEEP_S = 7 * 24 * 60 * 60;
 /** Bigger answers are not kept in Redis (one Upstash request carries at most 1 MB). */
@@ -225,6 +250,58 @@ const getKey = (repo: string, accept: string, url: string) => `bridge:read:get:$
 export const changeKey = (repo: string, n: number, sha: string) => `bridge:read:change:${repo.toLowerCase()}:${n}:${sha}`;
 const blobKey = (repo: string, sha: string) => `bridge:read:blob:${repo.toLowerCase()}:${sha}`;
 export const userKey = (login: string) => `bridge:read:user:${login.toLowerCase()}`;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Changes pushed by GitHub (api/_lib/github-webhook.ts)
+
+/**
+ * What a cached answer is about, so an event drops only what it changed (a check run keeps the files). A path of no
+ * topic (rulesets, rules, collaborators: no webhook Bridge listens to says when they change) is always fresh FRESH_MS.
+ */
+export const READ_TOPICS = ['code', 'pulls', 'issues', 'checks', 'deployments', 'releases'] as const;
+export type ReadTopic = (typeof READ_TOPICS)[number];
+
+/** The topic of a read (`rest`: the path segments after /repos/<owner>/<repo>), or null. */
+export function topicOf(rest: string[]): ReadTopic | null {
+  const [a, , c] = rest;
+  if (a === undefined) return 'code';
+  if (a === 'commits' && rest.length === 3 && ['check-runs', 'check-suites', 'status', 'statuses'].includes(c!)) return 'checks';
+  if (['branches', 'commits', 'compare', 'contents', 'readme', 'git', 'tags'].includes(a)) return 'code';
+  if (a === 'pulls') return 'pulls';
+  if (a === 'issues' || a === 'labels') return 'issues';
+  if (a === 'check-runs' || a === 'actions') return 'checks';
+  if (a === 'deployments') return 'deployments';
+  if (a === 'releases') return 'releases';
+  return null;
+}
+
+export const changedKey = (repo: string, topic: ReadTopic) => `bridge:read:changed:${repo.toLowerCase()}:${topic}`;
+export const knownKey = (repo: string) => `bridge:read:known:${repo.toLowerCase()}`;
+export const HOOK_LAST_KEY = 'bridge:read:hook:last';
+export const hookInstallationKey = (id: number) => `bridge:read:hook:inst:${id}`;
+
+/** Whether the webhooks look alive: a signed delivery arrived within HOOK_HEALTHY_MS (`last`, ms; 0 for none). */
+export const hookHealthy = (last: number, now: number) => last > 0 && now - last < HOOK_HEALTHY_MS;
+
+/**
+ * How long an answer of `topic` stays fresh: HOOK_FRESH_MS while the webhooks look alive and cover the topic, else
+ * FRESH_MS, so a webhook that is missing or misconfigured only brings back the 30 seconds.
+ */
+export const freshFor = (topic: ReadTopic | null, hookLast: number, now: number) => (topic && hookHealthy(hookLast, now) ? HOOK_FRESH_MS : FRESH_MS);
+
+/**
+ * Whether an answer kept at `at` may be answered without asking GitHub: younger than its fresh window, kept after the
+ * last write through Bridge, and kept SETTLE_MS after the last change GitHub sent for its topic.
+ */
+export const stillFresh = (at: number, now: number, window: number, wrote: number, changed: number) => now - at < window && at >= wrote && (changed <= 0 || at >= changed + SETTLE_MS);
+
+/**
+ * The writes noting that GitHub said `topics` of `repo` changed (a webhook event): answers of those topics kept
+ * before now (single reads and change bundles) are checked again, with their ETag, at the next read.
+ */
+export function changedWrites(repo: string, topics: readonly ReadTopic[], now: number): (string | number)[][] {
+  return topics.map((t) => ['SET', changedKey(repo, t), String(now), 'EX', KEEP_S]);
+}
 
 export const busy = (seconds: number): HttpError => new HttpError(429, 'busy', READ_WORDS.busy(seconds), { retryAfter: seconds }, { 'Retry-After': String(seconds) });
 
@@ -489,7 +566,8 @@ export async function teamReadConfigOf(ctx: ReadCtx, owner: string, repo: string
       out = none;
     }
   }
-  await ctx.redis.cmd('SET', productsKey(full), JSON.stringify(out), 'EX', PRODUCTS_KEEP_S);
+  // Known: a push to bridge.config.json drops this list at once (api/_lib/github-webhook.ts).
+  await ctx.redis.pipe([['SET', productsKey(full), JSON.stringify(out), 'EX', PRODUCTS_KEEP_S], ['SET', knownKey(full), '1', 'EX', KEEP_S]]);
   return out;
 }
 
@@ -583,9 +661,11 @@ async function throughGitHub(ctx: ReadCtx, owner: string, repo: string, url: str
     if (kept) return { k: kept, source: 'stale' };
     throw new HttpError(502, 'unreachable', GITHUB_DOWN);
   }
+  // What Bridge keeps of a repository makes its webhook events worth noting (api/_lib/github-webhook.ts).
+  const known = ['SET', knownKey(`${owner}/${repo}`), '1', 'EX', KEEP_S];
   if (res.status === 304 && kept) {
     const fresh = { ...kept, at: now };
-    if (kept.body.length <= MAX_KEPT_CHARS) await ctx.redis.cmd('SET', key, JSON.stringify(fresh), 'EX', KEEP_S);
+    if (kept.body.length <= MAX_KEPT_CHARS) await ctx.redis.pipe([['SET', key, JSON.stringify(fresh), 'EX', KEEP_S], known]);
     return { k: fresh, source: 'revalidated' };
   }
   const body = res.status === 204 || res.status === 304 ? '' : await res.text();
@@ -593,7 +673,7 @@ async function throughGitHub(ctx: ReadCtx, owner: string, repo: string, url: str
   // Answers worth keeping: a success, or a 404 (a missing file stays missing for a while).
   if (o.keep && (k.status === 200 || k.status === 404)) {
     if (o.forever && k.status === 200) remember(key, k);
-    if (body.length <= MAX_KEPT_CHARS) await ctx.redis.cmd('SET', key, JSON.stringify(k), 'EX', o.forever && k.status === 200 ? IMMUTABLE_KEEP_S : KEEP_S);
+    if (body.length <= MAX_KEPT_CHARS) await ctx.redis.pipe([['SET', key, JSON.stringify(k), 'EX', o.forever && k.status === 200 ? IMMUTABLE_KEEP_S : KEEP_S], known]);
   }
   return { k, source: 'miss' };
 }
@@ -618,10 +698,15 @@ export async function onRead(req: Request, ctx: ReadCtx, t: ReadTarget, reader: 
   const fresh = reader.kind === 'member' && req.headers.get(FRESH_HEADER) === '1';
 
   const mem = forever ? memory.get(key) : undefined;
-  const { values, wrote, up } = await countAndRead(ctx, req, t.full, reader, 1, mem || !keep ? [] : [key]);
+  // The topic's last change GitHub sent for the repository read (a product's own) and whether the webhooks arrive,
+  // read in the same round trip as the answer kept.
+  const topic = forever ? null : topicOf(t.rest);
+  const extra = mem || !keep ? [] : [key, ...(topic ? [changedKey(`${t.owner}/${t.repo}`, topic), HOOK_LAST_KEY] : [])];
+  const { values, wrote, up } = await countAndRead(ctx, req, t.full, reader, 1, extra);
   if (mem && typeof mem !== 'string') return answer(mem, 'hit', inm);
   const kept = keep ? parseKept(values[0]) : null;
-  if (kept && (forever || (!fresh && now - kept.at < FRESH_MS && kept.at >= wrote))) {
+  const window = freshFor(topic, Number(values[2]) || 0, now);
+  if (kept && (forever || (!fresh && stillFresh(kept.at, now, window, wrote, Number(values[1]) || 0)))) {
     if (forever) remember(key, kept);
     return answer(kept, 'hit', inm);
   }
@@ -692,7 +777,12 @@ const STATUS_ACCEPT = 'application/vnd.github+json';
  */
 export async function onChanges(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'owner' | 'repo' | 'full'>, changes: ChangeRef[], reader: Reader): Promise<Response> {
   if (reader.kind !== 'member') throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
-  const { values, wrote, up } = await countAndRead(ctx, req, t.full, reader, changes.length, changes.map((c) => changeKey(t.full, c.number, c.sha)));
+  // Past the change bundles: the last pull request and check changes GitHub sent, and whether the webhooks arrive.
+  const marks = [changedKey(t.full, 'pulls'), changedKey(t.full, 'checks'), HOOK_LAST_KEY];
+  const { values: got, wrote, up } = await countAndRead(ctx, req, t.full, reader, changes.length, [...changes.map((c) => changeKey(t.full, c.number, c.sha)), ...marks]);
+  const values = got.slice(0, changes.length);
+  const [pullsAt, checksAt, hookLast] = got.slice(changes.length).map((v) => Number(v) || 0) as [number, number, number];
+  const changedAt = (topic: ReadTopic | null) => (topic === 'pulls' ? pullsAt : topic === 'checks' ? checksAt : 0);
   // The reader's GitHub calls left this window (READ_LIMITS.upstream), and the ones these reads cost.
   let left = up.left;
   let spent = 0;
@@ -701,7 +791,8 @@ export async function onChanges(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 
   const cold: ChangeRef[] = [];
   changes.forEach((c, i) => {
     const kept = parseKeptChange(values[i]);
-    if (kept && now - kept.at < FRESH_MS && kept.at >= wrote) out[c.number] = kept.reads;
+    // A bundle holds pull request and check reads: fresh until either changes.
+    if (kept && stillFresh(kept.at, now, freshFor('pulls', hookLast, now), wrote, Math.max(pullsAt, checksAt))) out[c.number] = kept.reads;
     else cold.push(c);
   });
   let limited: number | null = null;
@@ -715,7 +806,8 @@ export async function onChanges(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 
     for (const [i, path] of paths.entries()) {
       const k0 = kept[i] ?? null;
       let k: Kept;
-      if (k0 && now - k0.at < FRESH_MS && k0.at >= wrote) k = k0;
+      const topic = topicOf(path.split('?')[0]!.split('/').filter(Boolean));
+      if (k0 && stillFresh(k0.at, now, freshFor(topic, hookLast, now), wrote, changedAt(topic))) k = k0;
       else if (left <= 0) {
         // The reader spent their GitHub calls: what is kept, else this change is left out (the page reads it alone).
         if (!k0) {

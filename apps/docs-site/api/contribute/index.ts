@@ -109,6 +109,7 @@
 // GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY, RESEND_API_KEY + INVITE_EMAIL_FROM (sign-in links), PUBLIC_SITE_URL
 // (optional), CONTRIB_MAX_WRITES (optional). Without storage, the secret or the app, `available` is false and every
 // action answers 503.
+// GITHUB_WEBHOOK_SECRET: the Bridge GitHub App's webhook (?hook=github, api/_lib/github-webhook.ts); without it, 503.
 
 import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
@@ -116,6 +117,7 @@ import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_
 import { memberRef, withMemberInBlock } from '../_lib/exploration-member.js';
 import { branchKey, issueKey, mineKey } from '../_lib/former-member.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
+import { handleGithubWebhook } from '../_lib/github-webhook.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import {
   b64url,
@@ -166,6 +168,8 @@ export interface ContribEnv {
   READ_MAX_TEAM?: string | undefined;
   /** GitHub calls one reader may cost the app per 10 minutes (api/_lib/team-read.ts READ_LIMITS.upstream). */
   READ_MAX_UPSTREAM?: string | undefined;
+  /** The Bridge GitHub App's webhook secret (api/_lib/github-webhook.ts, POST /api/github-webhook). */
+  GITHUB_WEBHOOK_SECRET?: string | undefined;
 }
 
 export interface ContribDeps {
@@ -1640,9 +1644,16 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
   try {
     const method = req.method.toUpperCase();
     if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return json(405, { error: 'method', message: 'Use GET, POST, PUT, PATCH or DELETE.' }, { Allow: 'GET, POST, PUT, PATCH, DELETE' });
+    const params = new URL(req.url).searchParams;
+    // GitHub's webhook (vercel.json rewrites /api/github-webhook here): signed by GitHub, no cookie, no CSRF header.
+    if (params.get('hook') === 'github') {
+      const kvUrl = (env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL)?.trim();
+      const kvToken = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
+      const redis = deps.redis ?? (kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, STORAGE_DOWN) : null);
+      return await handleGithubWebhook(req, { redis, secret: env.GITHUB_WEBHOOK_SECRET, now: deps.now ?? Date.now });
+    }
     if (method !== 'GET') requireCsrf(req);
     const svc = services(env, deps);
-    const params = new URL(req.url).searchParams;
     const gh = params.get('gh');
     const blobs = params.get('blobs');
     const users = params.get('users');
@@ -1699,6 +1710,7 @@ const envFromProcess = (): ContribEnv => ({
   READ_MAX_GUEST: process.env.READ_MAX_GUEST,
   READ_MAX_TEAM: process.env.READ_MAX_TEAM,
   READ_MAX_UPSTREAM: process.env.READ_MAX_UPSTREAM,
+  GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET,
 });
 
 // Answers to calls with the Bridge app's tokens are metered per installation (api/_lib/github-quota.ts).

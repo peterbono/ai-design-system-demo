@@ -51,7 +51,7 @@ const STORED = [
   { what: 'One-time sign-in code by email', kept: '10 minutes, 5 tries', how: 'Only its SHA-256' },
   { what: 'Email sign-in links for Library readers and email members', kept: '15 minutes, once', how: 'Only its SHA-256' },
   { what: 'Which branches and issues an email member made through Bridge', kept: '1 year', how: 'Record in Redis' },
-  { what: 'Short-lived copies of GitHub reads for team pages', kept: '10 minutes for most answers, 24 hours for public names and pictures and for answers that never change, 7 days at most for file contents', how: 'Cache in Redis' },
+  { what: 'Short-lived copies of GitHub reads for team pages', kept: '20 minutes for most answers, 24 hours for public names and pictures and for answers that never change, 7 days at most for file contents', how: 'Cache in Redis' },
   { what: 'AI connector connection: team repository, app name, GitHub login, display name, dates, the person’s GitHub tokens', kept: '90 days after last use', how: 'GitHub tokens encrypted (AES-256-GCM); the rest as a record' },
   { what: 'AI connector tokens Bridge issues to the assistant', kept: '1 hour (access), 30 days (refresh, single use), 2 minutes (authorization code)', how: 'Only their SHA-256' },
   { what: 'Figma plugin sign-in hand-off: team and GitHub access token', kept: '5 minutes at most, removed when the plugin collects it', how: 'Code and poll secret: only their SHA-256. The token: encrypted (AES-256-GCM)' },
@@ -212,6 +212,11 @@ const STORED = [
           <TableCell label=""><code>/api/contribute</code></TableCell>
           <TableCell label="Who may call it">An email member’s session, or a GitHub sign-in that can read the repository (reads of a public demo team: anyone)</TableCell>
           <TableCell label="Other sites">Refused</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell label=""><code>/api/github-webhook</code></TableCell>
+          <TableCell label="Who may call it">GitHub only: each delivery is signed with HMAC SHA-256 under the app’s webhook secret, checked before anything is read. It only marks cached reads to check again; it keeps repository names and times, never the payload</TableCell>
+          <TableCell label="Other sites">Refused (no signature)</TableCell>
         </TableRow>
         <TableRow>
           <TableCell label=""><code>/api/library-access</code></TableCell>

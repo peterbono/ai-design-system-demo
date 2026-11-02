@@ -56,6 +56,7 @@
     { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/components/:slug([A-Za-z0-9][A-Za-z0-9-]*)", "destination": "/library-shell/components/item/" },
     { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*/", "destination": "/library-shell/:path*/" },
     { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*", "destination": "/library-shell/:path*" },
+    { "source": "/api/github-webhook", "destination": "/api/contribute?hook=github" },
     { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/.well-known/oauth-protected-resource", "destination": "/api/mcp?wk=resource" },
     { "source": "/.well-known/oauth-protected-resource/mcp", "destination": "/api/mcp?wk=resource" },
