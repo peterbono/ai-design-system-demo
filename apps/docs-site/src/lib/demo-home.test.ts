@@ -56,9 +56,14 @@ describe("the DS lead's queue on the demo", () => {
     expect(rows.every((r) => r.sample)).toBe(true);
   });
 
-  it('leaves explorations and developer work out, by the same rule as every waiting on me list', () => {
-    const rows = leadQueue([pull(1), pull(2, { labels: [{ name: 'exploration' }] }), pull(3, { head: { ref: 'explore/checkout' } }), pull(4, { labels: [{ name: 'dependencies' }] })], [], now);
+  it('leaves running explorations and developer work out, by the same rule as every waiting on me list', () => {
+    const rows = leadQueue([pull(1), pull(2, { labels: [{ name: 'exploration' }] }), pull(3, { draft: true, head: { ref: 'explore/checkout' } }), pull(4, { labels: [{ name: 'dependencies' }] })], [], now);
     expect(rows.map((r) => r.key)).toEqual(['change-1']);
+  });
+
+  it('lists an exploration promoted to review like any change in review, as Changes does', () => {
+    const rows = leadQueue([pull(5, { head: { ref: 'explore/notification-channels' }, body: '**Promoted from an exploration on 2026-10-25.** Review it like any change.' })], [], now);
+    expect(rows.map((r) => r.key)).toEqual(['change-5']);
   });
 
   it('names Claude AI on agent work', () => {

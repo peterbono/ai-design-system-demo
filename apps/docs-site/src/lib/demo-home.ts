@@ -2,7 +2,7 @@
 // seat, so the home shows the lead's day as the signed-in home words it ("Ann asks for your review"), from the demo
 // repository's activity (scripts/demo-home.ts readDemoActivity). Nothing is made up. Pure, covered by
 // demo-home.test.ts.
-import { requesterOf } from '@bridge-ds/core';
+import { isGuardedExploration, requesterOf } from '@bridge-ds/core';
 import { CLAUDE, changeNeed, person, requesterPerson, type NeedRow, type Person } from './home-model';
 import { isGuidanceChange } from './overview-todo';
 import { oneLineTitle } from './markdown';
@@ -51,10 +51,15 @@ export const isBotPull = (p: Pick<DemoPull, 'user'>): boolean => !p.user || p.us
 const avatar = (u: { login: string; avatar_url?: string }) => u.avatar_url ?? `https://github.com/${u.login}.png?size=64`;
 const title = (t: string) => oneLineTitle(humanTitle(t));
 /** A usage guidance branch (docs/<component>-...): the lead checks the guidance, not a design. */
-const guidanceBranch = (p: DemoPull) => isGuidanceChange(p.head?.ref ?? '', undefined);
-const labelNames = (p: DemoPull) => (p.labels ?? []).map((l) => l.name.toLowerCase());
-/** An exploration (labelled, or on an explore/ branch): a product screen tried with Claude AI, never merged as is. */
-export const isExploration = (p: DemoPull) => labelNames(p).includes('exploration') || /^explore\//.test(p.head?.ref ?? '');
+const guidanceBranch = (p: Pick<DemoPull, 'head'>) => isGuidanceChange(p.head?.ref ?? '', undefined);
+/**
+ * A running exploration (core isGuardedExploration: the `exploration` label, or an open draft on an explore/ branch
+ * whose label is missing): a product screen tried with Claude AI, never reviewed as is. An exploration promoted to
+ * review ("Review it like any change", ready for review, label removed) is in review like any change, as Changes lists
+ * it: it waits on the lead.
+ */
+export const isExploration = (p: Pick<DemoPull, 'state' | 'draft' | 'labels' | 'head' | 'body'>) =>
+  isGuardedExploration({ state: p.state ?? 'open', draft: p.draft, labels: p.labels ?? [], headRef: p.head?.ref, body: p.body });
 
 export interface LeadOptions {
   /** Before/after of the branches read so far. */
@@ -82,15 +87,37 @@ export function askerOf(p: Pick<DemoPull, 'user' | 'body' | 'labels'>, people?: 
 
 /**
  * Whether a branch waits on the DS lead whose seat the visitor takes: the one rule of every "waiting on me" surface
- * (lib/waiting-on), in the seat (statuses are never read on the demo). Drafts, explorations, developer work and
- * automation are left out; the Branches "Waiting on me" filter on the demo reads the same rule.
+ * (lib/waiting-on), in the seat (statuses are never read on the demo). Drafts (being built), running explorations,
+ * developer work, closed branches and automation are left out. The demo's home (leadQueue), Changes > Waiting on me
+ * (scripts/reviews.ts) and the Changes badge (leadWaitingCount) all read it.
  */
-export const waitsOnLead = (p: DemoPull): boolean =>
+export const waitsOnLead = (p: Pick<DemoPull, 'user' | 'title' | 'draft' | 'labels' | 'head' | 'body' | 'state' | 'merged_at'>): boolean =>
   !isBotPull(p) &&
   waitsOnMe(
-    { author: p.user?.login ?? '', draft: p.draft, labels: p.labels, exploration: isExploration(p), guidance: guidanceBranch(p), nature: workNature({ title: title(p.title), labels: p.labels ?? null }).nature, who: null },
+    {
+      author: p.user?.login ?? '',
+      draft: p.draft,
+      labels: p.labels,
+      exploration: isExploration(p),
+      guidance: guidanceBranch(p),
+      nature: workNature({ title: title(p.title), labels: p.labels ?? null }).nature,
+      ...(p.merged_at ? { lifecycle: 'shipped' as const } : p.state && p.state !== 'open' ? { lifecycle: 'closed' as const } : {}),
+      who: null,
+    },
     { login: null, role: 'reviewer', seat: true },
   );
+
+/** The suggestions that wait on the lead: every open one (an issue that is a pull request is not a suggestion). */
+export const leadSuggestions = <S extends Pick<DemoSuggestion, 'pull_request'>>(suggestions: readonly S[]): S[] => suggestions.filter((s) => !s.pull_request);
+
+/**
+ * How many things wait on the lead in the demo seat: the lead's queue (leadQueue: the branches that wait on them and
+ * the open suggestions) and the usage guidance drafts. The one number of the demo, so they always agree: the home line
+ * ("16 changes and 1 documentation draft need your review."), Changes > Waiting on me and the Changes badge.
+ */
+export function leadWaitingCount(pulls: DemoPull[], suggestions: DemoSuggestion[], guidance: number, approved?: ReadonlySet<number>): number {
+  return leadQueue(pulls, suggestions, 0, approved ? { approved } : {}).length + guidance;
+}
 
 /**
  * The queue a DS lead sees on the demo, the visitor in their seat: every branch that waits on the lead (waitsOnLead)
@@ -118,8 +145,7 @@ export function leadQueue(pulls: DemoPull[], suggestions: DemoSuggestion[], now:
         sample: true,
       };
     });
-  const asked = suggestions
-    .filter((s) => !s.pull_request)
+  const asked = leadSuggestions(suggestions)
     .map((s) => ({ ...suggestionNeed({ number: s.number, title: shortTitle(s.title), createdAt: s.created_at }, askerOf({ user: s.user, body: s.body ?? null, labels: null }, opts.people), now), sample: true }));
   return [...changes, ...asked];
 }

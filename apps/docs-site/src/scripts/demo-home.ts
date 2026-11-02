@@ -9,13 +9,14 @@
 import { isGuardedExploration, productsOf, SUGGESTION_LABEL, type ProductConfig } from '@bridge-ds/core';
 import { ghGet, RateLimitError, readRepo } from './github-session';
 import { personOf, previewOf, thumbOf } from './home-data';
-import { currentViewer } from './github-session';
+import { currentContributor, currentViewer } from './github-session';
 import { siteConfig } from './repo-context';
-import { demoLogins, leadQueue, teamExplorations, type DemoPull, type DemoSuggestion } from '../lib/demo-home';
+import { demoLogins, leadQueue, leadWaitingCount, teamExplorations, type DemoPull, type DemoSuggestion } from '../lib/demo-home';
 import { AVATARS_SHOWN, contrastNeed, person, guidanceNeed, NEEDS_SHOWN, sortNeeds, type NeedRow, type Person } from '../lib/home-model';
 import type { ExplorationCard } from '../lib/home-explorations';
 import type { ThumbSpec } from '../lib/branch-thumb';
-import { isSampleTeam } from '../lib/demo';
+import { isDemoRepo, isSampleTeam } from '../lib/demo';
+import { teamGuidance } from '../lib/team-facts';
 import { demoApprovals } from './demo-approvals';
 
 /** What the demo home needs to know about the demo's activity, wherever it comes from. */
@@ -43,6 +44,27 @@ export async function readDemoActivity(repo: { owner: string; repo: string } = r
     ghGet<DemoSuggestion[]>(`${base}/issues?state=open&labels=${encodeURIComponent(SUGGESTION_LABEL)}&per_page=50&sort=created&direction=desc`).catch(() => ({ data: [] as DemoSuggestion[] })),
   ]);
   return { open: open.data, closed: closed.data, suggestions: suggestions.data };
+}
+
+/**
+ * The Changes badge in the lead's seat (a visitor without an account on a demo team whose settings name a persona):
+ * the same count as the demo home's line and Changes > Waiting on me (lib/demo-home leadWaitingCount), from the same
+ * reads. Null anywhere else, or when nothing could be read.
+ */
+export async function demoLeadCount(): Promise<number | null> {
+  if (currentViewer() || currentContributor()) return null;
+  const { loadTeamData, teamOfPage } = await import('./team-data');
+  const team = teamOfPage();
+  if (!team || !isDemoRepo(`${team.owner}/${team.repo}`)) return null;
+  try {
+    // The team's settings (its persona) and its usage guidance drafts come with its design system.
+    const data = await loadTeamData();
+    if (!siteConfig().demo?.viewer) return null;
+    const activity = await readDemoActivity(team);
+    return leadWaitingCount(activity.open, activity.suggestions, teamGuidance(data).length, isSampleTeam(`${team.owner}/${team.repo}`) ? demoApprovals() : undefined);
+  } catch {
+    return null;
+  }
 }
 
 export interface DemoHomeData {

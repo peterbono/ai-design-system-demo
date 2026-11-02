@@ -253,9 +253,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
                       <span>{entry.label}</span>
                       {entry.badge && (
                         <span class="rail-num" data-nav-count={entry.badge} hidden>
-                          <span class="sr-only">, </span>
-                          <span data-nav-count-value></span>
-                          <span class="sr-only"> waiting for a review</span>
+                          <span data-nav-count-value aria-hidden="true"></span>
+                          <span class="sr-only" data-nav-count-label></span>
                         </span>
                       )}
                     </Link>
@@ -274,9 +273,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
                     <span>{entry.label}</span>
                     {entry.badge && (
                       <span class="rail-num" data-nav-count={entry.badge} hidden>
-                        <span class="sr-only">, </span>
-                        <span data-nav-count-value></span>
-                        <span class="sr-only"> waiting for a review</span>
+                        <span data-nav-count-value aria-hidden="true"></span>
+                        <span class="sr-only" data-nav-count-label></span>
                       </span>
                     )}
                     <span class="nav-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
