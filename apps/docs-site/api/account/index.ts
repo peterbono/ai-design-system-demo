@@ -63,6 +63,8 @@ import {
   codeKey,
   getAccount,
   githubKey,
+  githubTeamsKey,
+  githubTeamsOf,
   issueAccountCookie,
   putAccount,
   sessionAccount,
@@ -140,7 +142,9 @@ export interface PublicTeam {
   repo: string;
   name: string;
   role: 'edit' | 'reviewer' | 'admin';
-  via: 'email';
+  /** email: an email membership; github: the linked GitHub account is admin or editor of the repository (api/entry
+   *  ?linked= read it with the Bridge app; a display list, every action checks GitHub again). */
+  via: 'email' | 'github';
 }
 
 export interface PublicAccount {
@@ -340,7 +344,21 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
 }
 
 async function publicAccount(ctx: Ctx, a: Account): Promise<PublicAccount> {
-  const teams = (await teamsOf(ctx, a.email)).map(({ at: _at, ...t }) => t);
+  const teams: PublicTeam[] = (await teamsOf(ctx, a.email)).map(({ at: _at, ...t }) => t);
+  // The repositories the linked GitHub account is admin or editor of, as last read with the Bridge app (api/entry).
+  if (a.github) {
+    const extra = (await githubTeamsOf(ctx.svc.redis, a.email, ctx.now())).filter((g) => !teams.some((t) => t.repo.toLowerCase() === g.repo));
+    if (extra.length) {
+      let kept = new Map<string, { name: string }>();
+      try {
+        kept = await getTeamNames(ctx.svc.redis, extra.map((g) => g.repo));
+      } catch {
+        // The repository in words.
+      }
+      for (const g of extra) teams.push({ repo: g.repo, name: teamDisplayName(g.repo, { name: kept.get(g.repo)?.name }), role: g.role, via: 'github' });
+      teams.sort((x, y) => x.repo.localeCompare(y.repo));
+    }
+  }
   return { email: a.email, name: a.name, nameSet: a.nameSet !== false, github: a.github ? { login: a.github.login, id: a.github.id } : null, aiTools: parseAiTools(a.aiTools), notify: prefsOf(a), teams };
 }
 
@@ -665,6 +683,7 @@ async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
   await svc.redis.pipe([
     ['DEL', accountKey(a.email)],
     ['DEL', accountTeamsKey(a.email)],
+    ['DEL', githubTeamsKey(a.email)],
     ['DEL', pointer],
     ['DEL', triesKey(svc.secret, a.email)],
     ...(typeof live === 'string' ? [['DEL', codeKey(live)]] : []),

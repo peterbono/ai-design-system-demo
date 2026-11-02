@@ -7,6 +7,12 @@
 //   bridge:account:teams:<email>           set of "owner/repo" (or `_team/<id>`, a team made in Bridge) the email is a
 //                                          member of (api/_lib/members.ts keeps it)
 //   bridge:account:code:<sha256(email+code)>   a sign-in code { email, tries }, 10 minutes
+//   bridge:account:ghteams:<email>         { "<owner/repo>": { role, at } } the repositories the linked GitHub account
+//                                          was last found admin or editor of (api/entry ?linked=, read with the Bridge
+//                                          app and matched by GitHub id), so "Your teams" lists them; 30 days after the
+//                                          last read. A display list only: every action checks GitHub again
+//   bridge:account:ghteams-of:<repo>       set of the emails whose ghteams list that repository (same 30 days), so
+//                                          deleting or disconnecting the team takes it out of every "Your teams"
 // The session cookie `bridge_account` (Path=/, HttpOnly, Secure, SameSite=Lax, 30 days) is v1.<claims>.<hmac> under
 // LIBRARY_SESSION_SECRET with its own purpose; claims { email, v, exp }. Every request reads the account again: a
 // version bump (sign out everywhere) or a deleted account ends every session at once.
@@ -108,4 +114,68 @@ export async function sessionAccount(req: Request, redis: Redis, secret: string,
   if (!c || c.exp <= now) return null;
   const a = await getAccount(redis, c.email);
   return a && a.version === c.v && a.email === c.email ? a : null;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The teams the linked GitHub account is on, as api/entry last read them (no browser GitHub sign-in needed)
+
+export type GithubTeamRole = 'admin' | 'edit';
+export const GITHUB_TEAMS_TTL_S = 30 * 24 * 60 * 60;
+export const githubTeamsKey = (email: string) => `bridge:account:ghteams:${email.trim().toLowerCase()}`;
+export const githubTeamOfKey = (repo: string) => `bridge:account:ghteams-of:${repo.trim().toLowerCase()}`;
+
+type GithubTeams = Record<string, { role: GithubTeamRole; at: number }>;
+
+async function readGithubTeams(redis: Redis, email: string): Promise<GithubTeams> {
+  const raw = await redis.cmd('GET', githubTeamsKey(email));
+  if (typeof raw !== 'string') return {};
+  try {
+    const v = JSON.parse(raw) as GithubTeams;
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Keeps (admin, edit) or forgets (anything else) one repository the linked GitHub account was just read on. */
+export async function noteGithubTeam(redis: Redis, email: string, repo: string, role: string | null, now: number): Promise<void> {
+  const all = await readGithubTeams(redis, email);
+  const k = repo.trim().toLowerCase();
+  const had = all[k];
+  const e = email.trim().toLowerCase();
+  if (role === 'admin' || role === 'edit') await redis.pipe([['SADD', githubTeamOfKey(k), e], ['EXPIRE', githubTeamOfKey(k), GITHUB_TEAMS_TTL_S]]);
+  else await redis.cmd('SREM', githubTeamOfKey(k), e);
+  if (role === 'admin' || role === 'edit') all[k] = { role, at: now };
+  else if (had) delete all[k];
+  else return;
+  if (had && had.role === all[k]?.role && now - had.at < 24 * 60 * 60 * 1000) return;
+  if (Object.keys(all).length) await redis.cmd('SET', githubTeamsKey(email), JSON.stringify(all), 'EX', GITHUB_TEAMS_TTL_S);
+  else await redis.cmd('DEL', githubTeamsKey(email));
+}
+
+/** The repositories the linked GitHub account was found admin or editor of in the last 30 days, by repository. */
+export async function githubTeamsOf(redis: Redis, email: string, now: number): Promise<{ repo: string; role: GithubTeamRole }[]> {
+  const all = await readGithubTeams(redis, email);
+  return Object.entries(all)
+    .filter(([repo, v]) => /^[^/\s]+\/[^/\s]+$/.test(repo) && (v?.role === 'admin' || v?.role === 'edit') && typeof v.at === 'number' && now - v.at < GITHUB_TEAMS_TTL_S * 1000)
+    .map(([repo, v]) => ({ repo, role: v.role }))
+    .sort((a, b) => a.repo.localeCompare(b.repo));
+}
+
+/**
+ * A team deleted or disconnected from Bridge (api/entry delete-team): it leaves every account's "Your teams" that listed
+ * it through GitHub. `extra`: emails to clear as well (the admin who did it). Only Bridge's storage, never GitHub.
+ */
+export async function forgetGithubTeam(redis: Redis, repo: string, extra: readonly string[] = []): Promise<void> {
+  const k = repo.trim().toLowerCase();
+  const raw = await redis.cmd('SMEMBERS', githubTeamOfKey(k));
+  const emails = new Set([...(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []), ...extra.map((x) => x.trim().toLowerCase())]);
+  for (const email of emails) {
+    const all = await readGithubTeams(redis, email);
+    if (!all[k]) continue;
+    delete all[k];
+    if (Object.keys(all).length) await redis.cmd('SET', githubTeamsKey(email), JSON.stringify(all), 'EX', GITHUB_TEAMS_TTL_S);
+    else await redis.cmd('DEL', githubTeamsKey(email));
+  }
+  await redis.cmd('DEL', githubTeamOfKey(k));
 }

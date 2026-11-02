@@ -12,7 +12,7 @@ import { NOTIFY_TEAMS_KEY, watchWrites } from '../../api/_lib/notify';
 import { createGrant, getGrant } from '../../api/_lib/oauth';
 import { settingKey as librarySettingKey } from '../../api/library-access/index';
 import { handleAccount } from '../../api/account/index';
-import { ADMIN_ONLY, DELETE_TEAM_PER_DAY, type EntryDeps, handleEntry, firstNameOnly, teamId, INVITE_LINK_PER_HOUR, NOT_OPEN, PUBLIC_DOMAIN, REQUEST_LIMITS } from '../../api/entry/index';
+import { ADMIN_ONLY, DELETE_TEAM_PER_DAY, type EntryDeps, LINKED_ROLE_TTL_S, linkedRoleKey, linkedRoleOf, handleEntry, firstNameOnly, teamId, INVITE_LINK_PER_HOUR, NOT_OPEN, PUBLIC_DOMAIN, REQUEST_LIMITS } from '../../api/entry/index';
 import { type EmailMessage, inviteStoreOn, type StoredInvite } from '../../api/invites/index';
 
 const HOST = 'bridge.example.com';
@@ -898,6 +898,22 @@ describe('delete-team (delete a team made in Bridge, disconnect a repository tea
     expect(s.calls).toEqual([]);
   });
 
+  it('a disconnected repository team leaves every "Your teams" that listed it through the linked GitHub account', async () => {
+    const s = setup();
+    const ada = await account(s, 'ada@acme.design', 'Ada Admin', { login: 'ada', id: 1 });
+    const bob = await account(s, 'bob@acme.design', 'Bob', { login: 'bob', id: 2 });
+    await get(s, ada, `?linked=${REPO}`);
+    await get(s, bob, `?linked=${REPO}`);
+    s.w.collaborators['acme/other'] = [{ id: 2, login: 'bob', permissions: { admin: false, push: true } }];
+    await get(s, bob, '?linked=acme/other');
+    expect(await s.redis.cmd('SMEMBERS', `bridge:account:ghteams-of:${REPO}`)).toEqual(expect.arrayContaining(['ada@acme.design', 'bob@acme.design']));
+    expect((await post(s, ada, { action: 'delete-team', team: REPO })).status).toBe(200);
+    expect(await s.redis.cmd('GET', 'bridge:account:ghteams:ada@acme.design')).toBeNull();
+    // Bob keeps his other team, never this one.
+    expect(JSON.parse(String(await s.redis.cmd('GET', 'bridge:account:ghteams:bob@acme.design')))).toEqual({ 'acme/other': expect.objectContaining({ role: 'edit' }) });
+    expect(await s.redis.cmd('SMEMBERS', `bridge:account:ghteams-of:${REPO}`)).toEqual([]);
+  });
+
   it('needs the cookie and the CSRF header, and is capped per account per day', async () => {
     const s = setup();
     expect((await post(s, null, { action: 'delete-team', team: REPO })).status).toBe(401);
@@ -908,5 +924,81 @@ describe('delete-team (delete a team made in Bridge, disconnect a repository tea
       expect(r.status).toBe(200);
     }
     expect((await post(s, ada, { action: 'delete-team', team: '_team/bbbbbbbbbbbbbbbb' })).status).toBe(429);
+  });
+});
+
+describe('the linked GitHub account role (GET ?linked=)', () => {
+  it('an email account linked to a GitHub admin of the repository reads admin, with no GitHub sign-in in the browser', async () => {
+    const s = setup();
+    const ada = await account(s, 'ada@acme.design', 'Ada Admin', { login: 'ada', id: 1 });
+    const r = await get(s, ada, `?linked=${REPO}`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get('cache-control')).toContain('no-store');
+    expect(await r.json()).toEqual({ role: 'admin' });
+    // Read with the app's token, never a token from the browser.
+    expect(s.calls).toContain('GET /repos/acme/ds/collaborators/ada/permission');
+  });
+
+  it('a writer reads edit; kept for a while (one GitHub call)', async () => {
+    const s = setup();
+    const bob = await account(s, 'bob@acme.design', 'Bob', { login: 'bob', id: 2 });
+    expect(await (await get(s, bob, `?linked=${REPO}`)).json()).toEqual({ role: 'edit' });
+    const n = s.calls.length;
+    expect(await (await get(s, bob, `?linked=${REPO}`)).json()).toEqual({ role: 'edit' });
+    expect(s.calls.length).toBe(n);
+    expect(await s.redis.cmd('GET', linkedRoleKey(REPO, 2))).toBe('edit');
+    s.tick((LINKED_ROLE_TTL_S + 1) * 1000);
+    await get(s, bob, `?linked=${REPO}`);
+    expect(s.calls.length).toBe(n + 1);
+  });
+
+  it('the GitHub id must match: a login now held by someone else is not the linked account', async () => {
+    const s = setup();
+    // Linked to "ada" with another id (the login was renamed and taken since).
+    const eve = await account(s, 'eve@else.dev', 'Eve', { login: 'ada', id: 99 });
+    expect(await (await get(s, eve, `?linked=${REPO}`)).json()).toEqual({ role: null });
+  });
+
+  it('no linked GitHub, not a collaborator, app not installed, a team made in Bridge, signed out', async () => {
+    const s = setup();
+    const sam = await account(s, 'sam@acme.design', 'Sam');
+    expect(await (await get(s, sam, `?linked=${REPO}`)).json()).toEqual({ role: null });
+    const cara = await account(s, 'cara@acme.design', 'Cara', { login: 'cara', id: 9 });
+    expect(await (await get(s, cara, `?linked=${REPO}`)).json()).toEqual({ role: null });
+    const ada = await account(s, 'ada@acme.design', 'Ada Admin', { login: 'ada', id: 1 });
+    expect(await (await get(s, ada, '?linked=acme/nobridge')).json()).toEqual({ role: null });
+    expect(await (await get(s, ada, '?linked=_team/' + 'a'.repeat(16))).json()).toEqual({ role: null });
+    expect(await (await get(s, ada, '?linked=not a repo')).json()).toEqual({ role: null });
+    expect((await get(s, null, `?linked=${REPO}`)).status).toBe(401);
+  });
+
+  it('"Your teams" of the account lists the repository the linked GitHub account administers, until it no longer does', async () => {
+    const s = setup();
+    const ada = await account(s, 'ada@acme.design', 'Ada Admin', { login: 'ada', id: 1 });
+    const teams = async () => {
+      const r = await handleAccount(new Request(`${ORIGIN}/api/account`, { headers: { host: HOST, cookie: ada } }), ENV, { fetch: s.deps.fetch, redis: s.redis, now: s.now });
+      return ((await r.json()) as { account: { teams: unknown[] } }).account.teams;
+    };
+    expect(await teams()).toEqual([]);
+    await get(s, ada, `?linked=${REPO}`);
+    expect(await teams()).toEqual([{ repo: REPO, name: 'Ds', role: 'admin', via: 'github' }]);
+    // Removed on GitHub: the next read (after the short cache) drops it.
+    s.w.collaborators[REPO] = [];
+    s.tick((LINKED_ROLE_TTL_S + 1) * 1000);
+    expect(await (await get(s, ada, `?linked=${REPO}`)).json()).toEqual({ role: null });
+    expect(await teams()).toEqual([]);
+    // An email-only account never gets one.
+    const sam = await account(s, 'sam@acme.design', 'Sam');
+    await get(s, sam, `?linked=${REPO}`);
+    expect(await s.redis.cmd('GET', 'bridge:account:ghteams:sam@acme.design')).toBeNull();
+  });
+
+  it("GitHub's permission words in Bridge's roles", () => {
+    expect(linkedRoleOf({ permission: 'admin', role_name: 'admin' })).toBe('admin');
+    expect(linkedRoleOf({ permission: 'write', role_name: 'maintain' })).toBe('edit');
+    expect(linkedRoleOf({ permission: 'write' })).toBe('edit');
+    expect(linkedRoleOf({ permission: 'read', role_name: 'triage' })).toBe('view');
+    expect(linkedRoleOf({ permission: 'none' })).toBeNull();
+    expect(linkedRoleOf(null)).toBeNull();
   });
 });

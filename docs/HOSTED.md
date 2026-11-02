@@ -838,6 +838,14 @@ names and roles (`lib/recent-teams.ts forgetTeamEverywhere`).
 - **Keys** (the same Upstash Redis as invites): `bridge:account:<email>` `{ id, email, name, github, createdAt,
   version, aiTools? }`, `bridge:account:gh:<githubId>` (the email), `bridge:account:teams:<email>` (set of `owner/repo`, kept by
   the member store), the codes above. Memberships stay `bridge:member:<repo>:<email>`.
+- **Linked GitHub roles**: a browser without the GitHub sign-in asks `GET /api/entry?linked=<owner/repo>`; the server
+  reads the linked GitHub account's permission with the Bridge app (matched by GitHub id), kept 10 minutes in
+  `bridge:entry:linked:<repo>:<githubId>`. Admin and editor repositories are listed in "Your teams" from
+  `bridge:account:ghteams:<email>` (`{ repo: { role, at } }`, 30 days after the last read, deleted with the account).
+  A display only: every change still needs the person's own GitHub sign-in, and the page asks to reconnect it.
+  `bridge:account:ghteams-of:<repo>` (set of emails, same 30 days) lets "Delete this team" or "Disconnect this team
+  from Bridge" take the repository out of every account's list at once. A GitHub admin who opens the repository's
+  page again afterwards finds it listed again: GitHub still says they are on it.
 
 ### Backup and privacy
 

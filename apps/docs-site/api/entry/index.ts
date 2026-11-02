@@ -62,6 +62,13 @@
 //   GET  /api/entry?team=_team/<id>         a member of a team made in Bridge: { team } (name, role, repo, storybook,
 //                                           discovery, memberCount, people: names and roles, never an email, for its
 //                                           Settings); 404 for anyone else, like a team that does not exist
+//   GET  /api/entry?linked=owner/name       the role the account's linked GitHub account has on that repository, read
+//                                           with the Bridge app (matched by GitHub id, never by what the browser says):
+//                                           { role: 'admin' | 'edit' | 'view' | null }. For a browser that holds no
+//                                           GitHub sign-in: the team page shows the person's real role and asks them to
+//                                           reconnect GitHub to make changes, never the visitor's read-only view. Kept
+//                                           LINKED_ROLE_TTL_S per person and team (one GitHub call). Every write checks
+//                                           GitHub again with the person's own token.
 //   GET  /api/entry?ai-tools=<team>         a member of the team (email member, or the linked GitHub account on its
 //                                           repository): { tools } the team default of the AI tools new members start
 //                                           from (src/lib/ai-tools.ts), null when none; 404 for anyone else
@@ -99,7 +106,7 @@
 // INVITE_EMAIL_FROM (request emails), PUBLIC_SITE_URL (optional).
 
 import { createHmac, randomBytes } from 'node:crypto';
-import { type Account, accountNameByGithub, displayName, sessionAccount } from '../_lib/account.js';
+import { type Account, accountNameByGithub, displayName, forgetGithubTeam, noteGithubTeam, sessionAccount } from '../_lib/account.js';
 import { workDomain } from '../_lib/domains.js';
 import { escHtml, mailButton, mailP, mailPage, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
@@ -1080,7 +1087,7 @@ async function recordOf(ctx: Ctx, t: TeamRef): Promise<TeamRecord | null> {
  * Everything Bridge keeps for one team goes. Only Bridge's storage: nothing here calls GitHub, so a repository, its
  * history, its settings and the Bridge app installation stay exactly as they are.
  */
-async function forgetTeam(ctx: Ctx, t: TeamRef): Promise<void> {
+async function forgetTeam(ctx: Ctx, t: TeamRef, a: Account): Promise<void> {
   const { redis, members, invites } = ctx.svc;
   const full = t.full;
   // Connections in Claude first: their tokens stop working at once.
@@ -1092,6 +1099,8 @@ async function forgetTeam(ctx: Ctx, t: TeamRef): Promise<void> {
   // Discovery and the domain index, pending join requests, name, AI tools default.
   await forgetTeamKey(redis, full, ctx.now());
   await unwatchTeam(redis, full);
+  // Out of every "Your teams" that listed it through the linked GitHub account (api/_lib/account.ts).
+  await forgetGithubTeam(redis, full, [a.email]);
   await redis.pipe([
     ['DEL', membersKey(full)],
     ['DEL', invitesKey(full)],
@@ -1127,7 +1136,7 @@ async function onDeleteTeam(ctx: Ctx, a: Account, body: Record<string, unknown>)
     }
     throw e;
   }
-  await forgetTeam(ctx, t);
+  await forgetTeam(ctx, t, a);
   return json(200, { deleted: true, kind, next: await nextAfterDelete(ctx, a) });
 }
 
@@ -1249,6 +1258,55 @@ async function onGetTeamAiTools(ctx: Ctx, a: Account, arg: string): Promise<Resp
   return json(200, { tools: await getTeamAiTools(ctx.svc.redis, t.full) }, { 'Cache-Control': 'private, no-store' });
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// The linked GitHub account's role on a repository (a browser without the GitHub sign-in)
+
+export type LinkedRole = 'admin' | 'edit' | 'view';
+/** How long the role is kept: one GitHub call per person and team in that time. */
+export const LINKED_ROLE_TTL_S = 10 * 60;
+export const linkedRoleKey = (repo: string, githubId: number) => `bridge:entry:linked:${repo.trim().toLowerCase()}:${githubId}`;
+const LINKED_ROLES: readonly LinkedRole[] = ['admin', 'edit', 'view'];
+
+/** GitHub's answer for a collaborator in Bridge's roles: admin; maintain or write is Can edit; triage or read is Can view. */
+export function linkedRoleOf(data: { permission?: unknown; role_name?: unknown } | null | undefined): LinkedRole | null {
+  const name = typeof data?.role_name === 'string' ? data.role_name : '';
+  const perm = typeof data?.permission === 'string' ? data.permission : '';
+  if (name === 'admin' || perm === 'admin') return 'admin';
+  if (name === 'maintain' || name === 'write' || perm === 'write' || perm === 'maintain') return 'edit';
+  if (name === 'triage' || name === 'read' || perm === 'read' || perm === 'triage') return 'view';
+  return null;
+}
+
+/**
+ * The role of the account's linked GitHub account on a repository, read with the Bridge app's installation token and
+ * matched by GitHub id (a renamed or reused login never passes for another). Null without a linked GitHub account, for
+ * a team made in Bridge (email roles only), where the app is not installed, or for someone not on it.
+ */
+async function onLinked(ctx: Ctx, a: Account, arg: string): Promise<Response> {
+  const noStore = { 'Cache-Control': 'private, no-store' };
+  let t: TeamRef;
+  try {
+    t = await resolveTeam(ctx, arg);
+  } catch {
+    return json(200, { role: null }, noStore);
+  }
+  if (t.id || !a.github || !ctx.svc.app) return json(200, { role: null }, noStore);
+  const key = linkedRoleKey(t.full, a.github.id);
+  const kept = await ctx.svc.redis.cmd('GET', key);
+  if (kept === 'none') return json(200, { role: null }, noStore);
+  if (typeof kept === 'string' && (LINKED_ROLES as readonly string[]).includes(kept)) return json(200, { role: kept }, noStore);
+  const token = await ctx.svc.app.installationToken(t.owner, t.repo);
+  let role: LinkedRole | null = null;
+  if (token) {
+    const r = await gh(ctx.f, token, `/repos/${t.owner}/${t.repo}/collaborators/${encodeURIComponent(a.github.login)}/permission`);
+    if (r.status === 200 && r.data?.user?.id === a.github.id) role = linkedRoleOf(r.data);
+  }
+  await ctx.svc.redis.cmd('SET', key, role ?? 'none', 'EX', LINKED_ROLE_TTL_S);
+  // "Your teams" (GET /api/account) lists the repositories the linked GitHub account is admin or editor of.
+  await noteGithubTeam(ctx.svc.redis, a.email, t.full, role, ctx.now());
+  return json(200, { role }, noStore);
+}
+
 /** The account is on the team: an email membership, or (local mode) a seeded admin. */
 async function isMemberOf(ctx: Ctx, a: Account, repo: string): Promise<boolean> {
   if (await ctx.svc.members.get(repo, a.email.toLowerCase())) return true;
@@ -1286,6 +1344,8 @@ export async function handleEntry(req: Request, env: EntryEnv, deps: EntryDeps):
     }
     const askedOf = params.get('asked');
     if (askedOf !== null) return await onAsked(ctx, a, askedOf);
+    const linkedOf = params.get('linked');
+    if (linkedOf !== null) return await onLinked(ctx, a, linkedOf);
     const aiToolsOf = params.get('ai-tools');
     if (aiToolsOf !== null) return await onGetTeamAiTools(ctx, a, aiToolsOf);
     const teamOf = params.get('team');

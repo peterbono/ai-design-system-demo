@@ -30,6 +30,7 @@ import { isDemoRepo } from '../../../lib/demo';
 import { updatedLine } from '../../../lib/activity-view';
 import { CONTRIBUTE_WORDS, contributeEligible } from '../../../lib/contribute';
 import { knownTeamName } from '../../../lib/recent-teams';
+import { linkedMember, reconnectScreen, type LinkedRole } from '../../../lib/linked-role';
 
 /** The sign-in screen, back to this page afterwards. */
 const signInHere = () => signInHref(typeof location === 'undefined' ? null : location.pathname + location.search + location.hash);
@@ -291,6 +292,10 @@ export interface GateState {
   asks?: boolean;
   /** Signed in to a Bridge account that is not on this team. */
   account?: boolean;
+  /** No GitHub sign-in in this browser, and the account's linked GitHub is on the team (scripts/linked-role.ts). */
+  linked?: LinkedRole | null;
+  /** The GitHub login linked to the Bridge account, to name it in the reconnect banner. */
+  linkedLogin?: string | null;
 }
 
 /**
@@ -326,12 +331,29 @@ export function TeamAccessGate() {
       let email = false;
       // Signed in to a Bridge account that is not on this team: it can ask to join from here (hosted site only).
       let account = false;
+      let linkedLogin: string | null = null;
       const asks = isHostedSite();
       const paint = (access: ReturnType<typeof session.currentAccess>) => {
         const r = repoContext();
         const v = session.currentViewer();
-        setG({ owner: r.owner, repo: r.repo, login: v?.login ?? null, name: v?.name ?? null, access: access?.state ?? null, repoAdmin: access?.repoAdmin === true || access?.admin === true, email, emailExpired: session.contributeLinkState() === 'expired', asks, account });
+        setG({ owner: r.owner, repo: r.repo, login: v?.login ?? null, name: v?.name ?? null, access: access?.state ?? null, repoAdmin: access?.repoAdmin === true || access?.admin === true, email, emailExpired: session.contributeLinkState() === 'expired', asks, account, linked: session.linkedGitHubRole(), linkedLogin });
       };
+      // The account's linked GitHub role, read by the server: its own banner (reconnect), never a visitor's.
+      void import('../../../scripts/linked-role').then(({ onLinkedRole }) =>
+        onLinkedRole((role) => {
+          if (!live) return;
+          paint(session.currentAccess());
+          // The banner names the GitHub account the Bridge account is linked to.
+          if (role && !linkedLogin)
+            void import('../../../scripts/account-session')
+              .then(({ getAccount }) => getAccount())
+              .then(({ account: acc }) => {
+                linkedLogin = acc?.github?.login ?? null;
+                if (live && linkedLogin) paint(session.currentAccess());
+              })
+              .catch(() => undefined);
+        }),
+      );
       session.initGitHubConnect(() => paint(session.currentAccess()));
       session.onAccess(paint);
       // Sign in with your email, on real teams whose site has the email server (one GET, shared with the session).
@@ -342,6 +364,7 @@ export function TeamAccessGate() {
           const a = (await getAccount()).account;
           if (!live || !a) return;
           account = !a.teams.some((t) => t.repo.toLowerCase() === full.toLowerCase());
+          linkedLogin = a.github?.login ?? null;
           paint(session.currentAccess());
         });
       }
@@ -371,7 +394,10 @@ export function TeamAccessGate() {
   // The demo greets a guest itself (its demo banner, lib/demo.ts): no guest banner over it.
   const guestOnDemo = g?.access === 'anonymous-public' && isDemoRepo(`${g.owner}/${g.repo}`);
   const stateScreen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin, email: Boolean(g.email), name: knownTeamName(`${g.owner}/${g.repo}`), asks: Boolean(g.asks), account: Boolean(g.account) }) : null;
-  const screen = signedOutElsewhere && g && !g.login ? signedOutScreen(g.owner, g.repo) : stateScreen;
+  // On the team on GitHub, without the GitHub sign-in in this browser: their role, and Reconnect GitHub to make changes.
+  const linkedOn = g && !g.login && linkedMember(g.linked) && (!g.access || g.access === 'anonymous-public' || g.access === 'anonymous-unknown');
+  const linkedScreen = linkedOn ? reconnectScreen({ owner: g.owner, repo: g.repo, role: g.linked as 'admin' | 'edit', login: g.linkedLogin, name: knownTeamName(`${g.owner}/${g.repo}`), block: g.access === 'anonymous-unknown' }) : null;
+  const screen = signedOutElsewhere && g && !g.login ? signedOutScreen(g.owner, g.repo) : (linkedScreen ?? stateScreen);
   const block = screen?.layout === 'block';
   const setup = Boolean(g?.login && setupAt && !block);
   useTakeover(Boolean(block || setup));
@@ -395,5 +421,5 @@ export function TeamAccessGate() {
         }}
       />
     );
-  return screen ? <NoAccess key={k} screen={screen} updatedAt={g.access === 'anonymous-public' ? updatedAt : null} {...emailProps} /> : null;
+  return screen ? <NoAccess key={k} screen={screen} updatedAt={g.access === 'anonymous-public' && screen !== linkedScreen ? updatedAt : null} {...emailProps} /> : null;
 }

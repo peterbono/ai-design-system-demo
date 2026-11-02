@@ -60,7 +60,10 @@ import {
   TOKEN_ENDPOINT,
   type TokenResponse,
 } from '../lib/github-signin';
-import { studioHref } from '../lib/team-path';
+import { isTeamKey, studioHref } from '../lib/team-path';
+import { isSampleTeam } from '../lib/demo';
+import { linkedMember, RECONNECT_WORDS, type LinkedRole } from '../lib/linked-role';
+import { linkedRole, onLinkedRole, readLinkedRole } from './linked-role';
 import { clearGuestReads, guestFetch } from './guest-activity';
 import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, isContribAuth, productReposOfConfig, type ContributeMember } from '../lib/contribute';
 import { ROLE_WORDS } from '../lib/invites';
@@ -202,6 +205,23 @@ export function currentContributor(): ContributeMember | null {
   if (typeof document === 'undefined' || githubToken() || document.documentElement.hasAttribute('data-no-repo')) return null;
   const repo = pageRepo();
   return contributeEligible(repo, repoContext().hosted) ? contributorFor(repo) : null;
+}
+
+/** A page where a Bridge account's linked GitHub role is worth reading: a hosted repository team, never a sample. */
+function linkedEligible(): boolean {
+  if (typeof document === 'undefined' || document.documentElement.hasAttribute('data-no-repo')) return false;
+  const repo = pageRepo();
+  return repoContext().hosted && !isSampleTeam(repo) && !isTeamKey(repo) && /^[\w.-]+\/[\w.-]+$/.test(repo);
+}
+
+/**
+ * The role the signed-in Bridge account's linked GitHub account has on this page's team, read by the server with the
+ * Bridge app (scripts/linked-role.ts), only while this browser holds no GitHub sign-in and is not an email member here:
+ * the page shows the real role and asks to reconnect GitHub, never the visitor's read-only view. Null otherwise.
+ */
+export function linkedGitHubRole(): LinkedRole | null {
+  if (githubToken() || currentContributor() || !linkedEligible()) return null;
+  return linkedRole(pageRepo());
 }
 
 /**
@@ -1191,16 +1211,24 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   // (scripts/demo-gate.ts). First, so its capture listener runs before the gated-action one below.
   bindDemoGate({
     repo: () => repoName(readRepo()),
-    // An email contributor (no GitHub) is a member who can write: never a demo visitor.
-    login: () => viewer?.login ?? currentContributor()?.email ?? null,
-    write: () => (currentContributor() ? true : (currentAccess()?.write ?? null)),
+    // An email contributor (no GitHub) is a member who can write: never a demo visitor. Nor is a Bridge account whose
+    // linked GitHub is on the team (its writes ask to reconnect GitHub: the session's gated actions).
+    login: () => viewer?.login ?? currentContributor()?.email ?? (linkedMember(linkedGitHubRole()) ? 'linked' : null),
+    write: () => (currentContributor() || linkedMember(linkedGitHubRole()) ? true : (currentAccess()?.write ?? null)),
     signIn: prefersSignIn,
     known: () => checked || !githubToken(),
     subscribe: (fn) => {
       listeners.push(() => fn());
       onAccess(() => fn());
+      onLinkedRole(() => fn());
     },
   });
+  // No GitHub sign-in here: the account's linked GitHub role, once per page (the server reads it with the app).
+  const readLinked = () => {
+    if (!githubToken() && !currentContributor() && linkedEligible()) void readLinkedRole(pageRepo());
+  };
+  listeners.push(readLinked);
+  readLinked();
   if (onChange) listeners.push(onChange);
   if (wired) {
     if (checked) onChange?.(viewer);
@@ -1328,12 +1356,16 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     const rejected = tokenRejected();
     const app = sessionMode() === 'app';
     const switched = !viewer && !rejected && Boolean(signInView) && signInSwitched();
+    // On the team through the linked GitHub account, no GitHub sign-in here: a change asks to reconnect, in place.
+    const linked = !viewer && !rejected && !switched && linkedMember(linkedGitHubRole());
     if (input) input.value = '';
     // Opened from Change token while connected: say so, the saved token stays until the new one is checked.
-    if (title) title.textContent = rejected || switched ? (app || signInView ? 'Sign in again' : 'Reconnect GitHub') : viewer && !app && !signInView ? 'Change GitHub token' : ghButton(Boolean(signInView));
-    if (rejectedNote) rejectedNote.hidden = !rejected && !switched;
+    if (title) title.textContent = linked ? RECONNECT_WORDS.title : rejected || switched ? (app || signInView ? 'Sign in again' : 'Reconnect GitHub') : viewer && !app && !signInView ? 'Change GitHub token' : ghButton(Boolean(signInView));
+    if (rejectedNote) rejectedNote.hidden = !rejected && !switched && !linked;
     if (rejectedNoteText) {
-      rejectedNoteText.textContent = switched
+      rejectedNoteText.textContent = linked
+        ? RECONNECT_WORDS.dialog
+        : switched
         ? SIGNIN_TEXT.switched
         : app
         ? 'Your GitHub sign-in expired and could not be renewed. Sign in again to keep editing.'

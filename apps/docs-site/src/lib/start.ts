@@ -110,6 +110,34 @@ export function workspaceHref(f: StartFacts, reserved: ReservedPaths | null = nu
 /** Where "Get started" goes: the workspace, else the start screen. */
 export const getStartedHref = (f: StartFacts, reserved: ReservedPaths | null = null): string => workspaceHref(f, reserved) ?? START_PAGE;
 
+/** An address without its query, hash, `~/` escape and trailing slash, lower case: two addresses of one page match. */
+const pageKey = (href: string): string => {
+  const raw = href.split(/[?#]/)[0] ?? '';
+  let path = raw;
+  try {
+    path = decodeURIComponent(raw);
+  } catch {
+    /* kept as written */
+  }
+  return path.toLowerCase().replace(`${STUDIO_ROOT}~/`, STUDIO_ROOT).replace(/\/+$/, '');
+};
+
+/**
+ * The demo banner's way back never leads to the page it is on (`here`: this page's pathname, `repo` its team): the
+ * hosted root /studio/ shows Bridge's own team too. Instead, the account's team made in Bridge (its workspace page),
+ * else the workspace page, where a signed-in person creates their team. Anything else is kept.
+ */
+export function awayFrom(back: { href: string; connect: boolean }, here: { pathname: string; repo: string }, accountTeams: readonly { repo: string }[] = []): { href: string; connect: boolean } {
+  const target = pageKey(back.href);
+  const [owner = '', name = ''] = here.repo.split('/');
+  const same = [pageKey(here.pathname), pageKey(teamHref(owner, name, null)), pageKey(`${STUDIO_ROOT}${owner}/${name}/`)];
+  const ownRoot = isDemoRepo(here.repo) && target === pageKey(STUDIO_ROOT);
+  if (!same.includes(target) && !ownRoot) return back;
+  const made = accountTeams.find((t) => isTeamKey(t.repo));
+  const id = made ? teamKeyId(made.repo) : null;
+  return { href: id ? `${WORKSPACE_HOME}?team=${encodeURIComponent(id)}` : WORKSPACE_HOME, connect: false };
+}
+
 /**
  * The Sample data banner's button: "Back to your workspace" when there is one, else "Connect your design system",
  * which starts the setup as the start screen's card does (never a "back" that lands on the start screen).
