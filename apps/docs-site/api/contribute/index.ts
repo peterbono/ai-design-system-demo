@@ -67,7 +67,10 @@
 // through here too for the team's products, proving who they are with their own GitHub token (Authorization: Bearer,
 // read with GET /user and the team's repository, never trusted from the browser); their branches are kept as
 // gh:<login>, and an exploration they opened on GitHub before is theirs when its pull request is their own. In the
-// library they keep their own GitHub path; leads and admins keep GitHub everywhere.
+// library they keep their own GitHub path; leads and admins keep GitHub for every write.
+// Reads of the team's products (GET gh=) are for everyone on the team signed in with GitHub, leads and admins too
+// (githubTeamReaderOf: an explicit role on the team's repository, or read on a private one), with the app's read
+// token: a private product or design copy reads for them whatever their own token can see.
 //
 // In the team's products (bridge.config.json products[] with a design.repo, planProductCall), an email designer
 // explores like everyone: in the design team's copy their explore/* branches (started from the default branch with
@@ -1037,16 +1040,31 @@ export type DesignerCheck =
 export const LEADS_DIRECT = 'Leads change the products on GitHub directly, not through Bridge.';
 export const GITHUB_EXPIRED = 'Your GitHub sign-in expired. Sign in again.';
 
-const designerCache = new Map<string, { at: number; v: DesignerCheck }>();
+/**
+ * Whether a GitHub account is on the team for reading, from GitHub's permissions on the team's repository read with
+ * its own token: any role GitHub grants explicitly (admin, maintain, write, triage), or read on a private repository.
+ * Read on a public repository is everyone's, never membership. Pure.
+ */
+export function githubReadsTeam(perms: { admin?: boolean; maintain?: boolean; push?: boolean; triage?: boolean; pull?: boolean } | null | undefined, isPrivate: boolean): boolean {
+  if (!perms) return false;
+  if (perms.admin || perms.maintain || perms.push || perms.triage) return true;
+  return Boolean(perms.pull && isPrivate);
+}
+
+/** A GitHub account and its permissions on the team's repository, as GitHub says it with the account's own token. */
+type GitHubAccountOn = { kind: 'expired' } | { kind: 'account'; login: string; name: string; id: number | null; perms: Record<string, boolean> | null; private: boolean };
+
+const designerCache = new Map<string, { at: number; v: GitHubAccountOn }>();
 export const clearDesignerCache = () => designerCache.clear();
 
 /**
- * The GitHub account behind `Authorization: Bearer` on this team, read with its own token (GET /user, GET the team's
- * repository): never what the browser says. Kept 5 minutes per warm function, by a hash of the token.
+ * The GitHub account behind `Authorization: Bearer` and its permissions on the team's repository, read with its own
+ * token (GET /user, GET the team's repository): never what the browser says. Kept 5 minutes per warm function, by a
+ * hash of the token. Null without a token.
  */
-export async function githubDesignerOf(ctx: Ctx, req: Request, team: { owner: string; repo: string; full: string }): Promise<DesignerCheck> {
+async function githubAccountOn(ctx: Ctx, req: Request, team: { owner: string; repo: string; full: string }): Promise<GitHubAccountOn | null> {
   const bearer = /^Bearer\s+([A-Za-z0-9_.-]{20,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
-  if (!bearer) return { kind: 'none' };
+  if (!bearer) return null;
   const key = `${sha256(bearer)}:${team.full}`;
   const hit = designerCache.get(key);
   if (hit && ctx.now() - hit.at < 5 * 60 * 1000) return hit.v;
@@ -1055,16 +1073,37 @@ export async function githubDesignerOf(ctx: Ctx, req: Request, team: { owner: st
   const r = await ghApp(ctx, bearer, 'GET', `/repos/${team.owner}/${team.repo}`);
   if (r.status === 401) return { kind: 'expired' };
   const login: string = me.data.login;
-  const role = githubRoleOf(r.status === 200 ? r.data?.permissions : null, login, (await teamFacts(ctx, team)).leads);
-  const name = typeof me.data.name === 'string' && me.data.name.trim() ? me.data.name.trim() : login;
-  const v: DesignerCheck =
-    role === 'designer'
-      ? { kind: 'designer', member: { email: `gh:${login.toLowerCase()}`, name, role: 'edit', version: 0, addedBy: 'github', at: '', login, ...(typeof me.data.id === 'number' ? { githubId: me.data.id } : {}) } }
-      : role === 'lead'
-        ? { kind: 'lead' }
-        : { kind: 'none' };
+  const perms = r.status === 200 && r.data?.permissions && typeof r.data.permissions === 'object' ? (r.data.permissions as Record<string, boolean>) : null;
+  const v: GitHubAccountOn = {
+    kind: 'account',
+    login,
+    name: typeof me.data.name === 'string' && me.data.name.trim() ? me.data.name.trim() : login,
+    id: typeof me.data.id === 'number' ? me.data.id : null,
+    perms,
+    private: r.status === 200 && r.data?.private === true,
+  };
   designerCache.set(key, { at: ctx.now(), v });
   return v;
+}
+
+/** The GitHub account behind `Authorization: Bearer` on this team: a designer, a lead or nobody (githubRoleOf). */
+export async function githubDesignerOf(ctx: Ctx, req: Request, team: { owner: string; repo: string; full: string }): Promise<DesignerCheck> {
+  const a = await githubAccountOn(ctx, req, team);
+  if (!a) return { kind: 'none' };
+  if (a.kind === 'expired') return a;
+  const role = githubRoleOf(a.perms, a.login, (await teamFacts(ctx, team)).leads);
+  if (role === 'designer') return { kind: 'designer', member: { email: `gh:${a.login.toLowerCase()}`, name: a.name, role: 'edit', version: 0, addedBy: 'github', at: '', login: a.login, ...(a.id !== null ? { githubId: a.id } : {}) } };
+  return role === 'lead' ? { kind: 'lead' } : { kind: 'none' };
+}
+
+/**
+ * The login of the GitHub account behind `Authorization: Bearer` when it is on the team for reading (githubReadsTeam):
+ * a designer, a lead, an admin, or a reader of a private team. Each of them reads the team's products through Bridge's
+ * app (a private product or design copy their own token cannot see); writes keep their own rules. Null otherwise.
+ */
+export async function githubTeamReaderOf(ctx: Ctx, req: Request, team: { owner: string; repo: string; full: string }): Promise<string | null> {
+  const a = await githubAccountOn(ctx, req, team);
+  return a?.kind === 'account' && githubReadsTeam(a.perms, a.private) ? a.login : null;
 }
 
 // The names core uses (explorations.ts, design-copy-github.ts), kept here so this function bundles without the core
@@ -1404,10 +1443,11 @@ async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx): Pr
   // A member reads on their own budget (api/_lib/team-read.ts budgetOf), not their address's.
   const m = await sessionMember(ctx, req, full);
   if (m) return { kind: 'member', email: m.email };
-  // A designer signed in with GitHub reads the team's products through Bridge (they need no access to the copy).
+  // Anyone on the team signed in with GitHub (a designer, a lead, an admin) reads the team's products through Bridge:
+  // a private product or design copy reads with the app, whatever their own token can see (githubTeamReaderOf).
   if (req.headers.get('authorization')) {
-    const d = await githubDesignerOf(ctx, req, { ...parseRepo(full), full: full.toLowerCase() });
-    if (d.kind === 'designer') return { kind: 'member', email: d.member.email };
+    const login = await githubTeamReaderOf(ctx, req, { ...parseRepo(full), full: full.toLowerCase() });
+    if (login) return { kind: 'member', email: `gh:${login.toLowerCase()}` };
   }
   const a = await sessionAccount(req, ctx.svc.redis, ctx.svc.secret, ctx.now());
   if (a) {

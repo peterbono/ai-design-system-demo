@@ -9,7 +9,7 @@ import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
 import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
 import { repoContext, siteConfig } from './repo-context';
-import { productRouteFor } from '../lib/write-route';
+import { productReadRoute, productRouteFor } from '../lib/write-route';
 import { clearPrivateRepoCaches, clearRepoCache } from './repo-cache';
 import {
   authFailure,
@@ -181,8 +181,9 @@ const pageRepo = () => {
 };
 
 /**
- * The product repositories of this page's team (bridge.config.json products[].repo): an email member or a visitor of
- * a public demo team reads them through the team's proxy, never writes there through it.
+ * The product repositories of this page's team (bridge.config.json products[].repo and each design copy,
+ * products[].design.repo): everyone on the team reads them through the team's proxy (an email member, anyone signed in
+ * with GitHub: productReadViaBridge), and so does a visitor of a public demo team. Writes keep their own route.
  */
 const pageProductRepos = (): string[] => {
   try {
@@ -722,6 +723,41 @@ async function liveAuth(auth: string | undefined): Promise<string | undefined> {
   return now && !tokenRejected() ? `Bearer ${now}` : auth;
 }
 
+/** Bridge cannot read the team's products for this GitHub sign-in (no function here, or not on the team): GitHub. */
+let productReadsDown = false;
+
+/**
+ * A read in one of the team's product repositories (its code repository or its design copy) by someone signed in with
+ * GitHub (lib/write-route productReadRoute): through the team's proxy with Bridge's app, their token as proof of who
+ * they are (the server checks they are on the team), so a private product reads for every member, leads included,
+ * whatever their own token can see. Null: this read goes to GitHub as before (another repository, Bridge cannot read
+ * it here, the app is not on that product). Bridge's own limit throws its "Bridge is busy" GitHubError.
+ */
+async function productReadViaBridge(url: string, init: { method?: string; headers?: Record<string, string> } & Record<string, unknown>): Promise<Response | null> {
+  const auth = init.headers?.Authorization;
+  if (productReadsDown || !auth || isContribAuth(auth)) return null;
+  const products = pageProductRepos();
+  if (productReadRoute({ method: init.method, url, products, session: 'github' }) !== 'bridge') return null;
+  // A designer's reads mark their own explorations; a lead's or an admin's have nothing of theirs to mark.
+  const designer = designerRoute();
+  let res: Response;
+  try {
+    res = await contributeFetch(pageRepo(), url, init as RequestInit, products, { authorization: auth, login: viewer?.login ?? '', reader: !designer });
+  } catch (err) {
+    if (err instanceof GitHubError && err.status === 429) throw err;
+    // Not on the team, or a sign-in Bridge cannot check: the rest of the page reads on GitHub. The app missing on
+    // one product (product_missing) leaves only that read to GitHub.
+    if (err instanceof GitHubError && err.status === 401) productReadsDown = true;
+    return null;
+  }
+  // No function here (the static host's page, an older deploy): GitHub directly for the rest of the page.
+  if (res.status === 405 || (!res.ok && res.status !== 304 && !/json|vnd\.github|text\/plain/i.test(res.headers.get('content-type') ?? ''))) {
+    productReadsDown = true;
+    return null;
+  }
+  return res;
+}
+
 /**
  * fetch for the core GitHubClient in the Studio: once the token is refused, reads go out anonymously (public repos
  * keep working) and writes fail at once with the same 401; any 401 to a call that carried the token marks it.
@@ -746,6 +782,11 @@ export const studioFetch: FetchLike = async (url, init0 = {}) => {
   if (method === 'GET' && tokenRejected() && headers.Authorization) {
     const { Authorization: _drop, ...rest } = headers;
     headers = rest;
+  }
+  // A signed-in read in one of the team's products: through Bridge's app (lib/write-route productReadRoute).
+  if (method === 'GET' && headers.Authorization) {
+    const viaBridge = await productReadViaBridge(url, { ...init, headers });
+    if (viaBridge) return viaBridge;
   }
   // A code write on a team page in direct mode goes out with Bridge Direct (or waits for its OK: this throws).
   if (headers.Authorization && needsDirectApp(method, url)) {
@@ -918,9 +959,18 @@ export const noteWrite = () => {
 };
 const freshRead = (): RequestCache => readCacheMode(wroteAt, Date.now());
 
-/** fetch for a call with the session's headers: the proxy for an email contributor, GitHub otherwise. */
-const ghFetch = (url: string, init: RequestInit & { headers: Record<string, string> }): Promise<Response> =>
-  isContribAuth(init.headers.Authorization) ? contributeFetch(pageRepo(), url, init, pageProductRepos()) : fetch(url, init);
+/**
+ * fetch for a call with the session's headers: the proxy for an email contributor, Bridge's app for a GitHub sign-in's
+ * read in one of the team's products (productReadViaBridge), GitHub otherwise.
+ */
+const ghFetch = async (url: string, init: RequestInit & { headers: Record<string, string> }): Promise<Response> => {
+  if (isContribAuth(init.headers.Authorization)) return contributeFetch(pageRepo(), url, init, pageProductRepos());
+  if ((init.method ?? 'GET').toUpperCase() === 'GET') {
+    const viaBridge = await productReadViaBridge(url, init as Parameters<typeof productReadViaBridge>[1]);
+    if (viaBridge) return viaBridge;
+  }
+  return fetch(url, init);
+};
 
 function headers(extra: Record<string, string> = {}): Record<string, string> {
   const h: Record<string, string> = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...extra };
