@@ -11,7 +11,8 @@
 //     The latest is 1.8.4.") and "Send the update to the developers"; once sent, "Update sent to the developers." with
 //     "Open their update" for people signed in with GitHub (lib/library-update.ts, scripts/library-update.ts). Nobody
 //     else reads it, so nobody else reads the product's library either. Never on the sample team.
-//   - No copy of such a product yet: one calm card in place of the list, "Make my copy" its one action.
+//   - No copy of such a product yet: one calm card in place of the list, "Make my copy" its one action, the same
+//     choice card (and size) as "Start an exploration" in that slot.
 //   - Its explorations, grouped by where they stand (Exploring, Waiting for code, Being built, In review, Shipped: the lifecycle's words), each
 //     the exploration card of the home (ExplorationCards.tsx); archived ones only counted in one quiet line at the end
 //     ("1 archived. See archived"), which opens Changes' Archived tab for this product.
@@ -24,7 +25,7 @@
 //     after the title opens the name in place (a DS Input, Save, Escape cancels). Save sends the config pull request
 //     that changes only products[i].name (scripts/roles.ts proposeProductName, lib/product-name.ts), like every
 //     config change from Studio. The title keeps the current name until it merges; the pencil gives way to
-//     "Rename waiting for review".
+//     "Rename waiting for review". Settings > Products' Rename opens the page with #rename: the name opens in place.
 // Self-hosted (pages/studio/products/[key].astro) the key comes from the build; on a team shell
 // (pages/team-shell/products/item.astro) from the address, once the team's settings are read. Reads:
 // scripts/product-page.ts.
@@ -93,6 +94,14 @@ function useRenameTitle(name: string, productKey: string, products: readonly { k
   useEffect(() => {
     if (editing) field.current?.focus();
   }, [editing]);
+  // Settings > Products' Rename (TeamProducts.tsx) lands here with #rename: the name opens in place, once.
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current || !rename || rename.state !== 'offer' || !name || typeof location === 'undefined' || location.hash !== '#rename') return;
+    asked.current = true;
+    setValue(name);
+    setEditing(true);
+  }, [rename, name]);
   const close = () => {
     setEditing(false);
     setError(null);
@@ -277,6 +286,26 @@ function Facts({ product, data, copy, library }: { product: ProductConfig; data:
   );
 }
 
+/**
+ * The Home's way to start (StudioHome Start): a white card in the zone, the drawing, the title in Harbor and one line;
+ * the whole card is the action, and the chevron says so on hover and focus. The one shape of the empty slot: Start an
+ * exploration, a designer's asks on the library, and Make my copy all read the same, at the same size.
+ */
+function choiceCard(drawing: IllustrationName, title: ReactNode, line: ReactNode) {
+  return (
+    <Card interactive className="sh-choice pp-choice">
+      <CardBody className="sh-choice-body pp-choice-body">
+        <Drawing name={drawing} width={88} />
+        <span className="sh-choice-text">
+          {title}
+          {typeof line === 'string' ? <span className="t-ui t-muted">{line}</span> : line}
+        </span>
+        <Icon icon={ChevronRight} size="md" className="pp-choice-go" />
+      </CardBody>
+    </Card>
+  );
+}
+
 /** No copy of the product yet: why the team gets one, in one sentence, and the one action. */
 function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyActions | null }) {
   const [busy, setBusy] = useState(false);
@@ -291,19 +320,29 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
       setBusy(false);
     }
   };
+  // The viewer may make it: the same choice card as Start an exploration in this slot (one shape, one size). The
+  // card's line says how it goes once asked, read out as it changes.
+  if (copy?.make) {
+    return (
+      <section className="zone sh-zone pp-empty" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
+        {choiceCard(
+          'paint',
+          <Button variant="link" className="sh-choice-btn" data-card-primary="" loading={busy} onClick={() => void make()}>
+            <span className="sh-choice-title">{COPY_WORDS.make}</span>
+          </Button>,
+          <span className="t-ui t-muted" role="status">
+            {busy ? COPY_WORDS.making : (said?.line ?? COPY_WORDS.intro(product.name))}
+          </span>,
+        )}
+      </section>
+    );
+  }
+  // Nothing to do here for this viewer: the reason only, the drawing beside it.
   return (
     <section className="zone sh-zone pp-empty pp-copy" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
       <Drawing name="paint" width={160} />
       <div className="pp-empty-text">
         <p className="t-body">{COPY_WORDS.intro(product.name)}</p>
-        {copy?.make && (
-          <Button variant="primary" size="lg" loading={busy} onClick={() => void make()}>
-            {COPY_WORDS.make}
-          </Button>
-        )}
-        <p className="t-ui t-muted" role="status">
-          {busy ? COPY_WORDS.making : (said?.line ?? '')}
-        </p>
       </div>
     </section>
   );
@@ -349,20 +388,7 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
   );
   // A designer of the team on the library's page, with nothing yet: no start there, the page's lead says where asks go.
   const asks = empty && library && !lead;
-  // The Home's way to start (StudioHome Start): a white card in the zone, the drawing, the title in Harbor and one line;
-  // the whole card is the link, and the chevron says so on hover and focus.
-  const choice = (drawing: IllustrationName, title: ReactNode, line: string) => (
-    <Card interactive className="sh-choice pp-choice">
-      <CardBody className="sh-choice-body pp-choice-body">
-        <Drawing name={drawing} width={88} />
-        <span className="sh-choice-text">
-          {title}
-          <span className="t-ui t-muted">{line}</span>
-        </span>
-        <Icon icon={ChevronRight} size="md" className="pp-choice-go" />
-      </CardBody>
-    </Card>
-  );
+  const choice = choiceCard;
   return (
     <div className="pp" data-product-page={product?.key ?? productKey}>
       <StudioHead

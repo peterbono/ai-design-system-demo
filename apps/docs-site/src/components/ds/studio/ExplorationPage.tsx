@@ -153,7 +153,8 @@ export interface ExplorationPageProps {
   onArchive: (() => Promise<string | void>) | null;
   /**
    * Archived: hidden from the lists, its preview still works. The page keeps its layout (the preview, the activity),
-   * the tag reads Archived, one line says so with Unarchive, and nothing offers Done exploring.
+   * the tag reads Archived, one line says so with Unarchive, and nothing offers Done exploring or to keep working
+   * (no Open in Claude Code, Continue in your AI tool or Bring it in): the preview is the bar's one action.
    */
   archived?: boolean;
   /** Unarchive, beside the archived line; null when this viewer cannot. */
@@ -779,13 +780,16 @@ function ExplorationBody(p: ExplorationPageProps) {
               <h2 className="xp-h-lg" id="xp-start-h">
                 Nothing built yet
               </h2>
+              {!p.archived && (
               <p className="xp-body">
                 {p.claudeCodeUrl
                   ? "You explore with Claude Code in your team's copy of the product, with the library. Your preview appears here after the first change."
                   : `You explore with ${withWhat} and the library. Your preview appears here after the first change.`}
               </p>
+              )}
             </div>
-            {first ? (
+            {/* Archived: nothing to keep working on here, only Unarchive (above) and the product as it is today. */}
+            {p.archived ? null : first ? (
               <ConnectFirst address={p.connectorAddress ?? '/mcp'} onCopy={p.onCopy}>
                 <ToolPanel tools={view.tools} tab={tab} setTab={setTab} chosen={view.chosen} lines={lines} setup={setupOf(p)} onCopy={p.onCopy} say={setSaid} />
               </ConnectFirst>
@@ -793,7 +797,7 @@ function ExplorationBody(p: ExplorationPageProps) {
               !p.claudeCodeUrl && <ToolPanel tools={view.tools} tab={tab} setTab={setTab} chosen={view.chosen} lines={lines} setup={setupOf(p)} onCopy={p.onCopy} say={setSaid} />
             )}
             <div className="xp-acts">
-              {first ? <ConnectClaudeButton /> : <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="primary" />}
+              {p.archived ? null : first ? <ConnectClaudeButton /> : <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="primary" />}
               {p.todayUrl && (
                 <Link href={p.todayUrl} target="_blank" rel="noopener" className="xp-today">
                   {p.todayLabel ?? 'See the product today'}
@@ -811,7 +815,7 @@ function ExplorationBody(p: ExplorationPageProps) {
         <div className={handoff ? 'xp-board is-handoff' : 'xp-board'}>
           <section className="xp-preview" aria-label="Preview">
             <ShotFrame p={p} />
-            <div className={handoff ? 'xp-acts' : 'xp-acts xp-preview-acts'}>
+            <div className={handoff ? 'xp-acts' : p.archived ? 'xp-acts xp-preview-acts is-one' : 'xp-acts xp-preview-acts'}>
               {p.previewUrl ? (
                 // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
                 <ButtonLink variant={zoneLeads ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
@@ -827,14 +831,15 @@ function ExplorationBody(p: ExplorationPageProps) {
                   Open the preview
                 </Button>
               )}
-              {!handoff && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
+              {/* Archived: the preview still opens, nothing offers to keep working on it (Unarchive first). */}
+              {!handoff && !p.archived && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
             </div>
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
               <p className="xp-muted xp-note" id="xp-preview-note">
                 {p.previewNote}
               </p>
             )}
-            {!handoff && p.latest && <LatestLine latest={p.latest} say={setSaid} />}
+            {!handoff && !p.archived && p.latest && <LatestLine latest={p.latest} say={setSaid} />}
           </section>
           <div className="xp-side">
             {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} /> : <DoneCard p={p} />}

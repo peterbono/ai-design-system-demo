@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { adminOnlyText, appReach, canEditReviewRules, RULES_ADMIN_ONLY, RULES_NEED_REVIEW, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, leadsPublishRow, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
+import { adminOnlyText, appReach, canEditReviewRules, RULES_ADMIN_ONLY, RULES_NEED_REVIEW, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, leadsPublishRow, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges, PRODUCTS_WORDS, productDevValue, productSettingsLine } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -189,5 +189,23 @@ describe('who edits the review rules', () => {
   it('says why the change waits, and who changes the rules, in designer words', () => {
     expect(RULES_NEED_REVIEW).toBe('This change needs a review because it changes the rules');
     for (const t of [RULES_NEED_REVIEW, RULES_ADMIN_ONLY]) expect(t).not.toMatch(/\b(repo|repository|pull request|PR|branch|merge)\b|\u2014/i);
+  });
+});
+
+describe('Settings > Products on a team shell', () => {
+  const ds = 'acme/acme-flow';
+  const copy = { key: 'admin-app', name: 'Art print shop', repo: 'shop-co/shop', design: { repo: 'shop-co/shop-design' } };
+  const web = { key: 'web', name: 'Web', repo: 'shop-co/web' };
+  it('says where each product is explored, in designer words', () => {
+    expect(productSettingsLine({ key: 'library', name: 'Library', default: true }, ds)).toBe('The library your products use. Explorations here change it directly.');
+    expect(productSettingsLine(copy, ds)).toBe("Designers explore in their own copy. The developers' code stays untouched.");
+    expect(productSettingsLine(web, ds)).toBe('Designers explore in its own code, with the library.');
+    for (const p of [copy, web]) expect(productSettingsLine(p, ds)).not.toMatch(/\b(repo|repository|pull request|branch|fork)\b|\u2014/i);
+    expect(PRODUCTS_WORDS.intro).not.toMatch(/\u2014/);
+  });
+  it('keeps the repositories for developers', () => {
+    expect(productDevValue(copy, ds)).toBe('shop-co/shop-design (copy of shop-co/shop)');
+    expect(productDevValue(web, ds)).toBe('shop-co/web');
+    expect(productDevValue({ key: 'library', name: 'Library', path: 'packages', default: true }, ds)).toBe('acme/acme-flow, packages');
   });
 });

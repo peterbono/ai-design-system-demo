@@ -289,6 +289,26 @@ describe('ProductPageView while GitHub is busy', () => {
 describe('ProductPageView, rename (admins)', () => {
   const view = (rename: Parameters<typeof ProductPageView>[0]['rename']) => render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }), rename }));
 
+  it("opens the name in place when Settings' Rename sent the admin here (#rename)", () => {
+    history.replaceState(null, '', '#rename');
+    try {
+      view({ state: 'offer', onSend: vi.fn(async () => {}) });
+      expect(screen.getByRole('textbox', { name: 'Product name' })).toBeTruthy();
+    } finally {
+      history.replaceState(null, '', location.pathname);
+    }
+  });
+
+  it('#rename does nothing for a viewer who may not rename', () => {
+    history.replaceState(null, '', '#rename');
+    try {
+      view(null);
+      expect(screen.queryByRole('textbox', { name: 'Product name' })).toBeNull();
+    } finally {
+      history.replaceState(null, '', location.pathname);
+    }
+  });
+
   it('read only without the rename: no pencil', () => {
     view(null);
     expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();

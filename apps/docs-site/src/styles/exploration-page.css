@@ -204,6 +204,11 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* Archived: "Open the preview" alone, filling its bar. */
+.xp-preview-acts.is-one {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .xp-continue .xp-claude {
   flex: none;
   margin-inline-end: var(--space-1-5);

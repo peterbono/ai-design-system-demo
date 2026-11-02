@@ -5,11 +5,13 @@
   margin: 0;
 }
 
+/* The Home hero's zone padding (studio-home.css .sh-zone), the page gutter on a phone: never text against the edge. */
 .busy-moment {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-6) var(--space-10);
+  padding: var(--space-7) var(--space-8);
 }
 
 .busy-moment-text {
@@ -27,6 +29,7 @@
 @media (max-width: 640px) {
   .busy-moment {
     justify-content: center;
+    padding: var(--space-5) var(--space-4);
     text-align: center;
   }
 

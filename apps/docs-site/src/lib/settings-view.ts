@@ -4,7 +4,7 @@
 //   rows How review works shows), so the plain list never drifts from the rules.
 // - How changes reach your code: the two modes in words (shared with the onboarding checklist), what the GitHub App
 //   may do on the repository, and the format-preserving edit of `changes` in bridge.config.json.
-import { fromPlain, getEntry, overrideHolders, overrideReasonMin, parseJson, serializeJson, soloOwnerOf, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
+import { designCopyOf, fromPlain, productCodeRepoOf, type ProductConfig, getEntry, overrideHolders, overrideReasonMin, parseJson, serializeJson, soloOwnerOf, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
 import type { TierSummary } from './governance';
 import type { SignInApp } from './github-signin';
 import { personName } from './people';
@@ -381,4 +381,33 @@ export function productConnectionRow(
     value: `Bridge cannot read ${x.repo}, so its explorations are not listed anywhere. An admin installs the Bridge GitHub App on it.`,
     ask: ask(x.product, x.repo, 'not-connected', x.installLink),
   };
+}
+
+/**
+ * Settings > Products on a team shell (components/ds/studio/TeamProducts.tsx), for leads and admins only: the products
+ * the team designs for, one row each, in designer words. The repositories behind them wait in "For developers".
+ */
+export const PRODUCTS_WORDS = {
+  title: 'Products',
+  intro: 'The products your team designs for. Each has its own page in Studio.',
+  rename: 'Rename',
+  renameLabel: (name: string) => `Rename ${name}`,
+  setIn: 'bridge.config.json, products',
+} as const;
+
+/** Where a product's explorations happen, in one sentence a designer reads. */
+export function productSettingsLine(p: ProductConfig, designSystemRepo: string | null | undefined): string {
+  if (p.default) return 'The library your products use. Explorations here change it directly.';
+  if (designCopyOf(p, designSystemRepo)) return "Designers explore in their own copy. The developers' code stays untouched.";
+  if (productCodeRepoOf(p, designSystemRepo)) return 'Designers explore in its own code, with the library.';
+  return 'Designers explore it with the library.';
+}
+
+/** The repository a developer looks for behind a product: its copy and its code, or the design system's folder. */
+export function productDevValue(p: ProductConfig, designSystemRepo: string | null | undefined): string {
+  const copy = designCopyOf(p, designSystemRepo);
+  const code = productCodeRepoOf(p, designSystemRepo);
+  if (copy && code) return `${copy} (copy of ${code})`;
+  if (code) return code;
+  return `${designSystemRepo ?? 'this repository'}${p.path ? `, ${p.path}` : ''}`;
 }
