@@ -6,7 +6,7 @@ import type { BridgeContext } from './context.js';
 export type WhoAmIRole = 'Admin' | 'Reviewer' | 'Can edit' | 'Reader';
 
 /** What the session is, as the hosted connector knows it (api/mcp builds it from the grant). */
-export interface WhoAmI {
+export type WhoAmI = {
   name: string;
   /** GitHub login, for a GitHub sign-in. */
   login?: string | undefined;
@@ -18,7 +18,7 @@ export interface WhoAmI {
   team: string;
   /** 'bridge': saves go through Bridge's app as this person; 'own': their own GitHub access; 'none': read only. */
   writes: 'bridge' | 'own' | 'none';
-}
+};
 
 /** d***@yopmail.com: the first letter and the domain, never the whole address. */
 export function maskEmail(email: string): string {
