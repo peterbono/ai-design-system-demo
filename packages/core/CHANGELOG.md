@@ -1,5 +1,11 @@
 # @bridge-ds/core
 
+## 0.26.5
+
+### Patch Changes
+
+- ba2e6cf: An exploration Bridge starts or hands off for a member who joined by email names them by a stable member reference and their name in its block, never their email; Home still finds it as theirs (older blocks with the email still match).
+
 ## 0.26.4
 
 ### Patch Changes
