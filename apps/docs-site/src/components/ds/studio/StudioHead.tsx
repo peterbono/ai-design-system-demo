@@ -10,8 +10,15 @@ export function StudioHead({ title, titleAfter, summary, scene, actions, how, ch
     <header className="st-head" data-scene={scene}>
       <div className="st-head-main">
         <div className="st-title-row">
-          <h1 className="st-title">{title}</h1>
-          {titleAfter}
+          {titleAfter ? (
+            // The title and the control that acts on it stay on one line, on a phone too (where the row lets go).
+            <div className="st-title-line">
+              <h1 className="st-title">{title}</h1>
+              {titleAfter}
+            </div>
+          ) : (
+            <h1 className="st-title">{title}</h1>
+          )}
           <div className="st-head-actions" data-st-actions="">
             {actions}
           </div>

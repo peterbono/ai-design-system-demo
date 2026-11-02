@@ -120,6 +120,14 @@
   padding-block: var(--space-1-5);
 }
 
+/* The item's label holds the name, the role tag and the check on one line: the tag and the check end the row, as in a
+   Figma team switcher, never wrapped under the name. */
+.tc-menu .tc-team > :last-child {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .tc-team-text {
   display: grid;
   flex: 1;

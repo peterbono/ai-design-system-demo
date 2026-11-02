@@ -46,6 +46,7 @@ import { knownTeamName } from '../../../lib/recent-teams';
 import { ENTRY_WORDS, teamNameFromDomain } from '../../../lib/entry';
 import { readStart, rememberStart } from '../../../scripts/start';
 import { humanizeRepo } from '../../../lib/demo';
+import { shortName } from '../../../lib/home-model';
 import { TEAM_NAME_WORDS, teamNameProblem } from '../../../lib/team-name';
 import { AI_TOOLS_WORDS, FALLBACK_TOOLS, toolsSummary, type AiTool } from '../../../lib/ai-tools';
 import { copilotSetup } from '../../../lib/claude-connector';
@@ -919,7 +920,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
       <div className="onb-head">
         <Drawing name="hero" width={126} className="onb-art" />
         <h1 id="onb-title" className="onb-h1">
-          {ctx.account ? ENTRY_WORDS.setupTitle(name, ctx.account.teamName) : firstRunTitle(name, open === 'changes' ? 'changes' : 'library', doneCount(steps) === steps.length)}
+          {ctx.account ? ENTRY_WORDS.setupTitle(name, ctx.account.teamName) : firstRunTitle(name, open === 'changes' && steps.find((s) => s.id === 'changes')?.state !== 'done' ? 'changes' : 'library', doneCount(steps) === steps.length)}
         </h1>
       </div>
       <div className="onb-main">{panel}</div>
@@ -1032,7 +1033,7 @@ export function setupStepFromUrl(search: string): StepId | null {
 }
 
 export interface HostedOnboardingProps {
-  gate: { owner: string; repo: string; login: string | null; access: RepoAccessState | null; repoAdmin: boolean };
+  gate: { owner: string; repo: string; login: string | null; name?: string | null; access: RepoAccessState | null; repoAdmin: boolean };
   /** The team link. */
   link: string;
   initial: StepId;
@@ -1128,7 +1129,8 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
   return (
     <Onboarding
       steps={steps}
-      name={gate.login}
+      /* The first name, as the Home greeting says it: never the GitHub login, which reads as a handle. */
+      name={shortName(gate.name) ?? null}
       initial={initial}
       ctx={{
         repo,

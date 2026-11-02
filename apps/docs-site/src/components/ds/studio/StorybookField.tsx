@@ -10,6 +10,8 @@ import { clearStorybook, saveStorybook } from '../../../scripts/workspace';
 import { storybookErrorLine, storybookRows } from '../../../lib/storybook-view';
 import { storybookHost, type WorkspaceStorybook } from '../../../lib/workspace';
 import { studioHref } from '../../../lib/team-path';
+// Its own styles: the field also opens on a team's home (the hosted setup), whose page does not load them.
+import '../../../styles/storybook-quick.css';
 
 export const STORYBOOK_PAGE = studioHref('components/storybook/');
 

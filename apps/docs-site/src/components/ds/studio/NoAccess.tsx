@@ -12,7 +12,7 @@
 // with ?next=<this page>; GitHub stays the primary action here and an option there.
 // TeamAccessGate mounts it on every team page (layouts/Layout.astro, hosted only) and also opens the hosted
 // onboarding there on ?setup=<step> (components/ds/studio/Onboarding.tsx, step 2 hosted states, step Invite your team).
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import '../../../styles/onboarding.css';
 import '../../../styles/requests.css';
 import { AlertTriangle, Check, Copy, Info, LogOut, Mail, UserPlus } from 'lucide-react';
@@ -45,8 +45,11 @@ const SESSION_ATTRS = {
  * Bridge account, the GitHub sign-in of this browser makes or opens one first. Bridge cannot send it: the message is
  * copied, and said.
  */
-function AskButton({ action, variant, copy }: { action: Extract<AccessAction, { kind: 'ask' }>; variant: 'primary' | 'secondary'; copy: (text: string, done: string) => void }) {
+function AskButton({ action, variant, copy, onSent }: { action: Extract<AccessAction, { kind: 'ask' }>; variant: 'primary' | 'secondary'; copy: (text: string, done: string) => void; onSent?: () => void }) {
   const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'copied'>('idle');
+  useEffect(() => {
+    if (state === 'sent') onSent?.();
+  }, [state, onSent]);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -114,10 +117,10 @@ function AskButton({ action, variant, copy }: { action: Extract<AccessAction, { 
   );
 }
 
-function ActionButton({ action, variant, copy, copied }: { action: AccessAction; variant: 'primary' | 'secondary'; copy: (text: string, done: string) => void; copied: boolean }) {
+function ActionButton({ action, variant, copy, copied, onSent }: { action: AccessAction; variant: 'primary' | 'secondary'; copy: (text: string, done: string) => void; copied: boolean; onSent?: () => void }) {
   switch (action.kind) {
     case 'ask':
-      return <AskButton action={action} variant={variant} copy={copy} />;
+      return <AskButton action={action} variant={variant} copy={copy} {...(onSent ? { onSent } : {})} />;
     case 'email':
       return (
         <ButtonLink variant={variant} iconStart={Mail} href={signInHere()}>
@@ -180,6 +183,9 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
     </p>
   );
   const fallback = said && !copied ? <p className="na-quiet">{said}</p> : null;
+  // Asked to join (now or earlier): the sentence stops asking, the sent line beside it says what happens next.
+  const [asked, setAsked] = useState(false);
+  const onAsked = useCallback(() => setAsked(true), []);
 
   if (screen.layout === 'banner') {
     return (
@@ -190,7 +196,7 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
         title={screen.title}
         actions={
           <>
-            <ActionButton action={screen.primary} variant="secondary" copy={run} copied={copied} />
+            <ActionButton action={screen.primary} variant="secondary" copy={run} copied={copied} onSent={onAsked} />
             {emailLink && (
               <Link href={signInHere()} className="na-banner-link">
                 {emailLink.action.label}
@@ -199,7 +205,7 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
           </>
         }
       >
-        {screen.body}
+        {asked && screen.primary.kind === 'ask' ? ASK_WORDS.waiting : screen.body}
         {updatedAt && (
           <span className="na-updated">
             {' '}
@@ -273,6 +279,8 @@ export interface GateState {
   owner: string;
   repo: string;
   login: string | null;
+  /** The viewer's profile name on GitHub, when they gave one: the setup greets them by their first name. */
+  name?: string | null;
   access: RepoAccessState | null;
   repoAdmin: boolean;
   /** This site signs email contributors in on this team (real teams only). */
@@ -322,7 +330,7 @@ export function TeamAccessGate() {
       const paint = (access: ReturnType<typeof session.currentAccess>) => {
         const r = repoContext();
         const v = session.currentViewer();
-        setG({ owner: r.owner, repo: r.repo, login: v?.login ?? null, access: access?.state ?? null, repoAdmin: access?.repoAdmin === true || access?.admin === true, email, emailExpired: session.contributeLinkState() === 'expired', asks, account });
+        setG({ owner: r.owner, repo: r.repo, login: v?.login ?? null, name: v?.name ?? null, access: access?.state ?? null, repoAdmin: access?.repoAdmin === true || access?.admin === true, email, emailExpired: session.contributeLinkState() === 'expired', asks, account });
       };
       session.initGitHubConnect(() => paint(session.currentAccess()));
       session.onAccess(paint);

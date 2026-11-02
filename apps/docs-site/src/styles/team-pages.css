@@ -43,10 +43,10 @@
   font-weight: var(--typography-body-weight);
 }
 
-/* Team Home: the source line sits above the greeting zone, in the page width. */
+/* Team Home: the source line, a footnote under the home (the Harbor zone opens the page), in the page width. */
 .sh-team-source {
   max-width: var(--studio-page-max);
-  margin-block-end: var(--space-3);
+  margin-block-start: var(--space-8);
 }
 
 .sh-team-source:empty {
