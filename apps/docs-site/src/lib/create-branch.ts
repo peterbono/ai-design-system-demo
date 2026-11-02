@@ -151,11 +151,11 @@ export function productRepoBlockedLine(product: string, reason: 'not-connected' 
 
 /**
  * The admin action: its button label and the message it copies (install Bridge on the repository, or give access).
- * `email`: the person joined with their email, so the way in is a design copy of the product (they explore there
- * through Bridge), never GitHub access.
+ * `email`: a designer (joined with their email, or with GitHub as a designer of the team): the way in is a design copy
+ * of the product (they explore there through Bridge), never GitHub access.
  */
 export function askAdmin(product: string, repo: string, reason: 'not-connected' | 'read-only', installLink: string, email = false): { label: string; message: string } {
-  if (reason === 'read-only' && email) return { label: 'Ask an admin to let you in', message: `Hi, can you set up a design copy of ${product} in Bridge? I joined with my email and want to explore ${product} there.` };
+  if (reason === 'read-only' && email) return { label: 'Ask an admin to let you in', message: `Hi, can you set up a design copy of ${product} in Bridge? I want to explore ${product} there.` };
   if (reason === 'read-only') return { label: 'Ask an admin for access', message: `Hi, can you give me write access to github.com/${repo}? I want to start ${product} explorations from Bridge.` };
   return {
     label: `Ask an admin to connect ${product}`,

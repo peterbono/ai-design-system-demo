@@ -141,7 +141,7 @@ describe('where a feature starts', () => {
     // Someone who joined with their email gets in through a design copy, never GitHub access.
     const email = askAdmin('Shop', 'acme/shop', 'read-only', 'x', true);
     expect(email.label).toBe('Ask an admin to let you in');
-    expect(email.message).toBe('Hi, can you set up a design copy of Shop in Bridge? I joined with my email and want to explore Shop there.');
+    expect(email.message).toBe('Hi, can you set up a design copy of Shop in Bridge? I want to explore Shop there.');
     expect(email.message).not.toMatch(/github|\u2014/i);
     expect(ask.message).not.toMatch(/\u2014/);
   });

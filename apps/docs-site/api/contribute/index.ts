@@ -62,6 +62,12 @@
 //   POST   issues/<n>/labels           theirs only
 // Never: merges, reviews, requested reviewers, rulesets, branch protection, collaborators, deleting a ref, hooks,
 // settings, another repository, GraphQL.
+// Designers signed in with GitHub (push on the team's repository, not an admin, not a lead: githubDesignerOf) go
+// through here too for the team's products, proving who they are with their own GitHub token (Authorization: Bearer,
+// read with GET /user and the team's repository, never trusted from the browser); their branches are kept as
+// gh:<login>, and an exploration they opened on GitHub before is theirs when its pull request is their own. In the
+// library they keep their own GitHub path; leads and admins keep GitHub everywhere.
+//
 // In the team's products (bridge.config.json products[] with a design.repo, planProductCall), an email designer
 // explores like everyone: in the design team's copy their explore/* branches (started from the default branch with
 // design files only, then moved forward with any file but CI, hosting settings and node_modules: prototype code is
@@ -338,6 +344,21 @@ async function sessionMember(ctx: Ctx, req: Request, repoFull: string): Promise<
 }
 
 /**
+ * For the hosted connector (api/mcp): when the GitHub account of `token` is a designer of `team` (githubDesignerOf),
+ * the repositories of the team's products (each design copy and developers' repository) it reaches through Bridge;
+ * null for a lead, an admin, anyone else, or when the proxy is not set up.
+ */
+export async function designerProductsFor(token: string, team: string, env: ContribEnv, deps: ContribDeps): Promise<string[] | null> {
+  const svc = services(env, deps);
+  if (!svc) return null;
+  const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
+  const t = parseRepo(team);
+  const d = await githubDesignerOf(ctx, new Request('https://bridge.invalid/', { headers: { Authorization: `Bearer ${token}` } }), t);
+  if (d.kind !== 'designer') return null;
+  return (await productPairs(ctx, t)).flatMap((p) => [p.copy, p.code]);
+}
+
+/**
  * The email member behind a request for this team (the team's cookie or a Bridge account session), for other functions
  * that accept contributors (api/ship). Null when not signed in, or when storage, the secret or the app is missing.
  */
@@ -554,7 +575,7 @@ interface Call {
   owner: string;
   repo: string;
   full: string;
-  member: EmailMember;
+  member: ProxyMember;
   token: string;
   method: string;
   target: Target;
@@ -738,8 +759,13 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
     }
   };
   // A work email is never published on a public repository: a stable address that routes nowhere stands in for it.
-  const author = async () => ({ name: c.member.name, email: (await info()).private ? c.member.email : publicEmail(ctx.svc.secret, c.full, c.member.email) });
-  const line = async () => `Requested by ${c.member.name}${(await info()).private ? ` (${c.member.email})` : ''} through Bridge.`;
+  // A designer signed in with GitHub: their commits carry GitHub's own no-reply address, so GitHub shows them as the
+  // author; their login is public, so the line names it on any repository.
+  const author = async () =>
+    c.member.login
+      ? { name: c.member.name, email: `${c.member.githubId ? `${c.member.githubId}+` : ''}${c.member.login}@users.noreply.github.com` }
+      : { name: c.member.name, email: (await info()).private ? c.member.email : publicEmail(ctx.svc.secret, c.full, c.member.email) };
+  const line = async () => `Requested by ${c.member.name}${c.member.login ? ` (@${c.member.login})` : (await info()).private ? ` (${c.member.email})` : ''} through Bridge.`;
   /** The text with the "Requested by" line at the end, unless it already carries it (attribution is never edited away). */
   const requested = async (text: unknown) => {
     const l = await line();
@@ -903,16 +929,33 @@ export function scopeOf(pairs: readonly ProductPair[], target: string): ProductS
   return asCode ? { kind: 'code', pair: asCode } : null;
 }
 
-/** The team's product pairs, read from its default branch with the app, cached 5 minutes per warm function. */
-const pairsCache = new Map<string, { at: number; pairs: ProductPair[] }>();
+/**
+ * The team's leads on GitHub (bridge.config.json governance): its design and tech owners and the people allowed the
+ * owner override. A GitHub account among them keeps its own GitHub path to the products; everyone else with push on
+ * the team is a designer, who writes there through Bridge. Logins lower case; anything malformed is left out.
+ */
+export function teamLeadsFrom(config: unknown): string[] {
+  const g = config && typeof config === 'object' ? (config as { governance?: any }).governance : null;
+  const lists = [g?.owners?.design, g?.owners?.tech, g?.override?.allowed];
+  const out = new Set<string>();
+  for (const l of lists) if (Array.isArray(l)) for (const v of l) if (typeof v === 'string' && /^@?[A-Za-z0-9-]{1,39}$/.test(v.trim())) out.add(v.trim().replace(/^@/, '').toLowerCase());
+  return [...out];
+}
+
+/** The team's product pairs and leads, read from its default branch with the app, cached 5 minutes per warm function. */
+const pairsCache = new Map<string, { at: number; pairs: ProductPair[]; leads: string[] }>();
 export const clearProductPairCache = () => pairsCache.clear();
 
 async function productPairs(ctx: Ctx, team: { owner: string; repo: string; full: string }): Promise<ProductPair[]> {
+  return (await teamFacts(ctx, team)).pairs;
+}
+
+async function teamFacts(ctx: Ctx, team: { owner: string; repo: string; full: string }): Promise<{ pairs: ProductPair[]; leads: string[] }> {
   const hit = pairsCache.get(team.full);
-  if (hit && ctx.now() - hit.at < 5 * 60 * 1000) return hit.pairs;
+  if (hit && ctx.now() - hit.at < 5 * 60 * 1000) return hit;
   const token = await ctx.svc.app.installationToken(team.owner, team.repo);
-  // Deny by default: a team Bridge cannot read lists no product.
-  if (!token) return [];
+  // Deny by default: a team Bridge cannot read lists no product (and no lead: nobody is a designer of it either).
+  if (!token) return { pairs: [], leads: [] };
   let res: Response;
   try {
     res = await ctx.f(`${API}/repos/${team.owner}/${team.repo}/contents/bridge.config.json`, {
@@ -922,15 +965,77 @@ async function productPairs(ctx: Ctx, team: { owner: string; repo: string; full:
   } catch {
     throw new HttpError(502, 'unreachable', GITHUB_DOWN);
   }
-  if (res.status !== 200) return [];
+  if (res.status !== 200) return { pairs: [], leads: [] };
   let pairs: ProductPair[] = [];
+  let leads: string[] = [];
   try {
-    pairs = productPairsFrom(JSON.parse(await res.text()), team.full);
+    const config: unknown = JSON.parse(await res.text());
+    pairs = productPairsFrom(config, team.full);
+    leads = teamLeadsFrom(config);
   } catch {
     pairs = [];
+    leads = [];
   }
-  pairsCache.set(team.full, { at: ctx.now(), pairs });
-  return pairs;
+  const facts = { at: ctx.now(), pairs, leads };
+  pairsCache.set(team.full, facts);
+  return facts;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Designers signed in with GitHub
+
+/**
+ * Who writes in the products through Bridge (Florian's rule, 2026-11-02): every designer of the team, with or without
+ * GitHub. A GitHub account is a designer of the team when GitHub gives it push on the team's repository, it does not
+ * administer it, and it is not one of the team's leads (teamLeadsFrom). Leads and admins keep their own GitHub path
+ * (approve, merge, make the copy); an account with read only is not on the team as an editor. Pure.
+ */
+export function githubRoleOf(perms: { admin?: boolean; maintain?: boolean; push?: boolean; pull?: boolean } | null | undefined, login: string, leads: readonly string[]): 'designer' | 'lead' | 'none' {
+  if (!perms) return 'none';
+  if (perms.admin || leads.includes(login.toLowerCase())) return 'lead';
+  return perms.push || perms.maintain ? 'designer' : 'none';
+}
+
+/** A member the proxy acts for: an email member, or a designer signed in with GitHub (`login` set, `email` is gh:<login>). */
+export type ProxyMember = EmailMember & { login?: string; githubId?: number };
+
+export type DesignerCheck =
+  | { kind: 'designer'; member: ProxyMember }
+  | { kind: 'lead' }
+  | { kind: 'none' }
+  | { kind: 'expired' };
+
+export const LEADS_DIRECT = 'Leads change the products on GitHub directly, not through Bridge.';
+export const GITHUB_EXPIRED = 'Your GitHub sign-in expired. Sign in again.';
+
+const designerCache = new Map<string, { at: number; v: DesignerCheck }>();
+export const clearDesignerCache = () => designerCache.clear();
+
+/**
+ * The GitHub account behind `Authorization: Bearer` on this team, read with its own token (GET /user, GET the team's
+ * repository): never what the browser says. Kept 5 minutes per warm function, by a hash of the token.
+ */
+export async function githubDesignerOf(ctx: Ctx, req: Request, team: { owner: string; repo: string; full: string }): Promise<DesignerCheck> {
+  const bearer = /^Bearer\s+([A-Za-z0-9_.-]{20,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
+  if (!bearer) return { kind: 'none' };
+  const key = `${sha256(bearer)}:${team.full}`;
+  const hit = designerCache.get(key);
+  if (hit && ctx.now() - hit.at < 5 * 60 * 1000) return hit.v;
+  const me = await ghApp(ctx, bearer, 'GET', '/user');
+  if (me.status === 401 || me.status === 403 || typeof me.data?.login !== 'string') return { kind: 'expired' };
+  const r = await ghApp(ctx, bearer, 'GET', `/repos/${team.owner}/${team.repo}`);
+  if (r.status === 401) return { kind: 'expired' };
+  const login: string = me.data.login;
+  const role = githubRoleOf(r.status === 200 ? r.data?.permissions : null, login, (await teamFacts(ctx, team)).leads);
+  const name = typeof me.data.name === 'string' && me.data.name.trim() ? me.data.name.trim() : login;
+  const v: DesignerCheck =
+    role === 'designer'
+      ? { kind: 'designer', member: { email: `gh:${login.toLowerCase()}`, name, role: 'edit', version: 0, addedBy: 'github', at: '', login, ...(typeof me.data.id === 'number' ? { githubId: me.data.id } : {}) } }
+      : role === 'lead'
+        ? { kind: 'lead' }
+        : { kind: 'none' };
+  designerCache.set(key, { at: ctx.now(), v });
+  return v;
 }
 
 // The names core uses (explorations.ts, design-copy-github.ts), kept here so this function bundles without the core
@@ -972,8 +1077,20 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
   const scope = c.scope!;
   const r = c.target.rest;
   const { at, body } = h;
-  const ownedExplore = async (b: unknown) =>
-    typeof b === 'string' && validBranch(b) && b.startsWith(EXPLORATION_PREFIX) && !(await h.isDefault(b)) && (await ctx.svc.redis.cmd('GET', branchKey(c.full, b))) === c.member.email;
+  const ownedExplore = async (b: unknown): Promise<boolean> => {
+    if (typeof b !== 'string' || !validBranch(b) || !b.startsWith(EXPLORATION_PREFIX) || (await h.isDefault(b))) return false;
+    const owner = await ctx.svc.redis.cmd('GET', branchKey(c.full, b));
+    if (owner === c.member.email) return true;
+    // An exploration a designer started on GitHub before Bridge wrote for them (no owner kept): theirs when its pull
+    // request in the copy was opened by their own GitHub account. Kept from then on.
+    if (owner || !c.member.login || scope.kind !== 'copy') return false;
+    const pulls = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/pulls?state=open&per_page=100`);
+    const mine = Array.isArray(pulls.data) && pulls.data.some((p: any) => p?.head?.ref === b && p?.head?.repo?.full_name?.toLowerCase() === c.full && typeof p?.user?.login === 'string' && p.user.login.toLowerCase() === c.member.login!.toLowerCase());
+    if (!mine) return false;
+    await ctx.svc.redis.cmd('SET', branchKey(c.full, b), c.member.email, 'EX', OWNERSHIP_TTL_S);
+    await rememberMine(ctx, c.full, c.member.email, `b:${b}`);
+    return true;
+  };
 
   if (scope.kind === 'copy') {
     /** Every path a sandbox path (isSandboxPath): their own exploration may hold prototype code, never CI or hosting. */
@@ -1149,12 +1266,22 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
   const method = req.method.toUpperCase();
   const { owner, repo, full } = parseRepo(params.get('repo'));
   if (method === 'GET') return onTeamRead(req, ctx, params);
-  const member = await sessionMember(ctx, req, full);
-  if (!member) return json(401, { error: 'signin', message: SIGNIN }, { 'Set-Cookie': clearSession(full) });
   // The team's own repository, or one of its products' (the design copy, the developers' task): anything else, never.
   const any = parseAnyTarget(params.get('gh'));
   const own = any.owner.toLowerCase() === owner.toLowerCase() && any.repo.toLowerCase() === repo.toLowerCase();
   const scope = own ? null : scopeOf(await productPairs(ctx, { owner, repo, full }), `${any.owner}/${any.repo}`);
+  let member: ProxyMember | null = await sessionMember(ctx, req, full);
+  if (!member) {
+    // A designer signed in with GitHub writes in the products through Bridge too; in the library they keep GitHub.
+    const d = await githubDesignerOf(ctx, req, { owner, repo, full });
+    if (d.kind === 'expired') return fail(401, 'signin', GITHUB_EXPIRED);
+    if (d.kind === 'lead') throw new HttpError(403, 'not-allowed', LEADS_DIRECT);
+    if (d.kind === 'designer') {
+      if (!scope) throw notAllowed();
+      member = d.member;
+    }
+  }
+  if (!member) return json(401, { error: 'signin', message: SIGNIN }, { 'Set-Cookie': clearSession(full) });
   if (!own && !scope) throw notAllowed();
   const target: Target = { rest: any.rest, rawRest: any.rawRest, query: any.query };
   const at = own ? { owner, repo, full } : { owner: any.owner, repo: any.repo, full: `${any.owner}/${any.repo}`.toLowerCase() };
@@ -1248,6 +1375,11 @@ async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx): Pr
   // A member reads on their own budget (api/_lib/team-read.ts budgetOf), not their address's.
   const m = await sessionMember(ctx, req, full);
   if (m) return { kind: 'member', email: m.email };
+  // A designer signed in with GitHub reads the team's products through Bridge (they need no access to the copy).
+  if (req.headers.get('authorization')) {
+    const d = await githubDesignerOf(ctx, req, { ...parseRepo(full), full: full.toLowerCase() });
+    if (d.kind === 'designer') return { kind: 'member', email: d.member.email };
+  }
   const a = await sessionAccount(req, ctx.svc.redis, ctx.svc.secret, ctx.now());
   if (a) {
     // The account's team set (api/_lib/members.ts keeps it, and team creation adds admins to it).
@@ -1414,8 +1546,10 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
       const m = await sessionMember(ctx, req, full);
       if (params.get('members') === '1') return await membersOf(ctx, req, full, m);
       if (params.get('mine') === '1') {
-        if (!m) return fail(401, 'signin', SIGNIN);
-        return json(200, await mineOf(ctx, full, m.email));
+        const d = m ? null : await githubDesignerOf(ctx, req, { ...parseRepo(full), full: full.toLowerCase() });
+        const who = m?.email ?? (d?.kind === 'designer' ? d.member.email : null);
+        if (!who) return fail(401, 'signin', SIGNIN);
+        return json(200, await mineOf(ctx, full, who));
       }
       // Local mode only: a member seeded as admin reads as admin, so Studio shows them the admin screens (the server
       // checks again on every admin action).

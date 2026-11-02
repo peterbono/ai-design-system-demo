@@ -165,7 +165,7 @@ export interface ExplorationPageProps {
    * sample team, still reading, a failed read): they open Claude directly.
    */
   claudeLink?: 'yes' | 'no' | 'unknown';
-  /** The viewer joined with their email (no GitHub): the Claude app with Bridge is their one tool. */
+  /** A designer (joined with their email, or with GitHub but working in the copy through Bridge): the Claude app with Bridge is their one tool. */
   emailMember?: boolean;
   /** The connector address the steps show (<origin>/mcp). */
   connectorAddress?: string;

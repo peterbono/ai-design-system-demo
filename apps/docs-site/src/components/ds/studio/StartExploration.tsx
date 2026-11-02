@@ -131,8 +131,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const [done, setDone] = useState<{ prompt: string; app: string; href: string; name: string; where: string; setup: ToolSetup } | null>(null);
   const [claudeLink, setClaudeLink] = useState<ClaudeLink>('unknown');
   const [toolSaid, setToolSaid] = useState('');
-  // Joined with their email (no GitHub): they explore a product in its design team's copy, through Bridge, and the
-  // Claude app with Bridge is their one AI tool.
+  // A designer (joined with their email, or with GitHub as a designer of the team): they explore a product in its design
+  // team's copy, through Bridge, and the Claude app with Bridge is their one AI tool.
   const [email, setEmail] = useState(false);
   const tools = useAiTools(claudeLink, email);
   // The last step while the viewer's own Claude has no Bridge: read again when they come back from Claude.
@@ -195,7 +195,13 @@ export default function StartExploration({ components, appearance = 'menu', prod
       void import('../../../scripts/github-session')
         .then((m) => {
           setEmail(Boolean(m.currentContributor()));
-          m.onAccess((a) => setLead(libraryLead(a)));
+          // A designer signed in with GitHub works like an email member in the products (through Bridge) and, like
+          // them, is not a lead of the library.
+          m.onAccess((a) => {
+            const designer = m.designerRoute();
+            setLead(libraryLead(a) && !designer);
+            if (designer) setEmail(true);
+          });
         })
         .catch(() => undefined);
   }, []);

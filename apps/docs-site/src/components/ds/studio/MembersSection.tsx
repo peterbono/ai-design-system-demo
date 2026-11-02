@@ -12,7 +12,7 @@
 // Admins of a real team on the hosted site also see who asks to join and who can find the team (JoinRequests.tsx,
 // boards E7a and E7c): "Asks to join" above the members, the discovery Switch under the intro. Approve puts the person
 // in the list at once (withJoined, BR-19), and a read after the row leaves confirms it.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link2Off, MoreHorizontal, UserPlus } from 'lucide-react';
 import { Alert, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, MenuGroup, MenuItem, MenuTrigger, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import RolePicker from './RolePicker';
@@ -177,6 +177,13 @@ export default function MembersSection() {
   const [inviting, setInviting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const ready = load.status === 'ready' ? load.data : null;
+  // A product with a design copy (products[].design): admins read once that designers work there through Bridge.
+  const [copies, setCopies] = useState(false);
+  useEffect(() => {
+    void import('../../../scripts/repo-context')
+      .then(({ siteConfig }) => setCopies(Boolean(siteConfig().products?.some((p) => p.design?.repo))))
+      .catch(() => undefined);
+  }, [ready]);
   // Asked at once with the page's team, not after the members: the server says who is admin, and the rows paint first.
   // A team made in Bridge waits for its members (one quick read of this site's server, which says the role): its
   // members who are not admins never ask for what only admins may read.
@@ -259,6 +266,7 @@ export default function MembersSection() {
         </TableBody>
       </Table>
       <NoticeLine notice={notice} />
+      {data.canManage && data.context === 'real' && copies && <p className="mem-intro mem-note">{MEMBERS_WORDS.designersThroughBridge}</p>}
       {data.canManage && <InviteDialog open={inviting} onOpenChange={setInviting} shared={{ data, update }} />}
     </div>
   );
