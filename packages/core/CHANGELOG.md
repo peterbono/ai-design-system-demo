@@ -1,5 +1,11 @@
 # @bridge-ds/core
 
+## 0.26.4
+
+### Patch Changes
+
+- 69b26e4: A member's email never goes into GitHub: the developers' task says "From Dino, through Bridge.", the "Requested by" line names them without their email, and their commits carry Bridge's stand-in address on private repositories too. The library check of an exploration runs on its own for members who joined by email (Bridge's server runs it with their Bridge session), so "Check in Claude" is only a fallback.
+
 ## 0.26.3
 
 ### Patch Changes
