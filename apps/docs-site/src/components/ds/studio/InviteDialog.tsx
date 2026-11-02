@@ -29,6 +29,7 @@ import {
   roleLabel,
   roleText,
   SAMPLE_NOW,
+  closeLabel,
   sendLabel,
   sortMembers,
   type RoleChoice,
@@ -102,6 +103,8 @@ export default function InviteDialog({ open, onOpenChange, shared, onSent }: Inv
   const [choice, setChoice] = useState<RoleChoice>(DEFAULT_CHOICE);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Invites went out since the dialog opened: with nothing left to send, the way out reads Done, not Cancel. */
+  const [sent, setSent] = useState(false);
   const inputId = `${useId()}-email`;
   const hintId = `${inputId}-hint`;
   const labelId = `${inputId}-label`;
@@ -114,6 +117,7 @@ export default function InviteDialog({ open, onOpenChange, shared, onSent }: Inv
     setChoice(DEFAULT_CHOICE);
     setNotice(null);
     setBusy(false);
+    setSent(false);
   }, [open]);
 
   const data = load.status === 'ready' ? load.data : null;
@@ -152,6 +156,7 @@ export default function InviteDialog({ open, onOpenChange, shared, onSent }: Inv
     if (r.notice) setNotice(r.notice);
     if (r.notice?.tone === 'success') {
       setEmails(r.left);
+      setSent(true);
       onSent?.();
     }
   };
@@ -161,7 +166,7 @@ export default function InviteDialog({ open, onOpenChange, shared, onSent }: Inv
     data && data.context !== 'none' ? (
       <div className="inv-footer">
         <ButtonGroup>
-          <DialogClose render={<Button variant="secondary" size="lg" />}>{data.canManage ? 'Cancel' : 'Close'}</DialogClose>
+          <DialogClose render={<Button variant="secondary" size="lg" />}>{closeLabel(data.canManage, sent, emails.length)}</DialogClose>
           {data.canManage && (
             <Button variant="primary" size="lg" disabled={!canSend} loading={busy} data-demo-write={sample ? 'send invites' : undefined} onClick={() => void send()}>
               {sendLabel(emails.length)}

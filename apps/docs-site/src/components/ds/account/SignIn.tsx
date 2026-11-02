@@ -26,7 +26,7 @@ import { ENTRY_SHOWN_KEY, ENTRY_WORDS as EW, INVITE_TOKEN_KEY, JOINED_KEY, entry
 import { DomainRoom, InviteLinkRoom, InviteRoom, PickRoom } from './EntryRooms';
 import { isEmail } from '../../../lib/invites';
 import { maskEmail } from '../../../lib/library-access';
-import { loadRecentTeams, loadTeamNames } from '../../../lib/recent-teams';
+import { loadRecentTeams, loadTeamNames, loadTeamRoles } from '../../../lib/recent-teams';
 import { continueAs, readLastEmail, rememberEmail, type ContinueAs } from '../../../lib/signin-continue';
 import { useFace } from './AccountMenu';
 import { DEMO_HOME, START_PAGE } from '../../../lib/start';
@@ -81,14 +81,15 @@ function safeStore(): Storage | null {
 }
 
 /** The GitHub login of this browser's GitHub sign-in, when it still works; null otherwise (one GitHub call). */
-async function gitHubLogin(api: { workingGitHubToken: () => Promise<string | null> }): Promise<string | null> {
+async function gitHubLogin(api: { workingGitHubToken: () => Promise<string | null> }): Promise<{ login: string; name: string | null; avatar: string | null } | null> {
   try {
     const token = await api.workingGitHubToken();
     if (!token) return null;
     const r = await fetch('https://api.github.com/user', { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
     if (!r.ok) return null;
-    const u = (await r.json()) as { login?: unknown };
-    return typeof u.login === 'string' ? u.login : null;
+    const u = (await r.json()) as { login?: unknown; name?: unknown; avatar_url?: unknown };
+    if (typeof u.login !== 'string') return null;
+    return { login: u.login, name: typeof u.name === 'string' && u.name.trim() ? u.name.trim() : null, avatar: typeof u.avatar_url === 'string' ? u.avatar_url : null };
   } catch {
     return null;
   }
@@ -316,10 +317,10 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
         return setStep('continue');
       }
       // A GitHub sign-in on this browser without a Bridge account (a site without accounts, or never linked).
-      const ghLogin = await gitHubLogin(api);
+      const ghUser = await gitHubLogin(api);
       if (!live) return;
-      if (ghLogin && !next) {
-        setAlready(continueAs({ account: null, github: { login: ghLogin }, recent: loadRecentTeams() }));
+      if (ghUser && !next) {
+        setAlready(continueAs({ account: null, github: ghUser, recent: loadRecentTeams(), teamNames: loadTeamNames(), teamRoles: loadTeamRoles() }));
         return setStep('continue');
       }
       setEmail((e) => e || readLastEmail(safeStore()));

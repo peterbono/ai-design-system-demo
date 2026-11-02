@@ -28,14 +28,27 @@ export function useMembers(enabled = true): { load: MembersLoad; reload: () => v
   useEffect(() => {
     if (!enabled) return;
     let live = true;
-    void import('../../../scripts/members')
-      .then(({ loadMembers }) => loadMembers())
-      .then(
-        (data) => live && setLoad({ status: 'ready', data }),
-        () => live && setLoad({ status: 'error', message: 'Bridge could not read who is in this team. Try again in a minute.' }),
-      );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // The session may still be settling (signed in, viewer or access not read): stay on the skeleton and read again a
+    // few times before saying anything, never a stand-in list.
+    const attempt = (tries: number) =>
+      void import('../../../scripts/members')
+        .then(({ loadMembers }) => loadMembers(tries >= 3))
+        .then(
+          (data) => live && setLoad({ status: 'ready', data }),
+          (err: unknown) => {
+            if (!live) return;
+            if (err instanceof Error && err.message === 'members-pending' && tries < 3) {
+              timer = setTimeout(() => attempt(tries + 1), 800 * (tries + 1));
+              return;
+            }
+            setLoad({ status: 'error', message: 'Bridge could not read who is in this team. Try again in a minute.' });
+          },
+        );
+    attempt(0);
     return () => {
       live = false;
+      if (timer) clearTimeout(timer);
     };
   }, [enabled, run]);
   // Painted before the team's settings were read (scripts/members.ts ownersOfTeam): read again, quietly, once they

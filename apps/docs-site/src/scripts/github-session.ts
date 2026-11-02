@@ -216,6 +216,22 @@ export function getToken(): string | null {
  */
 export const signedInWithGitHub = (): boolean => Boolean(githubToken());
 
+/**
+ * A GitHub sign-in this browser holds under any app's slot, read only (nothing moved or cleared): for pages outside
+ * the app (the landing has no <html data-gh-app>), where key() would only look at the unscoped slot. The token, or null.
+ */
+export function anyGitHubToken(): string | null {
+  try {
+    for (const slot of STORAGE_SLOTS) {
+      const t = localStorage.getItem(slotKey(TOKEN_BASE, slot));
+      if (t && !isContribAuth(t)) return t;
+    }
+  } catch {
+    /* storage blocked: nobody signed in here */
+  }
+  return null;
+}
+
 export function setToken(token: string | null) {
   try {
     if (token) localStorage.setItem(key(TOKEN_BASE), token.trim());

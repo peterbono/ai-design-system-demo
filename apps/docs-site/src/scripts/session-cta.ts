@@ -12,7 +12,12 @@ export async function initSessionCta(): Promise<void> {
     const { account } = await getAccount().catch(() => ({ account: null }));
     const recent = loadRecentTeams();
     if (account) cta = sessionCta({ account, recent, teamNames: loadTeamNames() });
-    else if (await workingGitHubToken().catch(() => null)) cta = { label: 'Open Studio', href: sessionCta({ account: null, github: { login: 'you' }, recent })!.href };
+    else {
+      // The landing is outside the app (no <html data-gh-app>): a GitHub sign-in sits under an app's slot there.
+      const { anyGitHubToken } = await import('./github-session');
+      const token = (await workingGitHubToken().catch(() => null)) ?? anyGitHubToken();
+      if (token) cta = { label: 'Open Studio', href: sessionCta({ account: null, github: { login: 'you' }, recent })!.href };
+    }
   } catch {
     return;
   }
