@@ -11,13 +11,14 @@ import {
   clearProductPairCache,
   type ContribDeps,
   type FetchLike,
+  githubReadsTeam,
   githubRoleOf,
   handleContribute,
   issueSession,
   LEADS_DIRECT,
   teamLeadsFrom,
 } from '../../api/contribute/index';
-import { productRouteFor, startedByDesigner } from './write-route';
+import { productReadRoute, productRouteFor, startedByDesigner } from './write-route';
 
 const HOST = 'bridge.example.com';
 const ORIGIN = `https://${HOST}`;
@@ -34,12 +35,14 @@ const CONFIG = JSON.stringify({
 });
 
 /** Who each token is on GitHub, and what GitHub lets them do on the team's repository. */
-const PEOPLE: Record<string, { login: string; id: number; name?: string; perms: Record<string, boolean> | null }> = {
+const PEOPLE: Record<string, { login: string; id: number; name?: string; perms: Record<string, boolean> | null; teamPrivate?: boolean }> = {
   'ghu_designer_token_aaaaaaaa': { login: 'Dina', id: 42, name: 'Dina Park', perms: { push: true, pull: true } },
   'ghu_colleague_token_bbbbbbb': { login: 'Cole', id: 43, perms: { push: true, pull: true } },
   'ghu_lead_owner_token_ccccccc': { login: 'Lena', id: 44, perms: { push: true, pull: true } },
   'ghu_admin_token_dddddddddddd': { login: 'Ada', id: 45, perms: { admin: true, push: true, pull: true } },
   'ghu_reader_token_eeeeeeeeeee': { login: 'Rita', id: 46, perms: { pull: true } },
+  // Read on a private team's repository: GitHub only says so to people it gave access to.
+  'ghu_private_reader_token_ggg': { login: 'Pia', id: 47, perms: { pull: true }, teamPrivate: true },
 };
 
 const res = (status: number, body?: unknown) => new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -64,7 +67,7 @@ function github(w: World): FetchLike {
     // The person's own token: who they are, and their permissions on the team's repository.
     const who = PEOPLE[token];
     if (m === 'GET' && path === '/user') return who ? res(200, { login: who.login, id: who.id, name: who.name ?? null }) : res(401, { message: 'Bad credentials' });
-    if (m === 'GET' && path === '/repos/acme/design' && token !== 'ghs_contrib') return who?.perms ? res(200, { permissions: who.perms }) : res(404, { message: 'Not Found' });
+    if (m === 'GET' && path === '/repos/acme/design' && token !== 'ghs_contrib') return who?.perms ? res(200, { permissions: who.perms, private: who.teamPrivate === true }) : res(404, { message: 'Not Found' });
     if (m === 'GET' && path === '/repos/acme/design/contents/bridge.config.json') return new Response(CONFIG, { status: 200 });
     if (m === 'GET' && (path === '/repos/acme/shop-design' || path === '/repos/acme/shop')) return res(200, { default_branch: 'main', private: true });
     if (m === 'GET' && path.startsWith('/repos/acme/shop-design/contents/bridge.config.json')) return res(404, { message: 'Not Found' });
@@ -263,4 +266,64 @@ describe('which way a product write goes (lib/write-route productRouteFor)', () 
     ['signed out', { session: null, access: null, login: null, site }, 'github'],
   ];
   for (const [name, x, want] of table) it(name, () => expect(productRouteFor(x)).toBe(want));
+});
+
+describe("everyone on the team reads the products through Bridge's app (private products and design copies)", () => {
+  it('an explicit role on the team, or read on a private team, is on the team; read on a public team is everyone', () => {
+    expect(githubReadsTeam({ admin: true }, false)).toBe(true);
+    expect(githubReadsTeam({ maintain: true }, false)).toBe(true);
+    expect(githubReadsTeam({ push: true, pull: true }, false)).toBe(true);
+    expect(githubReadsTeam({ triage: true, pull: true }, false)).toBe(true);
+    expect(githubReadsTeam({ pull: true }, true)).toBe(true);
+    expect(githubReadsTeam({ pull: true }, false)).toBe(false);
+    expect(githubReadsTeam(null, true)).toBe(false);
+  });
+
+  it('a lead, an admin, a designer and a reader of a private team read the copy and the code repository with the app', async () => {
+    for (const token of ['ghu_lead_owner_token_ccccccc', 'ghu_admin_token_dddddddddddd', DINA, 'ghu_private_reader_token_ggg']) {
+      const s = setup();
+      for (const path of [`${C}/pulls?state=open&per_page=100`, '/repos/acme/shop/issues?labels=from-design', C]) {
+        const r = await call(s, token, 'GET', path);
+        expect(r.status, `${token} ${path}`).toBe(200);
+        // The app's read token reads the product, never the person's own.
+        expect(s.w.calls.at(-1)?.auth).toBe('Bearer ghs_contrib');
+      }
+    }
+  });
+
+  it('a GitHub account that only reads a public team, an unknown or no token, reads nothing', async () => {
+    const s = setup();
+    for (const token of ['ghu_reader_token_eeeeeeeeeee', 'ghu_unknown_token_ffffffffff', null]) expect((await call(s, token, 'GET', `${C}/pulls`)).status).toBe(401);
+    expect(s.w.calls.some((c) => c.path.startsWith(C) && c.auth === 'Bearer ghs_contrib')).toBe(false);
+  });
+
+  it('a lead reads only the products the team lists, under the read allow-list, and still writes on GitHub', async () => {
+    const s = setup();
+    const LEAD = 'ghu_lead_owner_token_ccccccc';
+    expect((await call(s, LEAD, 'GET', '/repos/acme/secret/contents/a.json')).status).toBe(403);
+    expect((await call(s, LEAD, 'GET', `${C}/collaborators`)).status).toBe(403);
+    expect((await call(s, LEAD, 'GET', `${C}/hooks`)).status).toBe(403);
+    const w = await call(s, LEAD, 'POST', `${C}/git/refs`, { ref: 'refs/heads/explore/x', sha: NOTE });
+    expect(w.status).toBe(403);
+    expect(((await w.json()) as { message: string }).message).toBe(LEADS_DIRECT);
+  });
+});
+
+describe('which way a product read goes (lib/write-route productReadRoute)', () => {
+  const products = ['art-print-shop-co/art-print-shop', 'art-print-shop-co/art-print-shop-design'];
+  const api = 'https://api.github.com';
+  const table: [string, Parameters<typeof productReadRoute>[0], 'github' | 'bridge'][] = [
+    ['a GitHub sign-in reads the design copy', { session: 'github', method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop-design`, products }, 'bridge'],
+    ['its explorations', { session: 'github', method: undefined, url: `${api}/repos/Art-Print-Shop-Co/Art-Print-Shop-Design/pulls?state=open`, products }, 'bridge'],
+    ['the tasks in the code repository', { session: 'github', method: 'get', url: `${api}/repos/art-print-shop-co/art-print-shop/issues?labels=from-design`, products }, 'bridge'],
+    ['check runs for a preview', { session: 'github', method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop/commits/${'a'.repeat(40)}/check-runs`, products }, 'bridge'],
+    ['an email member', { session: 'email', method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop/pulls`, products }, 'bridge'],
+    ['a write keeps its own route', { session: 'github', method: 'POST', url: `${api}/repos/art-print-shop-co/art-print-shop-design/git/refs`, products }, 'github'],
+    ['the library stays on GitHub', { session: 'github', method: 'GET', url: `${api}/repos/peterbono/ai-design-system-demo/pulls`, products }, 'github'],
+    ['a repository with the same prefix is not a product', { session: 'github', method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop-designs`, products }, 'github'],
+    ['another host', { session: 'github', method: 'GET', url: 'https://raw.githubusercontent.com/art-print-shop-co/art-print-shop/main/a.json', products }, 'github'],
+    ['the account itself', { session: 'github', method: 'GET', url: `${api}/user`, products }, 'github'],
+    ['a guest has its own path', { session: null, method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop/pulls`, products }, 'github'],
+  ];
+  for (const [name, x, want] of table) it(name, () => expect(productReadRoute(x)).toBe(want));
 });

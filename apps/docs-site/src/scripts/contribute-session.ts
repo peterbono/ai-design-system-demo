@@ -557,6 +557,11 @@ const repoOfPath = (path: string): string | null => {
 export interface DesignerAuth {
   authorization: string;
   login: string;
+  /**
+   * Someone on the team who only reads the products through Bridge (a lead or an admin: lib/write-route
+   * productReadRoute). Bridge writes nothing for them, so nothing is "theirs" to mark.
+   */
+  reader?: boolean;
 }
 
 function withoutAuth(h: Record<string, string>): Record<string, string> {
@@ -588,7 +593,7 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
   }
   const method = (init.method ?? 'GET').toUpperCase();
   const path = url.slice(GITHUB_API.length);
-  const authored = method === 'GET' && AUTHORED.test(path);
+  const authored = method === 'GET' && !as?.reader && AUTHORED.test(path);
   // A new branch, pull request or issue: "mine" is read again next time.
   if (method === 'POST' && /\/(git\/refs|pulls|issues)(\?|$)/.test(path)) forgetMine(repo);
   // Any write: what this tab kept of the team is read again.

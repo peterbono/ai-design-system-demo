@@ -6,6 +6,7 @@
 // not offered, and one line says who can do it.
 
 import type { ChangesMode } from '@bridge-ds/core';
+import { GITHUB_API } from './contribute';
 
 export type WriteRoute = 'direct' | 'suggest' | 'none';
 
@@ -81,6 +82,28 @@ export function productRouteFor(x: {
   const leads = [...(x.site?.owners?.design ?? []), ...(x.site?.owners?.tech ?? []), ...(x.site?.override?.allowed ?? [])].map((l) => l.replace(/^@/, '').toLowerCase());
   if (leads.includes(me)) return 'github';
   return x.access.write ? 'bridge' : 'github';
+}
+
+/**
+ * How a GitHub call of the Studio reads one of the team's product repositories (bridge.config.json products[].repo and
+ * the design copy products[].design.repo, lower case: productReposOfConfig) for the viewer. Settled rule: GitHub reads
+ * go through the Bridge server with the app's token, so a private product or design copy reads for everyone on the
+ * team (an email member, a designer, a lead or an admin signed in with GitHub), whatever their own token can see.
+ * 'bridge': a GET under a product repository, by someone signed in (the server checks they are on the team).
+ * 'github': anything else (the library, another repository, a guest, which has its own path); a write keeps its own
+ * route (productRouteFor, the suggest or direct app). Pure.
+ */
+export function productReadRoute(x: { method: string | undefined; url: string; products: readonly string[]; session: 'github' | 'email' | null }): ProductRoute {
+  if (!x.session || (x.method ?? 'GET').toUpperCase() !== 'GET' || !x.url.startsWith(GITHUB_API)) return 'github';
+  const m = /^\/repos\/([^/?#]+)\/([^/?#]+)(?:[/?#]|$)/.exec(x.url.slice(GITHUB_API.length));
+  if (!m) return 'github';
+  let repo: string;
+  try {
+    repo = `${decodeURIComponent(m[1]!)}/${decodeURIComponent(m[2]!)}`.toLowerCase();
+  } catch {
+    return 'github';
+  }
+  return x.products.some((p) => p.toLowerCase() === repo) ? 'bridge' : 'github';
 }
 
 /**
