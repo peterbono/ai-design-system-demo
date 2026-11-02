@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILD_IMAGE_LABEL, EXPLORATION_USE_CASES, explorationProblems } from '@bridge-ds/core';
-import { branchCount, branchWithJiraKey, isJiraKey, jargonIn, jiraKeyOf, parseJiraKey, STATUS_WORDS, titleWithJiraKey, VOCAB, withoutJiraKey } from './vocabulary';
+import { branchCount, branchWithJiraKey, isJiraKey, jargonIn, jiraKeyOf, parseJiraKey, shownJiraKey, STATUS_WORDS, titleWithJiraKey, VOCAB, withoutJiraKey } from './vocabulary';
+import { JIRA_IN_BRIDGE } from './studio-flags';
 
 describe('vocabulary', () => {
   it('speaks changes and the library, never git', () => {
@@ -72,5 +73,12 @@ describe('Jira keys', () => {
     expect(jiraKeyOf('tokens: darker primary')).toBeNull();
     expect(jiraKeyOf('Release v1.2')).toBeNull();
     expect(withoutJiraKey('DS-42 tokens: darker primary')).toBe('tokens: darker primary');
+  });
+
+  it('shows the key only while Jira is on in Bridge (off for the MVP)', () => {
+    expect(JIRA_IN_BRIDGE).toBe(false);
+    expect(shownJiraKey('DS-42 tokens: darker primary')).toBeNull();
+    expect(shownJiraKey('DS-42 tokens: darker primary', true)).toBe('DS-42');
+    expect(shownJiraKey(undefined, true)).toBeNull();
   });
 });

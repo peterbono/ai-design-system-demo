@@ -12,6 +12,7 @@ import type { ExampleNode } from '../lib/components';
 import { cleanDocs, docsEdits, docsFileText, setDocsEdit, validateDocs, type DocsEdit } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
 import { parseJiraKey, VOCAB } from '../lib/vocabulary';
+import { JIRA_IN_BRIDGE } from '../lib/studio-flags';
 import { SEE_SUGGESTION, sendButton as sendWords, sendGoal, SUGGESTION_SENT, suggestionSentLine } from '../lib/gh-wording';
 import { changesModeOnPage } from '../scripts/changes-mode';
 import {
@@ -1468,7 +1469,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
                 )}
                 {!branch && <Input label="Title" value={title} onChange={(ev) => setTitle(ev.target.value)} />}
                 {!branch && <Textarea label="Message to the team" hint="Optional. What changed and why, in a sentence or two." rows={3} value={message} onChange={(ev) => setMessage(ev.target.value)} />}
-                {!branch && <Input label="Jira ticket" placeholder="DS-42" hint="Optional. Links this change to the ticket in Jira." spellCheck={false} autoComplete="off" value={jira} onChange={(ev) => setJira(ev.target.value)} />}
+                {!branch && JIRA_IN_BRIDGE && <Input label="Jira ticket" placeholder="DS-42" hint="Optional. Links this change to the ticket in Jira." spellCheck={false} autoComplete="off" value={jira} onChange={(ev) => setJira(ev.target.value)} />}
                 {sendError && (
                   <Alert tone="danger" announce="auto">
                     {sendError}

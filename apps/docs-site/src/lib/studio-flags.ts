@@ -7,3 +7,11 @@
  * The code stays: a request still opens by its link (?request=N), and "Ask for a component change" still creates one.
  */
 export const REQUEST_TRIAGE_IN_STUDIO = false;
+
+/**
+ * Jira in Bridge: "Link a Jira ticket" when a change starts, the ticket key on rows, reviews and build requests, and
+ * the Settings Integrations card that mirrors requests to Jira. Off for the MVP, so no screen, prompt or title says
+ * Jira. The code stays (the key rules in @bridge-ds/core, the bridge-jira sync, the integrations form): one edit turns
+ * it back on.
+ */
+export const JIRA_IN_BRIDGE = false;

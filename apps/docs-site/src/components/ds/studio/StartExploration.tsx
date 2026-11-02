@@ -4,7 +4,7 @@
 //     to the library is an exploration whose target is the library. A designer of the team only sees products, and
 //     with one product no Where at all. Preselected from ?product= (key, name, or "library"), else the only
 //     product, else the library when the team lists no product.
-//   - What it is, in one sentence, and a Jira ticket on demand. The primary follows the person's AI tool
+//   - What it is, in one sentence, and a Jira ticket on demand (only with JIRA_IN_BRIDGE). The primary follows the person's AI tool
 //     (AiToolPanel.tsx, lib/ai-tools.ts): "Start with Claude AI" for Claude, "Start in Copilot" for GitHub Copilot
 //     in VS Code. It starts the exploration the way the CLI and MCP server do (the core exploration start with the
 //     product label from productMarks, none for the library), then the next step in that tool: the Claude app opens
@@ -44,6 +44,7 @@ import { installUrl } from '../../../lib/access-view';
 import { COPY_WORDS, madeLine } from '../../../lib/design-copy';
 import { siteConfig } from '../../../scripts/repo-context';
 import { isSampleTeam } from '../../../lib/demo';
+import { JIRA_IN_BRIDGE } from '../../../lib/studio-flags';
 import { useCopy } from './TeamLink';
 import { CONNECT_FIRST, connectFirst, copilotSetup, connectorUrl, TERMINAL_SETUP_LINE, TERMINAL_SETUP_LINE_COPY, terminalSetup } from '../../../lib/claude-connector';
 import type { AiTool } from '../../../lib/ai-tools';
@@ -379,7 +380,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
           onValueChange={setSentence}
           error={shown.sentence}
         />
-        {jiraOpen ? (
+        {!JIRA_IN_BRIDGE ? null : jiraOpen ? (
           <Input ref={jiraRef} label="Jira ticket" hint="Optional. Its key, like DS-42." size="lg" value={jira} onValueChange={setJira} error={shown.jira} />
         ) : (
           <span>

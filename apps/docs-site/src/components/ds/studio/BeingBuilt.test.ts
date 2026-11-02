@@ -49,6 +49,9 @@ describe('Being built', () => {
     expect(screen.getByRole('heading', { name: 'Badge: add an info tone' })).toBeTruthy();
     expect(screen.getByText('Where it stands')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'For developers' })).toBeTruthy();
+    // #33 carries a Jira key (DS-128): with Jira off in Bridge, neither the key nor its link shows.
+    await userEvent.click(screen.getByRole('button', { name: 'For developers' }));
+    expect(document.body.textContent).not.toMatch(/jira|DS-128/i);
   });
 
   it('teaches what a build request is when nothing was sent', async () => {
@@ -56,7 +59,9 @@ describe('Being built', () => {
     const { container } = render(createElement(BeingBuilt));
     expect(await screen.findByText('Nothing is being built yet.')).toBeTruthy();
     expect(container.textContent).toContain('Bridge Figma plugin');
-    expect(container.textContent).toContain('GitHub or Jira');
+    // Jira is off in Bridge for the MVP (lib/studio-flags JIRA_IN_BRIDGE): developers pick them up in GitHub.
+    expect(container.textContent).toContain('where they work, in GitHub, and');
+    expect(container.textContent).not.toMatch(/jira/i);
     await expectNoAxeViolations(container);
   });
 

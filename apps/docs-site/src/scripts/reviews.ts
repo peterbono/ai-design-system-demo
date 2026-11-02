@@ -61,7 +61,7 @@ import { ciFor, loadStatuses, ON_ITS_WAY, rowWho, teamPeople, type PullStatus } 
 import { approvedSuggestionOf } from './suggestions';
 import { mdTitleText } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
-import { jiraKeyOf, VOCAB, withoutJiraKey } from '../lib/vocabulary';
+import { shownJiraKey, VOCAB, withoutJiraKey } from '../lib/vocabulary';
 import { touchesVisuals } from '../lib/visual-impact';
 import { componentOfDocsPath, isDocsFile } from '../lib/pr-docs';
 import { docsFileText } from '../lib/docs-draft-model';
@@ -428,7 +428,7 @@ function listRow(r: Row): ListRow {
     number: r.number,
     title: humanTitle(mdTitleText(withoutJiraKey(r.title))),
     rawTitle: r.title,
-    jira: jiraKeyOf(r.title),
+    jira: shownJiraKey(r.title),
     author: r.user.login,
     agent: Boolean(r.agent) || agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
     opens: r.exploration ? 'exploration' : 'pr',
@@ -1317,7 +1317,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     productWork,
     code,
     title,
-    jira: jiraKeyOf(pull.title),
+    jira: shownJiraKey(pull.title),
     // In review: the same pill as its row in Branches and on the home (lib/changes statusPill over core reviewStatusKind).
     // In the demo seat: the list's pill for the same branch ("Waiting 1 day").
     status: onItsWay ? { label: status.label, tone: 'info', lifecycle: status.lifecycle } : seat && status.lifecycle === 'ready' && !exploration && pull.created_at ? { label: waitingLabel(pull.created_at, Date.now()), tone: 'warning', lifecycle: status.lifecycle } : status.lifecycle === 'ready' && !exploration ? { ...statusPill(reviewStatus({ state: pull.state, draft: pull.draft, labels: pull.labels, merged_at: pull.merged_at, ci, approvals, tier, mergeable: pull.mergeable }).kind, who), lifecycle: status.lifecycle } : { label: status.label, tone: status.tone, lifecycle: status.lifecycle },

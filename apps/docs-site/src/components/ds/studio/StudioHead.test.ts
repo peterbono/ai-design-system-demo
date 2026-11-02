@@ -28,7 +28,7 @@ describe('Studio page header', () => {
   });
 
   it('keeps the generic explanation behind a closed "How it works" fold', () => {
-    const { container } = render(createElement(StudioHead, { title: 'Being built', scene: 'building', how: createElement('p', null, 'Developers pick them up in GitHub or Jira.') }));
+    const { container } = render(createElement(StudioHead, { title: 'Being built', scene: 'building', how: createElement('p', null, 'Developers pick them up in GitHub.') }));
     const fold = container.querySelector('details.st-how') as HTMLDetailsElement;
     expect(fold.open).toBe(false);
     expect(fold.querySelector('summary')!.textContent).toBe('How it works');

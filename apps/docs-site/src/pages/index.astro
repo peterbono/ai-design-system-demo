@@ -10,6 +10,7 @@ import '../styles/home-illus.css';
 import '../styles/home-hero.css';
 import '../styles/home-compare.css';
 import Landing from '../layouts/Landing.astro';
+import { JIRA_IN_BRIDGE } from '../lib/studio-flags';
 import ButtonLink from '../components/ds/ButtonLink';
 import { ArrowRight } from 'lucide-react';
 import HpSprite from '../components/home/HpSprite.astro';
@@ -65,12 +66,19 @@ const GET_STARTED = signInHref(null, true);
         title="Start it in Bridge. Every change is tracked."
         lede="Explore with Claude AI as usual. Bridge tracks what it changes in your system."
         steps={[
-          { title: 'Start your exploration from Bridge', text: 'Pick the product, link the Jira ticket, start with Claude AI. It works on its own copy, with its own preview.' },
+          {
+            title: 'Start your exploration from Bridge',
+            text: JIRA_IN_BRIDGE
+              ? 'Pick the product, link the Jira ticket, start with Claude AI. It works on its own copy, with its own preview.'
+              : 'Pick the product and start with Claude AI. It works on its own copy, with its own preview.',
+          },
           { title: 'Bridge traces what changed', text: 'New pieces, changed tokens, values written by hand: everything the exploration did to your design system is listed.' },
           { title: 'Your DS lead reviews just that', text: 'No screenshots to compare. The DS lead and a developer review exactly those changes, in the product, with contrast checked.' },
         ]}
         labels={[
-          'Start an exploration dialog: a product is picked as where it happens, the library is the other choice, with a field to link a Jira ticket and a Start with Claude AI button',
+          JIRA_IN_BRIDGE
+            ? 'Start an exploration dialog: a product is picked as where it happens, the library is the other choice, with a field to link a Jira ticket and a Start with Claude AI button'
+            : 'Start an exploration dialog: a product is picked as where it happens, the library is the other choice, and a Start with Claude AI button',
           'A sieve labelled Bridge: the pieces your library already has, an avatar, text and a Follow button, fall through; the new Profile header is caught on top. New, Bridge keeps it',
           'Drawing: the kept Profile header is clipped onto a review easel; Dana, design, then Leo, code, tick their checklists, the swatch flips between light and dark, and it is approved',
         ]}
@@ -80,7 +88,13 @@ const GET_STARTED = signInHref(null, true);
           <strong class="hp-dt">What do you want to explore?</strong>
           <div class="hp-opt hp-pick"><span class="hp-radio"></span><span><strong>Admin demo</strong><small>A new screen or flow, built with your library.</small></span></div>
           <div class="hp-opt"><span class="hp-radio"></span><span><strong>The library</strong><small>Tokens, variants, new components.</small></span></div>
-          <div class="hp-jira"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Link a Jira ticket</div>
+          {
+            JIRA_IN_BRIDGE && (
+              <div class="hp-jira">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>Link a Jira ticket
+              </div>
+            )
+          }
           <div class="hp-row hp-dlg-foot"><span class="hp-sp"></span><span class="hp-btn hp-btn-line">Cancel</span><span class="hp-btn hp-btn-deep hp-ring"><span class="hp-ai"><svg aria-hidden="true"><use href="#hp-robot" /></svg></span>Start with Claude AI</span></div>
         </div>
         <div slot="p1" class="hp-sc hp-sc-center"><HpSieve /></div>

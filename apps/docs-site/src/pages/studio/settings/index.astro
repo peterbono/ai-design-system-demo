@@ -20,7 +20,7 @@
 //                 bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no tier
 //                 numbers), and that token values ship once the look is approved and the automatic checks pass (TV-1).
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
-//   Figma and Claude, then Integrations (Jira), then Your AI tools (the person's own, components/ds/studio/AiToolsSetting.tsx),
+//   Figma and Claude, then Integrations (Jira, only with JIRA_IN_BRIDGE: off for the MVP), then Your AI tools (the person's own, components/ds/studio/AiToolsSetting.tsx),
 //   then Appearance: light or dark, a preference of this browser,
 //   not a team rule (components/ds/studio/AppearanceSetting.tsx).
 //   Settings speak designer words (lib/vocabulary): no developer section; the repository, branch, file and keys behind
@@ -59,6 +59,7 @@ import ClaudeConnector from '../../../components/ds/studio/ClaudeConnector';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
 import { TEAM_NAME_WORDS } from '../../../lib/team-name';
 import '../../../styles/team-access.css';
+import { JIRA_IN_BRIDGE } from '../../../lib/studio-flags';
 
 const r = siteRepo();
 const repoName = `${r.owner}/${r.repo}`;
@@ -398,65 +399,70 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
       </div>
     </section>
 
-    <section class="set-band" id="integrations" aria-labelledby="set-integrations">
-      <div class="set-band-intro">
-        <h2 id="set-integrations" class="set-h">Integrations</h2>
-        <p class="set-intro">Component change requests live in GitHub. Mirror them to Jira if your team plans there.</p>
-      </div>
-      <div class="set-band-body">
-        <Card data-set-jira>
-          <CardBody>
-            <div class="set-rows">
-              <div class="set-row">
-                <p class="set-row-label">
-                  Jira
-                  {
-                    jira ? (
-                      <Badge tone="success" size="sm" dot>
-                        Connected
-                      </Badge>
-                    ) : (
-                      <Badge size="sm">Not set up</Badge>
-                    )
-                  }
-                </p>
-                <p class="set-row-value set-row-span">
-                  {
-                    jira
-                      ? `Each new request becomes a ${jira.issueType ?? 'Task'} in ${jira.project} on ${jira.baseUrl.replace(/^https:\/\//, '')}, with a link back to GitHub.`
-                      : 'Each new request becomes a Jira issue in your project, with a link back to GitHub. Optional: skip it if your team follows requests in GitHub.'
-                  }
-                </p>
-              </div>
-            </div>
-            <details class="set-more set-jira-setup" id="jira-setup">
-              <summary><span class="set-more-title">{jira ? 'Change Jira settings' : 'Set up Jira'}</span><span class="set-chev" aria-hidden="true"></span></summary>
-              <form class="rq-form" data-int-form novalidate>
-                <div class="rq-pair">
-                  <Input label="Jira site" name="baseUrl" type="url" inputMode="url" autoComplete="off" placeholder="https://acme.atlassian.net" defaultValue={jira?.baseUrl ?? ''} />
-                  <Input label="Project key" name="project" autoComplete="off" placeholder="DS" defaultValue={jira?.project ?? ''} />
+    {/* Integrations is the Jira card (its fold also holds the request labels and assignees): hidden while Jira is off. */}
+    {
+      JIRA_IN_BRIDGE && (
+        <section class="set-band" id="integrations" aria-labelledby="set-integrations">
+          <div class="set-band-intro">
+            <h2 id="set-integrations" class="set-h">Integrations</h2>
+            <p class="set-intro">Component change requests live in GitHub. Mirror them to Jira if your team plans there.</p>
+          </div>
+          <div class="set-band-body">
+            <Card data-set-jira>
+              <CardBody>
+                <div class="set-rows">
+                  <div class="set-row">
+                    <p class="set-row-label">
+                      Jira
+                      {
+                        jira ? (
+                          <Badge tone="success" size="sm" dot>
+                            Connected
+                          </Badge>
+                        ) : (
+                          <Badge size="sm">Not set up</Badge>
+                        )
+                      }
+                    </p>
+                    <p class="set-row-value set-row-span">
+                      {
+                        jira
+                          ? `Each new request becomes a ${jira.issueType ?? 'Task'} in ${jira.project} on ${jira.baseUrl.replace(/^https:\/\//, '')}, with a link back to GitHub.`
+                          : 'Each new request becomes a Jira issue in your project, with a link back to GitHub. Optional: skip it if your team follows requests in GitHub.'
+                      }
+                    </p>
+                  </div>
                 </div>
-                <div class="rq-pair">
-                  <Input label="Issue type" name="issueType" autoComplete="off" defaultValue={jira?.issueType ?? 'Task'} />
-                  <Input label="Jira labels" name="jiraLabels" autoComplete="off" placeholder="design-system" defaultValue={(jira?.labels ?? []).join(', ')} />
-                </div>
-                <p class="set-int-group">Every request, in GitHub</p>
-                <div class="rq-pair">
-                  <Input label="Labels" name="requestLabels" autoComplete="off" placeholder="design" defaultValue={(reqCfg.labels ?? []).join(', ')} />
-                  <Input label="Assignees" name="assignees" autoComplete="off" placeholder="@login" defaultValue={(reqCfg.assignees ?? []).map((a) => `@${a}`).join(', ')} />
-                </div>
-                <p class="rq-error" role="alert" data-int-error hidden></p>
-                <div class="rq-actions">
-                  <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations" data-needs-write>{VOCAB.requestReview}</Button>
-                  <span class="set-muted">Nothing changes until it is added to the library. A repository admin then adds the Jira credentials once. <Link href={jiraHelpUrl} external>{VOCAB.howOnGitHub}</Link></span>
-                </div>
-                <div class="rq-done" role="status" data-int-done hidden></div>
-              </form>
-            </details>
-          </CardBody>
-        </Card>
-      </div>
-    </section>
+                <details class="set-more set-jira-setup" id="jira-setup">
+                  <summary><span class="set-more-title">{jira ? 'Change Jira settings' : 'Set up Jira'}</span><span class="set-chev" aria-hidden="true"></span></summary>
+                  <form class="rq-form" data-int-form novalidate>
+                    <div class="rq-pair">
+                      <Input label="Jira site" name="baseUrl" type="url" inputMode="url" autoComplete="off" placeholder="https://acme.atlassian.net" defaultValue={jira?.baseUrl ?? ''} />
+                      <Input label="Project key" name="project" autoComplete="off" placeholder="DS" defaultValue={jira?.project ?? ''} />
+                    </div>
+                    <div class="rq-pair">
+                      <Input label="Issue type" name="issueType" autoComplete="off" defaultValue={jira?.issueType ?? 'Task'} />
+                      <Input label="Jira labels" name="jiraLabels" autoComplete="off" placeholder="design-system" defaultValue={(jira?.labels ?? []).join(', ')} />
+                    </div>
+                    <p class="set-int-group">Every request, in GitHub</p>
+                    <div class="rq-pair">
+                      <Input label="Labels" name="requestLabels" autoComplete="off" placeholder="design" defaultValue={(reqCfg.labels ?? []).join(', ')} />
+                      <Input label="Assignees" name="assignees" autoComplete="off" placeholder="@login" defaultValue={(reqCfg.assignees ?? []).map((a) => `@${a}`).join(', ')} />
+                    </div>
+                    <p class="rq-error" role="alert" data-int-error hidden></p>
+                    <div class="rq-actions">
+                      <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations" data-needs-write>{VOCAB.requestReview}</Button>
+                      <span class="set-muted">Nothing changes until it is added to the library. A repository admin then adds the Jira credentials once. <Link href={jiraHelpUrl} external>{VOCAB.howOnGitHub}</Link></span>
+                    </div>
+                    <div class="rq-done" role="status" data-int-done hidden></div>
+                  </form>
+                </details>
+              </CardBody>
+            </Card>
+          </div>
+        </section>
+      )
+    }
     <section class="set-band" id="products" aria-labelledby="set-products">
       <div class="set-band-intro">
         <h2 id="set-products" class="set-h">Products</h2>
@@ -500,7 +506,7 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
     </section>
   </div>
 
-  <script type="application/json" id="set-int-data" set:html={intData} />
+  {JIRA_IN_BRIDGE && <script type="application/json" id="set-int-data" set:html={intData} />}
   <script type="application/json" id="set-roles-data" set:html={rolesData} />
   <script>
     // Anchors of the former developer section land on the section that now says the same thing.

@@ -6,7 +6,7 @@
 import { workNature } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
-import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
+import { JIRA_IN_BRIDGE, REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
 import { assignRequestOnGitHub, BUILD_IMAGE_LABEL, closingIssueNumbers, subjectTitle, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
 import {
   assigneeOptions,
@@ -127,6 +127,9 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { m
 let rows: RequestRow[] = [];
 let loaded: Promise<RequestRow[]> | null = null;
 
+/** The request's Jira key, to show; none while Jira is off in Bridge (lib/studio-flags). */
+const shownKey = (r: RequestRow): string | null => (JIRA_IN_BRIDGE ? r.jiraKey : null);
+
 function jiraUrl(key: string): string | null {
   const base = integrations().jira?.baseUrl;
   return base ? `${base.replace(/\/+$/, '')}/browse/${encodeURIComponent(key)}` : null;
@@ -145,7 +148,7 @@ export function rowHtml(r: RequestRow) {
   return `<li class="cg-row" data-request="${r.number}" ${natureAttr(nature)}><a class="cg-row-link rq-row-link" href="?request=${r.number}" data-open-request="${r.number}">
     ${thumbHtml(r)}
     <span class="rq-row-main"><span class="cg-row-title"><span class="cg-row-name" title="${esc(r.title)}"><span class="rq-comp">${esc(r.component)}</span> ${esc(r.title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(nature)}</span>
-    <span class="rq-meta">${esc(wantsToChange(r.requester, r.component))}, ${esc(r.kindLabel.toLowerCase())}${r.jiraKey ? `, <span class="mono">${esc(r.jiraKey)}</span>` : ''}</span></span>
+    <span class="rq-meta">${esc(wantsToChange(r.requester, r.component))}, ${esc(r.kindLabel.toLowerCase())}${shownKey(r) ? `, <span class="mono">${esc(shownKey(r)!)}</span>` : ''}</span></span>
     <span class="rq-onit">${esc(onItLabel(r))}</span>
     ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })}
     <time class="cg-date" datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time></a></li>`;
@@ -266,7 +269,8 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
   const req = r.request;
   const decision = requestDecision(r, ctx);
   const primary = primaryAction(r, decision.kind === 'decide');
-  const jira = r.jiraKey ? (jiraUrl(r.jiraKey) ? `<a href="${attrUrl(jiraUrl(r.jiraKey))}" target="_blank" rel="noopener">${esc(r.jiraKey)}</a>` : `<span class="mono">${esc(r.jiraKey)}</span>`) : '';
+  const key = shownKey(r);
+  const jira = key ? (jiraUrl(key) ? `<a href="${attrUrl(jiraUrl(key))}" target="_blank" rel="noopener">${esc(key)}</a>` : `<span class="mono">${esc(key)}</span>`) : '';
   const changes = req?.changes ?? [];
   const table = changes.length
     ? `<div class="table-wrap"><table class="rv-table"><thead><tr><th scope="col">What</th><th scope="col">Now</th><th scope="col">Requested</th></tr></thead><tbody>${changes
