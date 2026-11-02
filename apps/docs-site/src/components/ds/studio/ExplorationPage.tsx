@@ -485,7 +485,7 @@ function DevAnswer({ onAnswer, say }: { onAnswer: NonNullable<HandoffView['onAns
 
 /**
  * A developer's words, quoted as plain text (React escapes it: never HTML), cut after a few lines with "Show more",
- * then who said it and when.
+ * after who said it and when (the name introduces the words it belongs to).
  */
 function DevQuote({ text, by, when }: { text: string; by: PageFace | null; when: string }) {
   const [open, setOpen] = useState(false);
@@ -493,14 +493,6 @@ function DevQuote({ text, by, when }: { text: string; by: PageFace | null; when:
   const { short, clipped } = clipQuote(text);
   return (
     <figure className="xp-quote">
-      <blockquote id={id} className="xp-quote-text">
-        {open ? text : short}
-      </blockquote>
-      {clipped && (
-        <Button variant="link" size="sm" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
-          {open ? 'Show less' : 'Show more'}
-        </Button>
-      )}
       {by && (
         <figcaption className="xp-muted xp-quote-by">
           <Who p={{ login: by.login, name: by.name, agent: by.agent, avatar: by.avatar }} size="xs" />
@@ -509,6 +501,14 @@ function DevQuote({ text, by, when }: { text: string; by: PageFace | null; when:
             {when ? `, ${when}` : ''}
           </span>
         </figcaption>
+      )}
+      <blockquote id={id} className="xp-quote-text">
+        {open ? text : short}
+      </blockquote>
+      {clipped && (
+        <Button variant="link" size="sm" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
+          {open ? 'Show less' : 'Show more'}
+        </Button>
       )}
     </figure>
   );
@@ -540,7 +540,8 @@ function DevQuestion({ q, say }: { q: NonNullable<HandoffView['question']>; say:
         q.onReply && (
           <form className="xp-answer xp-reply" onSubmit={send}>
             <Textarea label="Your answer" hint={w.hint} rows={3} value={text} onChange={(e) => setText(e.target.value)} />
-            <Button type="submit" variant="secondary" size="md" loading={busy} disabled={!text.trim()}>
+            {/* What waits on the viewer: the view's one primary action (the preview's button steps back meanwhile). */}
+            <Button type="submit" variant="primary" size="md" className="xp-reply-send" loading={busy} disabled={!text.trim()}>
               {w.send}
             </Button>
           </form>
@@ -574,14 +575,20 @@ function LatestLine({ latest, say }: { latest: NonNullable<ExplorationPageProps[
   );
 }
 
+/** A question on the task the viewer has not answered yet and can answer here: what waits on them. */
+const waitsOnAnswer = (h: HandoffView | null): boolean => Boolean(h && !h.declined && h.status !== 'shipped' && h.question && !h.question.answered && h.question.onReply);
+
 /** The one Harbor zone after Done exploring: the hand-off in four steps, then the library part. */
 function HandoffCard({ h, p, say, onBack }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void; onBack?: (() => void) | null }) {
   const version = h.steps.find((s) => s.link)?.link ?? null;
+  const asks = waitsOnAnswer(h);
   return (
     <section className="xp-next zone" aria-labelledby="xp-next-h">
       <h2 className="xp-h2" id="xp-next-h">
         {h.status === 'shipped' ? 'How it went' : 'What happens next'}
       </h2>
+      {/* The question waiting on the viewer leads the zone (on a phone too): what needs them first, the steps after. */}
+      {asks && <DevQuestion q={h.question!} say={say} />}
       <Checklist label="From exploration to product" className="xp-steps">
         {h.steps.map((s) => (
           <ChecklistRow
@@ -614,7 +621,7 @@ function HandoffCard({ h, p, say, onBack }: { h: HandoffView; p: ExplorationPage
           )}
         </div>
       ) : (
-        h.question && h.status !== 'shipped' && <DevQuestion q={h.question} say={say} />
+        h.question && !asks && h.status !== 'shipped' && <DevQuestion q={h.question} say={say} />
       )}
       {!h.declined && h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && <DevAnswer onAnswer={h.onAnswer} say={say} />}
       <LibraryPart h={h} p={p} say={say} />
@@ -676,6 +683,9 @@ function ExplorationBody(p: ExplorationPageProps) {
   const handoff = p.stage === 'handed-off' ? (p.handoff ?? null) : null;
   // Declined by the developers: Back to exploring is the one primary action, the preview steps back.
   const declined = Boolean(handoff?.declined);
+  // The Harbor zone holds what waits on the viewer (Back to exploring, or the answer to a question): the preview's
+  // button steps back to secondary, one primary action per view.
+  const zoneLeads = declined || waitsOnAnswer(handoff);
   return (
     <ToolContext.Provider value={tab}>
     <div className="xp-page">
@@ -795,7 +805,7 @@ function ExplorationBody(p: ExplorationPageProps) {
             <div className={handoff ? 'xp-acts' : 'xp-acts xp-preview-acts'}>
               {p.previewUrl ? (
                 // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
-                <ButtonLink variant={declined ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
+                <ButtonLink variant={zoneLeads ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
                   {handoff?.status === 'shipped' ? 'See it in the product' : 'Open the preview'}
                 </ButtonLink>
               ) : p.previewBuilding ? (

@@ -408,6 +408,24 @@
   grid-template-areas: 'preview side';
 }
 
+/* After Done exploring the hand-off zone grows with what it holds (a question, the developers' word, the library
+   pieces): it spans both rows and the activity follows the preview right under it, so a tall zone never leaves an
+   empty grey column beside it. The frame keeps the ratio of a capture. */
+.xp-board.is-handoff {
+  grid-template-areas:
+    'preview side'
+    'activity side';
+  grid-template-rows: auto 1fr;
+  align-items: start;
+}
+
+.xp-board.is-handoff > .xp-preview > .xp-frame {
+  flex: none;
+  aspect-ratio: 16 / 10;
+  min-height: 0;
+  max-height: none;
+}
+
 .xp-board > .xp-preview {
   grid-area: preview;
 }
@@ -698,11 +716,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .xp-board {
+  .xp-board,
+  .xp-board.is-handoff {
     grid-template-areas:
       'preview'
       'side'
       'activity';
+    grid-template-rows: auto;
   }
 
   /* One column: the frame keeps the ratio of a capture. */
@@ -769,6 +789,11 @@
 
   .xp-piece-act {
     flex: 1 1 100%;
+  }
+
+  /* The answer's one action fills its bar on a phone, like Back to exploring. */
+  .xp-reply-send {
+    justify-self: stretch;
   }
 
   .xp-dev-row {

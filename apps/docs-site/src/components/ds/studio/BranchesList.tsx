@@ -309,7 +309,14 @@ export function BranchesList(p: BranchesListProps) {
   ) as Record<StateTab, number>;
   const tabs = visibleTabs(counts, tab);
   // The page header's summary sentence (lib/page-summary): what is open, by where it stands, whatever the filters.
-  const summary = p.loading && !p.rows.length ? '' : changesSummary(Object.fromEntries((['exploring', 'code', 'building', 'review'] as const).map((t) => [t, openItems.filter((q) => q.state === t).length])));
+  // Not planned has no tab, but the sentence still counts every open row it lists.
+  const summary =
+    p.loading && !p.rows.length
+      ? ''
+      : changesSummary({
+          ...Object.fromEntries((['exploring', 'code', 'building', 'review'] as const).map((t) => [t, openItems.filter((q) => q.state === t).length])),
+          notPlanned: openItems.filter((q) => q.x.r.stage === 'not-planned').length,
+        });
   useEffect(() => setPageSummary(summary), [summary]);
   const waitingView = tab === 'waiting' && Boolean(viewer);
   const rowKey = (r: ListRow) => (r.product ? `${r.product}#${r.number}` : String(r.number));

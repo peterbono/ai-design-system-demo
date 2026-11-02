@@ -227,7 +227,8 @@ function LibraryFact({ library }: { library: LibraryUpdate }) {
           {LIBRARY_UPDATE_WORDS.open}
         </Link>
       )}
-      <span role="status" aria-live="polite">
+      {/* Did not happen: said in the danger text color, not as one more quiet fact. */}
+      <span role="status" aria-live="polite" className={error ? 'pp-error' : undefined}>
         {error}
       </span>
     </span>
