@@ -243,10 +243,38 @@ export function emptyTabLine(tab: StateTab, signedIn: boolean): string {
  * server lists as theirs (contribute-session contributeMine: branch names and pull request numbers), or the ones
  * already written as theirs (author = their email).
  */
-export function ownedBy(row: { author: string; number: number; headRef?: string | null }, viewer: string | null, mine: { branches: string[]; issues: number[] } | null): boolean {
+export function ownedBy(
+  row: { author: string; number: number; headRef?: string | null; headRepo?: string | null; product?: string | null },
+  viewer: string | null,
+  mine: MineLists | null,
+  team?: string | null,
+): boolean {
   if (same(row.author, viewer)) return true;
   if (!mine) return false;
-  return mine.issues.includes(row.number) || Boolean(row.headRef && mine.branches.includes(row.headRef));
+  // A product exploration lives in its design copy: its numbers and branch names are the copy's, kept apart. When the
+  // row only names its product, its branch is looked for in the member's product lists (numbers are not compared).
+  if (row.product && !row.headRepo) return Boolean(row.headRef && Object.values(mine.products ?? {}).some((p) => p.branches.includes(row.headRef!)));
+  const own = mineIn(mine, row.headRepo ?? team ?? null, team ?? null);
+  return own.issues.includes(row.number) || Boolean(row.headRef && own.branches.includes(row.headRef));
+}
+
+/** A member's lists as the server keeps them: the team's, and each product repository's (contribute ?mine=1). */
+export interface MineLists {
+  branches: string[];
+  issues: number[];
+  products?: Record<string, { branches: string[]; issues: number[] }>;
+}
+
+/**
+ * The member's lists in `repo`: a product repository's own (their copy explorations, their developers' tasks), the
+ * team's when `repo` is the team's or unknown, nothing for any other repository.
+ */
+export function mineIn(mine: MineLists, repo: string | null, team: string | null): { branches: string[]; issues: number[] } {
+  const r = repo?.toLowerCase() ?? null;
+  if (!r || (team && r === team.toLowerCase())) return { branches: mine.branches, issues: mine.issues };
+  const p = mine.products?.[r];
+  if (p) return p;
+  return team ? { branches: [], issues: [] } : { branches: mine.branches, issues: mine.issues };
 }
 
 /**

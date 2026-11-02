@@ -35,7 +35,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { BridgeContext, handleHttp, pieces } from '@bridge-ds/mcp';
-import { cookieName, designerProductsFor, handleContribute, signSession, type ContribEnv } from '../contribute/index.js';
+import { cookieName, designerProductsFor, handleContribute, ownedWorkFor, signSession, type ContribEnv } from '../contribute/index.js';
 import { displayName, sessionAccount } from '../_lib/account.js';
 import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/fix-sessions.js';
 import type { AppTokens } from '../_lib/github-app.js';
@@ -103,7 +103,7 @@ export interface ConnectorDeps {
   app?: AppTokens;
   mcp?: McpHandler;
   /** How the context is made (tests: a context without GitHub calls). */
-  context?: (opts: { repo: string; token: string; fetch?: FetchLike }) => Promise<BridgeContext>;
+  context?: (opts: { repo: string; token: string; fetch?: FetchLike; owned?: () => Promise<{ repo: string; branch: string }[] | null> }) => Promise<BridgeContext>;
   /** The library check of an exploration (tests replace it; default: the MCP server's bridge_missing_pieces, recorded). */
   checkPieces?: (ctx: BridgeContext, pr: number | string) => Promise<{ pieces: unknown[]; recorded: boolean }>;
 }
@@ -499,9 +499,11 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
   const designerProducts = emailMember ? null : await designerProductsFor(token, grant.repo, env, deps).catch(() => null);
   const ghFetch = emailMember ? proxyFetchFor(emailMember, grant.repo, env, deps, svc) : designerProducts?.length ? designerFetchFor(token, grant.repo, designerProducts, env, deps, svc) : deps.fetch;
   const routed = Boolean(emailMember || designerProducts?.length);
+  // "mine" for a member Bridge writes for: what its app made for them (GitHub names the app as the author).
+  const owned = routed ? () => ownedWorkFor(emailMember ? { email: emailMember.email } : { token }, grant.repo, env, deps).catch(() => null) : undefined;
   const ctx = deps.context
-    ? await deps.context({ repo: grant.repo, token, ...(routed ? { fetch: ghFetch } : {}) })
-    : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: ghFetch as unknown as typeof fetch });
+    ? await deps.context({ repo: grant.repo, token, ...(routed ? { fetch: ghFetch } : {}), ...(owned ? { owned } : {}) })
+    : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: ghFetch as unknown as typeof fetch, ...(owned ? { owned } : {}) });
   // The body was read here (to record the steps): the transport takes it parsed, the request goes on without it.
   const headers = new Headers(req.headers);
   headers.delete('content-length');

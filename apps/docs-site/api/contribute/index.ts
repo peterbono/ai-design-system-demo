@@ -9,7 +9,8 @@
 //
 // Endpoints (JSON, errors are { error, message } in Studio words):
 //   GET  /api/contribute?repo=owner/name                 { available, member }  member is { email, name, role } or null
-//   GET  /api/contribute?repo=owner/name&mine=1          { branches, issues }  what the signed-in member made and owns
+//   GET  /api/contribute?repo=owner/name&mine=1          { branches, issues, products }  what the signed-in member made
+//                                                        and owns, on the team and per product repository (copy, task)
 //   GET  /api/contribute?repo=owner/name&members=1       { collaborators, members }  who is on the team, for Settings >
 //                                                        Members of anyone on it: an email contributor (the cookie) or
 //                                                        a GitHub account that can read the repository (Bearer). The
@@ -356,6 +357,30 @@ export async function designerProductsFor(token: string, team: string, env: Cont
   const d = await githubDesignerOf(ctx, new Request('https://bridge.invalid/', { headers: { Authorization: `Bearer ${token}` } }), t);
   if (d.kind !== 'designer') return null;
   return (await productPairs(ctx, t)).flatMap((p) => [p.copy, p.code]);
+}
+
+/**
+ * For the hosted connector (api/mcp): what a member Bridge writes for made through its app on `team` and its products
+ * (an email member by their email, a designer signed in with GitHub by their token), as branches by repository, so
+ * "mine" finds explorations GitHub shows under the app's name. Null when not one of them or the proxy is not set up.
+ */
+export async function ownedWorkFor(who: { email: string } | { token: string }, team: string, env: ContribEnv, deps: ContribDeps): Promise<{ repo: string; branch: string }[] | null> {
+  const svc = services(env, deps);
+  if (!svc) return null;
+  const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
+  const t = parseRepo(team);
+  let email: string;
+  if ('email' in who) email = who.email;
+  else {
+    const d = await githubDesignerOf(ctx, new Request('https://bridge.invalid/', { headers: { Authorization: `Bearer ${who.token}` } }), t);
+    if (d.kind !== 'designer') return null;
+    email = d.member.email;
+  }
+  const m = await mineWithProducts(ctx, t.full, email);
+  return [
+    ...m.branches.map((branch) => ({ repo: t.full.toLowerCase(), branch })),
+    ...Object.entries(m.products).flatMap(([repo, p]) => p.branches.map((branch) => ({ repo, branch }))),
+  ];
 }
 
 /**
@@ -1462,6 +1487,25 @@ async function mineOf(ctx: Ctx, full: string, email: string): Promise<{ branches
   return { branches: branches.sort(), issues: issues.sort((a, b) => a - b) };
 }
 
+/**
+ * What the member made on the team (its library) and in each of its products: their explorations in a design copy
+ * and the developers' tasks Bridge filed for them are kept under that product repository's own keys, so the team's
+ * set alone never lists them. `products` is keyed by repository (lower case), only the ones with something in them.
+ */
+export async function mineWithProducts(
+  ctx: Ctx,
+  full: string,
+  email: string,
+): Promise<{ branches: string[]; issues: number[]; products: Record<string, { branches: string[]; issues: number[] }> }> {
+  const team = { ...parseRepo(full), full: full.toLowerCase() };
+  const [own, pairs] = await Promise.all([mineOf(ctx, full, email), productPairs(ctx, team).catch(() => [] as ProductPair[])]);
+  const repos = [...new Set(pairs.flatMap((p) => [p.copy, p.code]))];
+  const reads = await Promise.all(repos.map((r) => mineOf(ctx, r, email).then((m) => [r, m] as const)));
+  const products: Record<string, { branches: string[]; issues: number[] }> = {};
+  for (const [r, m] of reads) if (m.branches.length || m.issues.length) products[r] = m;
+  return { ...own, products };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Members, for anyone on the team
 
@@ -1549,7 +1593,7 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
         const d = m ? null : await githubDesignerOf(ctx, req, { ...parseRepo(full), full: full.toLowerCase() });
         const who = m?.email ?? (d?.kind === 'designer' ? d.member.email : null);
         if (!who) return fail(401, 'signin', SIGNIN);
-        return json(200, await mineOf(ctx, full, who));
+        return json(200, await mineWithProducts(ctx, full, who));
       }
       // Local mode only: a member seeded as admin reads as admin, so Studio shows them the admin screens (the server
       // checks again on every admin action).
