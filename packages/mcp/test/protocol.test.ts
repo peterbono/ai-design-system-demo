@@ -72,6 +72,7 @@ const TOOLS = [
   'bridge_review_pr',
   'bridge_review_suggestion',
   'bridge_save_docs',
+  'bridge_save_exploration',
   'bridge_scaffold_component',
   'bridge_search_tokens',
   'bridge_send_for_review',

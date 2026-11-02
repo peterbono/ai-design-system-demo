@@ -111,7 +111,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
         'Product branches and the library: when a designer explores a product feature with you (an exploration for a product), check it with bridge_missing_pieces (record: true) before they share it; for each piece the library lacks, offer bridge_open_library_branch, which opens the library side linked to their branch. bridge_product_branch says where each library branch stands; bridge_switch_to_published moves the product branch to the real version once the library ships.',
         'Components from Figma: the DS Bridge plugin sends a component changed in Figma to a library branch. Token swaps go as exact token changes; new variants, properties and components go to a branch carrying the spec, waiting for an AI to draft the code. When the person asks you to draft one, bridge_figma_changes lists them and bridge_get_figma_change gives the spec and the steps; write the code on that branch, push it, then bridge_mark_figma_change_drafted. Never claim a branch is drafted before its code is pushed.',
         'Fix with Claude: when a component built in Figma differs from its story, you are the team\'s AI and Bridge is the referee. bridge_figma_gaps lists them, bridge_get_gap_case gives one gap case and the fix schema, bridge_try_figma_fix checks fixes on the measured values (at most 3 rounds per component), bridge_propose_figma_fixes opens them for review; a component that will not come closer gets a status fix (Differs or Can\'t check, with the reason), never Matches. The plugin\'s Check fidelity (the story shots) decides after the next pull.',
-        `Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. When a designer says they want to explore something, start one with bridge_start_exploration right away, named from their words, without asking for a purpose or a brief: for a product with its own repository it is created there, and the library comes as the npm package. bridge_list_explorations lists them. When the person says "Continue Bridge exploration #n" (or shop#n, or names one), call bridge_continue_exploration with that ref: it switches the checkout to its branch when safe and says where it stands; start your answer with that, in one or two plain sentences, then ask what to do next. At the start of a session, call bridge_list_explorations with mine: true once; if the person has explorations running, mention them in one line (names and refs) and offer to continue one. Say it once, never again in the session, and nothing when there are none. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it. ${CHANGE_MARKER_RULE} An exploration is a living prototype: when the person says they are done exploring, call bridge_promote_exploration ("Done exploring") with the pieces they picked; it hands the branch to the developers and never closes it. bridge_archive_exploration hides one from the lists while its preview stays alive.`,
+        `Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. When a designer says they want to explore something, start one with bridge_start_exploration right away, named from their words, without asking for a purpose or a brief: for a product with its own repository it is created there, and the library comes as the npm package. bridge_list_explorations lists them. When the person says "Continue Bridge exploration #n" (or shop#n, or names one), call bridge_continue_exploration with that ref: it switches the checkout to its branch when safe and says where it stands; start your answer with that, in one or two plain sentences, then ask what to do next. At the start of a session, call bridge_list_explorations with mine: true once; if the person has explorations running, mention them in one line (names and refs) and offer to continue one. Say it once, never again in the session, and nothing when there are none. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it. ${explorations.SAVE_RULE} ${CHANGE_MARKER_RULE} An exploration is a living prototype: when the person says they are done exploring, call bridge_promote_exploration ("Done exploring") with the pieces they picked; it hands the branch to the developers and never closes it. bridge_archive_exploration hides one from the lists while its preview stays alive.`,
         ...(ctx.product ? [`This session runs inside the "${ctx.product}" product repository, connected to this design system (.bridge/product.json): new explorations are for ${ctx.product}, "#12" means ${ctx.product}#12, and bridge_continue_exploration switches this checkout to the exploration branch when nothing is uncommitted. Exploring needs no brief; at the end the designer picks the pieces the library should get.`] : []),
         ...(excluded.has('bridge_merge_branch') ? ['On this server you never merge: bridge_merge_branch is not available here. When a branch is ready, say so; a person merges it from Bridge Studio or GitHub.'] : []),
       ].join(' '),
@@ -723,6 +723,32 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     run((a) => explorations.continueExploration(ctx, { ref: a.exploration, checkout: a.checkout })),
+  );
+
+  server.registerTool(
+    'bridge_save_exploration',
+    {
+      title: 'Save to the exploration',
+      description:
+        'Save prototype code on an exploration: one commit with the files you send on its explore/<name> branch, so its preview updates in a few minutes. Use it after each step you build, sending every changed file whole (content, or contentBase64 for an image or a font; delete: true removes one). It works without a GitHub access of your own: Bridge saves through the person\'s Bridge account, also for a designer who joined with their email. git push stays for whoever has their own access to the repository. Never the main branch, never a merge or a force; CI settings (.github), hosting settings (vercel.json, .vercel) and node_modules are refused. At most 200 files and 2 MB per save. Only when the person asked to build or change something on that exploration.',
+      inputSchema: {
+        exploration: z.string().min(1).describe('Its ref (#12, or shop#12 for a product), the "Continue Bridge exploration #12" line, its name or its explore/<name> branch.'),
+        message: z.string().min(1).describe('What this step changes, in a few plain words ("Orders: success toast when an order ships").'),
+        files: z
+          .array(
+            z.object({
+              path: z.string().min(1).describe('Relative path in the repository, like src/resources/orders/OrderList.tsx.'),
+              content: z.string().optional().describe('The whole file, UTF-8 text.'),
+              contentBase64: z.string().optional().describe('The whole file in base64, for an image or a font.'),
+              delete: z.boolean().optional().describe('true: remove this file from the exploration.'),
+            }),
+          )
+          .min(1)
+          .describe('Every file this step changed, each whole.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    run((a) => explorations.saveExploration(ctx, { ref: a.exploration, message: a.message, files: a.files })),
   );
 
   server.registerTool(
