@@ -39,6 +39,7 @@ import { randomBytes } from 'node:crypto';
 import { BridgeContext, handleHttp, maskEmail, pieces, type WhoAmI } from '@bridge-ds/mcp';
 import { contributorOf, cookieName, designerProductsFor, handleContribute, ownedWorkFor, signSession, type ContribEnv } from '../contribute/index.js';
 import { displayName, sessionAccount } from '../_lib/account.js';
+import { sameEmail } from '../_lib/canonical-email.js';
 import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/fix-sessions.js';
 import type { AppTokens } from '../_lib/github-app.js';
 import { clientIp, fail, HttpError, json, parseRepo, readBody, sameOrigin, type FetchLike } from '../_lib/http.js';
@@ -292,7 +293,7 @@ async function onOAuth(step: string, req: Request, env: ConnectorEnv, deps: Conn
       if (body.via === 'email') {
         // Their Bridge sign-in is the proof: a member of this team by that email, no GitHub leg.
         const member = await (deps.members ?? memberStore(redis)).get(full, account.email);
-        if (!member || member.email.toLowerCase() !== account.email.trim().toLowerCase()) return fail(403, 'not_member', OAUTH_WORDS.notMember);
+        if (!member || !sameEmail(member.email, account.email)) return fail(403, 'not_member', OAUTH_WORDS.notMember);
         const grant = await createGrant(redis, svc.key, { repo: full, client: r, login: '', name: member.name || account.name, email: member.email, account: accountRef(account.email) }, random, now);
         const issued = await issueCode(redis, r, grant.id, random);
         await dropRequest(redis, r.id);

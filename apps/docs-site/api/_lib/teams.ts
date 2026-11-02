@@ -1,7 +1,8 @@
 // Team discovery by work domain and join requests (api/entry). Kept apart from the function so api/account can delete
 // a person's requests with their account without bundling api/entry.
 //
-// Keys (Upstash Redis, the same database as accounts, invites and members; repository, email and domain lower case):
+// Keys (Upstash Redis, the same database as accounts, invites and members; repository and domain lower case, email
+// canonical, api/_lib/canonical-email.ts; a request written before canonical keys is read under its older spelling too):
 //   bridge:team:discovery:<repo>        { domain, enabled, byGithubId, byLogin, byName, at }  an admin's choice, no expiry
 //   bridge:team:domain:<domain>         set of "owner/repo" open to people with that work domain (enabled only)
 //   bridge:joinreq:<repo>:<email>       a pending request { id, repo, email, name, createdAt, expiresAt }, 14 days
@@ -17,6 +18,7 @@
 
 import type { Redis } from './redis.js';
 import { parseRepo } from './http.js';
+import { canonicalEmail, emailSpellings } from './canonical-email.js';
 import { TEAM_KEY_OWNER, teamKeyId, teamKeyOf } from '../../src/lib/team-path.js';
 import { parseAiTools, type AiTool } from '../../src/lib/ai-tools.js';
 
@@ -45,9 +47,11 @@ export const JOIN_REQUEST_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const lc = (s: string) => s.trim().toLowerCase();
 export const discoveryKey = (repo: string) => `bridge:team:discovery:${lc(repo)}`;
 export const domainKey = (domain: string) => `bridge:team:domain:${lc(domain)}`;
-export const requestKey = (repo: string, email: string) => `bridge:joinreq:${lc(repo)}:${lc(email)}`;
+export const requestKey = (repo: string, email: string) => `bridge:joinreq:${lc(repo)}:${canonicalEmail(email)}`;
 export const requestsKey = (repo: string) => `bridge:joinreqs:${lc(repo)}`;
-export const myRequestsKey = (email: string) => `bridge:joinreq:mine:${lc(email)}`;
+export const myRequestsKey = (email: string) => `bridge:joinreq:mine:${canonicalEmail(email)}`;
+const requestKeys = (repo: string, email: string) => emailSpellings(email).map((e) => `bridge:joinreq:${lc(repo)}:${e}`);
+const myRequestsKeys = (email: string) => emailSpellings(email).map((e) => `bridge:joinreq:mine:${e}`);
 export const undoKey = (repo: string, id: string) => `bridge:joinreq:undo:${lc(repo)}:${id}`;
 export const teamNameKey = (repo: string) => `bridge:team:name:${lc(repo)}`;
 /** The team default of the AI tools new members start from (src/lib/ai-tools.ts), a JSON array; absent: none. */
@@ -100,26 +104,31 @@ export async function teamsForDomain(redis: Redis, domain: string): Promise<{ re
 }
 
 export async function getRequest(redis: Redis, repo: string, email: string, now: number): Promise<JoinRequest | null> {
-  const r = parse<JoinRequest>(await redis.cmd('GET', requestKey(repo, email)), isRequest);
-  return r && Date.parse(r.expiresAt) > now ? r : null;
+  for (const key of requestKeys(repo, email)) {
+    const r = parse<JoinRequest>(await redis.cmd('GET', key), isRequest);
+    if (r && Date.parse(r.expiresAt) > now) return r;
+  }
+  return null;
 }
 
 export async function putRequest(redis: Redis, r: JoinRequest, now: number): Promise<void> {
   const ttl = Math.max(1, Math.ceil((Date.parse(r.expiresAt) - now) / 1000));
   await redis.pipe([
     ['SET', requestKey(r.repo, r.email), JSON.stringify(r), 'EX', ttl],
-    ['ZADD', requestsKey(r.repo), Date.parse(r.expiresAt), lc(r.email)],
+    ['ZADD', requestsKey(r.repo), Date.parse(r.expiresAt), canonicalEmail(r.email)],
     ['SADD', myRequestsKey(r.email), lc(r.repo)],
     // Twice a request's life: a request that ran out unanswered can still say "Your request expired, ask again".
     ['EXPIRE', myRequestsKey(r.email), Math.ceil((2 * JOIN_REQUEST_TTL_MS) / 1000)],
   ]);
 }
 
+/** The request goes under every spelling of the email (an older one too). */
 export async function removeRequest(redis: Redis, repo: string, email: string): Promise<void> {
+  const spellings = emailSpellings(email);
   await redis.pipe([
-    ['DEL', requestKey(repo, email)],
-    ['ZREM', requestsKey(repo), lc(email)],
-    ['SREM', myRequestsKey(email), lc(repo)],
+    ...requestKeys(repo, email).map((k) => ['DEL', k]),
+    ['ZREM', requestsKey(repo), ...spellings],
+    ...myRequestsKeys(email).map((k) => ['SREM', k, lc(repo)]),
   ]);
 }
 
@@ -133,8 +142,10 @@ export async function listRequests(redis: Redis, repo: string, now: number): Pro
   const out: JoinRequest[] = [];
   for (const email of list) {
     const r = await getRequest(redis, repo, email, now);
-    if (r) out.push(r);
-    else await redis.cmd('ZREM', requestsKey(repo), email);
+    // Two spellings of one mailbox name one request.
+    if (r) {
+      if (!out.some((x) => x.id === r.id)) out.push(r);
+    } else await redis.cmd('ZREM', requestsKey(repo), email);
   }
   return out.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
@@ -143,9 +154,13 @@ export async function listRequests(redis: Redis, repo: string, now: number): Pro
  * The teams this email asked to join: 'pending' while the request waits, 'expired' once it ran out unanswered (an
  * approved, declined or cancelled request leaves the set, so it is never called expired).
  */
+async function myRequestRepos(redis: Redis, email: string): Promise<string[]> {
+  const raw = await redis.pipe(myRequestsKeys(email).map((k) => ['SMEMBERS', k]));
+  return [...new Set(raw.flatMap((r) => (Array.isArray(r) ? r.filter((x): x is string => typeof x === 'string') : [])))];
+}
+
 export async function myRequests(redis: Redis, email: string, now: number): Promise<Map<string, 'pending' | 'expired'>> {
-  const raw = await redis.cmd('SMEMBERS', myRequestsKey(email));
-  const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+  const repos = await myRequestRepos(redis, email);
   const out = new Map<string, 'pending' | 'expired'>();
   for (const repo of repos) out.set(repo, (await getRequest(redis, repo, email, now)) ? 'pending' : 'expired');
   return out;
@@ -153,10 +168,9 @@ export async function myRequests(redis: Redis, email: string, now: number): Prom
 
 /** Every pending request of an email (account deletion). */
 export async function removeAllRequests(redis: Redis, email: string): Promise<void> {
-  const raw = await redis.cmd('SMEMBERS', myRequestsKey(email));
-  const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+  const repos = await myRequestRepos(redis, email);
   for (const repo of repos) await removeRequest(redis, repo, email);
-  await redis.cmd('DEL', myRequestsKey(email));
+  await redis.pipe(myRequestsKeys(email).map((k) => ['DEL', k]));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -246,7 +260,7 @@ export async function putTeamAiTools(redis: Redis, repo: string, tools: readonly
 export interface TeamRecord {
   id: string;
   name: string;
-  /** The email of the account that created it. */
+  /** The email of the account that created it (compare with sameEmail: older records keep the spelling of then). */
   createdBy: string;
   createdAt: string;
   /** owner/repo once linked (lower case), else null. */

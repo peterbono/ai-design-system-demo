@@ -2,7 +2,10 @@
 //
 // No password, no username. Sign in is "Continue with GitHub" (a GitHub user token, its verified emails) or "Continue
 // with email" (a 6-digit code by email, 10 minutes, single use, 5 tries then burned). The same screen signs in and
-// signs up: a new email creates the account. Existing email members (bridge:member:*) find their memberships by email
+// signs up: a new email creates the account. One account per mailbox: a Gmail address with or without dots or a
+// "+tag" (and googlemail.com) is one account, keyed by its canonical address (api/_lib/canonical-email.ts), shown as
+// typed. Accounts made before that rule under two spellings of one mailbox are merged on sign-in and on every account
+// read (api/_lib/account-merge.ts). Existing email members (bridge:member:*) find their memberships by email
 // on first sign-in. GitHub sign-in links GitHub to the account whose email is one of the GitHub verified emails, else
 // creates an account with the primary verified email.
 //
@@ -68,7 +71,11 @@ import {
   issueAccountCookie,
   putAccount,
   sessionAccount,
+  sessionEmail,
+  shownEmail,
 } from '../_lib/account.js';
+import { mergeEmailAccounts } from '../_lib/account-merge.js';
+import { canonicalEmail, emailSpellings, legacyEmail, sameEmail } from '../_lib/canonical-email.js';
 import { forgetChanges } from '../_lib/former-member.js';
 import { parseAiTools, type AiTool } from '../../src/lib/ai-tools.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
@@ -79,7 +86,7 @@ import { forgetWrites, notifySenderFromEnv, optOutKey, parsePrefs, prefsFor, pre
 import { readUnsubToken } from '../_lib/notify-mail.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { revokeAccountGrants } from '../_lib/oauth.js';
-import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
+import { dropTeamFromSet, memberStore, teamsInSet, type MemberStore } from '../_lib/members.js';
 import { globEscape, redisRest, type Redis } from '../_lib/redis.js';
 import { deleteTeamRecord, forgetTeamKey, getTeamNames, getTeamRecord, removeAllRequests } from '../_lib/teams.js';
 import { inviteStoreOn } from '../invites/index.js';
@@ -310,18 +317,30 @@ async function backfillTeams(ctx: Ctx, email: string): Promise<void> {
   const keys = await scanKeys(ctx.svc.redis, `bridge:member:*:${globEscape(email)}`);
   const suffix = `:${email}`;
   const repos = keys.filter((k) => k.endsWith(suffix)).map((k) => k.slice('bridge:member:'.length, -suffix.length)).filter((r) => /^[^/:]+\/[^/:]+$/.test(r));
-  if (repos.length) await ctx.svc.redis.cmd('SADD', accountTeamsKey(email), ...repos);
+  if (repos.length) await ctx.svc.redis.cmd('SADD', `bridge:account:teams:${canonicalEmail(email)}`, ...repos);
+}
+
+/**
+ * One account per mailbox: what was kept under another spelling of this Gmail address moves to its canonical key
+ * (api/_lib/account-merge.ts). Never in the way of signing in: when it cannot run now, the readers still find what
+ * sits under the spelling they hold, and the next request tries again.
+ */
+async function mergeMailbox(ctx: Ctx, email: string): Promise<void> {
+  try {
+    await mergeEmailAccounts({ redis: ctx.svc.redis, now: ctx.now, ...(ctx.deps.warn ? { warn: ctx.deps.warn } : {}) }, email);
+  } catch {
+    (ctx.deps.warn ?? ((m: string) => console.warn(m)))('account merge: could not run now, tried again on the next sign-in');
+  }
 }
 
 /** The email memberships of an account, each one read again (a removed membership is dropped from the set). */
 async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: string })[]> {
-  const raw = await ctx.svc.redis.cmd('SMEMBERS', accountTeamsKey(email));
-  const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string').sort() : [];
+  const repos = (await teamsInSet(ctx.svc.redis, email)).sort();
   const out: (PublicTeam & { at: string })[] = [];
   for (const repo of repos) {
     const m = await ctx.svc.members.get(repo, email);
     if (!m) {
-      await ctx.svc.redis.cmd('SREM', accountTeamsKey(email), repo);
+      await dropTeamFromSet(ctx.svc.redis, email, repo);
       continue;
     }
     out.push({ repo, name: teamDisplayName(repo), role: m.role === 'admin' ? 'admin' : 'edit', via: 'email', at: m.at });
@@ -359,7 +378,7 @@ async function publicAccount(ctx: Ctx, a: Account): Promise<PublicAccount> {
       teams.sort((x, y) => x.repo.localeCompare(y.repo));
     }
   }
-  return { email: a.email, name: a.name, nameSet: a.nameSet !== false, github: a.github ? { login: a.github.login, id: a.github.id } : null, aiTools: parseAiTools(a.aiTools), notify: prefsOf(a), teams };
+  return { email: shownEmail(a), name: a.name, nameSet: a.nameSet !== false, github: a.github ? { login: a.github.login, id: a.github.id } : null, aiTools: parseAiTools(a.aiTools), notify: prefsOf(a), teams };
 }
 
 /**
@@ -379,14 +398,19 @@ async function nextFor(ctx: Ctx, a: Account, created: boolean): Promise<string> 
   return a.github ? STUDIO_ROOT : '/start/';
 }
 
-/** A new account. `typed`: the name the person gave (or GitHub's profile name); without one, a stand-in from the email. */
-async function createAccount(ctx: Ctx, email: string, typed: unknown, github: Account['github'], login?: string): Promise<Account> {
+/**
+ * A new account. `typed`: the name the person gave (or GitHub's profile name); without one, a stand-in from the email.
+ * Keyed by the canonical address; the address as typed is the one Bridge shows.
+ */
+async function createAccount(ctx: Ctx, typedEmail: string, typed: unknown, github: Account['github'], login?: string): Promise<Account> {
+  const email = canonicalEmail(typedEmail);
+  const shown = legacyEmail(typedEmail);
   const nameSet = typedName(typed) !== '';
-  const name = cleanName(nameSet ? typed : login, email);
-  const a: Account = { id: randomUUID(), email, name, nameSet, github, createdAt: new Date(ctx.now()).toISOString(), version: 1 };
+  const name = cleanName(nameSet ? typed : login, shown);
+  const a: Account = { id: randomUUID(), email, ...(shown !== email ? { displayEmail: shown } : {}), name, nameSet, github, createdAt: new Date(ctx.now()).toISOString(), version: 1 };
   await putAccount(ctx.svc.redis, a);
   if (github) await ctx.svc.redis.cmd('SET', githubKey(github.id), email);
-  await backfillTeams(ctx, email);
+  for (const e of emailSpellings(typedEmail)) await backfillTeams(ctx, e);
   return a;
 }
 
@@ -425,24 +449,29 @@ const newCode = (deps: AccountDeps) => (deps.code ? deps.code() : String(randomI
 
 /**
  * Where a code goes: the email typed, or the address an invite link was sent to (`invite`, the link's token). The
- * invite's address never comes back to the browser; a spent or unknown link answers 410 invite-gone.
+ * invite's address never comes back to the browser; a spent or unknown link answers 410 invite-gone. `to` is the
+ * address as typed (the email goes there), `email` its canonical spelling (codes, caps and the account are keyed by
+ * it, so either spelling of one Gmail mailbox reaches the same account).
  */
-async function codeEmailOf(ctx: Ctx, body: Record<string, unknown>): Promise<string> {
+async function codeEmailOf(ctx: Ctx, body: Record<string, unknown>): Promise<{ email: string; to: string }> {
+  let to: string;
   if (body.invite !== undefined) {
     const token = body.invite;
     const inv = typeof token === 'string' && INVITE_TOKEN.test(token) ? await inviteStoreOn(ctx.svc.redis, ctx.now).byTokenHash(sha256(token)) : null;
     if (!inv || Date.parse(inv.expiresAt) <= ctx.now() || !validEmail(inv.email)) throw new HttpError(410, 'invite-gone', INVITE_GONE);
-    return inv.email.trim().toLowerCase();
+    to = legacyEmail(inv.email);
+  } else {
+    if (!validEmail(body.email)) throw new HttpError(400, 'bad_email', BAD_EMAIL);
+    to = legacyEmail(body.email);
   }
-  if (!validEmail(body.email)) throw new HttpError(400, 'bad_email', BAD_EMAIL);
-  return body.email.trim().toLowerCase();
+  return { email: canonicalEmail(to), to };
 }
 
 async function onCode(ctx: Ctx, req: Request, body: Record<string, unknown>): Promise<Response> {
   if (body.invite === undefined && !validEmail(body.email)) return fail(400, 'bad_email', BAD_EMAIL);
   const { svc } = ctx;
   if (!svc.email) return fail(503, 'not_configured', EMAIL_NOT_CONFIGURED);
-  const email = await codeEmailOf(ctx, body);
+  const { email, to } = await codeEmailOf(ctx, body);
   const day = dayOf(ctx.now());
   // Counted for everyone, with an account or not, so the answer never tells who has one.
   const release = await bumpOrRefuse(
@@ -464,7 +493,7 @@ async function onCode(ctx: Ctx, req: Request, body: Record<string, unknown>): Pr
     ['DEL', triesKey(svc.secret, email)],
   ]);
   try {
-    await svc.email.send(codeEmail(email, code));
+    await svc.email.send(codeEmail(to, code));
   } catch {
     // The same answer as always (no enumeration); the code and the count go back.
     await svc.redis.pipe([['DEL', codeKey(hash)], ['DEL', pointer]]);
@@ -478,7 +507,7 @@ async function onVerify(ctx: Ctx, req: Request, body: Record<string, unknown>): 
   const code = typeof body.code === 'string' ? body.code.replace(/\s+/g, '') : '';
   if (!CODE.test(code)) return fail(400, 'wrong-code', WRONG_CODE);
   const { svc } = ctx;
-  const email = await codeEmailOf(ctx, body);
+  const { email, to } = await codeEmailOf(ctx, body);
   await bumpOrRefuse(ctx, [countKey('verify:ip', ipHash(ctx, req), dayOf(ctx.now()))], [VERIFY_PER_IP_DAY], LIMIT_WORDS.verify, 'verify');
   const pointer = codeForKey(svc.secret, email);
   const live = await svc.redis.cmd('GET', pointer);
@@ -513,9 +542,11 @@ async function onVerify(ctx: Ctx, req: Request, body: Record<string, unknown>): 
     rec = null;
   }
   if (!rec || rec.email !== email) return fail(410, 'expired', CODE_EXPIRED);
+  // Either spelling of one Gmail mailbox reaches one account: what older spellings kept moves here first.
+  await mergeMailbox(ctx, email);
   const known = await getAccount(svc.redis, email);
   if (known) return signedIn(ctx, known, false, body.tz);
-  return signedIn(ctx, await createAccount(ctx, email, body.name, null), true, body.tz);
+  return signedIn(ctx, await createAccount(ctx, to, body.name, null), true, body.tz);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -559,6 +590,8 @@ async function onGithub(ctx: Ctx, req: Request, body: Record<string, unknown>): 
     .sort((a, b) => Number(b.primary === true) - Number(a.primary === true))
     .map((e) => ({ email: (e.email as string).trim().toLowerCase(), primary: e.primary === true }));
   const github = { login: user.login, id: user.id };
+  // One account per mailbox: older spellings of each verified Gmail address merge first.
+  for (const { email } of verified) await mergeMailbox(ctx, email);
 
   // Already linked: that account, whatever its email.
   const linked = await svc.redis.cmd('GET', githubKey(user.id));
@@ -576,7 +609,7 @@ async function onGithub(ctx: Ctx, req: Request, body: Record<string, unknown>): 
     if (a.github && a.github.id !== user.id) return fail(409, 'github-taken', GITHUB_TAKEN);
     const next = { ...a, github };
     await putAccount(svc.redis, next);
-    await svc.redis.cmd('SET', githubKey(user.id), a.email);
+    await svc.redis.cmd('SET', githubKey(user.id), legacyEmail(a.email));
     return signedIn(ctx, next, false, body.tz);
   }
   const primary = verified.find((e) => e.primary);
@@ -607,8 +640,8 @@ async function blockedTeams(ctx: Ctx, req: Request, a: Account): Promise<Blocked
   for (const t of await teamsOf(ctx, a.email)) {
     if (t.role !== 'admin') continue;
     const list = await ctx.svc.members.list(t.repo);
-    const others = list.filter((m) => m.email !== a.email);
-    const local = ctx.svc.localAdmins ? (await ctx.svc.localAdmins.adminsOf(t.repo)).filter((e) => e !== a.email) : [];
+    const others = list.filter((m) => !sameEmail(m.email, a.email));
+    const local = ctx.svc.localAdmins ? (await ctx.svc.localAdmins.adminsOf(t.repo)).filter((e) => !sameEmail(e, a.email)) : [];
     const seededHere = ctx.svc.localAdmins ? await ctx.svc.localAdmins.isAdmin(t.repo, a.email) : false;
     // An email admin of a repository's team: the repository's GitHub admins stay (only seeded local teams count here).
     if (!isTeamKey(t.repo) && !seededHere) continue;
@@ -633,7 +666,7 @@ async function blockedTeams(ctx: Ctx, req: Request, a: Account): Promise<Blocked
       const c = await ghUser(ctx, bearer, `/repos/${repo.full_name}/collaborators?affiliation=all&per_page=100`);
       const people: any[] = c.status === 200 && Array.isArray(c.data) ? c.data : [];
       const admins = people.filter((p) => p?.permissions?.admin === true && p.id !== ghId);
-      const emailMembers = (await ctx.svc.members.list(full)).filter((m) => m.email !== a.email);
+      const emailMembers = (await ctx.svc.members.list(full)).filter((m) => !sameEmail(m.email, a.email));
       // An email admin there keeps the team too.
       if (emailMembers.some((m) => m.role === 'admin')) continue;
       const others = people.filter((p) => p?.id !== ghId).length + emailMembers.length;
@@ -656,8 +689,7 @@ async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
   const blocked = await blockedTeams(ctx, req, a);
   if (blocked.length) return fail(409, 'last-admin', lastAdminOf(blocked.map((b) => b.name)), { teams: blocked.map((b) => b.repo), blocked });
   const { svc } = ctx;
-  const raw = await svc.redis.cmd('SMEMBERS', accountTeamsKey(a.email));
-  const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+  const repos = await teamsInSet(svc.redis, a.email);
   // Their connections in Claude end first, with the GitHub tokens Bridge kept sealed for them.
   await revokeAccountGrants(svc.redis, { email: a.email, login: a.github?.login ?? null, repos });
   // Each membership goes, which also ends that team's contributor sessions.
@@ -681,13 +713,14 @@ async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
   const live = await svc.redis.cmd('GET', pointer);
   const gh = a.github ? await svc.redis.cmd('GET', githubKey(a.github.id)) : null;
   await svc.redis.pipe([
+    // Under every spelling it may sit (an account not merged yet keeps its own).
+    ...emailSpellings(a.email).flatMap((e) => [['DEL', `bridge:account:${e}`], ['DEL', `bridge:account:teams:${e}`], ['DEL', `bridge:account:ghteams:${e}`]]),
     ['DEL', accountKey(a.email)],
-    ['DEL', accountTeamsKey(a.email)],
     ['DEL', githubTeamsKey(a.email)],
     ['DEL', pointer],
     ['DEL', triesKey(svc.secret, a.email)],
     ...(typeof live === 'string' ? [['DEL', codeKey(live)]] : []),
-    ...(a.github && gh === a.email ? [['DEL', githubKey(a.github.id)]] : []),
+    ...(a.github && sameEmail(gh, a.email) ? [['DEL', githubKey(a.github.id)]] : []),
     // Their kept notifications and their place on the daily summary list (api/_lib/notify.ts).
     ...forgetWrites(a.email),
   ]);
@@ -716,6 +749,8 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
     case 'sign-out-everywhere':
     case 'delete-check':
     case 'delete': {
+      const claimed = sessionEmail(req, svc.secret, ctx.now());
+      if (claimed) await mergeMailbox(ctx, claimed);
       const a = await sessionAccount(req, svc.redis, svc.secret, ctx.now());
       if (!a) return json(401, { error: 'signin', message: SIGNIN }, { 'Set-Cookie': clearAccountCookie() });
       if (body.action === 'rename') {
@@ -967,6 +1002,9 @@ export async function handleAccount(req: Request, env: AccountEnv, deps: Account
     if (method === 'GET') {
       if (!svc) return json(200, { available: false, account: null });
       const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, svc, env, deps };
+      // Every account read merges what older spellings of its Gmail mailbox kept (api/_lib/account-merge.ts).
+      const claimed = sessionEmail(req, svc.secret, ctx.now());
+      if (claimed) await mergeMailbox(ctx, claimed);
       const a = await sessionAccount(req, svc.redis, svc.secret, ctx.now());
       // A cookie that no longer opens anything is cleared.
       const clear: Record<string, string> = !a && readCookie(req, 'bridge_account') ? { 'Set-Cookie': clearAccountCookie() } : {};

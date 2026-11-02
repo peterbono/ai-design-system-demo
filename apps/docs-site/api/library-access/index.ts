@@ -83,6 +83,7 @@ import {
 } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { canonicalEmail } from '../_lib/canonical-email.js';
 import { cookieAttrs as attrsFor, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 
 export { appJwt } from '../_lib/github-app.js';
@@ -642,7 +643,8 @@ async function onPost(req: Request, env: LibraryEnv, deps: LibraryDeps): Promise
       const email = (body.email as string).trim().toLowerCase();
       const domain = emailDomainIn(email, setting.domains);
       if (!domain) return fail(403, 'domain', wrongDomainWords(setting.domains), { domains: setting.domains });
-      const release = await reserve(ctx, { email, ip: clientIp(req), team: full, site: 'all' });
+      // Counted per mailbox: two spellings of one Gmail address share one cap.
+      const release = await reserve(ctx, { email: canonicalEmail(email), ip: clientIp(req), team: full, site: 'all' });
       const token = b64url(Buffer.from(ctx.random(32)));
       const hash = sha256(token);
       await svc.store.putSignIn(hash, { repo: full, domain, version: setting.version }, SIGNIN_TTL_MS / 1000);

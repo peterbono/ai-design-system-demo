@@ -1,7 +1,8 @@
 // Who sent which change through Bridge (api/contribute), and what happens to it when that person deletes their
 // account (api/account). The keys live here so both functions share one definition.
 //
-// Keys (Upstash Redis, emails lower case, a year from the last write):
+// Keys (Upstash Redis, a year from the last write; the email in a key canonical, api/_lib/canonical-email.ts, an older
+// key under the address lower-cased is read too; the email kept as a value is compared with sameEmail):
 //   bridge:contrib:branch:<repo>:<branch>     the email of who created a branch through Bridge
 //   bridge:contrib:issue:<repo>:<number>      the email of who opened an issue or pull request through Bridge
 //   bridge:contrib:mine:<repo>:<email>        set of "b:<branch>" and "i:<number>" they made
@@ -15,6 +16,7 @@
 import type { AppTokens } from './github-app.js';
 import type { FetchLike } from './http.js';
 import { globEscape, type Redis } from './redis.js';
+import { canonicalEmail, emailSpellings, sameEmail } from './canonical-email.js';
 
 /** The neutral author a deleted account's changes keep in the team's history. */
 export const FORMER_MEMBER = 'A former member';
@@ -23,7 +25,13 @@ export const FORMER_MEMBER_LINE = `Requested by ${FORMER_MEMBER} through Bridge.
 
 export const branchKey = (repo: string, b: string) => `bridge:contrib:branch:${repo.toLowerCase()}:${b}`;
 export const issueKey = (repo: string, n: string | number) => `bridge:contrib:issue:${repo.toLowerCase()}:${n}`;
-export const mineKey = (repo: string, email: string) => `bridge:contrib:mine:${repo.toLowerCase()}:${email.toLowerCase()}`;
+export const mineKey = (repo: string, email: string) => `bridge:contrib:mine:${repo.toLowerCase()}:${canonicalEmail(email)}`;
+
+/** What one member made on a team (both spellings of their key until their next sign-in merges them). */
+export async function mineItems(redis: Redis, repo: string, email: string): Promise<string[]> {
+  const sets = await redis.pipe(emailSpellings(email).map((e) => ['SMEMBERS', `${MINE_PREFIX}${repo.toLowerCase()}:${e}`]));
+  return [...new Set(sets.flatMap((r) => (Array.isArray(r) ? r.filter((x): x is string => typeof x === 'string') : [])))];
+}
 const MINE_PREFIX = 'bridge:contrib:mine:';
 
 /** The "Requested by ... through Bridge." line api/contribute writes for an email member, wherever it sits. */
@@ -90,22 +98,25 @@ async function rewriteOnGitHub(deps: ForgetDeps, repo: string, numbers: string[]
  * keep their place in the team's history with "A former member" as the author, and no key keeps the email.
  */
 export async function forgetChanges(redis: Redis, email: string, deps: ForgetDeps): Promise<Forgotten> {
-  const e = email.trim().toLowerCase();
   const out: Forgotten = { changes: 0, rewritten: 0 };
-  const sets = await scan(redis, `${MINE_PREFIX}*:${globEscape(e)}`);
-  for (const key of sets) {
+  // Under every spelling the person's keys may carry (the canonical one, and the older one of this address).
+  const spellings = emailSpellings(email);
+  const sets: { key: string; e: string }[] = [];
+  for (const e of spellings) for (const key of await scan(redis, `${MINE_PREFIX}*:${globEscape(e)}`)) sets.push({ key, e });
+  for (const { key, e } of sets) {
     const repo = key.slice(MINE_PREFIX.length, key.length - e.length - 1);
     const raw = await redis.cmd('SMEMBERS', key);
     const items = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
     const owned = items.map((it) => (it.startsWith('b:') ? branchKey(repo, it.slice(2)) : it.startsWith('i:') ? issueKey(repo, it.slice(2)) : null));
     const holders = owned.length ? await redis.pipe(owned.map((k) => ['GET', k ?? 'bridge:contrib:none'])) : [];
-    const mine = owned.filter((k, i): k is string => k !== null && String(holders[i] ?? '').toLowerCase() === e);
+    const mine = owned.filter((k, i): k is string => k !== null && sameEmail(holders[i], email));
     out.changes += items.length;
     const numbers = items.filter((it, i) => it.startsWith('i:') && /^\d+$/.test(it.slice(2)) && owned[i] && mine.includes(owned[i]!)).map((it) => it.slice(2));
     out.rewritten += await rewriteOnGitHub(deps, repo, numbers);
     await redis.pipe([...mine.map((k) => ['DEL', k]), ['DEL', key]]);
   }
-  const counters = await scan(redis, `bridge:contrib:count:*:${globEscape(e)}:*`);
+  const counters: string[] = [];
+  for (const e of spellings) counters.push(...(await scan(redis, `bridge:contrib:count:*:${globEscape(e)}:*`)));
   if (counters.length) await redis.pipe(counters.map((k) => ['DEL', k]));
   return out;
 }

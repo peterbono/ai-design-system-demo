@@ -130,7 +130,8 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
 import { escHtml, mailButton, mailP, mailPage, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { explorationBlockOf, memberRef, withMemberInBlock } from '../_lib/exploration-member.js';
-import { branchKey, issueKey, mineKey } from '../_lib/former-member.js';
+import { branchKey, issueKey, mineItems, mineKey } from '../_lib/former-member.js';
+import { canonicalEmail, sameEmail } from '../_lib/canonical-email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { handleGithubWebhook } from '../_lib/github-webhook.js';
 import { cleanTitle, linkedCopy } from '../_lib/notify-events.js';
@@ -160,7 +161,7 @@ import { redisRest, type Redis } from '../_lib/redis.js';
 import { sharedAppTokens } from '../_lib/shared-token.js';
 import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
-import { accountTeamsKey } from '../_lib/members.js';
+import { teamInSet } from '../_lib/members.js';
 import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-update.js';
 import { validPackageName } from '../../src/lib/library-update.js';
 import { corsHeaders, isPublicRepo, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, profileNameOf, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
@@ -378,12 +379,12 @@ async function sessionMember(ctx: Ctx, req: Request, repoFull: string): Promise<
   if (c && c.repo === repoFull.toLowerCase() && c.exp > ctx.now()) {
     const m = await ctx.svc.members.get(repoFull, c.email);
     // Removed, or joined again since: the session ends.
-    if (m && m.version === c.v && m.email === c.email) return m;
+    if (m && m.version === c.v && sameEmail(m.email, c.email)) return m;
   }
   const a = await sessionAccount(req, ctx.svc.redis, ctx.svc.secret, ctx.now());
   if (!a) return null;
   const m = await ctx.svc.members.get(repoFull, a.email);
-  return m && m.email === a.email ? m : null;
+  return m && sameEmail(m.email, a.email) ? m : null;
 }
 
 /**
@@ -507,7 +508,7 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
       const day = dayOf(ctx.now());
       // Counted for everyone, member or not, so the answer never tells who is on the team.
       const keys = [
-        `bridge:contrib:count:signin:email:${hmacHex(svc.secret, `email:${email}`)}:${day}`,
+        `bridge:contrib:count:signin:email:${hmacHex(svc.secret, `email:${canonicalEmail(email)}`)}:${day}`,
         `bridge:contrib:count:signin:ip:${hmacHex(svc.secret, `ip:${clientIp(req)}`)}:${day}`,
         `bridge:contrib:count:signin:team:${full}:${day}`,
         `bridge:contrib:count:signin:site:${day}`,
@@ -865,7 +866,7 @@ async function repoFacts(ctx: Ctx, c: Call): Promise<RepoFacts> {
 }
 
 /** The stand-in address on a public repository: stable per member and team, under .invalid (RFC 2606, never routable). */
-export const publicEmail = (secret: string, repo: string, email: string) => `${createHmac('sha256', secret).update(`contrib-author:${repo.toLowerCase()}:${email.toLowerCase()}`).digest('hex').slice(0, 12)}@contributors.bridge.invalid`;
+export const publicEmail = (secret: string, repo: string, email: string) => `${createHmac('sha256', secret).update(`contrib-author:${repo.toLowerCase()}:${canonicalEmail(email)}`).digest('hex').slice(0, 12)}@contributors.bridge.invalid`;
 
 /** What the policy allows for this call, with the body it sends; throws not-allowed otherwise. */
 async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
@@ -876,8 +877,8 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
   const info = async () => (facts ??= await repoFacts(ctx, c));
   const def = async () => (await info()).defaultBranch;
   const isDefault = async (b: string) => b.toLowerCase() === (await def()).toLowerCase();
-  const ownsBranch = async (b: unknown) => typeof b === 'string' && validBranch(b) && !(await isDefault(b)) && (await ctx.svc.redis.cmd('GET', branchKey(c.full, b))) === c.member.email;
-  const ownsIssue = async (n: string | undefined) => n !== undefined && NUMBER.test(n) && (await ctx.svc.redis.cmd('GET', issueKey(c.full, n))) === c.member.email;
+  const ownsBranch = async (b: unknown) => typeof b === 'string' && validBranch(b) && !(await isDefault(b)) && sameEmail(await ctx.svc.redis.cmd('GET', branchKey(c.full, b)), c.member.email);
+  const ownsIssue = async (n: string | undefined) => n !== undefined && NUMBER.test(n) && sameEmail(await ctx.svc.redis.cmd('GET', issueKey(c.full, n)), c.member.email);
   const recordIssue = async (data: any) => {
     if (typeof data?.number === 'number') {
       await ctx.svc.redis.cmd('SET', issueKey(c.full, data.number), c.member.email, 'EX', OWNERSHIP_TTL_S);
@@ -1333,7 +1334,7 @@ function pullClaimedBy(p: any, m: ProxyMember, copy: RepoAt, b: string): boolean
 async function ownsExploration(ctx: Ctx, m: ProxyMember, copy: RepoAt, token: string, isDefault: (b: string) => Promise<boolean>, b: unknown, pull?: any): Promise<boolean> {
   if (typeof b !== 'string' || !validBranch(b) || !b.startsWith(EXPLORATION_PREFIX) || (await isDefault(b))) return false;
   const owner = await ctx.svc.redis.cmd('GET', branchKey(copy.full, b));
-  if (owner === m.email) return true;
+  if (sameEmail(owner, m.email)) return true;
   if (owner) return false;
   let claimed = pull !== undefined && pullClaimedBy(pull, m, copy, b);
   if (!claimed) {
@@ -1365,14 +1366,14 @@ async function ownedCopyPull(ctx: Ctx, m: ProxyMember, copy: RepoAt, token: stri
     (await ownsExploration(ctx, m, copy, token, isDefault, head.ref, p.data));
   const kept = await ctx.svc.redis.cmd('GET', key);
   if (mine) {
-    if (kept !== m.email) {
+    if (!sameEmail(kept, m.email)) {
       await ctx.svc.redis.cmd('SET', key, m.email, 'EX', OWNERSHIP_TTL_S);
       await rememberMine(ctx, copy.full, m.email, `i:${n}`);
     }
     return p.data;
   }
   // A number kept for them that GitHub says is someone else's now (a copy made again): forgotten.
-  if (kept === m.email && p.status === 200) await ctx.svc.redis.pipe([['DEL', key], ['SREM', mineKey(copy.full, m.email), `i:${n}`]]);
+  if (sameEmail(kept, m.email) && p.status === 200) await ctx.svc.redis.pipe([['DEL', key], ['SREM', mineKey(copy.full, m.email), `i:${n}`]]);
   return null;
 }
 
@@ -1659,7 +1660,7 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
 
   if (method !== 'GET') {
     const day = dayOf(ctx.now());
-    await bumpOrRefuse(ctx, [`bridge:contrib:count:${full}:${member.email}:${day}`], [writeLimit(ctx.env)], LIMIT_WORDS.writes, 'writes');
+    await bumpOrRefuse(ctx, [`bridge:contrib:count:${full}:${canonicalEmail(member.email)}:${day}`], [writeLimit(ctx.env)], LIMIT_WORDS.writes, 'writes');
   }
 
   const accept = req.headers.get('accept')?.trim() ?? '';
@@ -1737,7 +1738,7 @@ async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx): Pr
   const a = await sessionAccount(req, ctx.svc.redis, ctx.svc.secret, ctx.now());
   if (a) {
     // The account's team set (api/_lib/members.ts keeps it, and team creation adds admins to it).
-    if (Number(await ctx.svc.redis.cmd('SISMEMBER', accountTeamsKey(a.email), full.toLowerCase())) === 1) return { kind: 'member', email: a.email };
+    if (await teamInSet(ctx.svc.redis, a.email, full)) return { kind: 'member', email: a.email };
     if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(full, a.email))) return { kind: 'member', email: a.email };
   }
   if (PUBLIC_TEAMS.includes(full.toLowerCase())) {
@@ -1802,15 +1803,15 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
  * each one checked against its ownership key (a branch or number that changed hands, or expired, is left out).
  */
 async function mineOf(ctx: Ctx, full: string, email: string): Promise<{ branches: string[]; issues: number[] }> {
-  const items = ((await ctx.svc.redis.cmd('SMEMBERS', mineKey(full, email))) as string[] | null) ?? [];
+  const items = await mineItems(ctx.svc.redis, full, email);
   const branches: string[] = [];
   const issues: number[] = [];
   for (const it of items) {
     if (it.startsWith('b:')) {
       const b = it.slice(2);
-      if ((await ctx.svc.redis.cmd('GET', branchKey(full, b))) === email) branches.push(b);
+      if (sameEmail(await ctx.svc.redis.cmd('GET', branchKey(full, b)), email)) branches.push(b);
     } else if (it.startsWith('i:') && NUMBER.test(it.slice(2))) {
-      if ((await ctx.svc.redis.cmd('GET', issueKey(full, it.slice(2)))) === email) issues.push(Number(it.slice(2)));
+      if (sameEmail(await ctx.svc.redis.cmd('GET', issueKey(full, it.slice(2))), email)) issues.push(Number(it.slice(2)));
     }
   }
   return { branches: branches.sort(), issues: issues.sort((a, b) => a - b) };
@@ -1878,7 +1879,7 @@ async function membersOf(ctx: Ctx, req: Request, full: string, m: EmailMember | 
   const people = await ctx.svc.members.list(full);
   // Local mode only: members seeded as admin (api/_lib/local-admin.ts) say so.
   const admins = ctx.svc.localAdmins ? await ctx.svc.localAdmins.adminsOf(full) : [];
-  const members = people.map((p) => ({ name: p.name, role: admins.includes(p.email) ? 'admin' : p.role, ...(m && p.email === m.email ? { you: true } : {}) }));
+  const members = people.map((p) => ({ name: p.name, role: admins.some((e) => sameEmail(e, p.email)) ? 'admin' : p.role, ...(m && sameEmail(p.email, m.email) ? { you: true } : {}) }));
   return json(200, { collaborators, members }, { 'Cache-Control': 'private, no-store' });
 }
 

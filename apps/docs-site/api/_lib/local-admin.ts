@@ -8,15 +8,17 @@
 //   2. Even when passed, it is ignored unless this process runs local mode: BRIDGE_LOCAL=1, no VERCEL, and
 //      NODE_ENV is not production (localAdminsOn). So a stray dependency can never grant admin in production.
 //
-// Keys (the local Redis file, never Upstash; repository and email lower case):
+// Keys (the local Redis file, never Upstash; repository lower case, email canonical, api/_lib/canonical-email.ts):
 //   bridge:local:admins:<repo>      set of the emails that are admin of that team
 //   bridge:local:admin-of:<email>   set of the teams that email is admin of
 
 import type { Redis } from './redis.js';
+import { canonicalEmail } from './canonical-email.js';
 
 const lc = (s: string) => s.trim().toLowerCase();
+const ce = canonicalEmail;
 export const localAdminsKey = (repo: string) => `bridge:local:admins:${lc(repo)}`;
-export const localAdminOfKey = (email: string) => `bridge:local:admin-of:${lc(email)}`;
+export const localAdminOfKey = (email: string) => `bridge:local:admin-of:${ce(email)}`;
 
 export interface LocalAdmins {
   isAdmin(repo: string, email: string): Promise<boolean>;
@@ -46,7 +48,7 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is
 export function localAdminStore(redis: Redis): LocalAdmins {
   return {
     async isAdmin(repo, email) {
-      return Number(await redis.cmd('SISMEMBER', localAdminsKey(repo), lc(email))) === 1;
+      return Number(await redis.cmd('SISMEMBER', localAdminsKey(repo), ce(email))) === 1;
     },
     async teamsOf(email) {
       return strings(await redis.cmd('SMEMBERS', localAdminOfKey(email)));
@@ -56,19 +58,19 @@ export function localAdminStore(redis: Redis): LocalAdmins {
     },
     async add(repo, email) {
       await redis.pipe([
-        ['SADD', localAdminsKey(repo), lc(email)],
+        ['SADD', localAdminsKey(repo), ce(email)],
         ['SADD', localAdminOfKey(email), lc(repo)],
       ]);
     },
     async remove(repo, email) {
       await redis.pipe([
-        ['SREM', localAdminsKey(repo), lc(email)],
+        ['SREM', localAdminsKey(repo), ce(email)],
         ['SREM', localAdminOfKey(email), lc(repo)],
       ]);
     },
     async removeEmail(email) {
       const repos = strings(await redis.cmd('SMEMBERS', localAdminOfKey(email)));
-      await redis.pipe([...repos.map((r) => ['SREM', localAdminsKey(r), lc(email)]), ['DEL', localAdminOfKey(email)]]);
+      await redis.pipe([...repos.map((r) => ['SREM', localAdminsKey(r), ce(email)]), ['DEL', localAdminOfKey(email)]]);
     },
   };
 }

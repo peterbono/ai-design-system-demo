@@ -80,6 +80,7 @@ import { configName, getTeamNames, putTeamName, resolveTeam } from '../_lib/team
 import { sessionAccount, type Account } from '../_lib/account.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { EMAIL_ROLES, type EmailRole } from '../_lib/members.js';
+import { canonicalEmail, emailSpellings, sameEmail } from '../_lib/canonical-email.js';
 import { onBridge, teamDisplayName } from '../../src/lib/demo.js';
 import { isTeamKey } from '../../src/lib/team-path.js';
 
@@ -305,7 +306,9 @@ export const githubApp = (appId: string, privateKey: string, f: FetchLike, now: 
 //   bridge:invite-trace:<hash>       { repo, invitedBy } (no email), expires INVITE_TRACE_MS after the invite: an old
 //                                    link still says which team and whom to ask for a new one
 //   bridge:invites:<repo>            sorted set of invite ids by expiry (ids only), expires 7 days after the last put
-//   bridge:invites:email:<email>     set of "<repo>|<id>" sent to that email (api/entry), expires 7 days after the last put
+//   bridge:invites:email:<email>     set of "<repo>|<id>" sent to that email (api/entry), expires 7 days after the last put;
+//                                    the email canonical (api/_lib/canonical-email.ts): an invite sent to a Gmail
+//                                    address with dots finds the account without them. Read under the older spelling too
 //   bridge:invites:count:<...>:<day> daily counters for the caps, expire after 2 days
 
 const inviteKey = (repo: string, id: string) => `bridge:invite:${repo.toLowerCase()}:${id}`;
@@ -325,9 +328,11 @@ function parseTrace(raw: unknown): InviteTrace | null {
     return null;
   }
 }
-const emailKey = (email: string) => `bridge:invites:email:${email.trim().toLowerCase()}`;
-const liveInvite = (inv: StoredInvite | null, email: string, now: number): inv is StoredInvite =>
-  Boolean(inv && inv.email.trim().toLowerCase() === email.trim().toLowerCase() && Date.parse(inv.expiresAt) > now);
+/** The invites sent to one mailbox (exported for api/_lib/account-merge.ts, which moves older spellings here). */
+export const invitesByEmailKey = (email: string) => `bridge:invites:email:${canonicalEmail(email)}`;
+const emailKey = invitesByEmailKey;
+const emailKeys = (email: string) => emailSpellings(email).map((e) => `bridge:invites:email:${e}`);
+const liveInvite = (inv: StoredInvite | null, email: string, now: number): inv is StoredInvite => Boolean(inv && sameEmail(inv.email, email) && Date.parse(inv.expiresAt) > now);
 
 function parseStored(raw: unknown): StoredInvite | null {
   if (typeof raw !== 'string') return null;
@@ -387,17 +392,20 @@ export function inviteStoreOn(redis: Redis, now: () => number = Date.now): Invit
         ['DEL', inviteKey(inv.repo, inv.id)],
         ['DEL', tokenKey(inv.tokenHash)],
         ['ZREM', repoKey(inv.repo), inv.id],
-        ...(typeof inv.email === 'string' ? [['SREM', emailKey(inv.email), `${inv.repo.toLowerCase()}|${inv.id}`]] : []),
+        ...(typeof inv.email === 'string' ? emailKeys(inv.email).map((k) => ['SREM', k, `${inv.repo.toLowerCase()}|${inv.id}`]) : []),
       ]);
     },
     async byEmail(email) {
-      const refs = await cmd('SMEMBERS', emailKey(email));
+      // The canonical set and, until the person's next sign-in moves it, the one under the spelling given.
+      const keys = emailKeys(email);
+      const sets = await pipe(keys.map((k) => ['SMEMBERS', k]));
+      const refs = [...new Set(sets.flatMap((r) => (Array.isArray(r) ? r.filter((x): x is string => typeof x === 'string') : [])))];
       const out: StoredInvite[] = [];
-      for (const ref of Array.isArray(refs) ? refs.filter((x): x is string => typeof x === 'string') : []) {
+      for (const ref of refs) {
         const [repo = '', id = ''] = ref.split('|');
         const inv = await store.get(repo, id);
         if (liveInvite(inv, email, now())) out.push(inv);
-        else await cmd('SREM', emailKey(email), ref);
+        else await pipe(keys.map((k) => ['SREM', k, ref]));
       }
       return out.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
@@ -800,12 +808,13 @@ export const SELF_ROLE = 'Ask another admin to change your role.';
 export const SELF_REMOVE = 'You cannot remove yourself. Ask another admin.';
 const EMAIL_ADMIN_ONLY = 'Only admins of this team can invite people or change roles.';
 
-/** The email contributor an admin acts on (`email` instead of `login`), or 404. */
+/** The email contributor an admin acts on (`email` instead of `login`, any spelling of their mailbox), or 404. */
 async function emailMemberOf(ctx: Ctx, repo: string, raw: unknown): Promise<string> {
   if (!validEmail(raw)) throw new HttpError(400, 'bad_request', 'Say who, by their email.');
-  const email = raw.trim().toLowerCase();
-  if (!ctx.svc.members || !(await ctx.svc.members.get(repo, email))) throw new HttpError(404, 'not_found', 'This person is not on this team.');
-  return email;
+  const m = ctx.svc.members ? await ctx.svc.members.get(repo, raw.trim().toLowerCase()) : null;
+  if (!m) throw new HttpError(404, 'not_found', 'This person is not on this team.');
+  // As the member is kept (its spelling reaches every key it may sit under).
+  return m.email.trim().toLowerCase();
 }
 
 function bearer(req: Request): string {
@@ -1024,7 +1033,7 @@ async function inviteMany(
   for (const p of people) {
     const e = p && typeof p === 'object' ? (p as Record<string, unknown>).email : undefined;
     const email = typeof e === 'string' ? e.trim().toLowerCase() : '';
-    if (validEmail(email) && !current.some((i) => i.email === email)) candidates.add(email);
+    if (validEmail(email) && !current.some((i) => sameEmail(i.email, email))) candidates.add(canonicalEmail(email));
   }
   const room = Math.max(0, MAX_PENDING - current.length);
   const reserved = Math.min(candidates.size, room);
@@ -1040,8 +1049,9 @@ async function inviteMany(
         results.push({ email: typeof rawEmail === 'string' ? rawEmail.slice(0, 254) : '', status: 'failed', message: 'This is not a valid email address.' });
         continue;
       }
-      if (seen.has(email)) continue;
-      seen.add(email);
+      // One invite per mailbox: two spellings of one Gmail address are one person.
+      if (seen.has(canonicalEmail(email))) continue;
+      seen.add(canonicalEmail(email));
       const rawLogin = (p as Record<string, unknown>).login;
       try {
         // An organization member Bridge already knows is added straight away: no email, no link.
@@ -1056,7 +1066,7 @@ async function inviteMany(
             continue;
           }
         }
-        if (current.some((i) => i.email === email)) {
+        if (current.some((i) => sameEmail(i.email, email))) {
           results.push({ email, status: 'already' });
           continue;
         }
@@ -1147,8 +1157,8 @@ async function emailAdmin(ctx: Ctx, req: Request, repoArg: unknown): Promise<Ema
 
 /** The other admins of a team made in Bridge (email admins and seeded local admins), never `except`. */
 async function otherAdmins(ctx: Ctx, full: string, except: string): Promise<number> {
-  const email = (await ctx.svc.members!.list(full)).filter((m) => m.role === 'admin' && m.email !== except).map((m) => m.email);
-  const local = ctx.svc.localAdmins ? (await ctx.svc.localAdmins.adminsOf(full)).filter((e) => e !== except) : [];
+  const email = (await ctx.svc.members!.list(full)).filter((m) => m.role === 'admin' && !sameEmail(m.email, except)).map((m) => canonicalEmail(m.email));
+  const local = ctx.svc.localAdmins ? (await ctx.svc.localAdmins.adminsOf(full)).filter((e) => !sameEmail(e, except)).map(canonicalEmail) : [];
   return new Set([...email, ...local]).size;
 }
 
@@ -1160,7 +1170,7 @@ async function setEmailRole(ctx: Ctx, full: string, body: Record<string, unknown
   const email = await emailMemberOf(ctx, full, body.email);
   const { role } = parseRole(body.role, body.reviewAs);
   if (role === 'reviewer') throw new HttpError(409, 'github-required', GITHUB_REQUIRED);
-  if (by.email && email === by.email) throw new HttpError(409, 'self', SELF_ROLE);
+  if (by.email && sameEmail(email, by.email)) throw new HttpError(409, 'self', SELF_ROLE);
   const m = (await ctx.svc.members!.get(full, email))!;
   const next = role === 'admin' ? 'admin' : 'edit';
   if (m.role === 'admin' && next !== 'admin' && by.teamless && (await otherAdmins(ctx, full, email)) === 0) throw new HttpError(409, 'last-admin', LAST_ADMIN);
@@ -1174,7 +1184,7 @@ async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: R
   const ad = await emailAdmin(ctx, req, body.repo);
   const me: Inviter = { login: ad.account.github?.login ?? '', name: displayName(ad.account.name, ad.account.github?.login) || ad.account.email.split('@')[0]! };
   // Counted per admin without keeping their email in a key.
-  const counter = `email-${sha256(ad.account.email.toLowerCase()).slice(0, 16)}`;
+  const counter = `email-${sha256(canonicalEmail(ad.account.email)).slice(0, 16)}`;
   const noReviewer = (role: Role) => {
     if (role === 'reviewer' && ad.teamless) throw new HttpError(409, 'github-required', REVIEWER_NEEDS_REPO);
   };
@@ -1206,7 +1216,7 @@ async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: R
     case 'remove': {
       if (body.login !== undefined || body.email === undefined) throw new HttpError(409, 'github-required', GITHUB_PEOPLE);
       const email = await emailMemberOf(ctx, ad.full, body.email);
-      if (email === ad.account.email.toLowerCase()) throw new HttpError(409, 'self', SELF_REMOVE);
+      if (sameEmail(email, ad.account.email)) throw new HttpError(409, 'self', SELF_REMOVE);
       const m = await ctx.svc.members!.get(ad.full, email);
       if (m?.role === 'admin' && ad.teamless && (await otherAdmins(ctx, ad.full, email)) === 0) throw new HttpError(409, 'last-admin', LAST_ADMIN);
       await ctx.svc.members!.remove(ad.full, email);
@@ -1224,7 +1234,7 @@ async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: R
 async function withLocalAdmins(ctx: Ctx, full: string, members: EmailMember[]): Promise<EmailMember[]> {
   const admins = ctx.svc.localAdmins ? new Set(await ctx.svc.localAdmins.adminsOf(full)) : null;
   if (!admins?.size) return members;
-  return members.map((m) => (m.role !== 'admin' && admins.has(m.email.toLowerCase()) ? { ...m, role: 'admin' } : m));
+  return members.map((m) => (m.role !== 'admin' && admins.has(canonicalEmail(m.email)) ? { ...m, role: 'admin' } : m));
 }
 
 const EMAIL_ADMIN_ACTIONS = new Set(['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'remove']);

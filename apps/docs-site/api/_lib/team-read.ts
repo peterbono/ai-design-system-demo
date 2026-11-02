@@ -94,6 +94,7 @@
 
 import { GITHUB_DOWN, HttpError, SECURITY_HEADERS, clientIp, envInt, json, sha256, type FetchLike } from './http.js';
 import type { Redis } from './redis.js';
+import { canonicalEmail } from './canonical-email.js';
 
 /** The public demo teams: anyone may read them through Bridge (lower case). Same list as src/lib/demo.ts DEMO_REPOS. */
 export const PUBLIC_TEAMS: readonly string[] = ['peterbono/bridge-demo-ds', 'peterbono/ai-design-system-demo'];
@@ -337,7 +338,7 @@ export async function noteWrite(redis: Redis, repo: string, now: number): Promis
 
 /** Whose budget a read counts against: the signed-in member, else the address. */
 export function budgetOf(req: Request, reader: Reader): { kind: 'member' | 'ip' | 'guest'; who: string } {
-  const email = reader.kind === 'member' ? reader.email?.trim().toLowerCase() : undefined;
+  const email = reader.kind === 'member' && reader.email ? canonicalEmail(reader.email) : undefined;
   if (email) return { kind: 'member', who: sha256(`read-member:${email}`).slice(0, 24) };
   return { kind: reader.kind === 'guest' ? 'guest' : 'ip', who: sha256(`read-ip:${clientIp(req)}`).slice(0, 24) };
 }

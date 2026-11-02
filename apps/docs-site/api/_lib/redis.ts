@@ -62,7 +62,7 @@ export type RedisSnapshot = (
 )[];
 
 /**
- * In-memory Redis for tests (and the local server, `npm run dev:full`): strings, sets and sorted sets, EX and NX,
+ * In-memory Redis for tests (and the local server, `npm run dev:full`): strings, sets and sorted sets, EX, NX and KEEPTTL,
  * GET, SET, GETDEL, DEL, MGET, INCRBY, EXPIRE, SADD, SREM, SMEMBERS, SISMEMBER, ZADD (NX), ZREM, ZRANGE (all), ZCARD,
  * ZSCORE, ZRANGEBYSCORE (LIMIT), ZREMRANGEBYSCORE, TYPE and SCAN (one page, MATCH glob with `*`, `?` and backslash escapes). TTLs follow `now`.
  * `snapshot()` and `restore()` carry every live key across restarts.
@@ -101,7 +101,9 @@ export function memoryRedis(now: () => number = Date.now): Redis & {
         const opts = rest.slice(2).map((x) => x.toUpperCase());
         if (opts.includes('NX') && live(k) !== null) return null;
         const ex = opts.indexOf('EX');
-        items.set(k, { value: rest[1]!, until: ex >= 0 ? now() + Number(rest[2 + ex + 1]) * 1000 : Infinity });
+        // KEEPTTL: the key keeps the expiry it had (none when it had none).
+        const kept = opts.includes('KEEPTTL') && live(k) !== null ? items.get(k)!.until : Infinity;
+        items.set(k, { value: rest[1]!, until: ex >= 0 ? now() + Number(rest[2 + ex + 1]) * 1000 : kept });
         return 'OK';
       }
       case 'GETDEL': {
