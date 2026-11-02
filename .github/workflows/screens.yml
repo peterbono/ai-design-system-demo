@@ -1,0 +1,257 @@
+name: Screens
+
+# Renders the screens a pull request changes and posts them on the pull request, so nobody merges UI unseen
+# (docs/VISUAL-CHECK.md). Agents on small machines skip rendering; this is the backstop.
+#
+# What: the docs site is built (astro build) for the head and for the merge base with main, served statically with
+# the rewrites of vercel.json, and the screens scripts/screens.map.json picks from the changed files are captured with
+# the runner's Chrome at 1440 by 900 and 390 by 844, light and dark (scripts/screens.mjs). Studio pages are the sample
+# team (peterbono/bridge-demo-ds) signed out with its sample data; emails are notify-mail rendered with sample names.
+# No Vercel deploy, no account, never a private team or product.
+# Check: the "Screens" job fails only on render errors the pull request adds (page crash, console error, horizontal
+# scroll at 390 px). Axe violations and errors main already has are warnings in the comment. It is not a required
+# check: a red Screens says "look before you merge", it does not block.
+# Images: WebP pushed to the public orphan branch `bridge-shots` under pr-<number>/<head sha>/ (after/ every view,
+# before/ only views that changed), embedded by raw URL in one sticky comment; only the latest head is kept and the
+# folder goes when the pull request closes. Full-size PNGs: the workflow artifact, 14 days.
+# Forks: the render runs and uploads the artifact; publishing and the comment need a write token and are skipped.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+    paths:
+      - 'apps/docs-site/src/components/**'
+      - 'apps/docs-site/src/pages/**'
+      - 'apps/docs-site/src/styles/**'
+      - 'apps/docs-site/src/scripts/**'
+      - 'apps/docs-site/src/layouts/**'
+      - 'apps/docs-site/src/lib/**'
+      - 'apps/docs-site/api/_lib/notify-mail.ts'
+      - 'apps/docs-site/api/_lib/email.ts'
+      - 'packages/react/src/components/**'
+      - 'packages/tokens/src/**'
+      - 'scripts/screens.mjs'
+      - 'scripts/screens.map.json'
+      - '.github/workflows/screens.yml'
+
+concurrency:
+  group: screens-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  SHOTS_BRANCH: bridge-shots
+
+jobs:
+  screens:
+    name: Screens
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Find the merge base and the changed files
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
+          mb=$(gh api "repos/$REPO/compare/$BASE...$HEAD" --jq .merge_base_commit.sha)
+          git fetch -q --depth 1 origin "$mb"
+          echo "sha=$mb" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Pick the screens
+        id: plan
+        run: node scripts/screens.mjs plan --base "${{ steps.base.outputs.sha }}" --head HEAD --out "$RUNNER_TEMP/plan.json"
+
+      - name: Install
+        if: steps.plan.outputs.run == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the docs site (head)
+        if: steps.plan.outputs.run == 'true'
+        run: npm run docs:build
+
+      - name: Build the docs site (merge base, for before and after)
+        id: basebuild
+        if: steps.plan.outputs.run == 'true'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          git worktree add -q "$RUNNER_TEMP/base" "${{ steps.base.outputs.sha }}"
+          cd "$RUNNER_TEMP/base"
+          npm ci --no-audit --no-fund
+          npm run docs:build
+
+      - name: Capture main (before)
+        if: steps.plan.outputs.run == 'true' && steps.basebuild.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRIDGE_CHROME_CHANNEL: chrome
+        run: >-
+          node scripts/screens.mjs capture --site "$RUNNER_TEMP/base/apps/docs-site/dist" --root "$RUNNER_TEMP/base"
+          --out "$RUNNER_TEMP/screens/before" --screens "${{ steps.plan.outputs.screens }}" --plan "$RUNNER_TEMP/plan.json"
+          --gh-cache "$RUNNER_TEMP/gh-cache.json"
+
+      - name: Capture this pull request (after)
+        if: steps.plan.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRIDGE_CHROME_CHANNEL: chrome
+        run: >-
+          node scripts/screens.mjs capture --site apps/docs-site/dist --out "$RUNNER_TEMP/screens/after"
+          --screens "${{ steps.plan.outputs.screens }}" --plan "$RUNNER_TEMP/plan.json"
+          --gh-cache "$RUNNER_TEMP/gh-cache.json" --compare "$RUNNER_TEMP/screens/before"
+
+      - name: Write the comment
+        id: report
+        if: steps.plan.outputs.run == 'true'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STARTED: ${{ steps.base.outputs.started }}
+        run: |
+          set -euo pipefail
+          node scripts/screens.mjs report --after "$RUNNER_TEMP/screens/after" --before "$RUNNER_TEMP/screens/before" \
+            --out "$RUNNER_TEMP/screens/out" --pr "$PR" --sha "$SHA" --base-sha "${{ steps.base.outputs.sha }}" \
+            --raw-base "https://raw.githubusercontent.com/$REPO/$SHOTS_BRANCH/pr-$PR/${SHA:0:7}" --run-url "$RUN_URL" \
+            --duration "$(( $(date +%s) - STARTED ))"
+          cat "$RUNNER_TEMP/screens/out/comment.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nothing to render
+        if: steps.plan.outputs.run != 'true'
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/screens/out"
+          printf '<!-- bridge-screens -->\n## Screens\n\nNothing to render at `%s`: no UI file changed against main.\n' "${SHA:0:7}" > "$RUNNER_TEMP/screens/out/comment.md"
+          echo '{"quiet":true}' > "$RUNNER_TEMP/screens/out/summary.json"
+          echo "No UI file changed: nothing to render." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: screens-pr-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/screens
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Fail on render errors
+        if: steps.report.outputs.failed == 'true'
+        run: |
+          echo "::error::Render errors on the screens this pull request changes. The Screens comment lists them."
+          exit 1
+
+  publish:
+    name: Screens comment
+    needs: screens
+    # Also after a failed Screens job: the comment is how people see what failed. Never for forks (read-only token).
+    if: always() && needs.screens.result != 'skipped' && needs.screens.result != 'cancelled' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # push to the bridge-shots branch
+      pull-requests: write # the sticky comment
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: screens-pr-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/screens
+
+      - name: Publish the images to bridge-shots
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          src="$RUNNER_TEMP/screens/out/publish"
+          [ -d "$src" ] || { echo "No images to publish."; exit 0; }
+          dir="$RUNNER_TEMP/shots"
+          git clone -q --depth 1 --single-branch --branch "$SHOTS_BRANCH" "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$dir"
+          git -C "$dir" config user.name "github-actions[bot]"
+          git -C "$dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3 4; do
+            # Only the latest head of this pull request is kept.
+            rm -rf "$dir/pr-$PR"
+            mkdir -p "$dir/pr-$PR/${SHA:0:7}"
+            cp -R "$src/." "$dir/pr-$PR/${SHA:0:7}/"
+            git -C "$dir" add -A "pr-$PR"
+            git -C "$dir" commit -qm "screens: pr-$PR at ${SHA:0:7}" || { echo "Nothing new to publish"; exit 0; }
+            if git -C "$dir" push -q origin "HEAD:refs/heads/$SHOTS_BRANCH"; then exit 0; fi
+            sleep $((i * 3))
+            git -C "$dir" fetch -q --depth 1 origin "$SHOTS_BRANCH"
+            git -C "$dir" reset -q --hard FETCH_HEAD
+          done
+          exit 1
+
+      - name: Post or update the comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/screens/out/comment.md"
+          [ -f "$body" ] || { echo "No comment written (the Screens job failed before it)."; exit 0; }
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments?per_page=100" --jq '.[] | select(.body | startswith("<!-- bridge-screens -->")) | .id' | tail -n 1)
+          quiet=$(jq -r '.quiet // false' "$RUNNER_TEMP/screens/out/summary.json" 2>/dev/null || echo false)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F "body=@$body" --jq .html_url
+          elif [ "$quiet" != "true" ]; then
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F "body=@$body" --jq .html_url
+          else
+            echo "Nothing rendered and no comment yet: none posted."
+          fi
+
+  cleanup:
+    name: Remove the screens of a closed pull request
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # remove pr-<number>/ from the bridge-shots branch
+    steps:
+      - name: Remove pr-<number>/
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/shots"
+          git clone -q --depth 1 --single-branch --branch "$SHOTS_BRANCH" "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$dir"
+          [ -d "$dir/pr-$PR" ] || { echo "Nothing stored for #$PR."; exit 0; }
+          git -C "$dir" config user.name "github-actions[bot]"
+          git -C "$dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3 4; do
+            git -C "$dir" rm -rq "pr-$PR"
+            git -C "$dir" commit -qm "screens: remove pr-$PR (closed)"
+            if git -C "$dir" push -q origin "HEAD:refs/heads/$SHOTS_BRANCH"; then exit 0; fi
+            sleep $((i * 3))
+            git -C "$dir" fetch -q --depth 1 origin "$SHOTS_BRANCH"
+            git -C "$dir" reset -q --hard FETCH_HEAD
+            [ -d "$dir/pr-$PR" ] || exit 0
+          done
+          exit 1
