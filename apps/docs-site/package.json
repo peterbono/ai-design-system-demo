@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/docs-site",
-  "version": "0.26.9",
+  "version": "0.26.10",
   "license": "FSL-1.1-MIT",
   "private": true,
   "type": "module",
