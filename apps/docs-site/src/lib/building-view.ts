@@ -28,6 +28,7 @@ import {
 import type { ThumbSpec } from './branch-thumb';
 import { daysSince, type PillTone } from './home-model';
 import { safeUrl } from './html';
+import { authorFor } from './author';
 import { isProductBranch } from './product-branch';
 import { explorationHref } from './explorations-view';
 import { devReviewLine, LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, taskStage, type DesignTaskRead, type LifecycleStage, type PullReviewLike } from './review-state';
@@ -84,7 +85,7 @@ export function toBuildIssue(i: RestIssue): BuildIssueLike {
     state: i.state === 'closed' ? 'closed' : 'open',
     stateReason: i.state_reason ?? null,
     labels: labelNames(i.labels),
-    author: i.user?.login,
+    author: authorFor(i.user?.login, i.body) ?? undefined,
     assignees: (i.assignees ?? []).map((a) => a.login),
     createdAt: i.created_at,
     closedAt: i.closed_at ?? null,
@@ -102,7 +103,7 @@ export function toBuildPull(p: RestPull): BuildPullLike {
     mergedAt: p.merged_at ?? null,
     closedAt: p.closed_at ?? null,
     labels: labelNames(p.labels),
-    author: p.user?.login,
+    author: authorFor(p.user?.login, p.body) ?? undefined,
     assignees: (p.assignees ?? []).map((a) => a.login),
     createdAt: p.created_at,
     updatedAt: p.updated_at,
@@ -511,7 +512,7 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
         label: LIFECYCLE_LABEL[stage],
         sentence: sentence[status],
         builders: status === 'in-progress' || status === 'in-review' ? (task ? task.assignees : (p.assignees ?? [])).map((a) => a.login) : [],
-        requestedBy: doneBy ?? block?.author ?? p.user?.login ?? null,
+        requestedBy: doneBy ?? block?.author ?? authorFor(p.user?.login, p.body) ?? null,
         createdAt,
         ageDays,
         stale,

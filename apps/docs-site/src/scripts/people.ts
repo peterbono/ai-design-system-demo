@@ -7,6 +7,7 @@
 import { avatarHtml, type AvatarSize } from '@bridge-ds/react/dom';
 import { AGENT_NAME, authorLine, isClaudeLogin, isEmailAddress, loginKey, nameFace, loginsToFetch, nameBudget, personName, readNameCache, type NameCache } from '../lib/people';
 import { isSampleTeam, samplePersonOf } from '../lib/demo';
+import { isNameAuthor, nameOfAuthor } from '../lib/author';
 import { sampleTeam } from '../lib/invites';
 import { currentViewer, esc, ghGet, hasWorkingToken } from './github-session';
 import { repoContext, siteConfig } from './repo-context';
@@ -98,7 +99,7 @@ export function personHtml(login: string, { size = 'xs', agent = false, withName
   // A name instead of a login (an email member Bridge recorded as "Requested by Priya Shah", or an address with its
   // name given): shown as written, never looked up on GitHub, its face the name's (the same as on cards and in Members).
   const email = !claude && isEmailAddress(login);
-  const writtenName = claude ? null : name?.trim() || (email ? login.trim().split('@')[0]! : /\s/.test(login.trim()) ? login.trim() : null);
+  const writtenName = claude ? null : name?.trim() || (email ? login.trim().split('@')[0]! : isNameAuthor(login) ? nameOfAuthor(login.trim()) : /\s/.test(login.trim()) ? login.trim() : null);
   const written = writtenName !== null;
   const label = written ? writtenName : displayName(login, claude);
   const face = written ? nameFace(writtenName) : personKey(login);

@@ -2,6 +2,7 @@
 // CI, visual impact). Pure functions over GitHub API shapes, shared by the client script and its tests.
 import { explorationTryIt, findPreviewComment, previewLinks, previewLinksOf, resolveBranchPreviews, type BranchPreviewSources, type PreviewApps } from '@bridge-ds/core';
 import { summarizeCi, type CheckRunLike, type CiState } from './review-rules';
+import { authorFor } from './author';
 
 export interface BranchesConfig {
   owner: string;
@@ -21,6 +22,8 @@ export interface PullLike {
   state?: string;
   merged_at?: string | null;
   user: { login: string } | null;
+  /** The body: who an app opened it for ("Requested by … through Bridge."), lib/author. */
+  body?: string | null;
   head: { ref: string; sha: string; repo: { full_name: string } | null };
   updated_at: string;
 }
@@ -69,7 +72,7 @@ export function pullEntry(pull: PullLike, cfg: BranchesConfig, sources: BranchPr
     branch: pull.head.ref,
     sha: pull.head.sha,
     draft: pull.draft,
-    author: pull.user?.login ?? null,
+    author: authorFor(pull.user?.login, pull.body) ?? null,
     updatedAt: pull.updated_at,
     fromFork,
     previews,

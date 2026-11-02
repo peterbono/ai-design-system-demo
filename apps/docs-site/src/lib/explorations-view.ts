@@ -39,6 +39,7 @@ import {
   type PullRequestSummary,
 } from '@bridge-ds/core';
 import { tierLabel, type StatusTone } from './changes';
+import { authorFor } from './author';
 import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
 import type { Tier } from './review-rules';
 import { requestRows, type IssueLike, type PullLike as RequestPullLike, type RequestRow } from './requests-view';
@@ -182,7 +183,7 @@ export function toSummary(p: ExplorationPullLike): PullRequestSummary {
     title: p.title,
     state: p.merged_at ? 'merged' : p.state,
     draft: Boolean(p.draft),
-    author: p.user?.login ?? 'unknown',
+    author: authorFor(p.user?.login, p.body) ?? 'unknown',
     headRef: p.head.ref,
     headSha: p.head.sha,
     baseRef: '',

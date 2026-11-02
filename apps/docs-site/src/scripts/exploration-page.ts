@@ -21,6 +21,7 @@ import {
   doneByOf,
   explorationMenu,
   faceOf,
+  nameOnlyAuthors,
   gitNamesOf,
   handoffActivity,
   handoffSteps,
@@ -67,6 +68,7 @@ import { loadVisualImpact } from './reviews/visual-impact';
 import { previewShotOf } from './preview-shots';
 import { knownNames } from './people';
 import { isEmailAddress, loginKey } from '../lib/people';
+import { isNameAuthor } from '../lib/author';
 import { siteApprovers } from './teams';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
@@ -346,10 +348,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const todayRaw = isLibrary ? libraryHref(CFG.owner, CFG.repo, libraryTodayRoute(r.requests[0]?.component)) : productTodayUrl(product, { production: own ? null : CFG.production, defaultBranch: own ? (pull.base?.ref ?? 'main') : CFG.defaultBranch });
   const todayUrl = todayRaw ? safeUrl(todayRaw) || null : null;
   // An email member's exploration records their address as its author: named by their "Requested by" line, never looked up.
-  const logins = [...new Set([r.author, ...commits.map((c) => c.author?.login ?? '').filter(Boolean)])].filter((l) => !isEmailAddress(l));
+  const logins = [...new Set([r.author, ...commits.map((c) => c.author?.login ?? '').filter(Boolean)])].filter((l) => !isEmailAddress(l) && !isNameAuthor(l));
   // Signed in: the GitHub profile names. Signed out: the git names on the commits, then the author's public profile.
   // A name already known on this browser (the viewer's own, the week's cache) beats a login a failed read left.
-  const looked = await (connected() ? namesOf(logins) : isEmailAddress(r.author) ? Promise.resolve({}) : publicName(r.author)).catch(() => ({}) as Record<string, string>);
+  const looked = await (connected() ? namesOf(logins) : isEmailAddress(r.author) || isNameAuthor(r.author) ? Promise.resolve({}) : publicName(r.author)).catch(() => ({}) as Record<string, string>);
   const known = knownNamesOf(logins);
   const names = { ...gitNamesOf(commits), ...known, ...Object.fromEntries(Object.entries(looked).filter(([l, n]) => n && n !== l)), ...emailAuthorName(r.author, pull.body) };
   if (current?.key !== key) return;
@@ -434,7 +436,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const more = connected() ? await namesOf([...new Set([doneLogin, ...builders, ...asked, ...(verdict ? [verdict.login] : []), ...(answer?.login ? [answer.login] : [])])]).catch(() => ({}) as Record<string, string>) : {};
   if (current?.key !== key) return;
   const allNames = { ...names, ...knownNamesOf([...asked, ...(verdict ? [verdict.login] : [])]), ...more };
-  const doneBy = faceOf(doneLogin, false, allNames);
+  // Done exploring by someone known by name only (an email member's commit, or the requester of the app's pull
+  // request): the name's face, never a GitHub account's photo of that name.
+  const doneBy = faceOf(doneLogin, false, allNames, false, nameOnlyAuthors(commits));
   const shippedAt = task?.closedAt ?? (pull as { merged_at?: string | null }).merged_at ?? null;
   const review = {
     // Reviewers asked on a draft: the developers asked for a review all the same.
