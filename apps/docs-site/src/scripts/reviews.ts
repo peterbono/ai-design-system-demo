@@ -119,7 +119,7 @@ import { isArchivedOpen, isListedExploration, previewName, tryItCopy, tryItFromC
 import type { BranchesListProps, ListRow } from '../components/ds/studio/BranchesList';
 import { conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
-import { AGENT_NAME, isClaudeLogin } from '../lib/people';
+import { AGENT_NAME, isClaudeLogin, nameFace } from '../lib/people';
 import { safeUrl } from '../lib/html';
 import { siteConfig } from './repo-context';
 import { isDemoRepo, isSampleTeam, sampleApprovalRows, sampleCodeReviewers, sampleTurnSentence } from '../lib/demo';
@@ -1119,7 +1119,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const seatOwner = seat ? (OWNERS().design[0] ?? OWNERS().tech[0] ?? null) : null;
   const asked0 = seat ? requesterOf(pull.body) : null;
   const seatAuthor = seat ? (asked0?.name ?? asked0?.login ?? 'A teammate') : null;
-  const author = seatAuthor ? seatAuthor.toLowerCase().normalize('NFD').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'teammate' : pull.user.login;
+  const author = seatAuthor ? nameFace(seatAuthor).slice(1).replace(/^someone$/, 'teammate') : pull.user.login;
   aliases.clear();
   if (seat && seatOwner) aliases.set(seatOwner.toLowerCase(), seat);
   if (seatAuthor) aliases.set(author, seatAuthor.split(/\s+/)[0]!);
@@ -1265,7 +1265,9 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const lineNow = () => whoLine({ author: requested ? (requested.name ?? (requested.login ? nameOf(requested.login) : nameOf(author))) : nameOf(author), agent, guidanceOnly, canEdit: canEditGuidance, asked, lifecycle: status.lifecycle, sentence: named(statusRun.sentence) });
   const whoNow = (): BranchReviewProps['who'] => {
     const l = lineNow();
-    return { person: seat ? { login: `~${author}`, name: nameOf(author), avatarUrl: null, agent: agent && !asked0 } : { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: l.lead, rest: l.rest };
+    // Bridge's app opened it for an email member: their face and name, never the app's avatar.
+    const member = !seat && forMember?.name && !forMember.login ? forMember.name : null;
+    return { person: seat ? { login: `~${author}`, name: nameOf(author), avatarUrl: null, agent: agent && !asked0 } : member ? { login: nameFace(member), name: member, avatarUrl: null, agent } : { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: l.lead, rest: l.rest };
   };
   const rowText = (r: (typeof rows)[number]) => (status.lifecycle === 'draft' && r.state === 'waiting' ? 'Not asked until a review is requested' : r.text);
   // Merged or closed: nothing waits on anyone, so no approval rows ("Waiting: ..." on a change already in the library).

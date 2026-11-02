@@ -59,8 +59,9 @@ import { jiraKeyOf, parseJiraKey, VOCAB } from '../lib/vocabulary';
 import { isProductBranch } from '../lib/product-branch';
 import { attrUrl } from '../lib/html';
 import { studioHref } from '../lib/team-path';
+import { isEmailAddress } from '../lib/people';
 import { productClient, productRepoByKey, readProductPulls, type ProductPull } from './product-repos';
-import { defaultProduct, EXPLORATION_LABEL, isUnlabeledExploration, type GitHubClient } from '@bridge-ds/core';
+import { defaultProduct, EXPLORATION_LABEL, isUnlabeledExploration, requesterOf, type GitHubClient } from '@bridge-ds/core';
 
 // The use case menu of Start an exploration (BridgedSelect id).
 const USE_CASE = 'ex-use-case';
@@ -112,7 +113,7 @@ export function rowHtml(r: ExplorationRow) {
     <div class="ex-row-main">
       <p class="ex-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<a class="ex-name" href="${explorationHref(r)}" data-open-exploration="${r.number}"${product}>${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })} ${devTag(nature)}</p>
       ${purposeLine(r.name, r.purpose) ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
-      <p class="ex-meta">${personHtml(r.author, { agent: w.maker.kind === 'claude' })}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${attrUrl(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
+      <p class="ex-meta">${personHtml(r.author, { agent: w.maker.kind === 'claude', name: isEmailAddress(r.author) ? (requesterOf(pullOf(r)?.body)?.name ?? null) : null })}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${attrUrl(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
   </li>`;
 }

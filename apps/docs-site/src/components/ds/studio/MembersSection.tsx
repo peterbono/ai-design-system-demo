@@ -22,7 +22,7 @@ import { memberActions, noRepo, useMembers, type Notice } from './members-state'
 import { DiscoveryLine, JoinRequests, useEntryAdmin } from './JoinRequests';
 import { loadTeamRoles } from '../../../lib/recent-teams';
 import { isHosted, isTeamKey, teamKeyOfPage } from '../../../lib/team-path';
-import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, membersContext, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
+import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, membersContext, memberLine, memberSeed, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
 import type { JoinRequest } from '../../../lib/entry';
 import { repoContext } from '../../../scripts/repo-context';
@@ -66,7 +66,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
     <>
       <TableRow>
         <TableCell label="">
-          <PersonCell name={m.name} seed={m.login} line={memberLine(m)} you={m.you} avatar={m.avatar} />
+          <PersonCell name={m.name} seed={memberSeed(m)} line={memberLine(m)} you={m.you} avatar={m.avatar} />
         </TableCell>
         <TableCell className="mem-role-cell" label="">
           <span className="mem-role">

@@ -12,25 +12,29 @@ import { ChevronsUpDown } from 'lucide-react';
 import { GitHubMark } from '../studio/brand-icons';
 import { ACCOUNT_WORDS as W, accountName, roleWord, signedOutHref, type Account } from '../../../lib/account';
 import { ownerAvatarUrl } from '../../../lib/access-view';
+import { emailMemberFace } from '../../../lib/people';
 import { AccountDialog } from './AccountSettings';
 import { DEMO_HOME } from '../../../lib/start';
 import { DEMO_WORDS } from '../../../lib/demo';
 import '../../../styles/account.css';
 
-/** The drawn face of an email (lazy: the drawings are a separate chunk), or the GitHub photo once linked. */
+/**
+ * The drawn face of someone signed in by email (lazy: the drawings are a separate chunk), seeded by their name like
+ * every other place that shows them (lib/people emailMemberFace), or the GitHub photo once linked.
+ */
 export function useFace(account: Account | null): string | undefined {
   const [face, setFace] = useState<string | undefined>(undefined);
   const login = account?.github?.login;
-  const email = account?.email;
+  const seed = account ? emailMemberFace(account.name, account.email) : null;
   useEffect(() => {
     let live = true;
     if (login) setFace(ownerAvatarUrl(login, 64));
-    else if (email) void import('@bridge-ds/react/avatar-illustrated').then(({ illustratedAvatarUri }) => live && setFace(illustratedAvatarUri(email)));
+    else if (seed) void import('@bridge-ds/react/avatar-illustrated').then(({ illustratedAvatarUri }) => live && setFace(illustratedAvatarUri(seed)));
     else setFace(undefined);
     return () => {
       live = false;
     };
-  }, [login, email]);
+  }, [login, seed]);
   return face;
 }
 

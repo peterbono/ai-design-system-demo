@@ -101,8 +101,8 @@ export interface ProductFolder {
   key: string;
   name: string;
   href: string;
-  /** The latest explorations' screens, newest first (capture, else its plate), FOLDER_SHOTS at most. */
-  shots: { key: string; spec: ThumbSpec }[];
+  /** The latest explorations' screens, newest first (capture, else its plate), FOLDER_SHOTS at most, with who explores each. */
+  shots: { key: string; spec: ThumbSpec; who: ExplorationCard['author'] }[];
   /** "2 exploring · 1 waiting for code". */
   line: string;
   total: number;
@@ -120,7 +120,7 @@ export function productFolders(products: readonly ProductConfig[], cards: readon
       key: p.key,
       name: p.name,
       href: productHref(p.key),
-      shots: latest.slice(0, shots).map((c) => ({ key: c.key ?? String(c.number), spec: c.preview })),
+      shots: latest.slice(0, shots).map((c) => ({ key: c.key ?? String(c.number), spec: c.preview, who: c.author })),
       line: folderLine(mine),
       total: mine.length,
     };

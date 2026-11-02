@@ -9,7 +9,7 @@
 // reviews once the developers started), and the library part. A product exploration never checked against the
 // library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
 // viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { archiveExplorationOnGitHub, branchPreviewUrl, explorationStage, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { archiveExplorationOnGitHub, branchPreviewUrl, explorationStage, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
   canRunCheck,
@@ -66,7 +66,7 @@ import { copyText } from './explorer/util';
 import { loadVisualImpact } from './reviews/visual-impact';
 import { previewShotOf } from './preview-shots';
 import { knownNames } from './people';
-import { loginKey } from '../lib/people';
+import { isEmailAddress, loginKey } from '../lib/people';
 import { siteApprovers } from './teams';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
@@ -111,6 +111,12 @@ async function publicName(login: string): Promise<Record<string, string>> {
  * the names Studio looked up this week (scripts/people.ts). "Started by Florian", not the login, even when GitHub's
  * hourly limit stops the profile reads; the login stays only when no name is known.
  */
+/** The name of an email member who started the exploration (its author is their address): their "Requested by" line. */
+export function emailAuthorName(author: string, body: string | null | undefined): Record<string, string> {
+  const name = isEmailAddress(author) ? requesterOf(body)?.name?.trim() : null;
+  return name ? { [author]: name } : {};
+}
+
 export function knownNamesOf(logins: readonly string[]): Record<string, string> {
   const cache = knownNames();
   const v = currentViewer();
@@ -248,7 +254,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       crumbs: productCrumbs(product.name, jiraKeyOf(pull.title), r.name),
       title: r.name,
       stage: 'loading',
-      author: faceOf(r.author, false, knownNamesOf([r.author])),
+      author: faceOf(r.author, false, { ...knownNamesOf([r.author]), ...emailAuthorName(r.author, pull.body) }),
       startedTail: startedTail(product.name, pull.created_at ?? null),
       lines,
       todayUrl: null,
@@ -339,12 +345,13 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // A library exploration: the Library as it is today (its component's page when it asks about one), never the site's home.
   const todayRaw = isLibrary ? libraryHref(CFG.owner, CFG.repo, libraryTodayRoute(r.requests[0]?.component)) : productTodayUrl(product, { production: own ? null : CFG.production, defaultBranch: own ? (pull.base?.ref ?? 'main') : CFG.defaultBranch });
   const todayUrl = todayRaw ? safeUrl(todayRaw) || null : null;
-  const logins = [...new Set([r.author, ...commits.map((c) => c.author?.login ?? '').filter(Boolean)])];
+  // An email member's exploration records their address as its author: named by their "Requested by" line, never looked up.
+  const logins = [...new Set([r.author, ...commits.map((c) => c.author?.login ?? '').filter(Boolean)])].filter((l) => !isEmailAddress(l));
   // Signed in: the GitHub profile names. Signed out: the git names on the commits, then the author's public profile.
   // A name already known on this browser (the viewer's own, the week's cache) beats a login a failed read left.
-  const looked = await (connected() ? namesOf(logins) : publicName(r.author)).catch(() => ({}) as Record<string, string>);
+  const looked = await (connected() ? namesOf(logins) : isEmailAddress(r.author) ? Promise.resolve({}) : publicName(r.author)).catch(() => ({}) as Record<string, string>);
   const known = knownNamesOf(logins);
-  const names = { ...gitNamesOf(commits), ...known, ...Object.fromEntries(Object.entries(looked).filter(([l, n]) => n && n !== l)) };
+  const names = { ...gitNamesOf(commits), ...known, ...Object.fromEntries(Object.entries(looked).filter(([l, n]) => n && n !== l)), ...emailAuthorName(r.author, pull.body) };
   if (current?.key !== key) return;
   const preview = productPreviewOf(r, reported, app, isLibrary ? null : product);
   // The branch's own build. Open the preview opens it with the Bridge toolbar (tryUrl) for a product

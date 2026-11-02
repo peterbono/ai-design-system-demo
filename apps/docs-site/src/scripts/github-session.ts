@@ -65,6 +65,7 @@ import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, isContribAuth, pro
 import { ROLE_WORDS } from '../lib/invites';
 import { contributeFetch, contributeInfo, contributorFor, contributorKey, onContributeChange, publicTeamRead, signOutEmail, takeContributeHash, verifyEmailSignIn } from './contribute-session';
 import { busyText } from '../lib/team-load';
+import { emailMemberFace } from '../lib/people';
 
 export { GitHubError };
 
@@ -1193,7 +1194,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       const avatar = acct.querySelector<HTMLElement>('[data-gh-avatar]');
       if (avatar) {
         avatar.hidden = !viewer;
-        if (email) paintDrawnAvatar(avatar, email.login);
+        if (email) paintDrawnAvatar(avatar, emailMemberFace(email.name, email.login));
         else if (viewer) paintAvatar(avatar, viewer.login, viewer.avatar_url, 64);
       }
       // Named by its visible text (WCAG 2.5.3, as the account menu): the name, the team and the role, then a hidden
