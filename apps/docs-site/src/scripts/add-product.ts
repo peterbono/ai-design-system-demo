@@ -1,8 +1,8 @@
 // Add a product (components/ds/studio/AddProduct.tsx): what Bridge can see on GitHub to pick from, and what the
 // product's Vercel statuses say about its previews. Words and rules: lib/add-product.ts. The pull request:
 // scripts/roles.ts proposeNewProduct.
-import type { ProductConfig } from '@bridge-ds/core';
-import { previewsFromStatuses, type ProductRepoChoice, type StatusLike } from '../lib/add-product';
+import type { PreviewCheckRun, ProductConfig } from '@bridge-ds/core';
+import { previewsFromCheckRuns, previewsFromStatuses, type ProductRepoChoice, type StatusLike } from '../lib/add-product';
 import { ghGet, readRepo, sessionMode } from './github-session';
 
 interface RepoLike {
@@ -46,12 +46,17 @@ export async function listProductRepos(listed: readonly ProductConfig[]): Promis
     .sort((a, b) => a.full.localeCompare(b.full));
 }
 
-/** The previews of a product, from the Vercel statuses on its default branch; null when there are none yet. */
+/**
+ * The previews of a product, from what its host reports on its default branch: Vercel or Netlify commit statuses, else
+ * a Cloudflare Pages check run. Null when there are none yet.
+ */
 export async function detectPreviews(repo: ProductRepoChoice): Promise<{ preview: string; production: string } | null> {
-  try {
-    const { data } = await ghGet<{ statuses?: StatusLike[] }>(`/repos/${repo.full}/commits/${encodeURIComponent(repo.defaultBranch)}/status`);
-    return previewsFromStatuses(data.statuses ?? []);
-  } catch {
-    return null;
-  }
+  const ref = `/repos/${repo.full}/commits/${encodeURIComponent(repo.defaultBranch)}`;
+  const [statuses, runs] = await Promise.all([
+    ghGet<{ statuses?: StatusLike[] }>(`${ref}/status`).then((r) => r.data.statuses ?? []).catch(() => [] as StatusLike[]),
+    ghGet<{ check_runs?: { name: string; status: string; conclusion?: string | null; app?: { slug?: string } | null; output?: { summary?: string | null; text?: string | null } | null }[] }>(`${ref}/check-runs?per_page=100`)
+      .then((r) => (r.data.check_runs ?? []).map((c) => ({ name: c.name, status: c.status, conclusion: c.conclusion ?? null, app: c.app?.slug ?? null, summary: c.output?.summary ?? null, text: c.output?.text ?? null })))
+      .catch(() => [] as PreviewCheckRun[]),
+  ]);
+  return previewsFromStatuses(statuses) ?? previewsFromCheckRuns(runs);
 }

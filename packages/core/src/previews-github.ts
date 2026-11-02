@@ -5,7 +5,10 @@
 import type { BridgeConfig } from './config';
 import type { GitHubClient } from './github-client';
 import type { ProductConfig } from './products';
-import { resolveBranchPreviews, type BranchPreview, type PreviewApps } from './previews';
+import { previewHostOf, resolveBranchPreviews, type BranchPreview, type PreviewApps } from './previews';
+
+/** Check runs are read only for hosts that report previews there (Cloudflare Pages): one read saved otherwise. */
+const needsCheckRuns = (apps: PreviewApps): boolean => Object.values(apps).some((t) => !!t && previewHostOf(t) !== 'vercel');
 
 export interface BranchPreviewOptions {
   /** Branch and head commit when the caller knows them (skips reading the pull request). */
@@ -43,12 +46,13 @@ export async function branchPreviewUrls(gh: GitHubClient, ref: number | string, 
       }
     }
   }
-  const [comments, statuses, deployments] = await Promise.all([
+  const [comments, statuses, deployments, checkRuns] = await Promise.all([
     opts.comments ? Promise.resolve(opts.comments) : pr !== undefined ? gh.listIssueComments(pr).catch(() => []) : Promise.resolve([]),
     sha ? gh.listCommitStatuses(sha).catch(() => []) : Promise.resolve([]),
     sha ? gh.listDeployments(sha).catch(() => []) : Promise.resolve([]),
+    sha && needsCheckRuns(apps) ? gh.listCheckRuns(sha).catch(() => []) : Promise.resolve([]),
   ]);
-  return resolveBranchPreviews(apps, { branch: branch ?? '', ...(pr !== undefined ? { pr } : {}), ...(sha ? { sha } : {}) }, { comments, statuses, deployments });
+  return resolveBranchPreviews(apps, { branch: branch ?? '', ...(pr !== undefined ? { pr } : {}), ...(sha ? { sha } : {}) }, { comments, statuses, deployments, checkRuns });
 }
 
 /**
@@ -60,12 +64,14 @@ export async function branchPreviewUrls(gh: GitHubClient, ref: number | string, 
  */
 export async function productPreviewOnGitHub(gh: GitHubClient, product: Pick<ProductConfig, 'key' | 'name' | 'preview'>, e: { number: number; branch: string; sha?: string | undefined }): Promise<BranchPreview | null> {
   if (!product.preview) return null;
-  const [comments, statuses, deployments] = await Promise.all([
+  const apps: PreviewApps = { admin: product.preview };
+  const [comments, statuses, deployments, checkRuns] = await Promise.all([
     gh.listIssueComments(e.number).catch(() => []),
     e.sha ? gh.listCommitStatuses(e.sha).catch(() => []) : Promise.resolve([]),
     e.sha ? gh.listDeployments(e.sha).catch(() => []) : Promise.resolve([]),
+    e.sha && needsCheckRuns(apps) ? gh.listCheckRuns(e.sha).catch(() => []) : Promise.resolve([]),
   ]);
-  // The admin slot carries the product's template: Vercel projects are matched by the template's host.
-  const p = resolveBranchPreviews({ admin: product.preview }, { branch: e.branch, pr: e.number, ...(e.sha ? { sha: e.sha } : {}) }, { comments, statuses, deployments })[0];
+  // The admin slot carries the product's template: hosts are matched by the template's host.
+  const p = resolveBranchPreviews(apps, { branch: e.branch, pr: e.number, ...(e.sha ? { sha: e.sha } : {}) }, { comments, statuses, deployments, checkRuns })[0];
   return p ? { ...p, app: product.key as keyof PreviewApps, label: product.name } : null;
 }

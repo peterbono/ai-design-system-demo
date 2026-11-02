@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { productProblems, type ProductConfig } from '@bridge-ds/core';
-import { addProductProblem, addProductProposal, ADD_PRODUCT_WORDS, copyRepoFor, nameFromRepo, newProductEntry, previewsFromStatuses, productKeyFor, withNewProduct } from './add-product';
+import { addProductProblem, addProductProposal, ADD_PRODUCT_WORDS, copyRepoFor, nameFromRepo, newProductEntry, previewsFromCheckRuns, previewsFromStatuses, productKeyFor, withNewProduct } from './add-product';
 
 const SHOP: ProductConfig = { key: 'admin-app', name: 'Art print shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' }, framework: 'react' };
 
@@ -40,6 +40,20 @@ describe('add a product', () => {
       production: 'https://bridge-product-admin.vercel.app',
     });
     expect(previewsFromStatuses([{ context: 'Vercel – shop-web', target_url: 'https://vercel.com/acme/shop-web/9Zx' }])?.preview).toBe('https://shop-web-git-{branch}-acme.vercel.app');
+  });
+
+  it('reads Netlify statuses and Cloudflare Pages check runs too', () => {
+    expect(previewsFromStatuses([{ context: 'netlify/shop-web/deploy-preview', state: 'success', target_url: 'https://deploy-preview-3--shop-web.netlify.app' }])).toEqual({
+      preview: 'https://deploy-preview-{pr}--shop-web.netlify.app',
+      production: 'https://shop-web.netlify.app',
+    });
+    expect(previewsFromCheckRuns([])).toBeNull();
+    expect(previewsFromCheckRuns([{ name: 'Tests', status: 'completed', app: 'github-actions', summary: 'ok' }])).toBeNull();
+    expect(
+      previewsFromCheckRuns([
+        { name: 'Cloudflare Pages', status: 'completed', conclusion: 'success', app: 'cloudflare-workers-and-pages', summary: '| Preview URL: | https://1a2b3c4d.art-print-shop.pages.dev |\n| Branch Preview URL: | https://main.art-print-shop.pages.dev |' },
+      ]),
+    ).toEqual({ preview: 'https://{branch}.art-print-shop.pages.dev', production: 'https://art-print-shop.pages.dev' });
   });
 
   it('builds a valid entry, with the copy when asked', () => {

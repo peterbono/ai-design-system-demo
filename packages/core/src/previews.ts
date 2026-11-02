@@ -40,6 +40,34 @@ export function branchSlug(branch: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/** The host a preview URL or template is deployed on, from its domain. `other` for a custom domain. */
+export type PreviewHost = 'vercel' | 'cloudflare' | 'netlify' | 'other';
+
+/** The host of a preview URL or URL template (`https://{branch}.shop.pages.dev` -> `cloudflare`). */
+export function previewHostOf(urlOrTemplate: string | null | undefined): PreviewHost {
+  const host = /^https?:\/\/([^/?#]+)/i.exec(urlOrTemplate ?? '')?.[1]?.toLowerCase() ?? '';
+  if (/\.vercel\.app$/.test(host)) return 'vercel';
+  if (/\.pages\.dev$/.test(host)) return 'cloudflare';
+  if (/\.netlify\.app$/.test(host)) return 'netlify';
+  return 'other';
+}
+
+/** The longest branch alias Cloudflare Pages gives: longer branch names are cut to it. */
+export const CLOUDFLARE_ALIAS_MAX = 28;
+
+/**
+ * Cloudflare Pages' branch alias (`<alias>.<project>.pages.dev`): lowercased, every character outside [a-z0-9] becomes a
+ * dash, cut to 28 characters, no dash at the end. `fix/api` -> `fix-api`. The real alias Cloudflare reports (its
+ * check run on the commit) always wins over this one (resolveBranchPreviews).
+ */
+export function cloudflareBranchAlias(branch: string): string {
+  return branch
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '-')
+    .slice(0, CLOUDFLARE_ALIAS_MAX)
+    .replace(/-+$/, '');
+}
+
 /**
  * Fills a URL template. Placeholders: `{branch}` (slug), `{rawBranch}` (URL-encoded), `{pr}`, `{sha}`, `{sha7}`.
  * Returns null when the template needs a value the context lacks, when the result is not an http(s) URL, or when
@@ -49,7 +77,8 @@ export function branchSlug(branch: string): string {
 export function previewUrl(template: string | undefined, ctx: PreviewContext): string | null {
   if (!template) return null;
   const values: Record<string, string | undefined> = {
-    branch: branchSlug(ctx.branch),
+    // Each host names a branch its own way: Cloudflare Pages keeps its own alias rule (cloudflareBranchAlias).
+    branch: previewHostOf(template) === 'cloudflare' ? cloudflareBranchAlias(ctx.branch) : branchSlug(ctx.branch),
     rawBranch: encodeURIComponent(ctx.branch),
     pr: ctx.pr === undefined ? undefined : String(ctx.pr),
     sha: ctx.sha,
@@ -240,7 +269,7 @@ export function findPreviewComment<T extends { body?: string | null | undefined 
 // statuses, then the Vercel bot comment on the pull request, and the template only when its host labels fit.
 
 /** Where a preview URL comes from, most trusted first. */
-export type PreviewUrlSource = 'deployment' | 'status' | 'vercel-comment' | 'template';
+export type PreviewUrlSource = 'deployment' | 'status' | 'check' | 'vercel-comment' | 'template';
 /** Whether the preview of the latest commit can be opened. `unknown` when only the template says where it is. */
 export type PreviewState = 'ready' | 'building' | 'failed' | 'unknown';
 
@@ -272,6 +301,66 @@ export interface CommitStatusLike {
   target_url?: string | null | undefined;
   /** "Canceled by Ignored Build Step" when Vercel skipped the build. */
   description?: string | null | undefined;
+}
+
+/**
+ * A check run on a commit (`GET /commits/{sha}/check-runs`): Cloudflare Pages reports its build this way, with the
+ * preview links in the run's output summary.
+ */
+export interface PreviewCheckRun {
+  name: string;
+  status: string;
+  conclusion?: string | null | undefined;
+  /** Slug of the GitHub App that reported it ("cloudflare-workers-and-pages"), when GitHub says. */
+  app?: string | null | undefined;
+  /** The run's output summary and text (Markdown), where Cloudflare Pages writes its preview URLs. */
+  summary?: string | null | undefined;
+  text?: string | null | undefined;
+}
+
+/** True for the check run Cloudflare Pages reports on a commit. */
+export const isCloudflareCheck = (c: Pick<PreviewCheckRun, 'name' | 'app'>): boolean => /cloudflare/i.test(c.app ?? '') || /cloudflare\s*(?:pages|workers)/i.test(c.name);
+
+/**
+ * The preview URLs of a Cloudflare Pages check run's output: its `Branch Preview URL` (the branch alias, stable across
+ * commits) and its `Preview URL` (this commit's deployment). Null when the run carries neither.
+ */
+export function parseCloudflareCheck(c: Pick<PreviewCheckRun, 'summary' | 'text'>): { branchUrl: string | null; commitUrl: string | null } | null {
+  const body = `${c.summary ?? ''}\n${c.text ?? ''}`;
+  const pick = (label: RegExp) => {
+    const m = label.exec(body);
+    return m ? httpsUrl(m[1]!) : null;
+  };
+  // Rows look like `| Branch Preview URL: | https://fix-api.shop.pages.dev |`, sometimes a Markdown link `[url](url)`.
+  const branchUrl = pick(/Branch\s+Preview\s+URL:?\s*\|?\s*\[?(https?:\/\/[^\s|)\]<>]+)/i);
+  const commitUrl = pick(/(?<!Branch\s)Preview\s+URL:?\s*\|?\s*\[?(https?:\/\/[^\s|)\]<>]+)/i);
+  return branchUrl || commitUrl ? { branchUrl, commitUrl } : null;
+}
+
+/** The host pattern of a template: its placeholders match one or more DNS characters. */
+function templateHostPattern(template: string | undefined): RegExp | null {
+  const host = /^https?:\/\/([^/?#]+)/i.exec(template ?? '')?.[1]?.toLowerCase();
+  if (!host) return null;
+  const parts = host.split(/\{\w+\}/).map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return parts.length > 1 ? new RegExp(`^${parts.join('[a-z0-9-]+')}$`) : null;
+}
+
+/**
+ * The app a preview URL belongs to, from the host its template describes: `explore-x.shop.pages.dev` belongs to the
+ * app whose template is `https://{branch}.shop.pages.dev`, `deploy-preview-12--shop.netlify.app` to
+ * `https://{branch}--shop.netlify.app`. A Cloudflare commit URL (`<hash>.<project>.pages.dev`) matches too. Null when no
+ * template, or more than one, matches.
+ */
+export function appForUrl(url: string | null | undefined, apps: PreviewApps): keyof PreviewApps | null {
+  let host: string;
+  try {
+    host = new URL(url ?? '').hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  const keys = Object.keys(PREVIEW_APP_LABELS) as (keyof PreviewApps)[];
+  const hits = keys.filter((app) => templateHostPattern(apps[app])?.test(host));
+  return hits.length === 1 ? hits[0]! : null;
 }
 
 /** One project of the Vercel bot comment. */
@@ -387,6 +476,8 @@ export interface BranchPreviewSources {
   statuses?: CommitStatusLike[] | undefined;
   /** The pull request's comments (the Vercel bot comment is read from them). */
   comments?: { body?: string | null | undefined }[] | undefined;
+  /** Check runs of the head commit (Cloudflare Pages reports its previews there). */
+  checkRuns?: PreviewCheckRun[] | undefined;
 }
 
 /**
@@ -420,7 +511,12 @@ export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, so
     const url = httpsUrl(st.target_url);
     // A repository with one Vercel project reports its status as plain "Vercel": the project is in the inspector URL.
     const project = projectOfLabel(st.context) ?? (/^\s*vercel\s*$/i.test(st.context) && url ? inspectorProject(url) : null);
-    if (!project) continue;
+    if (!project) {
+      // Any other host (Netlify's `netlify/<site>/deploy-preview`, a custom deploy): its link names the app by host.
+      const other = url && !isInspectorUrl(url) ? appForUrl(url, apps) : null;
+      if (other) offer(other, url, 'status', stateOf(st.state), 0);
+      continue;
+    }
     const app = appForProject(project, apps);
     const skipped = IGNORED_BUILD.test(st.description ?? '');
     offer(app, url && !isInspectorUrl(url) ? url : null, 'status', stateOf(st.state), 0, skipped);
@@ -431,13 +527,28 @@ export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, so
   // 2. Deployments (Preview – <project>): their URL beats the status's.
   for (const d of sources.deployments ?? []) {
     const project = projectOfLabel(d.environment);
-    const app = project ? appForProject(project, apps) : null;
-    if (!app) continue;
     const url = httpsUrl(d.environmentUrl);
+    // Any host that reports GitHub deployments (Cloudflare, Netlify, a custom pipeline): matched by its URL's host,
+    // production deployments left out (they are not this branch's preview).
+    const app = project ? appForProject(project, apps) : /production/i.test(d.environment) ? null : appForUrl(url, apps);
+    if (!app) continue;
     const s = at(app);
     if (url && s.urlSource !== 'deployment') Object.assign(s, { url, urlSource: 'deployment' as const });
     const state = stateOf(d.state);
     if (state !== 'unknown' && (s.stateRank === undefined || 1 < s.stateRank)) Object.assign(s, { state, stateRank: 1 });
+  }
+  // 2b. Check runs (Cloudflare Pages): the branch alias, else this commit's deployment URL.
+  const checkSeen = new Set<string>();
+  for (const c of sources.checkRuns ?? []) {
+    if (!isCloudflareCheck(c) || checkSeen.has(c.name)) continue;
+    checkSeen.add(c.name);
+    const links = parseCloudflareCheck(c);
+    const url = links?.branchUrl ?? links?.commitUrl ?? null;
+    // A build still running has no link yet: it is the only Cloudflare-hosted app's, when there is one.
+    const onCloudflare = (Object.keys(PREVIEW_APP_LABELS) as (keyof PreviewApps)[]).filter((k) => previewHostOf(apps[k]) === 'cloudflare');
+    const app = appForUrl(url, apps) ?? appForUrl(links?.commitUrl, apps) ?? (!url && onCloudflare.length === 1 ? onCloudflare[0]! : null);
+    const state: PreviewState = c.status !== 'completed' ? 'building' : stateOf(c.conclusion ?? '');
+    offer(app, url, 'check', state, 0);
   }
   // 3. The Vercel bot comment.
   for (const p of parseVercelComment(findVercelComment(sources.comments ?? [])?.body) ?? []) offer(appForProject(p.name, apps), p.previewUrl, 'vercel-comment', stateOf(p.status), 2, p.status ? p.status.toUpperCase() === 'IGNORED' : undefined);

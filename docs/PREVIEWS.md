@@ -222,6 +222,14 @@ The apps build anywhere with the same commands; only Vercel is configured in the
   `/* /index.html 200` redirect for the admin.
 - **Cloudflare Pages**: same three projects; branch aliases are `https://{branch}.<project>.pages.dev` (Cloudflare
   shortens long names). The docs build reads `CF_PAGES_BRANCH`.
+- **Products and design copies on any host.** `products[].preview` and `design.preview` take any host's template.
+  Bridge reads the real preview from GitHub whatever the host: deployments (any host that reports them), commit
+  statuses (Vercel, Netlify `netlify/<site>/deploy-preview`), check runs (Cloudflare Pages writes `Preview URL` and
+  `Branch Preview URL` in its run), and fills the template only as a fallback: `{branch}` follows each host's alias
+  rule (Vercel's slug and 63-character shortening, Cloudflare's alias cut to 28 characters). The product toolbar
+  knows a preview by its host when the build sets no `deployEnv`. Cloudflare Pages example:
+  `"preview": "https://{branch}.shop.pages.dev"`, `"production": "https://shop.pages.dev"`,
+  `"design": { "repo": "acme/shop-design", "preview": "https://{branch}.shop-design.pages.dev" }`.
 - **GitHub Pages** serves one site per repository and has no per-PR deploys, so it does not fit previews. For a
   production mirror under a sub-path, build the admin with `BASE_PATH=/<repo>/admin/ npm run admin:build` (the
   router follows `import.meta.env.BASE_URL`). The docs site uses root-relative links and must be served from a
