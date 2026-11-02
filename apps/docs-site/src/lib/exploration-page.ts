@@ -31,6 +31,37 @@ export function nameOnlyAuthors(commits: readonly BranchCommitLike[]): Set<strin
   return out;
 }
 
+/** The address Bridge gives an email member's saves: a person with no GitHub account, never linked to one. */
+const MEMBER_EMAIL = /@contributors\.bridge\.invalid$/i;
+
+/** GitHub's private address for an account ("63565173+peterbono@users.noreply.github.com"): its login. */
+const noreplyLogin = (email: string): string | null => /^(?:\d+\+)?([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))@users\.noreply\.github\.com$/i.exec(email.trim())?.[1] ?? null;
+
+/**
+ * The branch's commits with their GitHub account filled in where GitHub left it out: a commit made with an address
+ * the account has not verified (Florian's own address, pushed as peterbono) comes back with no author login, and would
+ * read as someone known by name only (a drawn face, the email member's kind) instead of the person's photo. The login
+ * comes from GitHub's private address when the commit has one, else from the same git name on the branch's other
+ * commits when exactly one account carries it. An email member's saves (MEMBER_EMAIL), bots and Claude stay as they are.
+ */
+export function linkAuthors(commits: readonly BranchCommitLike[]): BranchCommitLike[] {
+  const byName = new Map<string, Set<string>>();
+  for (const c of commits) {
+    const login = c.author?.login?.trim();
+    const name = c.commit.author?.name?.trim().toLowerCase();
+    if (login && name && humanAuthorOf(c) === login) byName.set(name, (byName.get(name) ?? new Set()).add(login));
+  }
+  return commits.map((c) => {
+    if (c.author?.login?.trim()) return c;
+    const name = c.commit.author?.name?.trim();
+    const email = (c.commit.author as { email?: string | null } | null | undefined)?.email?.trim() ?? '';
+    if (!name || MEMBER_EMAIL.test(email) || !humanAuthorOf(c) || /claude/i.test(name)) return c;
+    const known = byName.get(name.toLowerCase());
+    const login = noreplyLogin(email) ?? (known?.size === 1 ? [...known][0]! : null);
+    return login ? { ...c, author: { ...c.author, login } } : c;
+  });
+}
+
 /**
  * The face of an actor; a person's change Claude co-wrote reads "Florian with Claude" with the person's photo. Someone
  * known by name only (`nameOnly`, or an email address recorded as the author) gets the drawn face of their name, the
@@ -75,13 +106,15 @@ export interface ActivityRow {
 
 /** The last 3 events: Claude's and people's changes, then "started the exploration" when it fits. */
 export function activityRows(input: { commits: readonly BranchCommitLike[]; author: string; startedAt?: string | null | undefined; reopened?: { at: string; by?: string | null | undefined } | null; names?: Record<string, string>; now?: Date }): ActivityRow[] {
-  return explorationActivity({ commits: input.commits, author: input.author, startedAt: input.startedAt, reopened: input.reopened, limit: 3 }).map((e) => ({ who: faceOf(e.who, e.claude, input.names, e.withClaude, nameOnlyAuthors(input.commits)), text: e.text, when: shortAgo(e.at, input.now) }));
+  const commits = linkAuthors(input.commits);
+  return explorationActivity({ commits, author: input.author, startedAt: input.startedAt, reopened: input.reopened, limit: 3 }).map((e) => ({ who: faceOf(e.who, e.claude, input.names, e.withClaude, nameOnlyAuthors(commits)), text: e.text, when: shortAgo(e.at, input.now) }));
 }
 
 /** "Claude changed Orders table and Bulk actions bar, 2 h ago": the line under the title once something changed. */
 export function headlineOf(input: { commits: readonly BranchCommitLike[]; files: readonly string[] | null; author: string; names?: Record<string, string>; now?: Date }): ActivityRow | null {
-  const last = lastActivity({ commits: input.commits, files: input.files, author: input.author });
-  return last ? { who: faceOf(last.who, last.claude, input.names, last.withClaude, nameOnlyAuthors(input.commits)), text: last.text, when: shortAgo(last.at, input.now) } : null;
+  const commits = linkAuthors(input.commits);
+  const last = lastActivity({ commits, files: input.files, author: input.author });
+  return last ? { who: faceOf(last.who, last.claude, input.names, last.withClaude, nameOnlyAuthors(commits)), text: last.text, when: shortAgo(last.at, input.now) } : null;
 }
 
 /** Back to exploring, from the exploration block: when, and who said it when known. */
@@ -305,7 +338,8 @@ export function buildersOf(input: { assignees?: readonly { login: string }[] | n
  * commit before it is the explorer's work, the ones after are the developers'.
  */
 export function handoffActivity(input: { commits: readonly BranchCommitLike[]; author: string; startedAt?: string | null; doneBy: string | null; doneAt: string | null; designAnswer?: { kind: 'looks-right' | 'changes'; login: string; at: string } | null; names?: Record<string, string>; now?: Date }): ActivityRow[] {
-  const events = explorationActivity({ commits: input.commits.filter((c) => !isDoneCommit(c)), author: input.author, startedAt: input.startedAt ?? null });
+  const commits = linkAuthors(input.commits);
+  const events = explorationActivity({ commits: commits.filter((c) => !isDoneCommit(c)), author: input.author, startedAt: input.startedAt ?? null });
   const done = input.doneAt ? [...events, { who: input.doneBy ?? input.author, claude: false, text: 'said done exploring', at: input.doneAt }] : events;
   // The designer's answer on the developers' version (posted by Bridge on their pull request).
   const a = input.designAnswer;
@@ -313,7 +347,7 @@ export function handoffActivity(input: { commits: readonly BranchCommitLike[]; a
   return all
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, 3)
-    .map((e) => ({ who: faceOf(e.who, e.claude, input.names, 'withClaude' in e && Boolean(e.withClaude), nameOnlyAuthors(input.commits)), text: e.text, when: shortAgo(e.at, input.now) }));
+    .map((e) => ({ who: faceOf(e.who, e.claude, input.names, 'withClaude' in e && Boolean(e.withClaude), nameOnlyAuthors(commits)), text: e.text, when: shortAgo(e.at, input.now) }));
 }
 
 /** One piece the library gets from this exploration, with its request status. */

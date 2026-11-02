@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { nameFace } from './people';
 import type { BranchCommitLike } from '@bridge-ds/core';
 import {
   canRunCheck,
@@ -19,6 +20,7 @@ import {
   headlineOf,
   isHandoffStatus,
   libraryPreviewApp,
+  linkAuthors,
   pageLines,
   requestPieces,
   startedTail,
@@ -102,6 +104,66 @@ describe('exploration page model', () => {
     expect(libraryPreviewApp(['packages/react/src/components/Button/Button.tsx'], apps)).toBe('storybook');
     expect(libraryPreviewApp(['packages/core/src/x.ts'], apps)).toBe('docs');
     expect(libraryPreviewApp(null, {})).toBeNull();
+  });
+});
+
+// The design copy's branches as GitHub lists them (Dino's exploration #4, Florian's #1): Florian's own address is not
+// verified on peterbono, so that commit comes back with no author login; Dino saves through Bridge by name only.
+const at = (sha: string, message: string, date: string, name: string, email: string, login: string | null = null): BranchCommitLike => ({ sha, commit: { message, author: { name, date, email } as { name: string; date: string } }, author: login ? { login } : null });
+const DINO = '002ceed60c2a@contributors.bridge.invalid';
+const NOREPLY = '63565173+peterbono@users.noreply.github.com';
+
+describe('activity faces follow the person each row names', () => {
+  const dinoBranch = [
+    at('s', 'chore(explore): start add a toast alert', '2026-11-01T09:00:00Z', 'Dino', DINO),
+    at('f', 'Orders: success toast when orders are marked as delivered', '2026-11-01T10:00:00Z', 'Florian', NOREPLY, 'peterbono'),
+    at('t', 'Toast: shorter description', '2026-11-01T11:00:00Z', 'Dino', DINO),
+    at('p', `chore: build the preview on the private copy${CLAUDE}`, '2026-11-01T12:00:00Z', 'Florian', 'floriangouloubi@gmail.com'),
+  ];
+
+  it("a commit with Claude's trailer by Florian, his address unlinked: his photo, named with Claude, never Dino's face", () => {
+    const rows = activityRows({ commits: dinoBranch, author: 'name:Dino', names: { peterbono: 'Florian' }, now: NOW });
+    expect(rows[0]!.text).toBe('built the preview on the private copy');
+    expect(rows[0]!.who).toEqual({ login: 'peterbono', name: 'Florian with Claude', agent: false, avatar: 'https://github.com/peterbono.png?size=64' });
+    expect(headlineOf({ commits: dinoBranch, files: [], author: 'name:Dino', names: { peterbono: 'Florian' }, now: NOW })!.who.login).toBe('peterbono');
+  });
+
+  it("Dino's own saves keep Dino's drawn face", () => {
+    const rows = activityRows({ commits: dinoBranch, author: 'name:Dino', names: { peterbono: 'Florian' }, now: NOW });
+    expect(rows[1]!.who).toEqual({ login: nameFace('Dino'), name: 'Dino', agent: false, avatar: null });
+    expect(rows[2]!.who.login).toBe('peterbono');
+  });
+
+  it("a bot's commit for a member is that member's: Dino's face", () => {
+    const bot = at('b', 'feat: add a toast', '2026-11-01T13:00:00Z', 'bridge-design-studio[bot]', 'bot@users.noreply.github.com', 'bridge-design-studio[bot]');
+    const rows = activityRows({ commits: [...dinoBranch, bot], author: 'name:Dino', now: NOW });
+    expect(rows[0]!.who).toEqual({ login: nameFace('Dino'), name: 'Dino', agent: false, avatar: null });
+    expect(activityRows({ commits: [bot], author: DINO, names: { [DINO]: 'Dino' }, now: NOW })[0]!.who).toMatchObject({ name: 'Dino', avatar: null });
+  });
+
+  it("Claude alone stays Claude; the start row is the explorer's", () => {
+    const claude = at('c', `feat: add a toast${CLAUDE}`, '2026-11-01T13:00:00Z', 'Claude', 'noreply@anthropic.com');
+    const rows = activityRows({ commits: [dinoBranch[0]!, claude], author: 'name:Dino', startedAt: '2026-11-01T09:00:00Z', now: NOW });
+    expect(rows[0]!.who).toMatchObject({ name: 'Claude', agent: true });
+    expect(rows[1]!.who.login).toBe(nameFace('Dino'));
+  });
+
+  it('after Done exploring, the same faces', () => {
+    const rows = handoffActivity({ commits: dinoBranch, author: 'name:Dino', doneBy: 'name:Dino', doneAt: '2026-11-01T11:30:00Z', names: { peterbono: 'Florian' }, now: NOW });
+    expect(rows.map((r) => r.who.login)).toEqual(['peterbono', nameFace('Dino'), nameFace('Dino')]);
+  });
+
+  it('links an unlinked commit by GitHub private address or by the one account with that git name, never an email member', () => {
+    const own = at('o', 'fix', '2026-11-01T14:00:00Z', 'Someone', NOREPLY);
+    expect(linkAuthors([own])[0]!.author?.login).toBe('peterbono');
+    expect(linkAuthors(dinoBranch)[3]!.author?.login).toBe('peterbono');
+    expect(linkAuthors(dinoBranch)[2]!.author).toBeNull();
+    // A member named like an account is still the member.
+    const twin = at('d', 'fix', '2026-11-01T14:00:00Z', 'Florian', 'x1@contributors.bridge.invalid');
+    expect(linkAuthors([...dinoBranch, twin])[4]!.author).toBeNull();
+    // Two accounts with the same git name: nobody is guessed.
+    const two = [at('1', 'a', '2026-11-01T08:00:00Z', 'Sam', 'a@x.com', 'sam-a'), at('2', 'b', '2026-11-01T08:00:00Z', 'Sam', 'b@x.com', 'sam-b'), at('3', 'c', '2026-11-01T08:00:00Z', 'Sam', 'c@x.com')];
+    expect(linkAuthors(two)[2]!.author).toBeNull();
   });
 });
 
