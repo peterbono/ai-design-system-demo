@@ -11,12 +11,19 @@
 //   - only what Bridge keeps: a repository with no answer kept (bridge:read:known:<repo>) is ignored (200, no write).
 //   - fast: two Redis round trips, no GitHub call, nothing of the payload logged or stored but the event's facts
 //     (repository names, installation id, a time).
+//   - notifications (api/_lib/notify.ts): in the same first round trip, whether the repository is watched for designers
+//     who joined by email (bridge:notify:teams, not the 20-minute read cache) and whether a daily summary is due. A
+//     watched delivery goes through notifyEventsOf (pure) and deliverNotices (who it is for, sent or kept): only
+//     names and titles are kept, never a comment body. Once per delivery id, like everything else here. A failure
+//     there never fails the delivery.
 //
 // Keys (besides those of team-read.ts it writes: bridge:read:changed, bridge:read:hook:last, bridge:read:hook:inst):
 //   bridge:hook:delivery:<X-GitHub-Delivery>   "1", DELIVERY_KEEP_S
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { SECURITY_HEADERS, json } from './http.js';
+import { SECURITY_HEADERS, json, siteOrigin } from './http.js';
+import { notifyEventsOf } from './notify-events.js';
+import { deliverNotices, DUE_KEY, NOTIFY_TEAMS_KEY, sweepSometimes, type NotifyDeps } from './notify.js';
 import type { Redis, RedisArg } from './redis.js';
 import { HOOK_HEALTHY_MS, HOOK_LAST_KEY, READ_TOPICS, changedWrites, hookInstallationKey, knownKey, productsKey, type ReadTopic } from './team-read.js';
 
@@ -39,6 +46,11 @@ export interface WebhookDeps {
   redis: Redis | null;
   secret: string | undefined;
   now: () => number;
+  /**
+   * Notifications (api/_lib/notify.ts): the sender (null: kept, not sent), LIBRARY_SESSION_SECRET for unsubscribe
+   * links and PUBLIC_SITE_URL for links. Absent: deliveries only move the read cache.
+   */
+  notify?: Pick<NotifyDeps, 'sender' | 'secret' | 'warn' | 'members' | 'random'> & { publicUrl?: string | undefined };
 }
 
 /** Whether `signature` (the X-Hub-Signature-256 header, "sha256=<hex>") is GitHub's for `body` with `secret`. */
@@ -131,17 +143,38 @@ export async function handleGithubWebhook(req: Request, d: WebhookDeps): Promise
   const now = d.now();
   const installation = (payload as { installation?: { id?: unknown } } | null)?.installation?.id;
   const effect = effectOf(event, payload);
-  // One round trip: seen before?, the webhooks are alive, and which repositories Bridge keeps answers of.
+  // What it means for designers who joined by email (notifications): only for a repository Bridge watches for them.
+  const notices = d.notify ? notifyEventsOf(event, payload) : [];
+  const watch = notices[0]?.repo ?? null;
+  // One round trip: seen before?, the webhooks are alive, watched for notifications?, and which repositories Bridge
+  // keeps answers of.
   const first: RedisArg[][] = [
     ['SET', deliveryKey(delivery), '1', 'NX', 'EX', DELIVERY_KEEP_S],
     ['SET', HOOK_LAST_KEY, String(now), 'EX', Math.ceil(HOOK_HEALTHY_MS / 1000)],
     ...(Number.isSafeInteger(installation) && (installation as number) > 0 ? [['SET', hookInstallationKey(installation as number), String(now), 'EX', INSTALLATION_KEEP_S]] : []),
-    ...effect.repos.map((r) => ['GET', knownKey(r)]),
   ];
+  // Notifications: is the repository watched, and is a daily summary due somewhere (the deliveries are the clock between
+  // two crons)?
+  const watchAt = watch ? first.push(['SISMEMBER', NOTIFY_TEAMS_KEY, watch]) - 1 : -1;
+  const dueAt = d.notify ? first.push(['ZRANGEBYSCORE', DUE_KEY, '-inf', now, 'LIMIT', 0, 1]) - 1 : -1;
+  const at = first.length;
+  first.push(...effect.repos.map((r) => ['GET', knownKey(r)]));
   const r = await d.redis.pipe(first);
   if (r[0] === null) return done({ ok: true, duplicate: true });
-  const known = effect.repos.filter((_, i) => r[r.length - effect.repos.length + i] !== null && r[r.length - effect.repos.length + i] !== undefined);
-  if (!known.length || !effect.topics.length) return done({ ok: true, ignored: true });
+  let notified: number | null = null;
+  if (d.notify) {
+    const nd: NotifyDeps = { ...d.notify, redis: d.redis, now: d.now, origin: siteOrigin(req, d.notify.publicUrl) };
+    // Never in the way of the read cache: a notification that fails is lost, the delivery still answers.
+    try {
+      if (watchAt >= 0 && Number(r[watchAt]) === 1) notified = (await deliverNotices(notices, nd, delivery)).length;
+      if (Array.isArray(r[dueAt]) && (r[dueAt] as unknown[]).length) await sweepSometimes(nd);
+    } catch {
+      console.warn('notifications: a delivery could not be turned into notifications');
+    }
+  }
+  const extra = notified !== null ? { notices: notified } : {};
+  const known = effect.repos.filter((_, i) => r[at + i] !== null && r[at + i] !== undefined);
+  if (!known.length || !effect.topics.length) return done({ ok: true, ignored: true, ...extra });
 
   const writes = known.flatMap((repo) => [...changedWrites(repo, effect.topics, now), ...(effect.config ? [['DEL', productsKey(repo)]] : [])]);
   try {
@@ -151,5 +184,5 @@ export async function handleGithubWebhook(req: Request, d: WebhookDeps): Promise
     await d.redis.cmd('DEL', deliveryKey(delivery)).catch(() => undefined);
     throw e;
   }
-  return done({ ok: true, repos: known.length, topics: effect.topics });
+  return done({ ok: true, repos: known.length, topics: effect.topics, ...extra });
 }

@@ -3,7 +3,7 @@
 // and deletes. The session is an httpOnly cookie this page never sees. When the site has no account server (an older
 // deploy, a fork, `astro dev`) the GET says unavailable and the screens fall back to GitHub; never a fake success.
 // Signed in, <html data-account> is set so the GitHub-only account blocks step aside (styles/account.css).
-import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, isPersonalKey, parseAccount, parseBlocked, signInHref, type Account, type AccountInfo, type BlockedTeam, type SignedIn } from '../lib/account';
+import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, isPersonalKey, parseAccount, parseBlocked, signInHref, type Account, type AccountInfo, type BlockedTeam, type NotifyChoices, type SignedIn } from '../lib/account';
 import { forgetContributors, seedContributors } from './contribute-session';
 import type { AiTool } from '../lib/ai-tools';
 import { isContribAuth } from '../lib/contribute';
@@ -116,14 +116,24 @@ export async function sendCode(to: CodeFor): Promise<void> {
   await call('POST', '', { action: 'code', ...codeTarget(to) });
 }
 
+/** This browser's IANA time zone ("Europe/Paris"): the server keeps it once, for the daily summary hour. */
+function timeZone(): { tz?: string } {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof tz === 'string' && tz ? { tz } : {};
+  } catch {
+    return {};
+  }
+}
+
 /** Checks the code; sets the session cookie. */
 export async function verifyCode(to: CodeFor, code: string, name?: string): Promise<SignedIn> {
-  return signedIn(await call('POST', '', { action: 'verify', ...codeTarget(to), code, ...(name ? { name } : {}) }));
+  return signedIn(await call('POST', '', { action: 'verify', ...codeTarget(to), code, ...(name ? { name } : {}), ...timeZone() }));
 }
 
 /** Signs in with (or links) the GitHub account of a GitHub sign-in token; the token is not kept by the server. */
 export async function signInWithGitHub(token: string): Promise<SignedIn> {
-  return signedIn(await call('POST', '', { action: 'github', token }));
+  return signedIn(await call('POST', '', { action: 'github', token, ...timeZone() }));
 }
 
 async function update(body: Record<string, unknown>): Promise<Account | null> {
@@ -140,6 +150,9 @@ export const renameAccount = (name: string) => update({ action: 'rename', name: 
 
 /** The AI tools the person uses (lib/ai-tools.ts), kept on their account. */
 export const saveAiTools = (tools: AiTool[]) => update({ action: 'ai-tools', tools });
+
+/** Account > Email: what Bridge emails the person about their work. */
+export const saveNotify = (choices: Partial<NotifyChoices>) => update({ action: 'notify', ...choices });
 
 /**
  * Forgets what this browser keeps about the person (lib/account.ts isPersonalKey): email memberships, teams, roles,

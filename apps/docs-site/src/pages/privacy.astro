@@ -32,6 +32,7 @@ import { DOCS_SECURITY } from '../lib/nav';
         <li>Short-lived copies of what Bridge reads from your team's repository on GitHub, so pages open fast: minutes for most answers, 7 days at most for file contents. Your browser tab keeps its own for seconds to minutes, and forgets them when you sign out.</li>
         <li>The public GitHub name and picture of the people on your team's changes, for a day, so members without GitHub see names. Nothing else from their profile.</li>
         <li>The one-time sign-in codes, hashed, for 10 minutes.</li>
+        <li>If you joined with your email: what happened to your own work that Bridge emails you about (a question for you, something ready for your look, what shipped), as a title, a name and a link, never the comment itself. Kept until your daily summary goes out, 30 days at most. Also your email choices (Account settings, Email) and your time zone, so the summary comes at 9:00 where you are. Every email has a link to stop them in one click.</li>
         <li>When you connect your own AI assistant to a team: your GitHub sign-in for that connection, encrypted, until you remove it or 90 days after its last use.</li>
         <li>When you sign in to the Figma plugin with Bridge: your GitHub sign-in, for 5 minutes at most, until the plugin collects it.</li>
       </ul>
@@ -49,6 +50,7 @@ import { DOCS_SECURITY } from '../lib/nav';
     <section class="pv-section" aria-labelledby="pv-where">
       <h2 id="pv-where" class="pv-h">Where and for how long</h2>
       <p>Your account lives in an Upstash Redis database in Frankfurt, Germany, with a daily backup in Vercel Blob in Paris, France. Bridge keeps it until you delete your account. Backups are kept 30 days, then removed.</p>
+      <p>Sign-in codes and invites are sent by Resend. The emails about your work are sent by Brevo, in the European Union: it receives your email address and the text of each email, nothing else.</p>
     </section>
 
     <section class="pv-section" aria-labelledby="pv-delete">

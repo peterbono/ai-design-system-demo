@@ -17,7 +17,7 @@ It forms part of [the agreement or terms under which the Customer uses Bridge] (
 
 1.2 **Duration.** For as long as the Customer uses Bridge under the Agreement, then until the data is deleted as set out in section 10.
 
-1.3 **Nature.** Storing, reading, updating and deleting account and team records; sending sign-in and invitation emails; keeping short-lived copies of reads from the Customer's repository; keeping encrypted GitHub tokens so that the Customer's AI assistant and the Figma plugin can act on the Customer's repository as the person who connected them.
+1.3 **Nature.** Storing, reading, updating and deleting account and team records; sending sign-in and invitation emails; sending email-only members emails about their own work (notifications) and a daily summary; keeping short-lived copies of reads from the Customer's repository; keeping encrypted GitHub tokens so that the Customer's AI assistant and the Figma plugin can act on the Customer's repository as the person who connected them.
 
 1.4 **Purpose.** Only to provide Bridge to the Customer's team, as described in the Agreement and on the security page.
 
@@ -33,6 +33,7 @@ Bridge does not process data about the Customer's own customers or the end users
 - Team membership: email, name, role, who added the person.
 - Invitations and requests to join: email, name, role, team, inviter, dates.
 - Records of branches and issues an email-only member made through Bridge.
+- Notifications for an email-only member: what happened to their work (kind, title, the name of who did it, team, link), their email choices and time zone. Kept until sent in the daily summary, 30 days at most.
 - AI connector connections: team repository, app name, GitHub login, display name, dates, and the person's GitHub tokens (encrypted).
 - Fix sessions: the steps the team's AI took on one component (names, never emails).
 - Short-lived copies of GitHub reads, which can include GitHub names and profile pictures.
@@ -55,7 +56,7 @@ Bridge shall:
 
 ## 5. Confidentiality
 
-Bridge ensures that every person authorised to process the personal data is bound by confidentiality. Today one person has access to production systems: the founder of Bridge, through their own accounts with Vercel, Upstash, Resend and GitHub. Bridge informs the Customer before granting production access to anyone else.
+Bridge ensures that every person authorised to process the personal data is bound by confidentiality. Today one person has access to production systems: the founder of Bridge, through their own accounts with Vercel, Upstash, Resend, Brevo and GitHub. Bridge informs the Customer before granting production access to anyone else.
 
 ## 6. Security
 
@@ -95,7 +96,7 @@ Bridge holds no certification at the date of this template (no SOC 2, no ISO 270
 
 12.1 Bridge's database (Upstash) and functions (Vercel) run in Frankfurt, Germany, and the daily backup (Vercel Blob) is kept in Paris, France. Static pages are served from Vercel's global network.
 
-12.2 Vercel Inc., Upstash Inc. and Resend Inc. are companies based in the United States. Resend's sending region is not chosen by Bridge. Where personal data is transferred, or made accessible, outside the European Economic Area, the transfer relies on the EU-US Data Privacy Framework certification of the subprocessor where it applies, and otherwise the Standard Contractual Clauses adopted by Commission Implementing Decision (EU) 2021/914, module three (processor to processor), incorporated by reference, together with the subprocessors' own data processing terms.
+12.2 Vercel Inc., Upstash Inc. and Resend Inc. are companies based in the United States. Resend's sending region is not chosen by Bridge. Brevo (Sendinblue SAS) is based in France and sends the notification emails from the European Union. Where personal data is transferred, or made accessible, outside the European Economic Area, the transfer relies on the EU-US Data Privacy Framework certification of the subprocessor where it applies, and otherwise the Standard Contractual Clauses adopted by Commission Implementing Decision (EU) 2021/914, module three (processor to processor), incorporated by reference, together with the subprocessors' own data processing terms.
 
 ## 13. Liability and order of precedence
 
@@ -145,6 +146,7 @@ Known limits, stated on the security page: no certification or outside audit, no
 | Vercel Inc. (United States) | Hosting, functions, daily backup (Vercel Blob) | Functions: Frankfurt, Germany. Backup: Paris, France. Static pages: global network | All records pass through the functions; backup holds accounts, members, invites and team records |
 | Upstash Inc. (United States) | Redis database | Frankfurt, Germany | The records in section 3 |
 | Resend Inc. (United States) | Sign-in and invitation emails | Not chosen by Bridge | Recipient email address and email text |
+| Brevo (Sendinblue SAS, France) | Work notification emails and the daily summary to email-only members | European Union | Recipient email address and email text (names and titles, never a comment) |
 
 Not subprocessors of Bridge: GitHub (the Customer's own provider, under the Customer's agreement with GitHub) and the Customer's AI provider (the Customer's own account).
 

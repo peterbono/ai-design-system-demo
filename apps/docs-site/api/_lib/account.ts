@@ -27,6 +27,13 @@ export interface Account {
   version: number;
   /** The AI tools the person uses with Bridge (src/lib/ai-tools.ts); absent while they never answered. */
   aiTools?: AiTool[];
+  /**
+   * What Bridge emails the person about their work (Account > Email, api/_lib/notify.ts); absent: the defaults, things
+   * that need them right away and what moved in a daily summary.
+   */
+  notify?: { needs: 'soon' | 'daily' | 'off'; news: 'daily' | 'off' };
+  /** Their IANA time zone, from the browser at sign-in (the daily summary comes at 09:00 there); absent: Europe/Paris. */
+  tz?: string;
 }
 
 export interface AccountClaims {

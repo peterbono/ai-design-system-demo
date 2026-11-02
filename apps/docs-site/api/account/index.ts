@@ -11,6 +11,14 @@
 //                                              or null; nameSet is false until the person typed their name (Bridge
 //                                              then asks it once, before anything shows the name to their team)
 //   GET  /api/account?export=1                 the daily backup (Vercel cron, Authorization: Bearer $CRON_SECRET)
+//   GET  /api/account?digest=1                 the daily notification summaries that are due (Vercel cron, same
+//                                              Bearer; api/_lib/notify.ts sendDueDigests)
+//   GET  /api/account?unsub=<sealed token>     the one-click unsubscribe page of a notification email; POST to the same
+//                                              address (its button, or a mail app's List-Unsubscribe-Post) stops those
+//                                              emails. No cookie, no CSRF header: the sealed token is the proof
+//   POST { action: 'notify', needs?, news? }   Account > Email: needs 'soon' | 'daily' | 'off', news 'daily' | 'off';
+//                                              { account }, 400 bad_notify. `account.notify` carries the choices
+//   verify and github also take `tz` (the browser's IANA time zone), kept once for the daily summary hour
 //   POST { action: 'code', email }             always { ok: true } (a cap answers 429 for everyone alike); emails a code
 //   POST { action: 'code', invite }            the same, to the address an invite link was sent to (the token of
 //                                              /studio/invite/#t=...); the email never comes back. 410 invite-gone
@@ -65,6 +73,8 @@ import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, sameOrigin, secondsToTomorrow, sha256, type FetchLike } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
+import { forgetWrites, notifySenderFromEnv, optOutKey, parsePrefs, prefsFor, prefsOf, sendDueDigests, validTimeZone, type NotifyPrefs } from '../_lib/notify.js';
+import { readUnsubToken } from '../_lib/notify-mail.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { revokeAccountGrants } from '../_lib/oauth.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
@@ -93,6 +103,10 @@ export interface AccountEnv {
   ACCOUNT_CODES_MAX_SITE_DAY?: string | undefined;
   GITHUB_APP_ID?: string | undefined;
   GITHUB_APP_PRIVATE_KEY?: string | undefined;
+  /** Notifications (api/_lib/notify.ts): the daily summary cron and unsubscribe links. */
+  BREVO_API_KEY?: string | undefined;
+  NOTIFY_FROM?: string | undefined;
+  PUBLIC_SITE_URL?: string | undefined;
 }
 
 /** The backup store (Vercel Blob in production). */
@@ -118,6 +132,8 @@ export interface AccountDeps {
   warn?: (msg: string) => void;
   /** The Bridge app that rewrites a deleted member's "Requested by" lines (tests inject one); else from the env. */
   app?: AppTokens | null;
+  /** The notification sender (tests); else Brevo from the env, or null (kept, not sent). */
+  notifySender?: EmailSender | null;
 }
 
 export interface PublicTeam {
@@ -134,6 +150,8 @@ export interface PublicAccount {
   github: { login: string; id: number } | null;
   /** The AI tools the person picked, null while they never answered. */
   aiTools: AiTool[] | null;
+  /** What Bridge emails them about their work (Account > Email), defaults filled in. */
+  notify: NotifyPrefs;
   teams: PublicTeam[];
 }
 
@@ -323,7 +341,7 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
 
 async function publicAccount(ctx: Ctx, a: Account): Promise<PublicAccount> {
   const teams = (await teamsOf(ctx, a.email)).map(({ at: _at, ...t }) => t);
-  return { email: a.email, name: a.name, nameSet: a.nameSet !== false, github: a.github ? { login: a.github.login, id: a.github.id } : null, aiTools: parseAiTools(a.aiTools), teams };
+  return { email: a.email, name: a.name, nameSet: a.nameSet !== false, github: a.github ? { login: a.github.login, id: a.github.id } : null, aiTools: parseAiTools(a.aiTools), notify: prefsOf(a), teams };
 }
 
 /**
@@ -354,7 +372,13 @@ async function createAccount(ctx: Ctx, email: string, typed: unknown, github: Ac
   return a;
 }
 
-async function signedIn(ctx: Ctx, a: Account, created: boolean): Promise<Response> {
+async function signedIn(ctx: Ctx, a: Account, created: boolean, tz?: unknown): Promise<Response> {
+  // The browser's time zone, kept once (the daily summary comes at 09:00 there): never changed by a later sign-in.
+  const zone = a.tz ? null : validTimeZone(tz);
+  if (zone) {
+    a = { ...a, tz: zone };
+    await putAccount(ctx.svc.redis, a);
+  }
   return json(200, { account: await publicAccount(ctx, a), created, next: await nextFor(ctx, a, created) }, { 'Set-Cookie': issueAccountCookie(a, ctx.svc.secret, ctx.now()) });
 }
 
@@ -470,8 +494,8 @@ async function onVerify(ctx: Ctx, req: Request, body: Record<string, unknown>): 
   }
   if (!rec || rec.email !== email) return fail(410, 'expired', CODE_EXPIRED);
   const known = await getAccount(svc.redis, email);
-  if (known) return signedIn(ctx, known, false);
-  return signedIn(ctx, await createAccount(ctx, email, body.name, null), true);
+  if (known) return signedIn(ctx, known, false, body.tz);
+  return signedIn(ctx, await createAccount(ctx, email, body.name, null), true, body.tz);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -522,7 +546,7 @@ async function onGithub(ctx: Ctx, req: Request, body: Record<string, unknown>): 
     const a = await getAccount(svc.redis, linked);
     if (a && a.github?.id === user.id) {
       if (a.github.login !== user.login) await putAccount(svc.redis, { ...a, github });
-      return signedIn(ctx, { ...a, github }, false);
+      return signedIn(ctx, { ...a, github }, false, body.tz);
     }
   }
   // An account with one of the verified emails: GitHub is linked to it.
@@ -533,11 +557,11 @@ async function onGithub(ctx: Ctx, req: Request, body: Record<string, unknown>): 
     const next = { ...a, github };
     await putAccount(svc.redis, next);
     await svc.redis.cmd('SET', githubKey(user.id), a.email);
-    return signedIn(ctx, next, false);
+    return signedIn(ctx, next, false, body.tz);
   }
   const primary = verified.find((e) => e.primary);
   if (!primary) return fail(409, 'no-verified-email', NO_VERIFIED_EMAIL);
-  return signedIn(ctx, await createAccount(ctx, primary.email, user.name, github, user.login), true);
+  return signedIn(ctx, await createAccount(ctx, primary.email, user.name, github, user.login), true, body.tz);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -643,6 +667,8 @@ async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
     ['DEL', triesKey(svc.secret, a.email)],
     ...(typeof live === 'string' ? [['DEL', codeKey(live)]] : []),
     ...(a.github && gh === a.email ? [['DEL', githubKey(a.github.id)]] : []),
+    // Their kept notifications and their place on the daily summary list (api/_lib/notify.ts).
+    ...forgetWrites(a.email),
   ]);
   return json(200, { ok: true }, { 'Set-Cookie': clearAccountCookie() });
 }
@@ -665,6 +691,7 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
       return json(200, { ok: true }, { 'Set-Cookie': clearAccountCookie() });
     case 'rename':
     case 'ai-tools':
+    case 'notify':
     case 'sign-out-everywhere':
     case 'delete-check':
     case 'delete': {
@@ -680,6 +707,13 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
         const tools = parseAiTools(body.tools);
         if (!tools) return fail(400, 'bad_tools', 'Pick at least one AI tool.');
         const next = { ...a, aiTools: tools };
+        await putAccount(svc.redis, next);
+        return json(200, { account: await publicAccount(ctx, next) });
+      }
+      if (body.action === 'notify') {
+        const notify = parsePrefs(body, prefsOf(a));
+        if (!notify) return fail(400, 'bad_notify', 'Pick one of the choices offered.');
+        const next = { ...a, notify };
         await putAccount(svc.redis, next);
         return json(200, { account: await publicAccount(ctx, next) });
       }
@@ -764,6 +798,111 @@ async function onExport(req: Request, env: AccountEnv, deps: AccountDeps): Promi
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Notifications: the daily summary cron and one-click unsubscribe (api/_lib/notify.ts)
+
+const isCron = (req: Request, env: AccountEnv) => {
+  const secret = env.CRON_SECRET?.trim();
+  const given = /^Bearer\s+(.+)$/i.exec(req.headers.get('authorization') ?? '')?.[1]?.trim() ?? '';
+  return Boolean(secret && given && safeEqual(given, secret));
+};
+
+/** Where emailed links point: PUBLIC_SITE_URL, else this deployment. */
+function siteOf(req: Request, env: AccountEnv): string {
+  const pub = env.PUBLIC_SITE_URL?.trim();
+  if (pub) {
+    try {
+      return new URL(pub).origin;
+    } catch {
+      /* this deployment */
+    }
+  }
+  return new URL(req.url).origin;
+}
+
+/** Up to this many summaries per cron run (8 rounds of 25); the rest go on the next delivery or the next day. */
+const DIGEST_ROUNDS = 8;
+
+/** GET ?digest=1: Bearer $CRON_SECRET (Vercel cron, daily), the daily summaries whose 09:00 has passed. */
+async function onDigest(req: Request, env: AccountEnv, deps: AccountDeps): Promise<Response> {
+  if (!isCron(req, env)) return fail(401, 'unauthorized', 'Not allowed.');
+  const redis = redisOf(env, deps);
+  const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
+  if (!redis || secret.length < MIN_SECRET_LENGTH) return fail(503, 'not_configured', NOT_CONFIGURED);
+  const d = {
+    redis,
+    sender: deps.notifySender !== undefined ? deps.notifySender : notifySenderFromEnv(env, deps.fetch),
+    secret,
+    origin: siteOf(req, env),
+    now: deps.now ?? Date.now,
+    ...(deps.warn ? { warn: deps.warn } : {}),
+  };
+  const total = { sent: 0, empty: 0, later: 0 };
+  for (let i = 0; i < DIGEST_ROUNDS; i++) {
+    const r = await sendDueDigests(d, 25);
+    total.sent += r.sent;
+    total.empty += r.empty;
+    total.later += r.later;
+    if (r.sent + r.empty + r.later < 25) break;
+  }
+  return json(200, { ok: true, ...total });
+}
+
+export const UNSUB_WORDS = {
+  title: 'Stop these emails',
+  needs: 'Bridge will stop emailing you when something needs you.',
+  news: 'Bridge will stop sending you the daily summary.',
+  all: 'Bridge will stop emailing you about your work.',
+  button: 'Stop these emails',
+  done: 'Done. Bridge will not send you these emails anymore.',
+  back: 'You can turn them back on in Bridge, in Account, under Email.',
+  gone: 'This link no longer works. You can change what Bridge emails you in Bridge, in Account, under Email.',
+};
+
+function unsubPage(status: number, body: string): Response {
+  const html = [
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>${UNSUB_WORDS.title}</title>`,
+    '<style>body{margin:0;padding:48px 16px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#1A2433;background:#F5F7FA;line-height:1.5}main{max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:24px}h1{font-family:Georgia,serif;font-size:22px;color:#0B4A8B;margin:0 0 12px}button{font:inherit;font-weight:600;color:#fff;background:#0B4A8B;border:0;border-radius:8px;min-height:40px;padding:8px 18px;cursor:pointer}button:focus-visible{outline:3px solid #0B4A8B;outline-offset:2px}</style>',
+    '</head><body><main>',
+    `<h1>${UNSUB_WORDS.title}</h1>`,
+    body,
+    '</main></body></html>',
+  ].join('\n');
+  return new Response(html, {
+    status,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    },
+  });
+}
+
+/** The person's choices with this unsubscribe applied. */
+const unsubscribed = (p: NotifyPrefs, kind: 'needs' | 'news' | 'all'): NotifyPrefs => ({ needs: kind === 'news' ? p.needs : 'off', news: kind === 'needs' ? p.news : 'off' });
+
+/**
+ * ?unsub=<token>: GET shows what the link stops, with one button; POST (that button, or a mail app's one-click
+ * List-Unsubscribe-Post) stops it. No sign-in: the sealed token is the proof. Never says whose address it was.
+ */
+async function onUnsub(req: Request, env: AccountEnv, deps: AccountDeps, token: string): Promise<Response> {
+  const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
+  const redis = redisOf(env, deps);
+  const who = secret.length >= MIN_SECRET_LENGTH ? readUnsubToken(secret, token) : null;
+  if (!who || !redis) return unsubPage(400, `<p>${UNSUB_WORDS.gone}</p>`);
+  if (req.method.toUpperCase() === 'GET') {
+    const action = `/api/account?unsub=${encodeURIComponent(token)}`;
+    return unsubPage(200, `<p>${UNSUB_WORDS[who.kind]}</p><form method="post" action="${escHtml(action)}"><button type="submit">${UNSUB_WORDS.button}</button></form>`);
+  }
+  const a = await getAccount(redis, who.email);
+  if (a) await putAccount(redis, { ...a, notify: unsubscribed(prefsOf(a), who.kind) });
+  else await redis.cmd('SET', optOutKey(who.email), JSON.stringify(unsubscribed(await prefsFor(redis, who.email, null), who.kind)));
+  return unsubPage(200, `<p role="status">${UNSUB_WORDS.done}</p><p>${UNSUB_WORDS.back}</p>`);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The handler
 
 export async function handleAccount(req: Request, env: AccountEnv, deps: AccountDeps): Promise<Response> {
@@ -772,6 +911,10 @@ export async function handleAccount(req: Request, env: AccountEnv, deps: Account
     if (method !== 'GET' && method !== 'POST') return json(405, { error: 'method', message: 'Use GET or POST.' }, { Allow: 'GET, POST' });
     const params = new URL(req.url).searchParams;
     if (method === 'GET' && params.get('export') !== null) return await onExport(req, env, deps);
+    if (method === 'GET' && params.get('digest') !== null) return await onDigest(req, env, deps);
+    // One-click unsubscribe: from a mail app or the confirm page, the sealed token is the proof (no cookie, no CSRF).
+    const unsub = params.get('unsub');
+    if (unsub !== null) return await onUnsub(req, env, deps, unsub);
     if (method === 'POST') requireCsrf(req);
     const svc = services(env, deps);
     if (method === 'GET') {
@@ -801,6 +944,9 @@ const envFromProcess = (): AccountEnv => ({
   CRON_SECRET: process.env.CRON_SECRET,
   BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
   ACCOUNT_CODES_MAX_SITE_DAY: process.env.ACCOUNT_CODES_MAX_SITE_DAY,
+  BREVO_API_KEY: process.env.BREVO_API_KEY,
+  NOTIFY_FROM: process.env.NOTIFY_FROM,
+  PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL,
 });
 
 // Answers to calls with the Bridge app's tokens are metered per installation (api/_lib/github-quota.ts).
