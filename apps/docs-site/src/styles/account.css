@@ -57,13 +57,14 @@
 }
 
 /* Already signed in (board E1, like Figma in the browser): who, then Continue as them, then another account. */
+/* Who is signed in, on Welcome back: information only (no border, no hover), so it never reads as a field or a tile
+   to pick; the one action is Continue under it. */
 .acc-who {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-3);
-  padding: var(--space-3);
-  border: var(--border-width-1) solid var(--color-border-subtle);
-  border-radius: var(--radius-container);
+  text-align: start;
 }
 
 .acc-who-text {

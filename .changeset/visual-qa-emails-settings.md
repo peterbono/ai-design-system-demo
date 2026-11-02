@@ -11,4 +11,7 @@ gets the Bridge name, a title per state, dark mode and a way back to Bridge. Acc
 in equal columns, one column on a phone, with Rename and Change kept on their line. The invite dialog keeps addresses
 on one line on a phone, puts Resend on the person's line as in Settings, and shows a row's notice by the list. The
 GitHub usage meter turns warning-toned when GitHub asked Bridge to slow down. The Claude consent page shows the drawn
-face, never initials, and no longer says "signed in with GitHub" before GitHub has asked.
+face, never initials, and no longer says "signed in with GitHub" before GitHub has asked. Welcome back has one
+action, "Continue", with the person named once in an information-only identity line (no border, no tile). In Start
+an exploration, an admin whose product Bridge cannot open is told to set it up ("Set up Bridge on <product>"), never
+to ask an admin.

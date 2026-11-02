@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, productMarks, productOfBranch, type ProductConfig } from '@bridge-ds/core';
-import { askAdmin, claudePrompt,
+import { adminBlockedFix, askAdmin, blockIsAdmins, claudePrompt,
   connectorPrompt, featureHref, featureName, featurePurpose, featureProblems, featureProducts, featureRepo, initialTarget, LIBRARY_TARGET,
   libraryLead, productParam, productRepoBlockedLine, startTargets } from './create-branch';
 
@@ -124,6 +124,22 @@ describe('where a feature starts', () => {
     // The Admin demo lives in the design system repository: the exploration stays there.
     expect(featureRepo(THREE[0]!, 'acme/ds')).toBeNull();
     expect(featureRepo({ key: 'ds', name: 'Docs', repo: 'acme/ds' }, 'acme/ds')).toBeNull();
+  });
+
+  it("never tells an admin to ask an admin: the block is theirs to set up (regression: Priya, an email admin, read 'Ask an admin to let you in')", () => {
+    // An email admin whose design copy Bridge cannot open, and any admin when Bridge is not connected: their own fix.
+    expect(blockIsAdmins({ admin: true, email: true, reason: 'read-only' })).toBe(true);
+    expect(blockIsAdmins({ admin: true, email: false, reason: 'not-connected' })).toBe(true);
+    expect(blockIsAdmins({ admin: true, email: true, reason: 'not-connected' })).toBe(true);
+    // A GitHub admin without push on the developers' repository still asks for access there; designers always ask.
+    expect(blockIsAdmins({ admin: true, email: false, reason: 'read-only' })).toBe(false);
+    expect(blockIsAdmins({ admin: false, email: true, reason: 'read-only' })).toBe(false);
+    expect(blockIsAdmins({ admin: false, email: false, reason: 'not-connected' })).toBe(false);
+    expect(blockIsAdmins({ admin: true, email: true, reason: 'no-copy' })).toBe(false);
+    const copy = adminBlockedFix('Art print shop', 'read-only');
+    expect(copy).toEqual({ line: 'Bridge cannot open the design copy of Art print shop yet. Set Bridge up on it, then start again.', label: 'Set up Bridge on Art print shop' });
+    expect(adminBlockedFix('Shop', 'not-connected')).toEqual({ line: 'Bridge is not connected to Shop yet. Connect it, then start again.', label: 'Connect Shop' });
+    for (const r of ['read-only', 'not-connected'] as const) expect(Object.values(adminBlockedFix('Shop', r)).join(' ')).not.toMatch(/Ask an admin|token|repository|404|403|\u2014/);
   });
 
   it('says plainly when Bridge cannot reach the product, with the admin action and no technical words', () => {
