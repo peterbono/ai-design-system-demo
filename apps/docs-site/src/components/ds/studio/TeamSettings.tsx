@@ -27,6 +27,7 @@ import { loginKey, ownerName } from '../../../lib/people';
 import { knownNames } from '../../../scripts/people';
 import { sampleTeam } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
+import GitHubUsage from './GitHubUsage';
 
 const avatarSrc = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=48`;
 
@@ -148,6 +149,7 @@ export default function TeamSettings() {
             />
           </CardBody>
         </Card>
+        {!demo && <GitHubUsage />}
       </Band>
 
       <Band id="roles" title="Review rules" intro="Who checks a change before it reaches the library your products use.">
