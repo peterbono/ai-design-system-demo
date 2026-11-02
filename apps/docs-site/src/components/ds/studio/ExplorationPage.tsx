@@ -62,9 +62,9 @@ import { ARCHIVED_LINE } from '../../../lib/explorations-view';
 import { EXPLORATION_STAGE_LABEL } from '@bridge-ds/core';
 import { plateDrawing } from '../../../lib/branch-thumb';
 import { capturedLine } from '../../../lib/preview-shots';
-import { TERMINAL_SETUP_LINE } from '../../../lib/claude-connector';
+import { CONNECT_FIRST, connectFirst, TERMINAL_SETUP_LINE } from '../../../lib/claude-connector';
 import type { AiTool } from '../../../lib/ai-tools';
-import { ClaudeGlyph, claudeNewUrl, ToolAction, ToolPanel, useAiTools, type ToolLines, type ToolSetup } from './AiToolPanel';
+import { ClaudeGlyph, claudeNewUrl, ConnectClaudeButton, ConnectFirst, ToolAction, ToolPanel, useAiTools, useClaudeRecheck, type ToolLines, type ToolSetup } from './AiToolPanel';
 
 export { claudeNewUrl };
 
@@ -171,6 +171,8 @@ export interface ExplorationPageProps {
   connectorAddress?: string;
   /** "I've connected it, continue": the page forgets the answer and reads it again next time. */
   onClaudeConnected?: () => void;
+  /** The connection read again (useClaudeRecheck, back from Claude): the page repaints with it. */
+  onClaudeLink?: (v: 'yes' | 'no' | 'unknown') => void;
   /** A product exploration: the command the Terminal needs once in the product's folder (bridge connect). */
   terminalSetup?: string | null;
   /** The command VS Code needs once for Copilot: bridge connect --tool copilot in a product, code --add-mcp for the library. */
@@ -539,6 +541,12 @@ export function ExplorationPage(p: ExplorationPageProps) {
 function ExplorationBody(p: ExplorationPageProps) {
   const { view, tab, setTab } = useAiTools(p.claudeLink, p.emailMember);
   const [said, setSaid] = useState('');
+  // Nothing built yet and the viewer's own Claude has no Bridge: the connect steps first, read again on coming back.
+  const first = !p.claudeCodeUrl && connectFirst(tab, p.claudeLink) && p.stage === 'not-started' && !p.archived;
+  useClaudeRecheck(first, (v) => {
+    p.onClaudeLink?.(v);
+    if (v === 'yes') setSaid(CONNECT_FIRST.connected);
+  });
   const lines = linesOf(p);
   const line = lines[tab];
   const only = view.tools.length === 1 ? view.tools[0] : null;
@@ -663,9 +671,15 @@ function ExplorationBody(p: ExplorationPageProps) {
                   : `You explore with ${withWhat} and the library. Your preview appears here after the first change.`}
               </p>
             </div>
-            {!p.claudeCodeUrl && <ToolPanel tools={view.tools} tab={tab} setTab={setTab} chosen={view.chosen} lines={lines} setup={setupOf(p)} onCopy={p.onCopy} say={setSaid} />}
+            {first ? (
+              <ConnectFirst address={p.connectorAddress ?? '/mcp'} onCopy={p.onCopy}>
+                <ToolPanel tools={view.tools} tab={tab} setTab={setTab} chosen={view.chosen} lines={lines} setup={setupOf(p)} onCopy={p.onCopy} say={setSaid} />
+              </ConnectFirst>
+            ) : (
+              !p.claudeCodeUrl && <ToolPanel tools={view.tools} tab={tab} setTab={setTab} chosen={view.chosen} lines={lines} setup={setupOf(p)} onCopy={p.onCopy} say={setSaid} />
+            )}
             <div className="xp-acts">
-              <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="primary" />
+              {first ? <ConnectClaudeButton /> : <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="primary" />}
               {p.todayUrl && (
                 <Link href={p.todayUrl} target="_blank" rel="noopener" className="xp-today">
                   {p.todayLabel ?? 'See the product today'}

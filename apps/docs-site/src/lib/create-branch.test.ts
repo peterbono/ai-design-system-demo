@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, productMarks, productOfBranch, type ProductConfig } from '@bridge-ds/core';
-import { askAdmin, claudePrompt, featureHref, featureName, featurePurpose, featureProblems, featureProducts, featureRepo, initialTarget, LIBRARY_TARGET,
+import { askAdmin, claudePrompt,
+  connectorPrompt, featureHref, featureName, featurePurpose, featureProblems, featureProducts, featureRepo, initialTarget, LIBRARY_TARGET,
   libraryLead, productParam, productRepoBlockedLine, startTargets } from './create-branch';
 
 const THREE: ProductConfig[] = [
@@ -100,6 +101,15 @@ describe('start an exploration, in a product or the library', () => {
     const line = claudePrompt({ sentence: 'Orders empty state', product: shop, number: 2, copy: { repo: 'acme/shop-design', branch: 'explore/orders-empty-state' } });
     expect(line).toBe('Open Bridge exploration admin-app#2 "Orders empty state" in the design team\'s copy of Art print shop (acme/shop-design, branch explore/orders-empty-state) and use the Bridge library. I\'ll tell you what to explore.');
     expect(line).not.toContain('(acme/shop)');
+  });
+
+  it('the Claude app line (through the connector) names only the exploration: no repository, no branch', () => {
+    const shop: ProductConfig = { key: 'admin-app', name: 'Art print shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' } };
+    const line = connectorPrompt({ sentence: 'add a toast alert', product: shop, number: 4, copy: { repo: 'acme/shop-design', branch: 'explore/add-a-toast-alert' } });
+    expect(line).toBe('Open Bridge exploration admin-app#4 "add a toast alert" and use the Bridge library. I\'ll tell you what to explore.');
+    expect(line).not.toMatch(/acme|branch|explore\//);
+    // Without a design copy it is the same line as before.
+    expect(connectorPrompt({ sentence: 'Cart', product: THREE[1]!, number: 3 })).toBe(claudePrompt({ sentence: 'Cart', product: THREE[1]!, number: 3 }));
   });
 
   it('labels a feature so the Branches page groups it under its product (core rule)', () => {

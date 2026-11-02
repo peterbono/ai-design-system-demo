@@ -65,7 +65,22 @@ export const CONNECT_FIRST = {
   connectorsUrl: 'https://claude.ai/settings/connectors',
   continue: "I've connected it, continue",
   later: 'Not now',
+  /** The one primary while the viewer's Claude has no Bridge (the start flow's last step, the exploration page). */
+  connect: 'Connect Bridge to Claude',
+  /** After the start: the sentence before the steps. */
+  readyIntro: 'Connect Bridge to Claude once, then continue it there.',
+  /** Over the line, second: what to do once Bridge is connected. */
+  then: 'Then paste this in Claude',
+  /** Back on the page, the read found the connection. */
+  connected: 'Bridge is connected to Claude.',
 } as const;
+
+/**
+ * The connect steps come first, with "Connect Bridge to Claude" the one primary: the Claude app path (it goes through
+ * the connector) while the read found no connection of the viewer's. Unknown (no read, a failed read) keeps the line
+ * first, as before; the terminal and Copilot never wait on it.
+ */
+export const connectFirst = (tool: string, link: 'yes' | 'no' | 'unknown' | undefined): boolean => tool === 'claude-app' && link === 'no';
 
 /** Under the Terminal line of a product exploration: Claude Code finds Bridge in the product's folder after this, once. */
 export const terminalSetup = (designSystem: string) => `npx @bridge-ds/cli connect --ds ${designSystem}`;

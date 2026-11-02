@@ -8,7 +8,7 @@ import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
-import StartExploration, { startFromAddress } from './StartExploration';
+import StartExploration, { startFromAddress, startLines } from './StartExploration';
 import bridgeConfig from '../../../../../../bridge.config.json';
 
 // The viewer's access to the team: a lead (GitHub write) by default; a test sets a designer of the team.
@@ -202,5 +202,18 @@ describe('Start an exploration', () => {
     history.replaceState(null, '', '/studio/?start=new');
     render(createElement(StartExploration, { components, appearance: 'card' }));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+describe('the lines of the last step', () => {
+  it('gives the Claude app the connector line, the terminal and Copilot the full one', () => {
+    const full = 'Open Bridge exploration admin-app#4 "add a toast alert" in the design team\'s copy of Art print shop (acme/shop-design, branch explore/add-a-toast-alert) and use the Bridge library. I\'ll tell you what to explore.';
+    const app = 'Open Bridge exploration admin-app#4 "add a toast alert" and use the Bridge library. I\'ll tell you what to explore.';
+    const lines = startLines(full, app);
+    expect(lines['claude-app']).toBe(app);
+    expect(lines.copilot).toBe(full);
+    expect(lines['claude-code']).toContain('branch explore/add-a-toast-alert');
+    // No connector line: every tool gets the one line.
+    expect(startLines(full)['claude-app']).toBe(full);
   });
 });
