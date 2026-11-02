@@ -326,14 +326,19 @@ export const isCloudflareCheck = (c: Pick<PreviewCheckRun, 'name' | 'app'>): boo
  * commits) and its `Preview URL` (this commit's deployment). Null when the run carries neither.
  */
 export function parseCloudflareCheck(c: Pick<PreviewCheckRun, 'summary' | 'text'>): { branchUrl: string | null; commitUrl: string | null } | null {
-  const body = `${c.summary ?? ''}\n${c.text ?? ''}`;
+  // Cloudflare writes an HTML table (`<strong>Preview URL:</strong></td><td><a href='…'>`), sometimes Markdown rows:
+  // links become plain text, tags and &nbsp; spaces, so one pattern reads both.
+  const body = `${c.summary ?? ''}\n${c.text ?? ''}`
+    .replace(/<a\s[^>]*href=['"]([^'"]+)['"][^>]*>[\s\S]*?<\/a>/gi, ' $1 ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ');
   const pick = (label: RegExp) => {
     const m = label.exec(body);
     return m ? httpsUrl(m[1]!) : null;
   };
   // Rows look like `| Branch Preview URL: | https://fix-api.shop.pages.dev |`, sometimes a Markdown link `[url](url)`.
-  const branchUrl = pick(/Branch\s+Preview\s+URL:?\s*\|?\s*\[?(https?:\/\/[^\s|)\]<>]+)/i);
-  const commitUrl = pick(/(?<!Branch\s)Preview\s+URL:?\s*\|?\s*\[?(https?:\/\/[^\s|)\]<>]+)/i);
+  const branchUrl = pick(/Branch\s+Preview\s+URL:?[\s|]*\[?(https?:\/\/[^\s|)\]<>'"]+)/i);
+  const commitUrl = pick(/(?<!Branch\s+)Preview\s+URL:?[\s|]*\[?(https?:\/\/[^\s|)\]<>'"]+)/i);
   return branchUrl || commitUrl ? { branchUrl, commitUrl } : null;
 }
 
