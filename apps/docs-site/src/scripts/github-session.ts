@@ -9,6 +9,7 @@ import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
 import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
 import { repoContext, siteConfig } from './repo-context';
+import { productRouteFor } from '../lib/write-route';
 import { clearPrivateRepoCaches, clearRepoCache } from './repo-cache';
 import {
   authFailure,
@@ -776,8 +777,26 @@ export function studioClient(repo: string, token: string | null = getToken(), op
   const products = pageProductRepos();
   const product = products.includes(repo.toLowerCase());
   const via = product ? pageRepo() : repo;
-  const f: FetchLike = isContribAuth(token) ? (url, init = {}) => (isContribAuth(init.headers?.Authorization) ? contributeFetch(via, url, init as RequestInit, product ? products : []) : studioFetch(url, init)) : studioFetch;
+  // A designer signed in with GitHub: a client for one of the team's products goes through the team's proxy too, with
+  // their GitHub token as proof of who they are (lib/write-route productRouteFor); the library stays on GitHub.
+  const designer = product && token && !isContribAuth(token) && designerRoute() ? viewer?.login : null;
+  const f: FetchLike = isContribAuth(token)
+    ? (url, init = {}) => (isContribAuth(init.headers?.Authorization) ? contributeFetch(via, url, init as RequestInit, product ? products : []) : studioFetch(url, init))
+    : designer
+      ? async (url, init = {}) => {
+          const auth = init.headers?.Authorization;
+          if (!auth || isContribAuth(auth)) return studioFetch(url, init);
+          return contributeFetch(via, url, init as RequestInit, products, { authorization: (await liveAuth(auth)) ?? auth, login: designer });
+        }
+      : studioFetch;
   return new GitHubClient(repo, token ?? '', f, undefined, options);
+}
+
+/** This viewer writes in the team's products through Bridge (a designer, lib/write-route productRouteFor). */
+export function designerRoute(): boolean {
+  const token = getToken();
+  const session = token && isContribAuth(token) ? 'email' : viewer && token && !tokenRejected() ? 'github' : null;
+  return productRouteFor({ session, access: currentAccess(), login: viewer?.login ?? null, site: siteConfig() }) === 'bridge';
 }
 
 /** The auth sentence for an error (rejected token or missing permission), or null for any other failure. */

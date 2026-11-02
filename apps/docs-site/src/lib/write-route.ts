@@ -58,3 +58,37 @@ export const productKeeperLine = (product: string): string => `Someone on ${prod
 export function keepExplorationLine(author: string): string {
   return `Only ${author ? `@${author.replace(/^@/, '')}, who started it,` : 'the person who started it'} or a reviewer can say it is done exploring or archive it.`;
 }
+
+/**
+ * How a write in one of the team's products (its design copy, or the developers' repository for the task) goes, for
+ * the viewer (Florian's rule, 2026-11-02): every designer through Bridge's app (the proxy, api/contribute), with or
+ * without GitHub, so a designer only ever touches their own explorations and needs no access to the copy; leads
+ * (admins, design and tech owners, people allowed the owner override) and anyone not known as a designer keep GitHub.
+ * The server decides again on every call (contribute githubRoleOf). Pure.
+ */
+export type ProductRoute = 'github' | 'bridge';
+
+export function productRouteFor(x: {
+  session: 'github' | 'email' | null;
+  access: { write: boolean; admin: boolean; contributor?: boolean | undefined } | null | undefined;
+  login: string | null | undefined;
+  site: { owners?: { design?: readonly string[]; tech?: readonly string[] } | null; override?: { allowed?: readonly string[] } | null } | null | undefined;
+}): ProductRoute {
+  if (x.session === 'email' || x.access?.contributor) return 'bridge';
+  if (x.session !== 'github' || !x.access || !x.login) return 'github';
+  if (x.access.admin) return 'github';
+  const me = x.login.replace(/^@/, '').toLowerCase();
+  const leads = [...(x.site?.owners?.design ?? []), ...(x.site?.owners?.tech ?? []), ...(x.site?.override?.allowed ?? [])].map((l) => l.replace(/^@/, '').toLowerCase());
+  if (leads.includes(me)) return 'github';
+  return x.access.write ? 'bridge' : 'github';
+}
+
+/**
+ * Whether a designer signed in with GitHub started this exploration through Bridge: its pull request (opened by
+ * Bridge's app) carries "Requested by <name> (@<login>) through Bridge.". Shows them their own Done exploring.
+ */
+export function startedByDesigner(body: string | null | undefined, login: string | null | undefined): boolean {
+  if (!body || !login) return false;
+  const esc = login.replace(/^@/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`Requested by [^\\n]* \\(@${esc}\\) through Bridge\\.`, 'i').test(body);
+}

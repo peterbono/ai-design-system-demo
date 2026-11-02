@@ -356,6 +356,8 @@ export const MEMBERS_WORDS = {
   unavailable: 'Invites are not available yet on this site.',
   membersTitle: 'Members',
   membersIntro: (team: string) => `Who is in ${team} and what each person can do. Changes apply the next time they open Bridge.`,
+  /** For admins, under the list: designers work in the design copies through Bridge, never with GitHub access to them. */
+  designersThroughBridge: 'Designers work in your products\' design copies through Bridge: they need no access to the copies on GitHub.',
   membersIntroReader: (team: string) => `Who is in ${team} and what each person can do. Only admins can invite people or change roles.`,
   resend: 'Resend',
   resent: 'Sent again.',

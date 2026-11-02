@@ -35,7 +35,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { BridgeContext, handleHttp, pieces } from '@bridge-ds/mcp';
-import { cookieName, handleContribute, signSession, type ContribEnv } from '../contribute/index.js';
+import { cookieName, designerProductsFor, handleContribute, signSession, type ContribEnv } from '../contribute/index.js';
 import { displayName, sessionAccount } from '../_lib/account.js';
 import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/fix-sessions.js';
 import type { AppTokens } from '../_lib/github-app.js';
@@ -386,6 +386,40 @@ export function proxyFetchFor(member: { email: string; name: string; version: nu
   };
 }
 
+/**
+ * The GitHub calls of a designer signed in with GitHub (contribute githubDesignerOf): a call to one of the team's
+ * product repositories goes through Bridge's proxy with their own token as proof of who they are (the proxy checks it
+ * with GitHub, then writes with the Bridge app under the same policy as for an email member); every other call goes
+ * out with their token as before. A refusal of the policy comes back as a 422 with the proxy's own words.
+ */
+export function designerFetchFor(token: string, team: string, products: readonly string[], env: ConnectorEnv, deps: ConnectorDeps, svc: Services): FetchLike {
+  const now = deps.now ?? Date.now;
+  const under = (path: string) => products.some((r) => path.toLowerCase() === `/repos/${r}` || path.toLowerCase().startsWith(`/repos/${r}/`));
+  return async (url, init) => {
+    const u = new URL(url);
+    if (u.origin !== GITHUB_API || !under(u.pathname)) return deps.fetch(url, init);
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const given = new Headers((init?.headers as HeadersInit | undefined) ?? {});
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}`, 'X-Bridge-Contribute': '1' };
+    for (const h of ['accept', 'content-type', 'if-none-match']) {
+      const v = given.get(h);
+      if (v) headers[h] = v;
+    }
+    const body = init?.body;
+    const req = new Request(`https://bridge.invalid/api/contribute?repo=${encodeURIComponent(team)}&gh=${encodeURIComponent(u.pathname + u.search)}`, {
+      method,
+      headers,
+      ...(body !== undefined && body !== null && method !== 'GET' ? { body: body as BodyInit } : {}),
+    });
+    const res = await handleContribute(req, env, { fetch: deps.fetch, now, redis: svc.redis, ...(deps.members ? { members: deps.members } : {}), ...(deps.app ? { app: deps.app } : {}) });
+    if (res.status === 403 || res.status === 401) {
+      const said = (await res.clone().json().catch(() => null)) as { error?: unknown; message?: unknown } | null;
+      if (said && typeof said.message === 'string') return proxyError(422, said.message);
+    }
+    return res;
+  };
+}
+
 interface RpcMessage {
   id?: string | number | null;
   method?: string;
@@ -460,10 +494,13 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
     const errors = messages.filter((m) => m && (typeof m.id === 'string' || typeof m.id === 'number')).map((m) => ({ jsonrpc: '2.0', id: m.id, error: { code: -32602, message: words } }));
     return json(200, Array.isArray(body) ? errors : (errors[0] ?? { jsonrpc: '2.0', id: null, error: { code: -32602, message: words } }), NO_STORE);
   }
-  // An email member's GitHub calls go through the proxy (proxyFetchFor); everyone else's with their own GitHub token.
-  const ghFetch = emailMember ? proxyFetchFor(emailMember, grant.repo, env, deps, svc) : deps.fetch;
+  // An email member's GitHub calls go through the proxy (proxyFetchFor); a designer signed in with GitHub sends their
+  // calls in the team's products through it too (designerFetchFor); a lead's go out with their own GitHub token.
+  const designerProducts = emailMember ? null : await designerProductsFor(token, grant.repo, env, deps).catch(() => null);
+  const ghFetch = emailMember ? proxyFetchFor(emailMember, grant.repo, env, deps, svc) : designerProducts?.length ? designerFetchFor(token, grant.repo, designerProducts, env, deps, svc) : deps.fetch;
+  const routed = Boolean(emailMember || designerProducts?.length);
   const ctx = deps.context
-    ? await deps.context({ repo: grant.repo, token, ...(emailMember ? { fetch: ghFetch } : {}) })
+    ? await deps.context({ repo: grant.repo, token, ...(routed ? { fetch: ghFetch } : {}) })
     : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: ghFetch as unknown as typeof fetch });
   // The body was read here (to record the steps): the transport takes it parsed, the request goes on without it.
   const headers = new Headers(req.headers);

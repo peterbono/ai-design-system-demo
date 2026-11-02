@@ -110,6 +110,10 @@
   line-height: var(--typography-ui-line-height);
 }
 
+.mem-note {
+  margin-top: var(--space-3);
+}
+
 .mem-loading {
   display: grid;
   gap: var(--space-3);

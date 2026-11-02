@@ -358,7 +358,7 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   useEffect(() => {
     let live = true;
     void (async () => {
-      const [{ isSampleTeam }, { siteConfig }, { onAccess }, { libraryLead }] = await Promise.all([
+      const [{ isSampleTeam }, { siteConfig }, { onAccess, designerRoute }, { libraryLead }] = await Promise.all([
         import('../../../lib/demo'),
         import('../../../scripts/repo-context'),
         import('../../../scripts/github-session'),
@@ -366,7 +366,7 @@ export default function ProductPage({ productKey, components = [] }: { productKe
       ]);
       const c = siteConfig();
       if (isSampleTeam(c.owner && c.repo ? `${c.owner}/${c.repo}` : null)) return;
-      onAccess((a) => live && setLead(libraryLead(a)));
+      onAccess((a) => live && setLead(libraryLead(a) && !designerRoute()));
     })().catch(() => undefined);
     return () => {
       live = false;

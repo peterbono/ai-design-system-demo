@@ -48,7 +48,7 @@ import { developerLines, productCrumbs, productProduction, productTodayUrl, tryI
 import { touchesVisuals } from '../lib/visual-impact';
 import { jiraKeyOf } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
-import { canKeepExploration, keepExplorationLine, productKeeperLine, startedByEmailMember } from '../lib/write-route';
+import { canKeepExploration, keepExplorationLine, productKeeperLine, startedByDesigner, startedByEmailMember } from '../lib/write-route';
 import type { ExplorationPageProps } from '../components/ds/studio/ExplorationPage';
 import { askDoneExploring } from './exploration-done';
 import { explorationsConfig } from './exploration-start';
@@ -56,7 +56,7 @@ import { changedFiles, namesOf, pieceActions, pieceActor, previewSources, produc
 import { productClient, productRepoByKey } from './product-repos';
 import { bringLatestIntoExploration, copyRepos, explorationBehind } from './design-copy';
 import { claudeCodeUrl, COPY_WORDS } from '../lib/design-copy';
-import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, studioClient } from './github-session';
+import { currentAccess, currentContributor, currentViewer, designerRoute, ghGet, hasWorkingToken, studioClient } from './github-session';
 import { changesModeOnPage } from './changes-mode';
 import { sendModeFor } from '../lib/write-route';
 import { viewerRole } from './needs-you';
@@ -211,12 +211,16 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const inCopy = at && own && at.copy.toLowerCase() === own.repo.toLowerCase() ? at : null;
   // Someone who joined with their email has no GitHub for Claude Code: the Claude app with Bridge (the tools panel) is theirs.
   const member = currentContributor();
+  // A designer signed in with GitHub works in the copy through Bridge too (no access to the copy on GitHub needed):
+  // the Claude app with Bridge is theirs as well, Claude Code would need that access.
+  const designer = Boolean(inCopy && !member && designerRoute());
   const codeUrl = (previewUrl: string | null) =>
-    inCopy && !member ? claudeCodeUrl({ copy: inCopy.copy, branch: r.branch, name: r.name, purpose: r.purpose, product: product.name, previewUrl }) : null;
+    inCopy && !member && !designer ? claudeCodeUrl({ copy: inCopy.copy, branch: r.branch, name: r.name, purpose: r.purpose, product: product.name, previewUrl }) : null;
   // Who may say Done exploring or archive it: the person who started it or a reviewer, with GitHub, in direct mode; in
   // the design team's copy, also the email member Bridge started it for (the proxy checks it again on each write).
   const emailKeeper = Boolean(inCopy && member && startedByEmailMember(pull.body, member));
-  const keeper = emailKeeper || canKeepExploration({ viewer, author: r.author, reviewer: viewerRole() === 'reviewer', write: own ? null : (currentAccess()?.write ?? null) });
+  const designerKeeper = Boolean(designer && startedByDesigner(pull.body, viewer));
+  const keeper = emailKeeper || designerKeeper || canKeepExploration({ viewer, author: r.author, reviewer: viewerRole() === 'reviewer', write: own ? null : (currentAccess()?.write ?? null) });
   const emailOnProduct = Boolean(own && member && !inCopy);
   const direct = changesModeOnPage() === 'direct';
   const writable = connected() && direct && keeper && !emailOnProduct;
@@ -308,7 +312,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       ...(said ? { said } : {}),
       // Continue in Claude: the steps first while the viewer's own Claude has no Bridge (read once per session).
       claudeLink: knownClaudeLink(),
-      ...(member ? { emailMember: true } : {}),
+      ...(member || designer ? { emailMember: true } : {}),
       connectorAddress: connectorUrl(location.origin),
       onClaudeConnected: () => {
         forgetClaudeLink();

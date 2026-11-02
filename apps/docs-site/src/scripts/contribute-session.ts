@@ -236,11 +236,12 @@ export interface Mine {
 const mines = new Map<string, Promise<Mine>>();
 
 /** What the signed-in member made through Bridge on `repo` and still owns (one GET per team and page). */
-export function contributeMine(repo: string): Promise<Mine> {
-  const k = key(repo);
+export function contributeMine(repo: string, authorization?: string): Promise<Mine> {
+  // A designer signed in with GitHub is known by their token (the server asks GitHub who it is).
+  const k = authorization ? `${key(repo)}#gh` : key(repo);
   const held = mines.get(k);
   if (held) return held;
-  const p = call<{ branches?: unknown; issues?: unknown }>('GET', `?repo=${encodeURIComponent(repo)}&mine=1`).then(
+  const p = call<{ branches?: unknown; issues?: unknown }>('GET', `?repo=${encodeURIComponent(repo)}&mine=1`, undefined, authorization ? { Authorization: authorization } : {}).then(
     (r) => ({
       branches: Array.isArray(r.branches) ? r.branches.filter((b): b is string => typeof b === 'string') : [],
       issues: Array.isArray(r.issues) ? r.issues.filter((n): n is number => typeof n === 'number') : [],
@@ -252,7 +253,10 @@ export function contributeMine(repo: string): Promise<Mine> {
 }
 
 /** Forgets what was read about "mine" on this page (a new branch or pull request was just made). */
-const forgetMine = (repo: string) => mines.delete(key(repo));
+const forgetMine = (repo: string) => {
+  mines.delete(key(repo));
+  mines.delete(`${key(repo)}#gh`);
+};
 
 type Authored = { number?: unknown; user?: { login?: unknown; avatar_url?: unknown } | null; head?: { ref?: unknown } | null };
 
@@ -513,6 +517,12 @@ function memberProfile(repo: string, login: string): Promise<Response | null> {
 const AUTHORED = /^\/repos\/[^/]+\/[^/]+\/(pulls|issues)(\/\d+)?(\?|$)/;
 
 /** Strips the stand-in Authorization header (any case) from a header record. */
+/** A designer signed in with GitHub, for contributeFetch: their `Authorization` header and their login. */
+export interface DesignerAuth {
+  authorization: string;
+  login: string;
+}
+
 function withoutAuth(h: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(h)) if (k.toLowerCase() !== 'authorization') out[k] = v;
@@ -524,8 +534,10 @@ function withoutAuth(h: Record<string, string>): Record<string, string> {
  * method and body, with the session cookie; any other call goes out as a guest. A 401 from the proxy means the
  * session ended: it is forgotten here and the page shows the signed-out state.
  */
-export async function contributeFetch(repo: string, url: string, init: RequestInit = {}, products: readonly string[] = []): Promise<Response> {
-  const headers = withoutAuth((init.headers ?? {}) as Record<string, string>);
+export async function contributeFetch(repo: string, url: string, init: RequestInit = {}, products: readonly string[] = [], as?: DesignerAuth): Promise<Response> {
+  // A designer signed in with GitHub (lib/write-route productRouteFor): their GitHub token goes along as proof of who
+  // they are; the proxy asks GitHub, then writes with the Bridge app under the designers' policy.
+  const headers = { ...withoutAuth((init.headers ?? {}) as Record<string, string>), ...(as ? { Authorization: as.authorization } : {}) };
   // A call in one of the team's product repositories goes through the team's proxy too: reads under its allow-list,
   // writes only where the proxy lets an email designer explore (their exploration in the design copy, its task).
   const target = proxyUrl(url, repo, products);
@@ -550,10 +562,10 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
   const answered = method === 'GET' ? changeRead(repo, path, headers) : null;
   const [res, mine] = await Promise.all([
     answered ? Promise.resolve(answered) : (method === 'GET' ? recentRead(repo, target, path, headers, send) : send()).then(restoreMissing),
-    authored ? contributeMine(repo) : Promise.resolve(null),
+    authored ? contributeMine(repo, as?.authorization) : Promise.resolve(null),
   ]);
-  if (res.status === 401) endedEmailSession(repo);
-  const login = contributorFor(repo)?.email;
+  if (res.status === 401 && !as) endedEmailSession(repo);
+  const login = as ? as.login : contributorFor(repo)?.email;
   if (res.ok && mine && login && (mine.issues.length || mine.branches.length)) {
     const data = (await res
       .clone()
