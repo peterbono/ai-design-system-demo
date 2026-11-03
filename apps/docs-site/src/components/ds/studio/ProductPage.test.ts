@@ -4,6 +4,7 @@
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import type { ProductConfig } from '@bridge-ds/core';
@@ -286,6 +287,12 @@ describe('ProductPageView while GitHub is busy', () => {
   });
 });
 
+/** Opens More actions for the product, then its Rename (the rename has no button of its own). */
+async function openRename(name = 'Product admin') {
+  await userEvent.click(screen.getByRole('button', { name: `More actions for ${name}` }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+}
+
 describe('ProductPageView, rename (admins)', () => {
   const view = (rename: Parameters<typeof ProductPageView>[0]['rename']) => render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }), rename }));
 
@@ -309,16 +316,18 @@ describe('ProductPageView, rename (admins)', () => {
     }
   });
 
-  it('read only without the rename: no pencil', () => {
+  it('read only without the rename: no pencil, no More actions', () => {
     view(null);
     expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^More actions/ })).toBeNull();
   });
 
-  it('a pencil after the title opens the name in place; Escape cancels', async () => {
+  it('no pencil in view: Rename lives in More actions and opens the name in place; Escape cancels', async () => {
     const onSend = vi.fn(async () => {});
     const { container } = view({ state: 'offer', onSend });
-    fireEvent.click(screen.getByRole('button', { name: 'Rename Product admin' }));
-    const field = screen.getByRole('textbox', { name: 'Product name' }) as HTMLInputElement;
+    expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();
+    await openRename();
+    const field = (await screen.findByRole('textbox', { name: 'Product name' })) as HTMLInputElement;
     expect(field.value).toBe('Product admin');
     expect(screen.getByRole('heading', { level: 1, name: 'Product admin' })).toBeTruthy();
     await expectNoAxeViolations(container);
@@ -327,11 +336,11 @@ describe('ProductPageView, rename (admins)', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it('checks the name before sending, and says how to fix it', () => {
+  it('checks the name before sending, and says how to fix it', async () => {
     const onSend = vi.fn(async () => {});
     view({ state: 'offer', onSend });
-    fireEvent.click(screen.getByRole('button', { name: 'Rename Product admin' }));
-    const field = screen.getByRole('textbox', { name: 'Product name' });
+    await openRename();
+    const field = await screen.findByRole('textbox', { name: 'Product name' });
     fireEvent.change(field, { target: { value: 'library' } });
     fireEvent.submit(field.closest('form')!);
     expect(screen.getByText('Another product already has this name. Pick a different one.')).toBeTruthy();
@@ -344,8 +353,8 @@ describe('ProductPageView, rename (admins)', () => {
   it('Enter sends it for review; the title keeps the current name until it merges', async () => {
     const onSend = vi.fn(async () => {});
     view({ state: 'offer', onSend });
-    fireEvent.click(screen.getByRole('button', { name: 'Rename Product admin' }));
-    const field = screen.getByRole('textbox', { name: 'Product name' });
+    await openRename();
+    const field = await screen.findByRole('textbox', { name: 'Product name' });
     fireEvent.change(field, { target: { value: ' Back office ' } });
     await act(async () => {
       fireEvent.submit(field.closest('form')!);
@@ -354,14 +363,15 @@ describe('ProductPageView, rename (admins)', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Rename sent for review. It shows everywhere once merged.'));
     expect(screen.getByRole('heading', { level: 1, name: 'Product admin' })).toBeTruthy();
     expect(screen.getByText('Rename waiting for review')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();
+    // Nothing left to do: no More actions.
+    expect(screen.queryByRole('button', { name: /^More actions/ })).toBeNull();
   });
 
   it('a refused write: one plain sentence, the details in the console', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     view({ state: 'offer', onSend: async () => Promise.reject(new Error('Resource not accessible by integration')) });
-    fireEvent.click(screen.getByRole('button', { name: 'Rename Product admin' }));
-    const field = screen.getByRole('textbox', { name: 'Product name' });
+    await openRename();
+    const field = await screen.findByRole('textbox', { name: 'Product name' });
     fireEvent.change(field, { target: { value: 'Back office' } });
     await act(async () => {
       fireEvent.submit(field.closest('form')!);
@@ -376,6 +386,92 @@ describe('ProductPageView, rename (admins)', () => {
     view({ state: 'waiting', onSend: async () => {} });
     expect(screen.getByText('Rename waiting for review')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^More actions/ })).toBeNull();
+  });
+});
+
+describe('ProductPageView, More actions (admins)', () => {
+  const offer = () => ({ state: 'offer' as const, onSend: vi.fn(async () => {}) });
+  const view = (over: Partial<Parameters<typeof ProductPageView>[0]> = {}) =>
+    render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)] }), rename: offer(), remove: offer(), ...over }));
+
+  it('one "More actions for <product>" button at the end of the title line: Rename, then Remove from Bridge as danger', async () => {
+    const { container } = view();
+    const more = screen.getByRole('button', { name: 'More actions for Product admin' });
+    // At the end of the title line, after the page's start action.
+    expect(more.closest('[data-st-actions]')).toBeTruthy();
+    await expectNoAxeViolations(container);
+    await userEvent.click(more);
+    const items = await screen.findAllByRole('menuitem');
+    expect(items.map((i) => i.textContent)).toEqual(['Rename', 'Remove from Bridge']);
+    // The danger item comes last, after a separator.
+    expect(items[1]!.className).toMatch(/danger/);
+    expect(screen.getByRole('separator')).toBeTruthy();
+  });
+
+  it('a viewer who may not edit sees no menu', () => {
+    view({ rename: null, remove: null });
+    expect(screen.queryByRole('button', { name: /^More actions/ })).toBeNull();
+  });
+
+  it('the library has no rename and no menu, even for an admin', () => {
+    render(createElement(ProductPageView, { productKey: 'library', components: [], data: data({ product: products[1]!, ownRepo: null, reached: null }), rename: offer(), remove: offer() }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Library' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^More actions/ })).toBeNull();
+  });
+
+  it('the library ignores #rename', () => {
+    history.replaceState(null, '', '#rename');
+    try {
+      render(createElement(ProductPageView, { productKey: 'library', components: [], data: data({ product: products[1]!, ownRepo: null, reached: null }), rename: offer() }));
+      expect(screen.queryByRole('textbox', { name: 'Product name' })).toBeNull();
+    } finally {
+      history.replaceState(null, '', location.pathname);
+    }
+  });
+
+  it('Remove asks for the name typed exactly, says nothing is deleted on GitHub, then sends the removal for review', async () => {
+    const remove = offer();
+    view({ remove });
+    await userEvent.click(screen.getByRole('button', { name: 'More actions for Product admin' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from Bridge' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Remove Product admin from Bridge?' });
+    expect(dialog.textContent).toContain('Bridge deletes nothing on GitHub');
+    expect(dialog.textContent).not.toMatch(/repository|config|fork|\u2014/i);
+    const confirm = within(dialog).getByRole('button', { name: 'Remove from Bridge' }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    const field = within(dialog).getByLabelText('Type Product admin to confirm');
+    await userEvent.type(field, 'product admin');
+    expect(confirm.disabled).toBe(true);
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Product admin');
+    expect(confirm.disabled).toBe(false);
+    await userEvent.click(confirm);
+    await waitFor(() => expect(remove.onSend).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByRole('status').textContent).toBe('Removal sent for review. Product admin leaves Bridge once it is approved.');
+    expect(screen.getByText('Removal waiting for review')).toBeTruthy();
+  });
+
+  it('Cancel sends nothing; a refusal is said in the dialog in plain words', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const remove = { state: 'offer' as const, onSend: vi.fn(async () => Promise.reject(new Error('Resource not accessible by integration'))) };
+    view({ remove });
+    await userEvent.click(screen.getByRole('button', { name: 'More actions for Product admin' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from Bridge' }));
+    let dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(remove.onSend).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'More actions for Product admin' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from Bridge' }));
+    dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText('Type Product admin to confirm'), 'Product admin');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove from Bridge' }));
+    expect(await within(dialog).findByText('Bridge could not send the removal. Ask an admin of the repository.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Resource not accessible');
+    warn.mockRestore();
   });
 });
 

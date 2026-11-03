@@ -194,3 +194,13 @@
 .pp-rename-note:empty {
   display: none;
 }
+
+/* Remove from Bridge, for an admin (ProductPage.tsx): the reassurance, then the name to type, the Delete team rhythm. */
+.pp-remove-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.pp-remove-safe {
+  margin: 0;
+}
