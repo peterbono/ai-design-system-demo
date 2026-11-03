@@ -129,6 +129,7 @@ import { demoApprovals } from './demo-approvals';
 import { viewerRoles } from '../lib/suggestions-view';
 import { waitingLabel } from '../lib/home-model';
 import type { WaitingExtra } from '../lib/review-categories';
+import { installReadPass } from './read-pass';
 
 interface User {
   login: string;
@@ -1845,6 +1846,8 @@ export function closePr() {
 
 /** Repaint an open pull request when the viewer changes: the gate depends on who is connected. */
 export function initReviewAuth() {
+  // Try it in the product, on a private product too: the toolbar there reads the change with the member's pass.
+  installReadPass();
   let lastLogin: string | null | undefined;
   initGitHubConnect((v) => {
     const login = v?.login ?? null;

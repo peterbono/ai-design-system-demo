@@ -531,3 +531,47 @@ export function fromText(from: number[], titleOf: (n: number) => string | null):
   const names = from.map((n) => titleOf(n) ?? `#${n}`);
   return `from ${names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`}`;
 }
+
+/**
+ * The branch a preview host was built from, by the product's preview template (`https://{branch}.shop.pages.dev`,
+ * `https://shop-git-{branch}-team.vercel.app`): the host label part `{branch}` stands for, or null when the host does
+ * not match it.
+ */
+export function branchOfHost(host: string, template: string | null): string | null {
+  if (!template) return null;
+  const tplHost = /^https?:\/\/([^/?#]+)/i.exec(template)?.[1]?.toLowerCase();
+  if (!tplHost || !/\{branch\}/i.test(tplHost)) return null;
+  const [pre, post] = tplHost.split(/\{branch\}/i) as [string, string];
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = new RegExp(`^${esc(pre).replace(/\\\{[a-z]+\\\}/gi, '[a-z0-9-]+')}([a-z0-9-]+)${esc(post).replace(/\\\{[a-z]+\\\}/gi, '[a-z0-9-]+')}$`).exec(host.toLowerCase().replace(/:\d+$/, ''));
+  return m?.[1] ?? null;
+}
+
+/**
+ * A name for a change the toolbar could not read, from its branch: "explore-add-a-toast-alert" reads "Add a toast
+ * alert" (Bridge names exploration branches explore/<what it does>). Null when there is no readable branch.
+ */
+export function branchTitle(branch: string | null): string | null {
+  const words = (branch ?? '')
+    .replace(/^(explore|exploration|bridge|change|agent|feature|feat|fix|design)-/, '')
+    .split('-')
+    .filter(Boolean);
+  if (!words.length || words.every((w) => /^[0-9a-f]{6,}$|^\d+$/.test(w))) return null;
+  const text = words.join(' ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** What the toolbar says when Bridge could not read the change for it (a private product opened outside Studio). */
+export const READ_FAILED = "Bridge can't open this change's details here. Open it from Studio to see them.";
+export const READ_FAILED_TOGETHER = "Bridge can't open these changes' details here. Open them from Studio to see them.";
+
+/**
+ * Whether Before and After can be switched. A token change switches in place once its tokens are read; a code change
+ * opens the same screen on the other deployment, which needs no facts: when the change could not be read, a known
+ * production URL (on This change) or way back (on Live product) still flips.
+ */
+export function canFlipSides(input: { mode: ChangeMode | null; failed: boolean; side: 'before' | 'after'; production: string | null; returnTo: string | null }): boolean {
+  if (input.mode === 'tokens') return true;
+  if (input.mode === null && !input.failed) return false;
+  return input.side === 'after' ? Boolean(input.production) : Boolean(input.returnTo);
+}

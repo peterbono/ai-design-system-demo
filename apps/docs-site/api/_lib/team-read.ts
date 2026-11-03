@@ -46,6 +46,11 @@
 //     Access-Control-Allow-Origin for that origin only (never credentials) when the team's bridge.config.json names
 //     it (previews.production, previews.apps, products[].production and .preview, `{branch}` one host label part) or
 //     it is a local dev server (http://localhost). Writes keep their CSRF rule (same origin, X-Bridge-Contribute).
+//   - the same origin rule, with `&pass=<read pass>` (api/_lib/read-pass.ts: signed, at most 12 hours, minted by
+//     `?repo=<team>&mint=read-pass` for a member only, handed by Studio to the member's own tab in a URL fragment):
+//     gh= of a product repository the pass names, of any team (private too), read only, with the visitor's
+//     allow-list, on the member's budget. Nothing of the team's own repository, no blobs=, users= or changes=. A pass
+//     that does not verify, has expired, names another team or not that product reads as before (a visitor).
 //
 // Cache (Upstash Redis, keys under bridge:read:):
 //   bridge:read:get:<repo>:<sha256(accept url)>   { status, etag, type, link, body, at }  a GET answer; fresh for
@@ -181,7 +186,15 @@ export interface Reader {
    * (a visitor), the budget is the address's.
    */
   email?: string;
+  /**
+   * A member's tab holding a read pass (api/_lib/read-pass.ts): the toolbar in a product preview, which sends no
+   * cookie. Their read budget id (memberBudgetId), and only the product repositories the pass names, read only.
+   */
+  pass?: { budget: string; repos: readonly string[] };
 }
+
+/** The budget id of a member's reads (budgetOf): a read pass carries it instead of their email. */
+export const memberBudgetId = (email: string) => sha256(`read-member:${canonicalEmail(email)}`).slice(0, 24);
 
 export interface ReadCtx {
   f: FetchLike;
@@ -251,7 +264,8 @@ function matches(rule: string[], rest: string[]): boolean {
 }
 
 export function readAllowed(rest: string[], reader: Reader): boolean {
-  return READ_RULES.some((r) => (!r.members || reader.kind === 'member') && matches(r.path, rest));
+  // A read pass never opens members-only resources: it reads what a visitor of a public product reads.
+  return READ_RULES.some((r) => (!r.members || (reader.kind === 'member' && !reader.pass)) && matches(r.path, rest));
 }
 
 /** Answers that never change: a blob, a tree or a commit by its sha, contents at a full sha, a compare of two shas. */
@@ -338,8 +352,9 @@ export async function noteWrite(redis: Redis, repo: string, now: number): Promis
 
 /** Whose budget a read counts against: the signed-in member, else the address. */
 export function budgetOf(req: Request, reader: Reader): { kind: 'member' | 'ip' | 'guest'; who: string } {
-  const email = reader.kind === 'member' && reader.email ? canonicalEmail(reader.email) : undefined;
-  if (email) return { kind: 'member', who: sha256(`read-member:${email}`).slice(0, 24) };
+  if (reader.kind === 'member' && reader.pass) return { kind: 'member', who: reader.pass.budget };
+  const email = reader.kind === 'member' && reader.email ? reader.email : undefined;
+  if (email) return { kind: 'member', who: memberBudgetId(email) };
   return { kind: reader.kind === 'guest' ? 'guest' : 'ip', who: sha256(`read-ip:${clientIp(req)}`).slice(0, 24) };
 }
 
@@ -571,11 +586,18 @@ export function originTemplatesOf(config: unknown): string[] {
   for (const u of urls) {
     if (typeof u !== 'string') continue;
     const m = /^https:\/\/([a-z0-9.{}-]+)(?::\d+)?(?:[/?#]|$)/i.exec(u.trim());
-    if (!m || !/^[a-z0-9-]+(?:\{branch\}[a-z0-9-]*)?(?:\.[a-z0-9-]+)+$/i.test(m[1]!)) continue;
-    out.add(`https://${m[1]!.toLowerCase()}`);
+    if (!m || !/^(?:[a-z0-9-]+(?:\{branch\}[a-z0-9-]*)?|\{branch\}[a-z0-9-]*)(?:\.[a-z0-9-]+)+$/i.test(m[1]!)) continue;
+    const host = m[1]!.toLowerCase();
+    // A whole first label for the branch (Cloudflare Pages: https://{branch}.<project>.pages.dev) only under a host of
+    // its own, never straight under a shared one (https://{branch}.pages.dev would name every project there).
+    if (host.startsWith('{branch}') && SHARED_HOSTS.has(host.slice(host.indexOf('.') + 1))) continue;
+    out.add(`https://${host}`);
   }
   return [...out];
 }
+
+/** Hosts where anyone gets a subdomain: a preview template never puts the branch label straight under one. */
+const SHARED_HOSTS = new Set(['pages.dev', 'vercel.app', 'netlify.app', 'github.io', 'workers.dev', 'onrender.com', 'herokuapp.com', 'fly.dev', 'web.app', 'firebaseapp.com', 'surge.sh', 'gitlab.io']);
 
 /** A branch as Vercel puts it in a preview host: lower case letters, digits and dashes. */
 const BRANCH_LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
@@ -668,8 +690,8 @@ export const PRODUCT_MISSING = 'product_missing';
 
 /**
  * Whether `reader` (already a reader of the team) may read `product` through the team: the team's bridge.config.json
- * lists it (else 403 not-allowed), the Bridge app is installed on it (else 409 product_missing), and for a visitor of a
- * public demo team GitHub says it is public too (else 403 not-allowed).
+ * lists it (else 403 not-allowed), the Bridge app is installed on it (else 409 product_missing), for a visitor of a
+ * public demo team GitHub says it is public too (else 403 not-allowed), and a read pass names it (else 403).
  */
 export async function productReadAllowed(
   ctx: ReadCtx,
@@ -680,7 +702,10 @@ export async function productReadAllowed(
   refuse: () => HttpError = () => new HttpError(403, 'not-allowed', READ_WORDS.notAllowed),
 ): Promise<void> {
   const listed = await productReposOf(ctx, team.owner, team.repo);
-  if (!listed.includes(`${product.owner}/${product.repo}`.toLowerCase())) throw refuse();
+  const full = `${product.owner}/${product.repo}`.toLowerCase();
+  if (!listed.includes(full)) throw refuse();
+  // A read pass opens only the product repositories it names.
+  if (reader.pass && !reader.pass.repos.includes(full)) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
   const token = await ctx.token(product.owner, product.repo);
   if (!token) throw new HttpError(409, PRODUCT_MISSING, READ_WORDS.productMissing);
   if (reader.kind === 'guest' && !(await isPublicRepo(ctx, product.owner, product.repo))) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);

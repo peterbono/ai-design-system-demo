@@ -15,6 +15,11 @@ export interface ReadsOptions {
   team: string;
   /** Bridge's origin, or null to read GitHub directly. */
   proxy: string | null;
+  /**
+   * A member's read pass from Bridge Studio (pass.ts): Bridge then reads the private product repositories it names for
+   * this tab. Sent as a query parameter, so the request stays simple.
+   */
+  pass?: string | null;
   fetch?: typeof fetch;
 }
 
@@ -53,14 +58,14 @@ const proxyRefused = (r: Response) => r.status === 400 || r.status === 401 || r.
 
 const segments = (path: string) => path.split('/').map(encodeURIComponent).join('/');
 
-export function githubReads({ team, proxy, fetch: f = (...a) => fetch(...a) }: ReadsOptions): Reads {
+export function githubReads({ team, proxy, pass = null, fetch: f = (...a) => fetch(...a) }: ReadsOptions): Reads {
   const base = proxy ? proxy.replace(/\/+$/, '') : null;
 
   /** Bridge first, then GitHub. `direct` is GitHub's own URL for the same read. */
   async function read(gh: string, accept: string, direct: string): Promise<Response> {
     if (base && !down.has(base)) {
       try {
-        const r = await f(`${base}/api/contribute?repo=${encodeURIComponent(team)}&gh=${encodeURIComponent(gh)}`, { headers: { Accept: accept }, credentials: 'omit' });
+        const r = await f(`${base}/api/contribute?repo=${encodeURIComponent(team)}&gh=${encodeURIComponent(gh)}${pass ? `&pass=${encodeURIComponent(pass)}` : ''}`, { headers: { Accept: accept }, credentials: 'omit' });
         if (!proxyRefused(r)) return r;
       } catch {
         // Unreachable, or the browser refused the answer (CORS): GitHub directly.

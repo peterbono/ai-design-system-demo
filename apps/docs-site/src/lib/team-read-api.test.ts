@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/account';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
-import { clearReadMemory, FRESH_MS, immutable, KEEP_S, MAX_BATCH, MAX_CHANGES, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
+import { sha256 } from '../../api/_lib/http';
+import { clearReadMemory, countKey, memberBudgetId, FRESH_MS, immutable, KEEP_S, MAX_BATCH, MAX_CHANGES, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
 import { restoreMissing } from './contribute';
 import { type ContribDeps, cookieName, type FetchLike, handleContribute, signSession } from '../../api/contribute/index';
 
@@ -707,5 +708,112 @@ describe('team reads: from another origin (the Bridge toolbar in a product)', ()
     const r = await s.read(`${D}/pulls/1`, '', DEMO, { origin: ORIGIN, 'sec-fetch-site': 'same-origin' });
     expect(r.status).toBe(200);
     expect(r.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});
+
+describe('team reads with a read pass (the toolbar in a private product preview)', () => {
+  const COPY = 'shop-co/shop-design';
+  const CODE = 'shop-co/shop';
+  const OTHER = 'shop-co/other';
+  const PREVIEW_HOST = 'https://explore-toast.shop-design.pages.dev';
+  const config = (team: string) =>
+    JSON.stringify({
+      previews: { production: { docs: ORIGIN } },
+      products: [{ key: 'admin-app', repo: CODE, design: { repo: COPY, preview: 'https://{branch}.shop-design.pages.dev' }, preview: 'https://{branch}.shop.pages.dev', production: 'https://shop.pages.dev' }],
+      repo: { owner: team.split('/')[0], name: team.split('/')[1] },
+    });
+  const from = (origin: string) => ({ origin, 'sec-fetch-site': 'cross-site' });
+  const world = (team: string) => ({ configs: { [team.toLowerCase()]: config(team), [OTHER]: config(OTHER) }, private: { [DEMO]: false, [COPY]: true, [CODE]: true } });
+  const mint = (s: ReturnType<typeof setup>, cookie: string, team = TEAM, extra: Record<string, string> = {}) =>
+    handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(team)}&mint=read-pass`, { headers: { host: HOST, 'x-real-ip': '203.0.113.9', ...(cookie ? { cookie } : {}), ...extra } }), ENV, s.deps);
+  const readWith = (s: ReturnType<typeof setup>, path: string, pass: string, team = TEAM, origin = PREVIEW_HOST) =>
+    handleContribute(
+      new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(team)}&gh=${encodeURIComponent(path)}&pass=${encodeURIComponent(pass)}`, { headers: { host: HOST, 'x-real-ip': '203.0.113.9', ...from(origin) } }),
+      ENV,
+      s.deps,
+    );
+
+  it('a member gets a pass for the products the team lists, and the origins it may go to; nobody else does', async () => {
+    const s = setup(world(TEAM));
+    const r = await mint(s, await s.member());
+    expect(r.status).toBe(200);
+    expect(r.headers.get('cache-control')).toContain('no-store');
+    const body = (await r.json()) as { pass: string; exp: number; origins: string[] };
+    expect(body.pass).toMatch(/^v1\./);
+    expect(body.exp - T0).toBe(8 * 60 * 60 * 1000);
+    expect(body.origins).toContain('https://{branch}.shop-design.pages.dev');
+    // The pass carries no email: it travels in a URL.
+    expect(Buffer.from(body.pass.split('.')[1]!, 'base64url').toString()).not.toContain('mia');
+    expect((await mint(s, '')).status).toBe(401);
+    // A visitor of a public demo team is not a member.
+    const d = setup(world(DEMO));
+    expect((await mint(d, '', DEMO)).status).toBe(401);
+    // Never from another origin.
+    const cross = await mint(s, await s.member(), TEAM, from(PREVIEW_HOST));
+    expect(cross.status).toBe(403);
+  });
+
+  it('opens the private product repositories it names, read only, from a page the config names, on the member budget', async () => {
+    const s = setup(world(TEAM));
+    const { pass } = (await (await mint(s, await s.member())).json()) as { pass: string };
+    for (const repo of [COPY, CODE]) {
+      const r = await readWith(s, `/repos/${repo}/pulls/4`, pass);
+      expect(r.status, repo).toBe(200);
+      expect(r.headers.get('access-control-allow-origin')).toBe(PREVIEW_HOST);
+      expect(r.headers.get('access-control-allow-credentials')).toBeNull();
+    }
+    // The member's budget, not the address's.
+    expect(Number(await s.redis.cmd('GET', countKey('member', memberBudgetId('mia@acme.design'), T0)))).toBeGreaterThan(0);
+    expect(await s.redis.cmd('GET', countKey('ip', sha256('read-ip:203.0.113.9').slice(0, 24), T0))).toBeNull();
+  });
+
+  it('never opens more: the team repository, members-only resources, blobs, another origin, writes', async () => {
+    const s = setup(world(TEAM));
+    const { pass } = (await (await mint(s, await s.member())).json()) as { pass: string };
+    expect((await readWith(s, `${P}/pulls`, pass)).status).toBe(401);
+    expect((await readWith(s, `/repos/${COPY}/collaborators`, pass)).status).toBe(403);
+    // A repository the pass does not name reads as a visitor: closed on a private team.
+    expect((await readWith(s, `/repos/${OTHER}/pulls/1`, pass)).status).toBe(401);
+    const evil = await readWith(s, `/repos/${COPY}/pulls/4`, pass, TEAM, 'https://evil.example');
+    expect(evil.status).toBe(403);
+    expect(evil.headers.get('access-control-allow-origin')).toBeNull();
+    const blob = await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${TEAM}&blobs=${SHA('a')}&pass=${encodeURIComponent(pass)}`, { headers: { host: HOST, ...from(PREVIEW_HOST) } }), ENV, s.deps);
+    expect(blob.status).toBe(401);
+    const write = await handleContribute(
+      new Request(`${ORIGIN}/api/contribute?repo=${TEAM}&gh=${encodeURIComponent(`/repos/${COPY}/issues`)}&pass=${encodeURIComponent(pass)}`, { method: 'POST', headers: { host: HOST, 'x-bridge-contribute': '1', 'content-type': 'application/json', ...from(PREVIEW_HOST) }, body: '{}' }),
+      ENV,
+      s.deps,
+    );
+    expect(write.status).toBe(403);
+    expect(s.w.calls.some((c) => c.method !== 'GET')).toBe(false);
+  });
+
+  it('an expired, tampered or other team pass reads as a visitor (as before)', async () => {
+    const s = setup(world(TEAM));
+    const { pass } = (await (await mint(s, await s.member())).json()) as { pass: string };
+    const [v, body, mac] = pass.split('.') as [string, string, string];
+    const claims = JSON.parse(Buffer.from(body, 'base64url').toString()) as { r: string[] };
+    claims.r.push(OTHER);
+    const tampered = `${v}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.${mac}`;
+    expect((await readWith(s, `/repos/${OTHER}/pulls/1`, tampered)).status).toBe(401);
+    expect((await readWith(s, `/repos/${COPY}/pulls/4`, 'v1.junk.junk')).status).toBe(401);
+    // Minted for another team that lists the same product: does not open it through this team.
+    const other = (await (await mint(s, await s.member('mia@acme.design', OTHER), OTHER)).json()) as { pass: string };
+    expect(other.pass).toMatch(/^v1\./);
+    expect((await readWith(s, `/repos/${COPY}/pulls/4`, other.pass)).status).toBe(401);
+    expect((await readWith(s, `/repos/${COPY}/pulls/4`, other.pass, OTHER)).status).toBe(200);
+    s.tick(8 * 60 * 60 * 1000 + 1);
+    expect((await readWith(s, `/repos/${COPY}/pulls/4`, pass)).status).toBe(401);
+  });
+
+  it('on a public demo team, the pass opens its private product; without it, the visitor stays out', async () => {
+    const s = setup(world(DEMO));
+    const cookie = await s.member('mia@acme.design', DEMO);
+    const { pass } = (await (await mint(s, cookie, DEMO)).json()) as { pass: string };
+    expect((await s.read(`/repos/${COPY}/pulls/4`, '', DEMO, from(PREVIEW_HOST))).status).toBe(403);
+    const r = await readWith(s, `/repos/${COPY}/pulls/4`, pass, DEMO);
+    expect(r.status).toBe(200);
+    // The team's own public repository still reads as a visitor, pass or not.
+    expect((await readWith(s, `${D}/pulls/1`, pass, DEMO)).status).toBe(200);
   });
 });

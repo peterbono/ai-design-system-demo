@@ -13,6 +13,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Button, ButtonGroup, Checkbox, Icon, IconButton, Kbd, Link, Popover, PopoverContent, PopoverTrigger, ThemeProvider, Tooltip } from '@bridge-ds/react';
 import { Check, ChevronUp, GripVertical, Info, ListChecks, Minimize2, ScanSearch } from 'lucide-react';
 import { loadChange, type ChangeFacts } from './github';
+import { tabPass, withPass } from './pass';
+import { branchOfHost, branchTitle, canFlipSides, READ_FAILED, READ_FAILED_TOGETHER } from './session';
 import { loadBuild } from './config';
 import type { BridgeToolbarProps } from './BridgeToolbar';
 import { useDocumentScope, type ToolbarScope, type ToolbarShop } from './scope';
@@ -456,19 +458,20 @@ function Toolbar({
 
   const choose = useCallback(
     (next: Side) => {
-      if (next === side || !facts) return;
-      if (facts.mode === 'tokens') {
+      // A code change opens the other deployment, facts or not (they could not be read: canFlipSides).
+      if (next === side || (!facts && !(error && !tg))) return;
+      if (facts?.mode === 'tokens') {
         setSide(next);
         return;
       }
       const here = { search: window.location.search, hash: window.location.hash };
       if (next === 'before' && build.production) {
-        window.location.assign(sameScreenOn(build.production, here, { change, returnTo: window.location.origin, scroll: window.scrollY, marks: marks?.length ?? null }));
+        window.location.assign(withPass(sameScreenOn(build.production, here, { change, returnTo: window.location.origin, scroll: window.scrollY, marks: marks?.length ?? null }), tabPass()));
       } else if (next === 'after' && returnTo) {
-        window.location.assign(sameScreenOn(returnTo, here, { change, scroll: window.scrollY }));
+        window.location.assign(withPass(sameScreenOn(returnTo, here, { change, scroll: window.scrollY }), tabPass()));
       }
     },
-    [side, facts, build, change, returnTo, marks],
+    [side, facts, error, tg, build, change, returnTo, marks],
   );
 
   useEffect(() => {
@@ -580,9 +583,9 @@ function Toolbar({
 
   const sideLabel = (x: Side) => (x === 'after' && tg ? togetherLabel(T?.included.length ?? tg.changes.length) : SIDE_LABEL[x]);
   const label = sideLabel(side);
-  const title = facts?.title ?? (tg ? `${tg.changes.length} changes together` : `Change ${change}`);
+  const title = facts?.title ?? (tg ? `${tg.changes.length} changes together` : (branchTitle(branchOfHost(onProduction && returnTo ? new URL(returnTo).host : window.location.host, build.preview)) ?? 'This exploration'));
   const screens = facts?.screens ?? null;
-  const canFlip = Boolean(facts) && (facts!.mode === 'tokens' || (side === 'after' ? Boolean(build.production) : Boolean(returnTo)));
+  const canFlip = canFlipSides({ mode: facts?.mode ?? null, failed: error && !tg, side, production: build.production, returnTo });
   const studio = tg ? studioChangesUrl(build) : studioChangeUrl(build, change);
   const behind = facts?.behind ? 'Live has new changes since this change started.' : null;
   // Screens share one shop and theme most of the time: say it once in the sheet's header.
@@ -751,9 +754,13 @@ function Toolbar({
   const footLine = tg
     ? facts
       ? 'Screens are measured per change, not for this mix. Show what changed outlines this screen.'
-      : 'Reading the changes.'
+      : error
+        ? null
+        : 'Reading the changes.'
     : !facts
-      ? 'Reading the change.'
+      ? error
+        ? null
+        : 'Reading the change.'
       : isCode
         ? side === 'before'
           ? 'What this change adds or changes is outlined on This change.'
@@ -1104,7 +1111,8 @@ function Toolbar({
             </Tooltip>
             {error ? (
               <p className={styles.noteRow} role="status">
-                {tg ? 'Could not read these changes. Reload the page to try again.' : 'Could not read this change. Reload the page to try again.'}
+                {tg ? READ_FAILED_TOGETHER : READ_FAILED}{' '}
+                <Link href={studio}>Open in Studio</Link>
               </p>
             ) : null}
           </>
