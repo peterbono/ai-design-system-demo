@@ -35,3 +35,19 @@
 .addp-access {
   justify-self: start;
 }
+
+/* "Add a product" at the foot of Start an exploration's Where list (StartExploration.tsx), after its separator: set
+   apart as an action, not a place. The plus leads the label, both in the link color. The list is portaled to the body,
+   so the option is found by its mark. */
+[role="option"]:has(.addp-option-mark) {
+  color: var(--color-text-link);
+}
+
+[role="option"]:has(.addp-option-mark) > :has(> .addp-option-mark) {
+  order: -1;
+  color: inherit;
+}
+
+.addp-option-mark {
+  display: inline-flex;
+}

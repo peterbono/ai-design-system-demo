@@ -72,7 +72,8 @@ export default function TeamProducts() {
                 </p>
                 <p className="set-row-value set-row-help">{productSettingsLine(p, facts.repo)}</p>
                 <div className="set-row-action">
-                  {rename && facts.listed.includes(p.key.toLowerCase()) && (
+                  {/* Never the library itself: it keeps its name. */}
+                  {rename && !p.default && facts.listed.includes(p.key.toLowerCase()) && (
                     <Link href={`${productHref(p.key)}#rename`} aria-label={W.renameLabel(p.name)}>
                       {W.rename}
                     </Link>

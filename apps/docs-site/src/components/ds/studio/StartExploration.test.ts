@@ -205,6 +205,69 @@ describe('Start an exploration', () => {
   });
 });
 
+describe('Where: Add a product, for the people who may add one', () => {
+  const admin = { state: 'admin', write: true, admin: true, contributor: false };
+  /** The repository's settings as the layout embeds them, with an owner and a repository (the sample team's, say). */
+  const embed = (site: Record<string, unknown>) => {
+    const el = document.createElement('script');
+    el.id = 'bridge-repo';
+    el.type = 'application/json';
+    el.textContent = JSON.stringify({ products: bridgeConfig.products, ...site });
+    document.body.append(el);
+    return () => el.remove();
+  };
+  const openWhere = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: 'Start an exploration' }));
+    // The access (and with it the library and Add a product) arrives just after the dialog opens.
+    await user.click(await screen.findByRole('combobox', { name: 'Where' }, { timeout: 5000 }));
+  };
+
+  it('an admin gets "Add a product" last, after a separator, and it opens the Add a product dialog', async () => {
+    viewer.access = admin;
+    const done = embed({ owner: 'acme', repo: 'ds' });
+    try {
+      const user = userEvent.setup();
+      // The previous test's late access reads settle first.
+      await new Promise((r) => setTimeout(r, 0));
+      render(createElement(StartExploration, { components }));
+      await openWhere(user);
+      const add = await screen.findByRole('option', { name: 'Add a product' });
+      const options = screen.getAllByRole('option');
+      expect(options[options.length - 1]).toBe(add);
+      // The separator sets it apart from the places to start.
+      expect(add.previousElementSibling?.getAttribute('data-orientation')).toBe('horizontal');
+      expect(add.querySelector('.addp-option-mark svg')).toBeTruthy();
+      await user.click(add);
+      expect(await screen.findByRole('dialog', { name: 'Add a product' })).toBeTruthy();
+      // Not a place to start: the exploration's own dialog stepped aside, nothing was picked.
+      expect(screen.queryByText('What do you want to explore?')).toBeNull();
+    } finally {
+      done();
+    }
+  });
+
+  it('a lead who is not an admin, a designer and the sample team never see it', async () => {
+    const cases: { access: Record<string, unknown>; site: Record<string, unknown> }[] = [
+      { access: { state: 'writer', write: true, admin: false, contributor: false }, site: { owner: 'acme', repo: 'ds' } },
+      { access: admin, site: { owner: 'peterbono', repo: 'bridge-demo-ds' } },
+    ];
+    for (const c of cases) {
+      viewer.access = c.access;
+      const done = embed(c.site);
+      const user = userEvent.setup();
+      const { unmount } = render(createElement(StartExploration, { components }));
+      try {
+        await openWhere(user);
+        expect((await screen.findAllByRole('option')).length).toBeGreaterThan(0);
+        expect(screen.queryByRole('option', { name: 'Add a product' })).toBeNull();
+      } finally {
+        unmount();
+        done();
+      }
+    }
+  });
+});
+
 describe('the lines of the last step', () => {
   it('gives the Claude app the connector line, the terminal and Copilot the full one', () => {
     const full = 'Open Bridge exploration admin-app#4 "add a toast alert" in the design team\'s copy of Art print shop (acme/shop-design, branch explore/add-a-toast-alert) and use the Bridge library. I\'ll tell you what to explore.';

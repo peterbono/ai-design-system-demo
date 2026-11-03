@@ -1,4 +1,5 @@
-// "Add a product" (Settings > Products and the onboarding Products step): an admin signed in with GitHub picks the
+// "Add a product" (Settings > Products, the onboarding Products step, and the foot of Start an exploration's Where
+// list, which opens this same dialog through `open`): an admin signed in with GitHub picks the
 // product's code among what Bridge can see, names it, and keeps or drops the designers' copy. Bridge reads its
 // previews from Vercel when it can, then proposes the new entry for review (scripts/roles.ts proposeNewProduct), the
 // same path as a product rename. Words and rules: lib/add-product.ts. Never the sample team, never an email admin.
@@ -12,7 +13,7 @@ import '../../../styles/add-product.css';
 import { ADD_PRODUCT_WORDS as W, addProductProblem, nameFromRepo, newProductEntry, productKeyFor, type ProductRepoChoice } from '../../../lib/add-product';
 
 /** Whether this viewer may add a product: the same rule as renaming one (lib/product-name canRenameProduct). */
-function useCanAdd(): boolean {
+export function useCanAddProduct(): boolean {
   const [can, setCan] = useState(false);
   useEffect(() => {
     let live = true;
@@ -43,10 +44,17 @@ export interface AddProductProps {
   variant?: 'primary' | 'secondary';
   /** Called once the product is proposed. */
   onSent?: () => void;
+  /**
+   * Opened from elsewhere (Start an exploration's "Add a product"): the dialog only, no button of its own. The opener
+   * says what happens once it is sent (`onSent`).
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function AddProduct({ products: given, variant = 'secondary', onSent }: AddProductProps) {
-  const can = useCanAdd();
+export default function AddProduct({ products: given, variant = 'secondary', onSent, open: openProp, onOpenChange }: AddProductProps) {
+  const can = useCanAddProduct();
+  const controlled = openProp !== undefined;
   const [read, setRead] = useState<ProductConfig[]>([]);
   useEffect(() => {
     if (given) return;
@@ -57,7 +65,9 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     };
   }, [given]);
   const products = given ?? read;
-  const [open, setOpen] = useState(false);
+  const [openOwn, setOpenOwn] = useState(false);
+  const open = openProp ?? openOwn;
+  const setOpen = (o: boolean) => (onOpenChange ? onOpenChange(o) : setOpenOwn(o));
   const [sent, setSent] = useState(false);
   const [repos, setRepos] = useState<ProductRepoChoice[] | null>(null);
   const [repo, setRepo] = useState<string | null>(null);
@@ -109,8 +119,8 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     };
   }, [choice]);
 
-  if (!can) return products.length ? null : <p className="set-row-value">{W.noneYet}</p>;
-  if (sent) return <p className="set-row-value" role="status">{W.sent}</p>;
+  if (!can) return controlled || products.length ? null : <p className="set-row-value">{W.noneYet}</p>;
+  if (sent && !controlled) return <p className="set-row-value" role="status">{W.sent}</p>;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,9 +138,9 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       });
       const { proposeNewProduct } = await import('../../../scripts/roles');
       await proposeNewProduct(entry);
-      setSent(true);
-      setOpen(false);
+      if (!controlled) setSent(true);
       onSent?.();
+      setOpen(false);
     } catch {
       setError(W.refused);
     } finally {
@@ -140,9 +150,11 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
 
   return (
     <>
-      <Button variant={variant} onClick={() => setOpen(true)}>
-        {W.open}
-      </Button>
+      {!controlled && (
+        <Button variant={variant} onClick={() => setOpen(true)}>
+          {W.open}
+        </Button>
+      )}
       <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
         <DialogContent
           title={W.title}

@@ -3,7 +3,9 @@
 //   - Where: a product, or, for a lead (libraryLead), the library itself (a token, a component or its guidance). A change
 //     to the library is an exploration whose target is the library. A designer of the team only sees products, and
 //     with one product no Where at all. Preselected from ?product= (key, name, or "library"), else the only
-//     product, else the library when the team lists no product.
+//     product, else the library when the team lists no product. For whoever may add a product (an admin with GitHub,
+//     never the sample team: AddProduct's useCanAddProduct), a last "Add a product" after a separator, a plus in the
+//     link color: it opens the Add a product dialog of Settings (AddProduct.tsx), then brings the person back here.
 //   - What it is, in one sentence, and a Jira ticket on demand (only with JIRA_IN_BRIDGE). The primary follows the person's AI tool
 //     (AiToolPanel.tsx, lib/ai-tools.ts): "Start with Claude AI" for Claude, "Start in Copilot" for GitHub Copilot
 //     in VS Code. It starts the exploration the way the CLI and MCP server do (the core exploration start with the
@@ -23,7 +25,9 @@ import { VOCAB } from '../../../lib/vocabulary';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, ExternalLink, Plus } from 'lucide-react';
 import { defaultProduct, parseJiraKey, productMarks, productsOf, type ProductConfig } from '@bridge-ds/core';
-import { Alert, Button, Combobox, Dialog, DialogContent, DialogTrigger, Input, Select } from '@bridge-ds/react';
+import { Alert, Button, Combobox, Dialog, DialogContent, DialogTrigger, Icon, Input, Select } from '@bridge-ds/react';
+import AddProduct, { useCanAddProduct } from './AddProduct';
+import { ADD_PRODUCT_WORDS } from '../../../lib/add-product';
 import { startChangeHref } from '../../../lib/overview-board';
 import {
   adminBlockedFix,
@@ -87,6 +91,9 @@ export interface StartChangeLook {
 }
 
 type Step = 'start' | 'report' | 'done';
+
+/** The Where list's last option: not a place to start, the way to add one (never a target). */
+export const ADD_PRODUCT_OPTION = '__bridge-add-product';
 
 /**
  * An old address that opened the start: ?start= (any value) on the page with the header action. "new" (the old
@@ -153,6 +160,10 @@ export default function StartExploration({ components, appearance = 'menu', prod
   // An admin of the team (email or GitHub): a product Bridge cannot reach is theirs to set up, never "Ask an admin".
   const [admin, setAdmin] = useState(false);
   const targets = startTargets(products, { library: lead });
+  // An admin may add a product right from Where; the dialog closes for Add a product's, then comes back as it was.
+  const canAdd = useCanAddProduct();
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
   const picked = targets.find((t) => t.value === target) ?? null;
 
   // Where the page asked to start, and whether the person picked since: the lead's library comes a moment after open.
@@ -172,6 +183,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
     setError(null);
     setBlocked(null);
     setDone(null);
+    setAdded(false);
   };
 
   useEffect(() => {
@@ -369,9 +381,31 @@ export default function StartExploration({ components, appearance = 'menu', prod
             label="Where"
             placeholder="Pick a product or the library"
             size="lg"
-            options={targets.map((t) => ({ value: t.value, label: t.label, ...(t.description ? { description: t.description } : {}) }))}
+            options={[
+              ...targets.map((t) => ({ value: t.value, label: t.label, ...(t.description ? { description: t.description } : {}) })),
+              // After a separator (its own group, no heading): an action, set apart by the plus and the link color.
+              ...(canAdd
+                ? [
+                    {
+                      value: ADD_PRODUCT_OPTION,
+                      label: ADD_PRODUCT_WORDS.open,
+                      group: '',
+                      badge: (
+                        <span className="addp-option-mark" aria-hidden="true">
+                          <Icon icon={Plus} size="sm" />
+                        </span>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
             value={target}
             onValueChange={(v) => {
+              if (v === ADD_PRODUCT_OPTION) {
+                setOpen(false);
+                setAdding(true);
+                return;
+              }
               pickedByHand.current = true;
               setTarget(v);
               setBlocked(null);
@@ -477,6 +511,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
           {said}
         </span>
         {error && <Alert tone="danger">{error}</Alert>}
+        {added && <Alert tone="success">{ADD_PRODUCT_WORDS.sent}</Alert>}
       </form>
     );
     foot = footer(
@@ -562,37 +597,50 @@ export default function StartExploration({ components, appearance = 'menu', prod
   // The library's own page: starting there is a lead's; a designer asks for a library change on Components instead.
   if (!lead && product && products.length && product === defaultProduct(products).key) return null;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} disablePointerDismissal={step === 'start' && Boolean(sentence.trim())}>
-      <DialogTrigger
-        render={
-          appearance === 'card' ? (
-            <Button variant="ghost" iconStart={Plus} fullWidth className="sh-create-btn" data-start-change data-demo-write={gate}>
-              {label}
-            </Button>
-          ) : appearance === 'choice' ? (
-            <Button variant="link" className="sh-choice-btn" data-card-primary data-start-change data-demo-write={gate}>
-              <span className="sh-choice-title">{label}</span>
-            </Button>
-          ) : appearance === 'primary' ? (
-            <Button variant="primary" className="sh-start-btn" data-start-change data-demo-write={gate}>
-              {label}
-            </Button>
-          ) : appearance === 'button' ? (
-            <Button variant="secondary" size="lg" iconStart={Plus} data-start-change data-demo-write={gate}>
-              {label}
-            </Button>
-          ) : (
-            <Button variant={look.variant} iconStart={Plus} fullWidth data-start-change data-demo-write={gate}>
-              {label}
-            </Button>
-          )
-        }
-      />
-      {open && (
-        <DialogContent title={title} footer={foot} className="sc-dialog" initialFocus={step === 'start' ? sentenceRef : undefined}>
-          {body}
-        </DialogContent>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange} disablePointerDismissal={step === 'start' && Boolean(sentence.trim())}>
+        <DialogTrigger
+          render={
+            appearance === 'card' ? (
+              <Button variant="ghost" iconStart={Plus} fullWidth className="sh-create-btn" data-start-change data-demo-write={gate}>
+                {label}
+              </Button>
+            ) : appearance === 'choice' ? (
+              <Button variant="link" className="sh-choice-btn" data-card-primary data-start-change data-demo-write={gate}>
+                <span className="sh-choice-title">{label}</span>
+              </Button>
+            ) : appearance === 'primary' ? (
+              <Button variant="primary" className="sh-start-btn" data-start-change data-demo-write={gate}>
+                {label}
+              </Button>
+            ) : appearance === 'button' ? (
+              <Button variant="secondary" size="lg" iconStart={Plus} data-start-change data-demo-write={gate}>
+                {label}
+              </Button>
+            ) : (
+              <Button variant={look.variant} iconStart={Plus} fullWidth data-start-change data-demo-write={gate}>
+                {label}
+              </Button>
+            )
+          }
+        />
+        {open && (
+          <DialogContent title={title} footer={foot} className="sc-dialog" initialFocus={step === 'start' ? sentenceRef : undefined}>
+            {body}
+          </DialogContent>
+        )}
+      </Dialog>
+      {canAdd && (
+        <AddProduct
+          open={adding}
+          onOpenChange={(o) => {
+            setAdding(o);
+            // Sent or cancelled: back to the exploration as it was (what they typed stays).
+            if (!o) setOpen(true);
+          }}
+          onSent={() => setAdded(true)}
+        />
       )}
-    </Dialog>
+    </>
   );
 }

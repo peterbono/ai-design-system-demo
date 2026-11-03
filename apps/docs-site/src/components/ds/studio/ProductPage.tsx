@@ -21,17 +21,43 @@
 //     your account. Bridge is back at 13:52.") and Try again; nothing kept: the same sentence as a calm moment in place
 //     of the list. Never "Product not found", "Make my copy" or "Nothing explored here yet" while busy. The page reads
 //     again once on its own after the reset (BusyNotice).
-//   - Rename (admins of the team's repository, on a team shell or the team's own Studio, never the sample team): a pencil right
-//     after the title opens the name in place (a DS Input, Save, Escape cancels). Save sends the config pull request
-//     that changes only products[i].name (scripts/roles.ts proposeProductName, lib/product-name.ts), like every
-//     config change from Studio. The title keeps the current name until it merges; the pencil gives way to
-//     "Rename waiting for review". Settings > Products' Rename opens the page with #rename: the name opens in place.
+//   - More actions (admins of the team's repository, on a team shell or the team's own Studio, never the sample team,
+//     never the library): one "..." DS IconButton at the end of the title's line, a DS Menu with the rare actions
+//     (progressive disclosure, no pencil always in view). Viewers see no menu.
+//       Rename: the name opens in place (a DS Input, Save, Escape cancels). Save sends the config pull request that
+//       changes only products[i].name (scripts/roles.ts proposeProductName, lib/product-name.ts), like every config
+//       change from Studio. The title keeps the current name until it merges; "Rename waiting for review" after it.
+//       Settings > Products' Rename opens the page with #rename: the name opens in place.
+//       Remove from Bridge (danger, last): a confirm dialog that says nothing is deleted on GitHub and asks for the
+//       product's name, typed exactly (the Delete team pattern). It sends the config pull request that drops only
+//       products[i] (scripts/roles.ts proposeProductRemoval, lib/remove-product.ts). Never a repository delete.
+//     The library itself is never renamed nor removed: no menu on its page.
 // Self-hosted (pages/studio/products/[key].astro) the key comes from the build; on a team shell
 // (pages/team-shell/products/item.astro) from the address, once the team's settings are read. Reads:
 // scripts/product-page.ts.
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ChevronRight, Pencil } from 'lucide-react';
-import { Badge, Button, Card, CardBody, Icon, IconButton, Input, Link, Skeleton, Tooltip } from '@bridge-ds/react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { ChevronRight, Ellipsis, Pencil, Unplug } from 'lucide-react';
+import {
+  Alert,
+  Badge,
+  Button,
+  ButtonGroup,
+  Card,
+  CardBody,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  Icon,
+  IconButton,
+  Input,
+  Link,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuSeparator,
+  MenuTrigger,
+  Skeleton,
+} from '@bridge-ds/react';
 import type { ProductConfig } from '@bridge-ds/core';
 import { StudioHead } from './StudioHead';
 import { Drawing } from './Drawing';
@@ -41,6 +67,7 @@ import { ExplorationCardItem } from './ExplorationCards';
 import { LIBRARY_ASKS, archivedHref, archivedLine, emptyProductLine, productFacts, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
 import { studioHref } from '../../../lib/team-path';
 import { PRODUCT_NAME_MAX, PRODUCT_NAME_WORDS, productNameProblem } from '../../../lib/product-name';
+import { REMOVE_PRODUCT_WORDS, removeConfirmMatches } from '../../../lib/remove-product';
 import { COPY_WORDS, latestLine, madeLine, showsBehind } from '../../../lib/design-copy';
 import type { ProductPageData } from '../../../scripts/product-page';
 import { LIBRARY_UPDATE_WORDS, libraryLine, type LibraryLine } from '../../../lib/library-update';
@@ -51,7 +78,7 @@ import { BusyNotice } from './BusyNotice';
 
 /** Renaming the product, for an admin: what can be done now, and how to send it. Absent: read only. */
 export interface ProductRename {
-  /** 'offer': the pencil; 'waiting': a rename was sent and waits for review. */
+  /** 'offer': Rename in the More actions menu; 'waiting': a rename was sent and waits for review. */
   state: 'offer' | 'waiting';
   /** Sends the rename for review; rejects when it could not be sent. */
   onSend: (name: string) => Promise<void>;
@@ -63,6 +90,8 @@ export interface ProductPageViewProps {
   data: ProductPageData | null;
   components: HomeComponent[];
   rename?: ProductRename | null;
+  /** Removing the product from Bridge, for an admin (never the library). Absent: no Remove. */
+  remove?: ProductRemove | null;
   /** Make the team's copy, get the latest: absent for a viewer who cannot (signed out), the card still says why. */
   copy?: CopyActions | null;
   /** Whether the viewer may change the library (create-branch libraryLead): false for a designer of the team. */
@@ -75,6 +104,14 @@ export interface ProductPageViewProps {
   library?: LibraryUpdate | null;
 }
 
+/** Removing the product from Bridge, for an admin: what can be done now, and how to send it. */
+export interface ProductRemove {
+  /** 'offer': Remove from Bridge in the More actions menu; 'waiting': a removal was sent and waits for review. */
+  state: 'offer' | 'waiting';
+  /** Sends the removal for review (the config only, never the product's repository); rejects when it could not be sent. */
+  onSend: () => Promise<void>;
+}
+
 /** The library line of a product with its own repository, and the update a lead or an admin sends. */
 export interface LibraryUpdate {
   line: LibraryLine;
@@ -82,17 +119,29 @@ export interface LibraryUpdate {
   send?: () => Promise<void>;
 }
 
-/** The pencil after the title, the name in place while editing, or the rename waiting for review. */
-function useRenameTitle(name: string, productKey: string, products: readonly { key: string; name: string }[], rename: ProductRename | null | undefined) {
+/**
+ * The name in place while editing (opened from More actions' Rename), or the rename waiting for review. `back`: where
+ * focus returns once the field closes (the More actions button).
+ */
+function useRenameTitle(
+  name: string,
+  productKey: string,
+  products: readonly { key: string; name: string }[],
+  rename: ProductRename | null | undefined,
+  back: { current: HTMLElement | null },
+) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const pencil = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (editing) field.current?.focus();
+    // The menu hands focus back to its button as it closes: the field takes it again on the next frame.
+    if (!editing) return;
+    field.current?.focus();
+    const id = requestAnimationFrame(() => field.current?.focus());
+    return () => cancelAnimationFrame(id);
   }, [editing]);
   // Settings > Products' Rename (TeamProducts.tsx) lands here with #rename: the name opens in place, once.
   const asked = useRef(false);
@@ -105,8 +154,8 @@ function useRenameTitle(name: string, productKey: string, products: readonly { k
   const close = () => {
     setEditing(false);
     setError(null);
-    // Back on the pencil (focus never lost), after it paints again.
-    requestAnimationFrame(() => pencil.current?.focus());
+    // Back on More actions (focus never lost), after it paints again.
+    requestAnimationFrame(() => back.current?.focus());
   };
   const send = async (e: FormEvent) => {
     e.preventDefault();
@@ -130,7 +179,12 @@ function useRenameTitle(name: string, productKey: string, products: readonly { k
       setBusy(false);
     }
   };
-  if (!rename || !name) return { title: name || ' ', after: null, note: null };
+  const start = () => {
+    setValue(name);
+    setError(null);
+    setEditing(true);
+  };
+  if (!rename || !name) return { title: name || ' ', after: null, note: null, editing: false, canRename: false, start };
   if (editing) {
     return {
       // The heading keeps the name for assistive tech while the field takes its place on screen.
@@ -166,31 +220,109 @@ function useRenameTitle(name: string, productKey: string, products: readonly { k
         </form>
       ),
       note,
+      editing: true,
+      canRename: false,
+      start,
     };
   }
+  const waiting = rename.state === 'waiting' || Boolean(note);
   return {
     title: name,
-    after:
-      rename.state === 'waiting' || note ? (
-        <Badge tone="neutral">{PRODUCT_NAME_WORDS.waiting}</Badge>
-      ) : (
-        <Tooltip content="Rename">
-          <IconButton
-            ref={pencil}
-            icon={Pencil}
-            label={PRODUCT_NAME_WORDS.rename(name)}
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setValue(name);
-              setError(null);
-              setEditing(true);
-            }}
-          />
-        </Tooltip>
-      ),
+    after: waiting ? <Badge tone="neutral">{PRODUCT_NAME_WORDS.waiting}</Badge> : null,
     note,
+    editing: false,
+    canRename: !waiting,
+    start,
   };
+}
+
+/**
+ * "Remove from Bridge?": what it does in plain words (Bridge deletes nothing on GitHub), and the product's name typed
+ * exactly before the danger button turns on (the Delete team pattern, DeleteTeam.tsx).
+ */
+function RemoveProductDialog({ name, open, onOpenChange, onSend }: { name: string; open: boolean; onOpenChange: (open: boolean) => void; onSend: () => Promise<void> }) {
+  const W = REMOVE_PRODUCT_WORDS;
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const formId = useId();
+  const ok = removeConfirmMatches(typed, name);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!ok || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onSend();
+      setTyped('');
+      onOpenChange(false);
+    } catch (err) {
+      console.warn('Bridge: the product removal was not sent.', err);
+      setError(W.refused);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (busy) return;
+        onOpenChange(next);
+        if (!next) {
+          setTyped('');
+          setError(null);
+        }
+      }}
+    >
+      <DialogContent
+        title={W.title(name)}
+        description={W.text(name)}
+        size="sm"
+        hideClose
+        footer={
+          <ButtonGroup align="end">
+            <DialogClose render={<Button variant="secondary" disabled={busy} />}>{W.cancel}</DialogClose>
+            <Button type="submit" form={formId} variant="danger" loading={busy} disabled={!ok || busy}>
+              {W.remove}
+            </Button>
+          </ButtonGroup>
+        }
+      >
+        <form id={formId} className="pp-remove-form" noValidate onSubmit={(e) => void submit(e)}>
+          <p className="t-body pp-remove-safe">{W.safe}</p>
+          <Input label={W.confirmLabel(name)} name="confirm" autoComplete="off" spellCheck={false} value={typed} onValueChange={setTyped} />
+          {error && <Alert tone="danger">{error}</Alert>}
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * More actions for the product, at the end of the title's line: the rare actions, on demand (Rename, then Remove from
+ * Bridge, the danger item last after a separator). Null when the viewer has none left to take.
+ */
+function ProductMenu({ name, rename, remove, onRename, onRemove, trigger }: { name: string; rename: boolean; remove: boolean; onRename: () => void; onRemove: () => void; trigger: { current: HTMLButtonElement | null } }) {
+  if (!rename && !remove) return null;
+  return (
+    <Menu>
+      <MenuTrigger render={<IconButton ref={trigger} icon={Ellipsis} label={REMOVE_PRODUCT_WORDS.more(name)} variant="secondary" data-product-menu="" />} />
+      <MenuContent align="end">
+        {rename && (
+          <MenuItem icon={Pencil} onClick={onRename}>
+            {REMOVE_PRODUCT_WORDS.rename}
+          </MenuItem>
+        )}
+        {rename && remove && <MenuSeparator />}
+        {remove && (
+          <MenuItem tone="danger" icon={Unplug} onClick={onRemove}>
+            {REMOVE_PRODUCT_WORDS.remove}
+          </MenuItem>
+        )}
+      </MenuContent>
+    </Menu>
+  );
 }
 
 /**
@@ -349,9 +481,27 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
 }
 
 /** The page, painted from what is read so far. Pure render: tested in ProductPage.test.ts. */
-export function ProductPageView({ productKey, data, components, rename, copy, lead = true, onRetry = () => location.reload(), signedIn = true, library: libraryUpdate = null }: ProductPageViewProps) {
+export function ProductPageView({
+  productKey,
+  data,
+  components,
+  rename,
+  remove = null,
+  copy,
+  lead = true,
+  onRetry = () => location.reload(),
+  signedIn = true,
+  library: libraryUpdate = null,
+}: ProductPageViewProps) {
   const product = data?.product ?? null;
-  const head = useRenameTitle(product?.name ?? '', product?.key ?? productKey, data?.products ?? [], product ? rename : null);
+  // The library itself is never renamed nor removed: no More actions on its page.
+  const own = product && !product.default ? product : null;
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const head = useRenameTitle(product?.name ?? '', product?.key ?? productKey, data?.products ?? [], own ? rename : null, menuButton);
+  const [removing, setRemoving] = useState(false);
+  const [removeNote, setRemoveNote] = useState<string | null>(null);
+  const removeWaiting = Boolean(own && remove && (remove.state === 'waiting' || removeNote));
+  const canRemove = Boolean(own && remove && !removeWaiting);
   const loading = !data || data.loading;
   const busy = data?.busy ?? null;
   // GitHub busy before the team's list was ever read here: a wait, never "Product not found".
@@ -389,20 +539,51 @@ export function ProductPageView({ productKey, data, components, rename, copy, le
   // A designer of the team on the library's page, with nothing yet: no start there, the page's lead says where asks go.
   const asks = empty && library && !lead;
   const choice = choiceCard;
+  // More actions, at the end of the title's line: what this viewer may still do to the product (none: no menu).
+  const menu =
+    own && !head.editing ? (
+      <ProductMenu name={name} rename={head.canRename} remove={canRemove} onRename={head.start} onRemove={() => setRemoving(true)} trigger={menuButton} />
+    ) : null;
+  const startAction = product && !empty && !noCopy ? start('menu') : null;
+  const titleAfter =
+    head.after || removeWaiting ? (
+      <>
+        {head.after}
+        {removeWaiting && <Badge tone="neutral">{REMOVE_PRODUCT_WORDS.waiting}</Badge>}
+      </>
+    ) : null;
   return (
     <div className="pp" data-product-page={product?.key ?? productKey}>
       <StudioHead
         title={head.title}
-        titleAfter={head.after}
+        titleAfter={titleAfter}
         summary={loading && !cards.length ? '' : data?.failed || busyAlone ? '' : asks && product ? emptyProductLine(product, true, false) : productSummary(cards)}
         // One primary action: on the title's line, or in the empty moment when there is nothing yet.
-        actions={product && !empty && !noCopy ? start('menu') : null}
+        actions={
+          startAction || menu ? (
+            <>
+              {startAction}
+              {menu}
+            </>
+          ) : null
+        }
       >
         {product && data && <Facts product={product} data={data} copy={copy ?? null} library={libraryUpdate} />}
         <p className="t-ui t-muted pp-rename-note" role="status">
-          {head.note}
+          {[head.note, removeNote].filter(Boolean).join(' ')}
         </p>
       </StudioHead>
+      {own && remove && (
+        <RemoveProductDialog
+          name={name}
+          open={removing}
+          onOpenChange={setRemoving}
+          onSend={async () => {
+            await remove.onSend();
+            setRemoveNote(REMOVE_PRODUCT_WORDS.sent(name));
+          }}
+        />
+      )}
       {data?.failed && <p className="t-body t-muted">{data.failed}</p>}
       {busy && !busyAlone && <BusyNotice busy={busy} onRetry={onRetry} signedIn={signedIn} kept />}
       {loading && !cards.length ? (
@@ -477,6 +658,7 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   /** An admin of the team's repository, in a real team (lib/product-name canRenameProduct): may rename a product its settings list. */
   const [canRename, setCanRename] = useState(false);
   const [sent, setSent] = useState(false);
+  const [removeSent, setRemoveSent] = useState(false);
   /** The keys the team's own bridge.config.json lists (not the defaults Bridge shows without a list). */
   const [listedKeys, setListedKeys] = useState<string[]>([]);
   /** Not an email member: may make the team's copy of the product (GitHub's fork needs a GitHub sign-in). */
@@ -623,7 +805,8 @@ export default function ProductPage({ productKey, components = [] }: { productKe
     if (data?.product) document.title = document.title.replace(/^[^|]*\|/, `${data.product.name} |`);
   }, [data?.product]);
   // Only a product the team's own settings list can be renamed (not the defaults Bridge shows without a list).
-  const listed = Boolean(data?.product && listedKeys.includes(data.product.key.toLowerCase()));
+  // Never the library itself (the default product): it is neither renamed nor removed.
+  const listed = Boolean(data?.product && !data.product.default && listedKeys.includes(data.product.key.toLowerCase()));
   const rename: ProductRename | null =
     canRename && listed && data?.product
       ? {
@@ -632,6 +815,20 @@ export default function ProductPage({ productKey, components = [] }: { productKe
             const { proposeProductName } = await import('../../../scripts/roles');
             await proposeProductName({ key: data.product!.key, from: data.product!.name, to });
             setSent(true);
+          },
+        }
+      : null;
+  // Remove from Bridge: the same people and the same path as the rename (the config pull request). Only the product's
+  // entry leaves the Bridge settings; its own repository is never written, let alone deleted.
+  const remove: ProductRemove | null =
+    canRename && listed && data?.product
+      ? {
+          state: removeSent ? 'waiting' : 'offer',
+          onSend: async () => {
+            const { proposeProductRemoval } = await import('../../../scripts/roles');
+            const p = data.product!;
+            await proposeProductRemoval({ key: p.key, name: p.name, ...(p.repo ? { repo: p.repo } : {}) });
+            setRemoveSent(true);
           },
         }
       : null;
@@ -651,5 +848,5 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           : {}),
       }
     : null;
-  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} copy={copy} lead={lead} onRetry={() => setReload((n) => n + 1)} signedIn={signedIn} library={library} />;
+  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} remove={remove} copy={copy} lead={lead} onRetry={() => setReload((n) => n + 1)} signedIn={signedIn} library={library} />;
 }

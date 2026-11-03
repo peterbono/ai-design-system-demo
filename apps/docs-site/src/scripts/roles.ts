@@ -17,6 +17,7 @@ import { canEditReviewRules, canProposeSettings, changesProposal, GITHUB_WRITE_O
 import { teamNameProposal, withTeamName } from '../lib/team-name';
 import { productNameProposal, withProductName } from '../lib/product-name';
 import { addProductProposal, withNewProduct } from '../lib/add-product';
+import { removeProductProposal, withoutProduct } from '../lib/remove-product';
 import { installationFor, type InstallationLike } from '../lib/github-signin';
 import type { ChangesMode, ProductConfig } from '@bridge-ds/core';
 
@@ -295,6 +296,18 @@ export function proposeNewProduct(entry: ProductConfig, opts: { prefix?: string;
   return proposeConfig(
     (current) => withNewProduct(current, entry),
     (tierLabel) => addProductProposal(entry, { date: new Date(), prefix: opts.prefix, tierLabel }),
+    opts,
+  );
+}
+
+/**
+ * Opens the pull request that removes a product from `products` in bridge.config.json (the product page's More actions).
+ * Only that file changes: nothing on GitHub is deleted, the product's own repository is never touched.
+ */
+export function proposeProductRemoval(x: { key: string; name: string; repo?: string }, opts: { prefix?: string; protectedBranches?: string[] } = {}): Promise<{ number: number; url: string }> {
+  return proposeConfig(
+    (current) => withoutProduct(current, x.key),
+    (tierLabel) => removeProductProposal(x, { date: new Date(), prefix: opts.prefix, tierLabel }),
     opts,
   );
 }
