@@ -68,9 +68,21 @@ jobs:
       - name: Build the bridge CLI
         run: npm run tokens:build && npm run mcp:build
 
+      # Art print shop is a private product in another organisation: read with a read-only token on that repository.
+      # Without the token (or when it has expired) the snapshot goes on without that audit.
+      - name: Check out Art print shop
+        id: shop
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: art-print-shop-co/art-print-shop
+          path: art-print-shop
+          token: ${{ secrets.ART_PRINT_SHOP_TOKEN }}
+
       - name: Snapshot (repo model, activity, Figma coverage, adoption audits)
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          SHOP_AUDIT: ${{ steps.shop.outcome == 'success' && 'art-print-shop/src=Art print shop, main' || '' }}
         # pipefail: a failed snapshot must stop the run, never publish an empty bridge-data branch.
         run: |
           set -o pipefail
@@ -78,6 +90,7 @@ jobs:
             --audit-report apps/docs-site/src/data/audits \
             --audit "apps/admin/src=Bridge admin, main" \
             --audit "apps/docs-site/src=Bridge docs site, main" \
+            ${SHOP_AUDIT:+--audit "$SHOP_AUDIT"} \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Publish to the bridge-data branch
