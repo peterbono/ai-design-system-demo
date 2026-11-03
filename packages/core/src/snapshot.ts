@@ -38,6 +38,11 @@ export interface SnapshotAudit {
   /** Path of the full report on the bridge-data branch ("audits/admin.json"). */
   path: string;
   label?: string;
+  /**
+   * Key of the bridge.config.json product the audited folder belongs to (products[].path holds it, or its git origin
+   * is products[].repo). Missing for anything else and in snapshots written before Bridge recorded it.
+   */
+  product?: string;
   generatedAt: string;
   target: { path: string; files: number };
   metrics: AuditMetrics;
@@ -185,11 +190,12 @@ export function recordingSource(source: RepoSource): { source: RepoSource; paths
 }
 
 /** Summary of an audit report for snapshot.json; the full report is written to `path`. */
-export function snapshotAudit(id: string, report: AuditReport): SnapshotAudit {
+export function snapshotAudit(id: string, report: AuditReport, product?: string): SnapshotAudit {
   return {
     id,
     path: `${SNAPSHOT_AUDITS_DIR}/${id}.json`,
     ...(report.label ? { label: report.label } : {}),
+    ...(product ? { product } : {}),
     generatedAt: report.generatedAt,
     target: { path: report.target.path, files: report.target.files },
     metrics: report.metrics,

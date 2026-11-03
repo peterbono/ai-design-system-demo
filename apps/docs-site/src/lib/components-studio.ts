@@ -1,5 +1,6 @@
 // Studio Components: the sentence under the title and the one primary action, from the components' status and
 // guidance state. Pure, tested in components-studio.test.ts.
+import { defaultProduct, findProduct, productForPlace, type ProductConfig } from '@bridge-ds/core';
 import type { GuidanceState } from './components';
 
 export interface LeadInput {
@@ -64,6 +65,63 @@ export function openRequestCounts(rows: { component: string; status: string }[])
 export interface ProductAudit {
   product: string;
   components: Record<string, number>;
+}
+
+/** One adoption audit run as the snapshot or the committed reports carry it, with its DS component counts. */
+export interface AuditRun {
+  id: string;
+  label?: string | undefined;
+  /** bridge.config.json product key the run audited (`bridge snapshot` writes it; older snapshots lack it). */
+  product?: string | undefined;
+  /** The audited folder, repo-relative ("apps/admin/src"). */
+  target?: { path: string } | undefined;
+  generatedAt: string;
+  components: Record<string, number>;
+}
+
+/** A run of the code before the move to the design system ("admin-before", "..., original MUI source"): never usage. */
+export const isBaselineRun = (run: Pick<AuditRun, 'id' | 'label'>): boolean => /(^|-)before$/i.test(run.id) || /\b(before|original)\b/i.test(run.label ?? '');
+
+/**
+ * The team product an audit run measured: its `product` key, else the product whose folder (products[].path) holds
+ * the audited folder. Undefined for anything else (another app of the repository, the design system itself).
+ */
+export function productOfRun(products: readonly ProductConfig[], run: Pick<AuditRun, 'product' | 'target'>): ProductConfig | undefined {
+  let hit: ProductConfig | undefined;
+  if (run.product) hit = findProduct(products, run.product);
+  else if (run.target?.path) {
+    const place = productForPlace(products, { relPath: run.target.path });
+    if (place.how === 'path') hit = place.product;
+  }
+  return hit && hit.key !== defaultProduct(products).key ? hit : undefined;
+}
+
+/**
+ * The run that stands for each product of a team's bridge.config.json: its latest one. Runs before the move to the
+ * design system never count; runs of anything that is not a listed product are dropped, and the Library (the design
+ * system itself) is never a product it is used in. In `products` order; empty when no run maps to a product.
+ */
+export function latestProductRuns<R extends Omit<AuditRun, 'components'>>(products: readonly ProductConfig[], runs: readonly R[]): { product: ProductConfig; run: R }[] {
+  const latest = new Map<string, R>();
+  for (const run of runs) {
+    if (isBaselineRun(run)) continue;
+    const p = productOfRun(products, run);
+    if (!p) continue;
+    const prev = latest.get(p.key);
+    if (!prev || run.generatedAt > prev.generatedAt) latest.set(p.key, run);
+  }
+  return products.flatMap((product) => {
+    const run = latest.get(product.key);
+    return run ? [{ product, run }] : [];
+  });
+}
+
+/**
+ * The "Used in" audits of a team: one per product, named as Bridge names it, from its latest run
+ * (latestProductRuns). Empty when no run maps to a product: the column is then left out.
+ */
+export function productAudits(products: readonly ProductConfig[], runs: readonly AuditRun[]): ProductAudit[] {
+  return latestProductRuns(products, runs).map(({ product, run }) => ({ product: product.name, components: run.components }));
 }
 
 /**
@@ -132,6 +190,11 @@ export function usedInCell(used: { product: string }[] | undefined): string[] {
   return used.length > 2 ? [used[0]!.product, `+${used.length - 1}`] : used.map((u) => u.product);
 }
 
+/** "Used in Art print shop (12 places)." from the team's products, or that no audited product renders it. */
+export function usedInFact(usedIn: { product: string; instances: number }[]): string {
+  return usedIn.length ? `Used in ${andList(usedIn.map((u) => `${u.product} (${words(u.instances, 'place')})`))}.` : 'Not found in an audited product.';
+}
+
 /**
  * The facts the drawer says in one line, in words (open requests are added in the browser, see requestFact). Guidance
  * that is missing or waits for a review is not repeated here: its pill says it.
@@ -143,11 +206,7 @@ export function drawerFacts(input: {
   usedIn?: { product: string; instances: number }[] | undefined;
 }): string[] {
   const out: string[] = [];
-  if (input.usedIn) {
-    out.push(
-      input.usedIn.length ? `Used in ${andList(input.usedIn.map((u) => `${u.product} (${words(u.instances, 'place')})`))}.` : 'Not found in an audited product.',
-    );
-  }
+  if (input.usedIn) out.push(usedInFact(input.usedIn));
   out.push(input.tokens ? `${words(input.tokens, 'token')}.` : 'No token.');
   if (input.guidance === 'ok') out.push('Usage guidance written.');
   return out;

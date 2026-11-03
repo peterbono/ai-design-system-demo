@@ -136,6 +136,8 @@ Usage:
                                       snapshot.json (token, contrast and component files, Figma coverage,
                                       contrast results) plus audits/<id>.json. --audit runs bridge audit on a
                                       product folder; --audit-report carries reports already written.
+                                      Each report names its product (products[].path holds the folder,
+                                      or its git origin is products[].repo): Studio's "Used in".
                                       --activity also writes activity.json (open branches, suggestions,
                                       requests, recent merges, token history) read with GITHUB_TOKEN, so
                                       signed-out visitors of hosted Studio spend no GitHub API request.

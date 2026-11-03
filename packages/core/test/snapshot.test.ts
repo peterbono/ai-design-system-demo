@@ -148,6 +148,9 @@ test('audits: a summary in snapshot.json, the report in audits/<id>.json', () =>
   assert.equal(auditId('../..'), 'audit');
   const report = { schemaVersion: 1, label: 'Admin', generatedAt: '2026-10-21T00:00:00Z', target: { path: 'apps/admin/src', files: 3, skipped: 0 }, metrics: { tokenAdoption: 90 }, files: [] } as unknown as AuditReport;
   assert.deepEqual(snapshotAudit('admin', report), { id: 'admin', path: 'audits/admin.json', label: 'Admin', generatedAt: '2026-10-21T00:00:00Z', target: { path: 'apps/admin/src', files: 3 }, metrics: { tokenAdoption: 90 } });
+  // The product the audited folder belongs to, when bridge snapshot knows it (Studio's "Used in").
+  assert.equal(snapshotAudit('shop', report, 'shop').product, 'shop');
+  assert.equal('product' in snapshotAudit('admin', report, undefined), false);
 });
 
 test('llms.txt: the design system as plain text, repo text kept on one line', async () => {
