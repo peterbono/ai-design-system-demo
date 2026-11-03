@@ -1,7 +1,9 @@
 // The role picker (board I2), shared by the Invite collaborators dialog and every row of Settings > Members: a DS
 // Button that names the role ("Can edit", "Reviewer: design") and opens a DS Popover with the four roles as a DS
 // RadioGroup, each with one line that says what it adds. Choosing Reviewer unfolds, under it, "They review as": two
-// DS ChoiceCards, Designer (how it looks and works) and Developer (how it is built). Nothing else unfolds: progressive
+// DS ChoiceCards stacked, each one line with its drawing, name and what it reviews: Designer (how it looks and works)
+// and Developer (how it is built). The help sits in the card's name, so a screen reader reads the whole line on the
+// radio. A DS Menu or Select cannot hold a second radio group inside an item, hence Popover + RadioGroup. Nothing else unfolds: progressive
 // disclosure. A role GitHub cannot hold on this repository (a personal account's) is shown disabled with the reason, and
 // so is Reviewer for an email member (reviewers approve on GitHub). Admin works with the email: members, requests,
 // settings and invites need no GitHub.
@@ -70,7 +72,7 @@ export default function RolePicker({ value, onChange, label, personal = false, e
               <Radio value={role} label={ROLE_WORDS[role].label} description={ROLE_WORDS[role].help} disabled={off} />
               {role === 'reviewer' && choice.role === 'reviewer' && (
                 <div className="rp-review" onKeyDown={keepKeys}>
-                  <ChoiceCardGroup label="They review as" value={choice.reviewAs ?? 'design'} onValueChange={pickReviewAs} orientation="horizontal" className="rp-review-cards" name={`${id}-review`}>
+                  <ChoiceCardGroup label="They review as" value={choice.reviewAs ?? 'design'} onValueChange={pickReviewAs} orientation="vertical" className="rp-review-cards" name={`${id}-review`}>
                     {REVIEW_AS_ORDER.map((r) => (
                       <ChoiceCard
                         key={r}
@@ -78,12 +80,13 @@ export default function RolePicker({ value, onChange, label, personal = false, e
                         title={
                           <span className="rp-review-title">
                             <span className="rp-review-face" aria-hidden="true">
-                              <Icon icon={REVIEW_ICON[r]} size="sm" />
+                              <Icon icon={REVIEW_ICON[r]} size="md" />
                             </span>
-                            {REVIEW_AS_WORDS[r].label}
+                            <span className="rp-review-name">{REVIEW_AS_WORDS[r].label}</span>
+                            {/* A space, so a screen reader reads "Designer How it looks and works", not one word. */}{' '}
+                            <span className="rp-review-help">{REVIEW_AS_WORDS[r].help}</span>
                           </span>
                         }
-                        description={REVIEW_AS_WORDS[r].help}
                       />
                     ))}
                   </ChoiceCardGroup>

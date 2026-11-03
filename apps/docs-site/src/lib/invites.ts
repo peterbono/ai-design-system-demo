@@ -43,8 +43,8 @@ export const CHOOSABLE_ROLES: readonly MemberRole[] = ['edit', 'reviewer', 'admi
 /** The roles in words (board I2): each one "Also" adds to the one before. Can view is shown, never offered. */
 export const ROLE_WORDS: Record<MemberRole, { label: string; help: string }> = {
   view: { label: 'Can view', help: 'Sees everything, comments and suggests.' },
-  edit: { label: 'Can edit', help: 'Also explores products and asks for library changes.' },
-  reviewer: { label: 'Reviewer', help: 'Also changes the library and approves changes before they ship.' },
+  edit: { label: 'Can edit', help: 'Also explores and changes the library.' },
+  reviewer: { label: 'Reviewer', help: 'Also approves changes before they ship.' },
   admin: { label: 'Admin', help: 'Also invites people and changes settings.' },
 };
 

@@ -205,7 +205,7 @@ describe('the role picker', () => {
     const roles = await screen.findByRole('radiogroup', { name: 'Role' });
     expect(within(roles).getAllByRole('radio').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
     expect(screen.queryByRole('radiogroup', { name: 'They review as' })).toBeNull();
-    expect(screen.getByText('Also changes the library and approves changes before they ship.')).toBeInTheDocument();
+    expect(screen.getByText('Also approves changes before they ship.')).toBeInTheDocument();
 
     await user.click(within(roles).getByRole('radio', { name: /Reviewer/ }));
     const reviewAs = await screen.findByRole('radiogroup', { name: 'They review as' });
@@ -218,7 +218,17 @@ describe('the role picker', () => {
     // The outer list did not move with the inner arrow key.
     expect(within(roles).getByRole('radio', { name: /Reviewer/ })).toHaveAttribute('aria-checked', 'true');
     expect(within(dialog).getByRole('button', { name: 'Role: Reviewer: code' })).toBeInTheDocument();
+    // The stacked cards (board I2): each radio reads its whole line, and the vertical arrows move between them too.
+    expect(within(reviewAs).getByRole('radio', { name: 'Developer How it is built' })).toHaveAttribute('aria-checked', 'true');
+    await user.keyboard('{ArrowUp}');
+    expect(within(reviewAs).getByRole('radio', { name: 'Designer How it looks and works' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(roles).getByRole('radio', { name: /Reviewer/ })).toHaveAttribute('aria-checked', 'true');
     await expectNoAxeViolations(document.body);
+    // Escape closes the menu and gives focus back to the trigger, which names the choice.
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('radiogroup', { name: 'Role' })).toBeNull());
+    expect(within(dialog).getByRole('button', { name: 'Role: Reviewer: design' })).toHaveFocus();
+    expect(dialog).toBeInTheDocument();
   });
 
   it('offers contributor roles only: Can edit, Reviewer and Admin, never Can view', async () => {
