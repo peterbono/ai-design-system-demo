@@ -76,7 +76,7 @@
 }
 
 /* Nothing explored yet: the page's one Harbor zone, the Home hero's own (.zone.sh-zone: same radius, padding and phone
-   values), holding the Home's choice cards (StudioHome Start, .sh-choice) at the Home card's radius and inset: one card
+   values), holding the choice cards (.sh-choice, ProductPage) at the Home card's radius and inset: one card
    to start, or a designer's two asks on the library side by side (.sh-choices: two columns, one on a phone). */
 
 /* No copy yet (CopyCard): the drawing beside the reason and the one action. */
