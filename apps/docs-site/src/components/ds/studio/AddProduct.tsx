@@ -657,6 +657,7 @@ const ChoiceButton = forwardRef<HTMLButtonElement, { art: IllustrationName; titl
 ) {
   const id = useId();
   return (
+    // bridge-audit-ignore-next-line: the whole card (drawing, title, line) is one target that opens its step, as on the validated board; the DS ChoiceCard is a radio (select, then confirm) and Button would cut it to one label
     <button type="button" ref={ref} className="addp-choice" onClick={onClick} aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`}>
       <span className="addp-choice-art">
         <Drawing name={art} width={88} />
