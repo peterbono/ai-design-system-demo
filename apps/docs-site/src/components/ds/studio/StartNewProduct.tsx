@@ -19,7 +19,7 @@ import {
   NEW_PRODUCT_WORDS as W,
   addressLine,
   newProductProblem,
-  ownersFrom,
+  ownerChoices,
   refusalLine,
   slugFor,
   startRefusal,
@@ -48,9 +48,10 @@ export interface StartNewProductProps {
 type Phase = { kind: 'form' } | { kind: 'ready'; name: string; full: string };
 
 export default function StartNewProduct({ products, account, repos, busy, setBusy, onBack, onProposed, onStartedOnly, onDone }: StartNewProductProps) {
-  // The accounts it can live in: the team's account, the ones Bridge reads products in, and the team's products' own
-  // accounts. Read on every render: the list often arrives after the form opens, and the first one is the default.
-  const owners = ownersFrom(account, [...repos, ...products.flatMap((p) => (p.repo ? [{ full: p.repo }] : []))]);
+  // Where it can live, in plain words (lib/new-product.ts ownerChoices): where the team's products already live first.
+  // Read on every render: the accounts often arrive after the form opens.
+  const choices = ownerChoices(account, repos, products);
+  const owners = choices.map((c) => c.value);
   const [picked, setOwner] = useState<string | null>(null);
   const owner = picked && owners.includes(picked) ? picked : (owners[0] ?? null);
   const [name, setName] = useState('');
@@ -163,7 +164,7 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
           <Select
             label={W.where}
             hint={W.whereHelp}
-            options={owners.map((o) => ({ value: o, label: o }))}
+            options={choices}
             value={owner}
             onValueChange={(v) => {
               setOwner(v);

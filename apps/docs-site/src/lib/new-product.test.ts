@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CLOUDFLARE_IMPORT_URL,
+  ownerChoices,
   NEW_PRODUCT_WORDS as W,
   addressLine,
   askOwnerMessage,
@@ -79,5 +80,15 @@ describe('Start a new product: rules and words', () => {
 
   it('writes the same link to the library that bridge connect writes', () => {
     expect(JSON.parse(productPointer('acme/ds', 'shop'))).toEqual({ version: 1, designSystem: 'acme/ds', product: 'shop' });
+  });
+});
+
+describe('ownerChoices', () => {
+  it('puts the account of the team\'s products first, then the team\'s own, in plain words', () => {
+    const c = ownerChoices('peterbono', [{ full: 'peterbono/ai-design-system-demo' }], [{ name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop' }, { name: 'Library', repo: 'peterbono/ai-design-system-demo' }]);
+    expect(c).toEqual([
+      { value: 'art-print-shop-co', label: 'art-print-shop-co', description: 'Where Art print shop lives' },
+      { value: 'peterbono', label: 'peterbono', description: 'Where your library lives' },
+    ]);
   });
 });

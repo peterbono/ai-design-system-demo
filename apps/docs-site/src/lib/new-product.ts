@@ -18,7 +18,7 @@ export const NEW_PRODUCT_WORDS = {
   name: 'Name',
   nameHelp: 'What your team calls it.',
   where: 'Where',
-  whereHelp: 'The GitHub account your team works in.',
+  whereHelp: 'The GitHub account it lives in.',
   create: 'Create product',
   back: 'Back',
   // While GitHub makes it (a few seconds).
@@ -62,6 +62,39 @@ export function ownersFrom(account: string | null | undefined, repos: readonly {
     out.push(o);
   }
   return out;
+}
+
+/**
+ * The accounts a new product can live in, in plain words: the accounts that already hold the team's products first
+ * ("Where Art print shop lives"), then the team's own account ("Where your library lives"), then any other account
+ * Bridge reads. The first one is the default.
+ */
+export function ownerChoices(
+  account: string | null | undefined,
+  repos: readonly { full: string }[],
+  products: readonly Pick<ProductConfig, 'name' | 'repo'>[],
+): { value: string; label: string; description?: string }[] {
+  const ownerOf = (full: string) => full.split('/')[0] ?? '';
+  const team = (account ?? '').toLowerCase();
+  const names = new Map<string, string[]>();
+  for (const p of products) {
+    const o = p.repo ? ownerOf(p.repo) : '';
+    if (!o || o.toLowerCase() === team) continue;
+    names.set(o.toLowerCase(), [...(names.get(o.toLowerCase()) ?? []), p.name]);
+  }
+  const all = ownersFrom(account, [...repos, ...products.flatMap((p) => (p.repo ? [{ full: p.repo }] : []))]);
+  const rank = (o: string) => (names.has(o.toLowerCase()) ? 0 : o.toLowerCase() === team ? 1 : 2);
+  return [...all]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((o) => {
+      const held = names.get(o.toLowerCase());
+      const description = held?.length
+        ? `Where ${held.length === 1 ? `${held[0]} lives` : `${held.slice(0, -1).join(', ')} and ${held[held.length - 1]} live`}`
+        : o.toLowerCase() === team
+          ? 'Where your library lives'
+          : undefined;
+      return { value: o, label: o, ...(description ? { description } : {}) };
+    });
 }
 
 /** What is wrong with the new product, in one sentence; null when it can be created. */
