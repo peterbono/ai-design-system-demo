@@ -25,15 +25,60 @@
   line-height: var(--typography-ui-line-height);
 }
 
-/* Nothing to pick yet: one sentence, then the one way to give Bridge access. */
-.addp-none-line {
-  margin: 0;
-  font-size: var(--typography-body-size);
-  line-height: var(--typography-body-line-height);
+/* The list and, right under it, the way to a product Bridge cannot see yet: one quiet line, its action inline. */
+.addp-pick {
+  display: grid;
+  gap: var(--space-2);
 }
 
-.addp-access {
-  justify-self: start;
+.addp-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-1);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* The new product arrived from GitHub: one sentence above the form, in the text color. */
+.addp-found {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.addp-found:empty {
+  display: none;
+}
+
+/* Waiting on GitHub: a Field Guide drawing beside one sentence and how Bridge waits. */
+.addp-wait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+  padding-block: var(--space-4);
+}
+
+.addp-wait-art {
+  flex: none;
+  color: var(--color-text-default);
+}
+
+.addp-wait-text {
+  display: grid;
+  flex: 1 1 var(--size-60);
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.addp-wait-line {
+  margin: 0;
+  text-wrap: pretty;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
 }
 
 /* "Add a product" at the foot of Start an exploration's Where list (StartExploration.tsx), after its separator: set

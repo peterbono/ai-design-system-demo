@@ -1,0 +1,78 @@
+---
+// Where GitHub sends the browser after an admin changes what Bridge can see (the GitHub App's Setup URL, with
+// "Redirect on update"). Not in the nav. Opened in the window the "Add a product" dialog opened, it tells the dialog
+// at once and closes (scripts/github-access-return.ts); the dialog also finds the new product on its own, so this
+// page is a shortcut, not a step. Opened on its own: one sentence and the way back to Studio.
+import Layout from '../../../layouts/Layout.astro';
+import Illustration from '../../../components/Illustration.astro';
+import { Link } from '@bridge-ds/react';
+import { studioHref } from '../../../lib/team-path';
+---
+
+<Layout title="Access updated" description="Bridge has access to your products on GitHub." crumbs={false} bare>
+  <section class="zone gh-access" aria-labelledby="gh-access-title">
+    <div class="gh-access-art" aria-hidden="true"><Illustration name="guide" width={112} /></div>
+    <div class="gh-access-text">
+      <h1 id="gh-access-title" class="gh-access-title">Bridge has access</h1>
+      <p class="gh-access-sub">You can close this tab.</p>
+      <Link href={studioHref()}>Back to Studio</Link>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import { returnToOpener } from '../../../scripts/github-access-return';
+  returnToOpener(window);
+</script>
+
+<style>
+  .gh-access {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4) var(--space-6);
+    max-width: calc(var(--size-64) * 3);
+    margin: var(--space-10) auto;
+    padding: var(--space-6) var(--space-7);
+  }
+
+  .gh-access-art {
+    display: flex;
+    flex: none;
+    color: var(--color-text-default);
+  }
+
+  .gh-access-text {
+    display: grid;
+    flex: 1 1 var(--size-60);
+    gap: var(--space-3);
+    justify-items: start;
+    min-width: 0;
+  }
+
+  .gh-access-title {
+    margin: 0;
+    font-family: var(--typography-h2-family);
+    font-size: var(--typography-h2-size);
+    font-weight: var(--typography-h2-weight);
+    letter-spacing: var(--typography-h2-tracking);
+    line-height: var(--typography-h2-line-height);
+  }
+
+  .gh-access-sub {
+    margin: 0;
+    font-size: var(--typography-ui-size);
+    line-height: var(--typography-ui-line-height);
+  }
+
+  @media (max-width: 640px) {
+    .gh-access {
+      margin: var(--space-6) 0;
+      padding: var(--space-5);
+    }
+
+    .gh-access-art {
+      display: none;
+    }
+  }
+</style>

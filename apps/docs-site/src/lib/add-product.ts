@@ -14,9 +14,15 @@ export const ADD_PRODUCT_WORDS = {
   code: 'Its code',
   codeHelp: 'The products Bridge can see on GitHub.',
   codeLoading: 'Looking for your products…',
-  // Only admins add products: they give the Bridge app access themselves, then come back (the list reads again).
-  codeNone: 'Every product Bridge can open is already here. To add another one, give Bridge access to its code on GitHub, then come back.',
-  giveAccess: 'Give Bridge access on GitHub',
+  codeNone: 'Every product Bridge can open is already here.',
+  // Under the list, always: the way to a product Bridge cannot see yet (GitHub opens in a small window).
+  notListed: 'Product not in the list?',
+  giveAccess: 'Give Bridge access',
+  // While that window is open: the dialog waits and reads the list again on its own.
+  waiting: 'Tick your product on GitHub, then Save. Bridge waits here.',
+  waitingNote: 'Bridge looks for it every few seconds.',
+  showGitHub: 'Show GitHub',
+  tryAgain: 'Try again',
   name: 'Name',
   nameHelp: 'What your team calls it.',
   copy: 'Give designers their own copy',
@@ -30,12 +36,121 @@ export const ADD_PRODUCT_WORDS = {
   refused: 'Bridge could not add the product. Ask an admin of the design system.',
 } as const;
 
+/** The line that says the new product arrived (announced, then the form waits with it picked). */
+export const foundLine = (name: string) => `${name} is here. Add it when you're ready.`;
+
+/**
+ * GitHub closed with nothing new: someone who does not own the account could only ask for access, and its owners
+ * decide. `account`: the GitHub account Bridge asked about, when known.
+ */
+export const nothingNewLine = (account: string | null | undefined) =>
+  `Nothing new yet. If GitHub asked you to request access, the owners of ${account || 'that account'} get it; this list updates when they approve.`;
+
 /** One product Bridge can see on GitHub: "owner/name", its name, its default branch. */
 export interface ProductRepoChoice {
   full: string;
   name: string;
   defaultBranch: string;
 }
+
+/** A repository as GitHub lists it, for the pick list. */
+export interface RepoLike {
+  full_name: string;
+  name: string;
+  default_branch?: string;
+  archived?: boolean;
+  fork?: boolean;
+}
+
+/**
+ * What can be picked: never the design system itself (`ds`, "owner/name"), a product or copy already listed, an
+ * archived one or the same one twice. Sorted by "owner/name".
+ */
+export function pickableRepos(repos: readonly RepoLike[], listed: readonly Pick<ProductConfig, 'repo' | 'design'>[], ds: string): ProductRepoChoice[] {
+  const self = ds.toLowerCase();
+  const taken = new Set(listed.flatMap((p) => [p.repo, p.design?.repo]).filter((r): r is string => Boolean(r)).map((r) => r.toLowerCase()));
+  const seen = new Set<string>();
+  return repos
+    .filter((r) => {
+      const full = r.full_name.toLowerCase();
+      if (seen.has(full) || full === self || taken.has(full) || r.archived) return false;
+      seen.add(full);
+      return true;
+    })
+    .map((r) => ({ full: r.full_name, name: r.name, defaultBranch: r.default_branch ?? 'main' }))
+    .sort((a, b) => a.full.localeCompare(b.full));
+}
+
+/** The first product in `now` that was not in the list before (`before`: "owner/name" as shown then), else null. */
+export function newRepoIn(before: Iterable<string>, now: readonly ProductRepoChoice[]): ProductRepoChoice | null {
+  const known = new Set([...before].map((r) => r.toLowerCase()));
+  return now.find((r) => !known.has(r.full.toLowerCase())) ?? null;
+}
+
+/** `list` with the products of `more` it lacks, sorted like the pick list. */
+export function mergeRepos(list: readonly ProductRepoChoice[], more: readonly ProductRepoChoice[]): ProductRepoChoice[] {
+  const known = new Set(list.map((r) => r.full.toLowerCase()));
+  return [...list, ...more.filter((r) => !known.has(r.full.toLowerCase()))].sort((a, b) => a.full.localeCompare(b.full));
+}
+
+// Giving Bridge access from the dialog (Vercel's "Adjust GitHub App permissions"): GitHub opens in a small centered
+// window on the installation's page, the dialog waits and reads the list again, and goes back to the form with the new
+// product picked. The return page (pages/studio/auth/access.astro) tells the dialog at once when GitHub sends it there.
+
+/** How often the dialog reads the list while it waits, and for how long at most. */
+export const ACCESS_TICK_MS = 4_000;
+export const ACCESS_MAX_MS = 10 * 60_000;
+
+/** The message the return page sends to the dialog that opened GitHub. */
+export const ACCESS_MESSAGE = 'bridge:github-access-updated';
+
+/** A message from this site's return page: same origin and the one type. Anything else is ignored. */
+export function isAccessMessage(e: { origin: string; data: unknown }, origin: string): boolean {
+  return e.origin === origin && typeof e.data === 'object' && e.data !== null && (e.data as { type?: unknown }).type === ACCESS_MESSAGE;
+}
+
+/** window.open features for a window of `size`, centered on the window it opens from. */
+export function popupFeatures(from: { screenX: number; screenY: number; outerWidth: number; outerHeight: number }, size = { width: 1020, height: 760 }): string {
+  const left = Math.max(0, Math.round(from.screenX + (from.outerWidth - size.width) / 2));
+  const top = Math.max(0, Math.round(from.screenY + (from.outerHeight - size.height) / 2));
+  return `popup=yes,width=${size.width},height=${size.height},left=${left},top=${top}`;
+}
+
+/** Where the dialog is: the form, waiting on GitHub, GitHub closed with nothing new, or GitHub busy for the viewer. */
+export type AccessStep = { kind: 'list' } | { kind: 'waiting'; since: number } | { kind: 'nothing-new' } | { kind: 'busy'; resetsAt: Date | null; source: 'github' | 'bridge' };
+
+export type AccessEvent =
+  | { type: 'open'; at: number }
+  | { type: 'cancel' }
+  | { type: 'found' }
+  | { type: 'closed' }
+  | { type: 'timeout' }
+  | { type: 'busy'; resetsAt: Date | null; source: 'github' | 'bridge' }
+  | { type: 'read' };
+
+/**
+ * The next step. GitHub opened: waiting. Cancel, or the new product found: the form. GitHub closed, or the wait ran
+ * out, with nothing new: "Nothing new yet". GitHub busy: the busy line, until a read works again (`read`).
+ */
+export function accessStep(step: AccessStep, e: AccessEvent): AccessStep {
+  switch (e.type) {
+    case 'open':
+      return { kind: 'waiting', since: e.at };
+    case 'cancel':
+    case 'found':
+      return { kind: 'list' };
+    case 'closed':
+    case 'timeout':
+      return step.kind === 'waiting' ? { kind: 'nothing-new' } : step;
+    case 'busy':
+      return { kind: 'busy', resetsAt: e.resetsAt, source: e.source };
+    case 'read':
+      return step.kind === 'busy' ? { kind: 'list' } : step;
+  }
+}
+
+/** The wait ran out: stop reading. */
+export const waitedTooLong = (step: AccessStep, now: number) => step.kind === 'waiting' && now - step.since >= ACCESS_MAX_MS;
 
 /** A readable name from a code name: "art-print-shop" -> "Art print shop". */
 export function nameFromRepo(repoName: string): string {
