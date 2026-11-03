@@ -18,7 +18,7 @@ export const installUrl = (slug = BRIDGE_APP_SLUG) => `https://github.com/apps/$
 /** One installation of the Bridge app, as GET /user/installations lists it (account type: "User" or "Organization"). */
 export interface AppInstallation {
   id: number;
-  account?: { login?: string; type?: string } | null;
+  account?: { login?: string; type?: string; id?: number } | null;
 }
 
 /**
@@ -31,6 +31,17 @@ export function accessSettingsUrl(inst: AppInstallation | null | undefined, slug
   const login = inst?.account?.login;
   if (inst?.account?.type === 'Organization' && login) return `https://github.com/organizations/${encodeURIComponent(login)}/settings/installations/${id}`;
   return `https://github.com/settings/installations/${id}`;
+}
+
+/**
+ * Where someone who does not own the account asks for access: GitHub's install page for that organization, where its
+ * Save becomes a request the owners approve (an organization's settings page is for its owners only). No account id:
+ * the app's install page, where GitHub asks which account. Not an organization: accessSettingsUrl.
+ */
+export function requestAccessUrl(inst: AppInstallation | null | undefined, slug = BRIDGE_APP_SLUG): string {
+  if (inst?.account?.type !== 'Organization') return accessSettingsUrl(inst, slug);
+  const target = inst.account.id;
+  return Number.isSafeInteger(target) && (target as number) > 0 ? `${installUrl(slug)}/permissions?target_id=${target}` : installUrl(slug);
 }
 
 /** The installation an admin adjusts: the one on `owner` (the team's account), else the only one, else none. */
@@ -70,6 +81,17 @@ export function askAccessMessage(login: string | null | undefined, repo: string,
 /** Bridge is not set up on the repository: what a teammate sends their lead (an admin). */
 export function askInstallMessage(repo: string, link: string, slug = BRIDGE_APP_SLUG): string {
   return `Hi, can you install Bridge on github.com/${repo}? It takes a minute: ${installUrl(slug)} (pick ${repo.split('/')[1] ?? repo}). Then the team opens ${link}`;
+}
+
+/**
+ * Add a product, for someone who could only request access: what they send the owners of the GitHub account. `url`:
+ * where the owners tick the product (accessSettingsUrl), `product`: its name when known.
+ */
+export function askOwnersMessage(product: string | null | undefined, url: string): string {
+  const name = product?.trim();
+  return name
+    ? `Hi, can you give Bridge access to ${name} on GitHub? Open ${url}, tick ${name}, then Save. Bridge adds it to our design system as soon as you do.`
+    : `Hi, can you give Bridge access to our product's code on GitHub? Open ${url}, tick its repository, then Save. Bridge adds it to our design system as soon as you do.`;
 }
 
 /** Someone outside the team on GitHub who wants to join it. */

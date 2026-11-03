@@ -42,6 +42,14 @@
   line-height: var(--typography-ui-line-height);
 }
 
+/* For the owners of the GitHub account: the copy link and, once the request is sent, Check again, side by side. */
+.addp-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-4);
+}
+
 /* Nothing to pick yet: one sentence; the footer's primary button gives Bridge access. */
 .addp-none-line {
   margin: 0;

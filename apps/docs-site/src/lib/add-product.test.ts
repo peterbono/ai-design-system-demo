@@ -15,11 +15,17 @@ import {
   newProductEntry,
   newRepoIn,
   nothingNewLine,
+  ownersOnlyLine,
+  ownsAccount,
+  parsePending,
+  PENDING_KEEP_MS,
+  pendingKey,
   pickableRepos,
   popupFeatures,
   previewsFromCheckRuns,
   previewsFromStatuses,
   productKeyFor,
+  requestSentLine,
   waitedTooLong,
   withNewProduct,
   type AccessStep,
@@ -188,8 +194,59 @@ describe('giving Bridge access from the dialog', () => {
     expect(foundLine('Art print shop')).toBe("Art print shop is here. Add it when you're ready.");
     expect(nothingNewLine('acme')).toBe('Nothing new yet. If GitHub asked you to request access, the owners of acme get it; this list updates when they approve.');
     expect(nothingNewLine(null)).toContain('the owners of that account');
-    for (const w of [foundLine('x'), nothingNewLine('acme'), ...Object.values(ADD_PRODUCT_WORDS)]) {
+    for (const w of [foundLine('x'), nothingNewLine('acme'), ownersOnlyLine('acme'), requestSentLine('acme', null), ...Object.values(ADD_PRODUCT_WORDS)]) {
       expect(w).not.toMatch(/repositor|installation|fork|config|—/i);
     }
+  });
+});
+
+describe('someone who can only request access', () => {
+  it('knows who can give access: their own account, an owner of the organization, else nobody here', () => {
+    expect(ownsAccount({ login: 'Ann', account: 'ann' })).toBe(true);
+    expect(ownsAccount({ login: 'ann', account: 'bob', type: 'User' })).toBe(false);
+    expect(ownsAccount({ login: 'ann', account: 'acme', type: 'Organization', membership: { role: 'admin', state: 'active' } })).toBe(true);
+    expect(ownsAccount({ login: 'ann', account: 'acme', type: 'Organization', membership: { role: 'member', state: 'active' } })).toBe(false);
+    // An invitation not accepted yet is not ownership.
+    expect(ownsAccount({ login: 'ann', account: 'acme', membership: { role: 'admin', state: 'pending' } })).toBe(false);
+    // GitHub says no membership at all: they can only request.
+    expect(ownsAccount({ login: 'ann', account: 'acme', membership: null })).toBe(false);
+    // Not readable: unknown, the dialog keeps its usual words.
+    expect(ownsAccount({ login: 'ann', account: 'acme', type: 'Organization' })).toBeNull();
+    expect(ownsAccount({ login: null, account: 'acme' })).toBeNull();
+  });
+
+  it('says who decides before GitHub opens, and what happens after', () => {
+    expect(ownersOnlyLine('acme')).toBe('Only the owners of acme can give Bridge access. GitHub sends them your request.');
+    expect(requestSentLine('acme', 'Shop')).toBe('Request sent to the owners of acme. Bridge adds Shop to this list as soon as they approve.');
+    expect(requestSentLine('acme', '  ')).toBe('Request sent to the owners of acme. Bridge adds your product to this list as soon as they approve.');
+  });
+
+  it('closes on a request sent, and opens on it again', () => {
+    const list: AccessStep = { kind: 'list' };
+    const waiting = accessStep(list, { type: 'open', at: 1 });
+    expect(accessStep(waiting, { type: 'closed', requested: true })).toEqual({ kind: 'requested' });
+    expect(accessStep(waiting, { type: 'timeout', requested: true })).toEqual({ kind: 'requested' });
+    expect(accessStep(waiting, { type: 'closed', requested: false })).toEqual({ kind: 'nothing-new' });
+    expect(accessStep(list, { type: 'pending' })).toEqual({ kind: 'requested' });
+    // Only the form takes a kept request: never over a wait or a busy GitHub.
+    expect(accessStep(waiting, { type: 'pending' })).toBe(waiting);
+    const requested: AccessStep = { kind: 'requested' };
+    expect(accessStep(requested, { type: 'found' })).toEqual(list);
+    expect(accessStep(requested, { type: 'cancel' })).toEqual(list);
+    expect(accessStep(requested, { type: 'closed', requested: true })).toBe(requested);
+    expect(accessStep(requested, { type: 'open', at: 2 })).toEqual({ kind: 'waiting', since: 2 });
+  });
+
+  it('remembers a request per team, for a while, and drops anything else', () => {
+    expect(pendingKey('Acme/DS')).toBe(pendingKey('acme/ds'));
+    const at = 1_000_000;
+    const kept = { account: 'acme', product: 'Shop', before: ['acme/a', 3], at };
+    expect(parsePending(JSON.stringify(kept), at + 1)).toEqual({ account: 'acme', product: 'Shop', before: ['acme/a'], at });
+    expect(parsePending(JSON.stringify({ ...kept, product: '' }), at)?.product).toBeNull();
+    expect(parsePending(JSON.stringify(kept), at + PENDING_KEEP_MS + 1)).toBeNull();
+    expect(parsePending(JSON.stringify({ ...kept, account: '' }), at)).toBeNull();
+    expect(parsePending('{nope', at)).toBeNull();
+    expect(parsePending(null, at)).toBeNull();
+    expect(parsePending('null', at)).toBeNull();
   });
 });
