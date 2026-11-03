@@ -109,8 +109,8 @@ export const ROLE_PERMISSION: Record<Role, GitHubPermission> = { view: 'pull', e
 /** The role in the words of the email (the same words as the Studio role picker). */
 export const ROLE_WORDS: Record<Role, { label: string; text: string }> = {
   view: { label: 'Can view', text: 'Sees everything, comments and suggests.' },
-  edit: { label: 'Can edit', text: 'Also explores products and asks for library changes.' },
-  reviewer: { label: 'Reviewer', text: 'Also changes the library and approves changes before they ship.' },
+  edit: { label: 'Can edit', text: 'Also explores and changes the library.' },
+  reviewer: { label: 'Reviewer', text: 'Also approves changes before they ship.' },
   admin: { label: 'Admin', text: 'Also invites people and changes settings.' },
 };
 
