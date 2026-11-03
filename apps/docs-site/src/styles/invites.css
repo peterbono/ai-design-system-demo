@@ -334,13 +334,58 @@
   padding-inline-start: var(--space-7);
 }
 
-/* One line per card: the drawing, the name, then what it reviews. Wraps under the name on a narrow screen. */
+/* The cards as the board draws them: no radio dot (the radio stays, visually hidden, so arrows, aria-checked and the
+   screen reader keep working), the border is the choice: a white card with the strong Deep Harbor edge when chosen,
+   and the focus ring on the whole card. */
+.rp-review-cards label {
+  position: relative;
+  align-items: center;
+}
+
+.rp-review-cards [role='radio'] {
+  position: absolute;
+  width: var(--border-width-default);
+  height: var(--border-width-default);
+  margin: calc(var(--border-width-default) * -1);
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.rp-review-cards label:has([role='radio']:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.rp-review-cards label:has([data-checked]),
+.rp-review-cards label:has([data-checked]):hover:not(:has([data-disabled])) {
+  background-color: var(--color-surface-default);
+}
+
+/* One layout for both cards: the drawing, then the name and what it reviews on one line; on a phone the help goes
+   under the name in both cards, the drawing beside the two lines. */
 .rp-review-title {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   column-gap: var(--space-2);
-  row-gap: var(--space-1);
+}
+
+@media (max-width: 480px) {
+  .rp-review-title {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 0;
+  }
+
+  .rp-review-face {
+    grid-row: span 2;
+  }
+
+  .rp-review-name,
+  .rp-review-help {
+    grid-column: 2;
+  }
 }
 
 .rp-review-face {
