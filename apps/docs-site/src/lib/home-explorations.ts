@@ -17,7 +17,6 @@ import type { Person } from './home-model';
 import type { ThumbSpec } from './branch-thumb';
 import { changedScreenOf, explorationTag, type TagTone } from './exploration-page';
 import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
-import { changesSummary } from './page-summary';
 
 /** The fields of an open (or closed) pull request the home reads. */
 export interface ExplorationPull {
@@ -172,16 +171,20 @@ export function explorationHref(p: ExplorationPull): string {
 }
 
 /**
- * The viewer's own: they opened it, asked for it ("Requested by"), or started it: the exploration block's author, or for
- * a member who joined by email its member reference (`member`, never their email; older blocks carried the email as
- * author, still matched).
+ * The viewer's own: they asked for it ("Requested by") or started it: the exploration block's author, or for a member
+ * who joined by email its member reference (`member`, never their email; older blocks carried the email as author,
+ * still matched). The account that opened it counts only when nobody is named: Bridge can open a member's
+ * exploration with a lead's account, and "Requested by Dino" stays Dino's, never the lead's.
  */
 export function isOwnExploration(p: Pick<ExplorationPull, 'user' | 'body'>, viewer: string | null | undefined, viewerRef?: string | null): boolean {
   if (!viewer && !viewerRef) return false;
   const e = parseExplorationBody(p.body);
   if (viewerRef && typeof e?.member === 'string' && e.member === viewerRef) return true;
-  if (!viewer) return false;
-  return same(p.user?.login, viewer) || same(requesterOf(p.body)?.login, viewer) || same(e?.author, viewer);
+  const asker = requesterOf(p.body);
+  if (viewer && (same(asker?.login, viewer) || same(e?.author, viewer))) return true;
+  // Someone else is named: theirs, whoever's account opened it.
+  if (asker || e?.author || e?.member) return false;
+  return Boolean(viewer) && same(p.user?.login, viewer);
 }
 
 /** The plate of a screen, while no capture of it exists. */
@@ -325,29 +328,99 @@ export function recentExplorations(cards: readonly ExplorationCard[], n = RECENT
 /** A library change of the viewer's (home-model BranchCard): where it stands, as Changes files it (lib/branches-page stateOf). */
 type OwnBranch = { stage: 'draft' | 'waiting' | 'ready' };
 
-/**
- * What is open of the viewer's own work, in the lifecycle's words of the Changes header (lib/page-summary
- * changesSummary): their explorations by stage (shipped and kept ones are not open), and their library changes (a
- * draft is being built, one waiting for a developer waits for code, one sent is in review). Null when nothing is open.
- */
-export function ownOpenWork(cards: readonly Pick<ExplorationCard, 'stage' | 'state' | 'own'>[], branches: readonly OwnBranch[] = []): string | null {
-  const c = { exploring: 0, code: 0, building: 0, review: 0 };
-  for (const x of cards) {
-    if (!x.own || x.state === LIFECYCLE_LABEL.archived) continue;
-    if (x.stage === 'exploring' || x.stage === 'found') c.exploring += 1;
-    else if (x.stage === 'in-review') c.review += 1;
-    else if (x.stage === 'with-devs') c[x.state === LIFECYCLE_LABEL['being-built'] ? 'building' : 'code'] += 1;
-  }
-  for (const b of branches) c[b.stage === 'waiting' ? 'code' : b.stage === 'draft' ? 'building' : 'review'] += 1;
-  return c.exploring + c.code + c.building + c.review ? changesSummary(c) : null;
+/** Where a piece of open work stands: the lifecycle tabs of Changes (lib/branches-page StageTab). */
+export type OpenStage = 'exploring' | 'code' | 'building' | 'review';
+
+const OPEN_STAGES: readonly OpenStage[] = ['exploring', 'code', 'building', 'review'];
+
+/** How many of the viewer's own explorations, and of their library changes, stand at each open stage. */
+export interface OwnOpenWork {
+  explorations: Record<OpenStage, number>;
+  changes: Record<OpenStage, number>;
 }
 
 /**
- * The quiet Home's sentence after the greeting: "Nothing needs you." then what is open of the viewer's own work
- * ("1 waiting for code."), or "Nothing needs you, and you have nothing in progress." only when truly nothing is.
- * `failed`: GitHub could not be read, so Bridge does not claim there is nothing.
+ * Where a card stands while it is still open work: running (exploring, or pieces found), in review, or with the
+ * developers (waiting to be picked up, being built, or in review, from its task). Shipped, kept, approved to ship, in
+ * the next release, not planned, closed and archived ones are done: null.
  */
-export function quietSentence(open: string | null, failed = false): string {
-  if (open) return `Nothing needs you. ${open}`;
-  return failed ? 'Nothing needs you.' : 'Nothing needs you, and you have nothing in progress.';
+export function openStageOf(c: Pick<ExplorationCard, 'stage' | 'state'>): OpenStage | null {
+  if (c.state === LIFECYCLE_LABEL.archived) return null;
+  if (c.stage === 'exploring' || c.stage === 'found') return 'exploring';
+  if (c.stage === 'in-review') return 'review';
+  if (c.stage !== 'with-devs') return null;
+  if (c.state === LIFECYCLE_LABEL['waiting-for-code'] || c.state === 'Waiting for code') return 'code';
+  if (c.state === LIFECYCLE_LABEL['being-built']) return 'building';
+  if (c.state === LIFECYCLE_LABEL['in-review']) return 'review';
+  return null;
+}
+
+/**
+ * What is open of the viewer's own work: their explorations by stage (openStageOf; someone else's, shipped, kept and
+ * archived ones are not), and their library changes (a draft is being built, one waiting for a developer waits to be
+ * picked up, one sent is in review). Null when nothing is open.
+ */
+export function ownOpenWork(cards: readonly Pick<ExplorationCard, 'stage' | 'state' | 'own'>[], branches: readonly OwnBranch[] = []): OwnOpenWork | null {
+  const zero = (): Record<OpenStage, number> => ({ exploring: 0, code: 0, building: 0, review: 0 });
+  const w: OwnOpenWork = { explorations: zero(), changes: zero() };
+  for (const x of cards) {
+    const at = x.own ? openStageOf(x) : null;
+    if (at) w.explorations[at] += 1;
+  }
+  for (const b of branches) w.changes[b.stage === 'waiting' ? 'code' : b.stage === 'draft' ? 'building' : 'review'] += 1;
+  return OPEN_STAGES.some((s) => w.explorations[s] || w.changes[s]) ? w : null;
+}
+
+/** A piece of the quiet sentence: words, or a count that opens where those things are. */
+export interface QuietPart {
+  text: string;
+  href?: string;
+}
+
+/** What each stage says of its things, for one and for several. */
+const STAGE_WORDS: Record<OpenStage, [string, string]> = {
+  exploring: ['is still being explored', 'are still being explored'],
+  code: ['waits for a developer to pick it up', 'wait for a developer to pick them up'],
+  building: ['is being built', 'are being built'],
+  review: ['is in review', 'are in review'],
+};
+
+/** Changes on the viewer's own work at one stage: where the counted things are. */
+export const ownWorkHref = (stage: OpenStage) => studioHref(`changes/?state=${stage}&people=you`);
+
+/**
+ * One sentence for one kind of work: "2 of your explorations wait for a developer to pick them up, 1 is being built
+ * and 1 is in review." The first count says what the things are and whose, the next ones follow it; each clause opens
+ * Changes on the viewer's own work at that stage. Nothing open: no sentence.
+ */
+function workSentence(counts: Record<OpenStage, number>, things: string): QuietPart[] {
+  const at = OPEN_STAGES.filter((s) => counts[s] > 0);
+  const parts: QuietPart[] = [];
+  at.forEach((s, i) => {
+    const n = counts[s];
+    if (i > 0) parts.push({ text: i === at.length - 1 ? ' and ' : ', ' });
+    // The whole clause is the link: a lone "1" would be a target too small to hit.
+    parts.push({ text: `${i === 0 ? `${n} of your ${things}` : n} ${STAGE_WORDS[s][n === 1 ? 0 : 1]}`, href: ownWorkHref(s) });
+  });
+  if (parts.length) parts.push({ text: '.' });
+  return parts;
+}
+
+/**
+ * The quiet Home's sentence after the greeting: "Nothing needs you." then what is open of the viewer's own work, in
+ * designer words, each count a link ("2 of your explorations wait for a developer to pick them up."), or "Nothing
+ * needs you, and you have nothing in progress." only when truly nothing is. `failed`: GitHub could not be read, so
+ * Bridge does not claim there is nothing.
+ */
+export function quietParts(work: OwnOpenWork | null, failed = false): QuietPart[] {
+  if (!work) return [{ text: failed ? 'Nothing needs you.' : 'Nothing needs you, and you have nothing in progress.' }];
+  const sentences = [workSentence(work.explorations, 'explorations'), workSentence(work.changes, 'library changes')].filter((s) => s.length);
+  return [{ text: 'Nothing needs you.' }, ...sentences.flatMap((s): QuietPart[] => [{ text: ' ' }, ...s])];
+}
+
+/** The quiet sentence as plain text: quietParts without the links. */
+export function quietSentence(work: OwnOpenWork | null, failed = false): string {
+  return quietParts(work, failed)
+    .map((p) => p.text)
+    .join('');
 }
