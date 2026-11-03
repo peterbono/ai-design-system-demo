@@ -54,6 +54,10 @@ export async function runCallback(): Promise<void> {
   }
   // One use: a reload or the back button cannot replay this sign-in.
   dropPending();
+  if (step.kind === 'back') {
+    location.replace(step.returnTo);
+    return;
+  }
   if (step.kind === 'error') {
     fail(step.message, step.returnTo);
     return;

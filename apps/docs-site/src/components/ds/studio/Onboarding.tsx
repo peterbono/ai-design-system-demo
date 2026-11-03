@@ -1147,12 +1147,16 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
       actions={{
         propose: async (mode) => {
           const { proposeChangesMode } = await import('../../../scripts/roles');
+          // Kept if Bridge has to ask GitHub for its OK first: back on this page, it says to do it again.
+          (await import('../../../scripts/pending-action')).armPendingAction('retry', { label: 'send how this team saves changes' });
           const pr = await proposeChangesMode(mode);
           save({ ...memory, proposed: { pr: pr.number, mode } });
           return pr;
         },
         name: async (name) => {
           const { proposeTeamName } = await import('../../../scripts/roles');
+          // Kept if Bridge has to ask GitHub for its OK first: back on this page, it says to do it again.
+          (await import('../../../scripts/pending-action')).armPendingAction('retry', { label: 'send the team name' });
           const pr = await proposeTeamName(name);
           save({ ...memory, named: { pr: pr.number, name: name.trim() } });
           return pr;

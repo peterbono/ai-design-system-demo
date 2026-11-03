@@ -32,6 +32,7 @@ import { BusyNotice } from './BusyNotice';
 import { Drawing } from './Drawing';
 import type { IllustrationName } from '../../../brand/illustrations';
 import StartNewProduct from './StartNewProduct';
+import { directWaitLine, type PendingValues } from '../../../lib/pending-action';
 import { useCopy } from './TeamLink';
 import '../../../styles/add-product.css';
 import {
@@ -100,9 +101,21 @@ export interface AddProductProps {
    */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Back from Bridge Direct's OK on GitHub (components/ds/studio/ResumeAction.tsx): the step the person was on, with
+   * what they typed and one line on top ("GitHub gave the OK. Create Atlas now?"). Nothing is sent before they click.
+   */
+  resume?: AddProductResume | null;
 }
 
-export default function AddProduct({ products: given, variant = 'secondary', onSent, open: openProp, onOpenChange }: AddProductProps) {
+/** What Add a product reopens on after GitHub's OK (scripts/resume.ts). */
+export interface AddProductResume {
+  kind: 'new-product' | 'add-product';
+  values: PendingValues;
+  line: string;
+}
+
+export default function AddProduct({ products: given, variant = 'secondary', onSent, open: openProp, onOpenChange, resume = null }: AddProductProps) {
   const can = useCanAddProduct();
   const controlled = openProp !== undefined;
   const [read, setRead] = useState<ProductConfig[]>([]);
@@ -120,10 +133,13 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   const [sent, setSent] = useState(false);
   const [repos, setRepos] = useState<ProductRepoChoice[] | null>(null);
   const [target, setTarget] = useState<{ installation: AppInstallation | null; account: string } | null>(null);
-  const [repo, setRepo] = useState<string | null>(null);
+  const resumed = resume?.kind === 'add-product' ? resume.values : null;
+  const [repo, setRepo] = useState<string | null>(typeof resumed?.repo === 'string' ? resumed.repo : null);
   // The name a product started from "It's a new product" keeps when it comes back to the pick (else Bridge names it).
-  const [named, setNamed] = useState<string | null>(null);
-  const [copy, setCopy] = useState(true);
+  const [named, setNamed] = useState<string | null>(typeof resumed?.name === 'string' && resumed.name ? resumed.name : null);
+  const [copy, setCopy] = useState(typeof resumed?.copy === 'boolean' ? resumed.copy : true);
+  // Back from GitHub's OK: the line over the step, until the person changes something or sends.
+  const [resumeNote, setResumeNote] = useState<string | null>(resume?.line ?? null);
   const [previews, setPreviews] = useState<{ preview: string; production: string } | null | 'checking'>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +154,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   const formId = useId();
   // Which step: the choice (always first), "It's already built" (pick, find, wait) or "It's a new product"
   // (StartNewProduct.tsx). Once a new product is proposed, closing counts as sent.
-  const [view, setView] = useState<'choice' | 'built' | 'new'>('choice');
+  const [view, setView] = useState<'choice' | 'built' | 'new'>(resume ? (resume.kind === 'new-product' ? 'new' : 'built') : 'choice');
   // The card the person chose last: Back puts the focus on it again.
   const chose = useRef<'built' | 'new'>('built');
   const proposedNew = useRef(false);
@@ -210,6 +226,8 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     // `can`: the page's team is known (useCanAddProduct notes it).
     if (!repos || !can || restored.current) return;
     restored.current = true;
+    // Back from GitHub's OK: the step the person was on wins over an older request.
+    if (resume) return;
     const kept = readPending();
     if (!kept) return;
     const fresh = newRepoIn(kept.before, repos);
@@ -324,6 +342,18 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   useEffect(() => {
     if (found && step.kind === 'list') sendRef.current?.focus();
   }, [found, step.kind]);
+  // Back from GitHub's OK on the pick: Add product takes the focus once the list is there.
+  const resumedFocus = useRef(false);
+  useEffect(() => {
+    if (resume?.kind !== 'add-product' || resumedFocus.current || !repos || view !== 'built') return;
+    resumedFocus.current = true;
+    // A product Bridge just started may not be in GitHub's list yet: it goes in, picked.
+    const full = typeof resume.values.repo === 'string' ? resume.values.repo : '';
+    if (/^[\w.-]+\/[\w.-]+$/.test(full) && !repos.some((r) => r.full === full)) {
+      setRepos((list) => mergeRepos(list ?? [], [{ full, name: full.split('/')[1]!, defaultBranch: typeof resume.values.branch === 'string' ? resume.values.branch : 'main' }]));
+    }
+    requestAnimationFrame(() => sendRef.current?.focus());
+  }, [resume, repos, view]);
 
   const giveAccess = () => {
     // Not an owner: GitHub's own install page for the organization, where Save becomes a request.
@@ -383,6 +413,10 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     if (problem) return setError(problem);
     setBusy(true);
     setError(null);
+    setResumeNote(null);
+    // Kept if Bridge has to ask GitHub for its OK first: this step reopens with the same pick (scripts/pending-action).
+    const { armPendingAction, disarmPendingAction } = await import('../../../scripts/pending-action');
+    armPendingAction('add-product', { repo, name, copy });
     try {
       const entry = newProductEntry({
         key: productKeyFor(choice!.name, products.map((p) => p.key)),
@@ -393,12 +427,14 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       });
       const { proposeNewProduct } = await import('../../../scripts/roles');
       await proposeNewProduct(entry);
+      disarmPendingAction();
       forgetPending();
       if (!controlled) setSent(true);
       onSent?.();
       setOpen(false);
-    } catch {
-      setError(W.refused);
+    } catch (err) {
+      // Waiting for Bridge Direct's OK: its dialog is open, and its line says what to do.
+      setError(directWaitLine(err) ?? W.refused);
     } finally {
       setBusy(false);
     }
@@ -563,7 +599,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     body = (
       <form id={formId} onSubmit={(e) => void submit(e)} noValidate className="addp-form">
         <div role="status" aria-live="polite" className="addp-found">
-          {found && foundLine(found)}
+          {found ? foundLine(found) : resumeNote}
         </div>
         {step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />}
         <div className="addp-pick">
@@ -580,6 +616,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
               setNamed(null);
               setError(null);
               setFound(null);
+              setResumeNote(null);
             }}
             emptyMessage={W.codeNone}
           />
@@ -618,6 +655,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
             repos={repos ?? []}
             busy={busy}
             setBusy={setBusy}
+            {...(resume?.kind === 'new-product' ? { resume: { values: resume.values, line: resume.line } } : {})}
             onBack={() => show('choice')}
             onProposed={() => {
               proposedNew.current = true;

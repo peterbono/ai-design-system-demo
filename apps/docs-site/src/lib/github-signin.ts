@@ -271,7 +271,9 @@ export const SIGNIN_TEXT = {
 export type CallbackStep =
   | { kind: 'relay'; url: string }
   | { kind: 'exchange'; code: string; verifier: string; redirectUri: string; returnTo: string; app?: SignInApp; clientId?: string }
-  | { kind: 'error'; message: string; returnTo: string };
+  | { kind: 'error'; message: string; returnTo: string }
+  /** Bridge Direct's OK refused on GitHub: straight back to the page, where the dialog that asked says what to do. */
+  | { kind: 'back'; returnTo: string };
 
 /**
  * What the callback page does with GitHub's answer. `here` is this page's origin, `pending` the sign-in this tab
@@ -291,6 +293,8 @@ export function callbackStep(params: URLSearchParams, here: string, pending: Pen
   }
   const returnTo = safeReturnTo(pending?.returnTo);
   const error = params.get('error');
+  // Bridge Direct's OK refused: the person stays signed in, the page they were on reopens what they were doing.
+  if (error === 'access_denied' && pending?.app === 'direct' && pending.state === state) return { kind: 'back', returnTo };
   if (error === 'access_denied') return { kind: 'error', message: SIGNIN_TEXT.denied, returnTo };
   if (!pending || !state || pending.state !== state) return { kind: 'error', message: SIGNIN_TEXT.stale, returnTo };
   if (now - pending.at > PENDING_MAX_AGE_MS || now < pending.at) return { kind: 'error', message: SIGNIN_TEXT.slow, returnTo };

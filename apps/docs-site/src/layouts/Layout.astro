@@ -26,6 +26,7 @@ import type { IconName } from '../brand/icons';
 import { PRIVACY_PAGE } from '../lib/account';
 import { siteRepo, siteRepoJson } from '../lib/config';
 import TeamChip from '../components/ds/studio/TeamChip';
+import ResumeAction from '../components/ds/studio/ResumeAction';
 import ProductsNav, { navProducts } from '../components/ds/studio/ProductsNav';
 import { productKeyFromPath } from '../lib/product-page';
 import { productsOf } from '@bridge-ds/core';
@@ -422,6 +423,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
     </ScriptDialog>
 
     {isStudio && <GitHubDialog hosted={hosted || noRepo} />}
+    {/* Back from Bridge Direct's OK on GitHub: what the person was doing reopens (scripts/pending-action.ts). */}
+    {isStudio && <ResumeAction client:only="react" />}
     <p class="sr-only" role="status" aria-live="polite" id="live"></p>
     {/* A team shell carries no repository of its own: scripts/repo-context.ts reads the team from the address. */}
     <script type="application/json" id="bridge-repo" set:html={hosted ? '{}' : siteRepoJson()} />

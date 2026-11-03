@@ -27,6 +27,7 @@ import {
 } from '../lib/token-session';
 import { closeDialog, isDialogOpen, openDialog as openDsDialog } from '@bridge-ds/react/dom';
 import { paintAvatar, paintDrawnAvatar } from './avatar';
+import { clearPendingAction, freezeArmed, keepPendingAction } from './pending-action';
 import { accountLimitLine, askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb } from '../lib/gh-wording';
 import { installUrl, SIGNED_OUT_ELSEWHERE_KEY } from '../lib/access-view';
 import { changesModeOnPage } from './changes-mode';
@@ -585,6 +586,8 @@ export function openDirectDialog(view: 'consent' | 'setup', note?: string) {
   const dialog = document.getElementById('gh-direct-dialog');
   const app = readSignInConfig()?.direct;
   if (!dialog || !app) return;
+  // The action that asked (armed by its dialog just before the write) goes along to GitHub and back.
+  if (view === 'consent') freezeArmed();
   const { owner, repo } = readRepo();
   const full = `${owner}/${repo}`;
   const admin = Boolean(currentAccess()?.admin || currentAccess()?.repoAdmin);
@@ -620,7 +623,10 @@ export function openDirectDialog(view: 'consent' | 'setup', note?: string) {
       const direct = readSignInConfig()?.direct;
       if (!direct) return;
       setButtonBusy(cont, true, 'Opening GitHub');
+      // Back on this page, the same dialog reopens with what was typed (scripts/pending-action.ts).
+      keepPendingAction();
       startSignIn(undefined, { app: 'direct', clientId: direct.clientId }).catch((err: Error) => {
+        clearPendingAction();
         setButtonBusy(cont, false, DIRECT_CONSENT.continueLabel);
         if (noteBox && noteText) {
           noteText.textContent = err.message;

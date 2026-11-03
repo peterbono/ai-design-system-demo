@@ -25,6 +25,7 @@ import {
   startRefusal,
   vercelImportUrl,
 } from '../../../lib/new-product';
+import { directWaitLine, type PendingValues } from '../../../lib/pending-action';
 import '../../../styles/add-product.css';
 
 export interface StartNewProductProps {
@@ -43,18 +44,23 @@ export interface StartNewProductProps {
   onStartedOnly: (repo: ProductRepoChoice, name: string) => void;
   /** Done: close the dialog. */
   onDone: () => void;
+  /** Back from Bridge Direct's OK on GitHub: what was typed, and the line over the form. Create waits for a click. */
+  resume?: { values: PendingValues; line: string } | null;
 }
 
 type Phase = { kind: 'form' } | { kind: 'ready'; name: string; full: string };
 
-export default function StartNewProduct({ products, account, repos, busy, setBusy, onBack, onProposed, onStartedOnly, onDone }: StartNewProductProps) {
+export default function StartNewProduct({ products, account, repos, busy, setBusy, onBack, onProposed, onStartedOnly, onDone, resume = null }: StartNewProductProps) {
+  const kept = resume?.values ?? null;
   // The accounts it can live in: the team's account, the ones Bridge reads products in, and the team's products' own
   // accounts. Read on every render: the list often arrives after the form opens, and the first one is the default.
   const owners = ownersFrom(account, [...repos, ...products.flatMap((p) => (p.repo ? [{ full: p.repo }] : []))]);
-  const [picked, setOwner] = useState<string | null>(null);
+  const [picked, setOwner] = useState<string | null>(typeof kept?.owner === 'string' ? kept.owner : null);
   const owner = picked && owners.includes(picked) ? picked : (owners[0] ?? null);
-  const [name, setName] = useState('');
-  const [copyOn, setCopyOn] = useState(true);
+  const [name, setName] = useState(typeof kept?.name === 'string' ? kept.name : '');
+  const [copyOn, setCopyOn] = useState(typeof kept?.copy === 'boolean' ? kept.copy : true);
+  // "GitHub gave the OK. Create Atlas now?" until the person changes something or creates.
+  const [note, setNote] = useState<string | null>(resume?.line ?? null);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
   const [error, setError] = useState<{ line: string; ask?: { label: string; message: string } } | null>(null);
   const { copied, said, copy } = useCopy(3000);
@@ -62,7 +68,9 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
   const slug = slugFor(cleanProductName(name));
   // Chosen from the cards: the name takes the focus (the card that opened this step is gone).
   const nameRef = useRef<HTMLInputElement>(null);
-  useEffect(() => nameRef.current?.focus(), []);
+  // Back from GitHub's OK: Create product takes the focus (the name is already there).
+  const createRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => (resume ? createRef.current : nameRef.current)?.focus(), []);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,21 +79,31 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
     const clean = cleanProductName(name);
     setBusy(true);
     setError(null);
+    setNote(null);
+    // Kept if Bridge has to ask GitHub for its OK first: this form reopens with the same values (scripts/pending-action).
+    const kept = await import('../../../scripts/pending-action');
+    kept.armPendingAction('new-product', { name: clean, owner, copy: copyOn });
     let started: ProductRepoChoice;
     try {
       const m = await import('../../../scripts/new-product');
       started = await m.startProductCode({ owner: owner!, slug, name: clean });
     } catch (err) {
       setBusy(false);
+      // Waiting for Bridge Direct's OK: its dialog is open, and its line says what to do.
+      const wait = directWaitLine(err);
+      if (wait) return setError({ line: wait });
       return setError(refusalLine(startRefusal(err as { status?: number; message?: string; detail?: string }), { owner: owner!, slug, name: clean }));
     }
     const key = productKeyFor(started.name, products.map((p) => p.key));
+    // Its code is on GitHub now: if the review still needs GitHub's OK, coming back offers to add it, not create it again.
+    kept.armPendingAction('add-product', { repo: started.full, branch: started.defaultBranch, name: clean, copy: copyOn });
     try {
       const m = await import('../../../scripts/new-product');
       await m.linkProductCode(started, key);
       const entry = newProductEntry({ key, name: clean, repo: started.full, copy: copyOn, previews: null });
       const { proposeNewProduct } = await import('../../../scripts/roles');
       await proposeNewProduct(entry);
+      kept.disarmPendingAction();
       onProposed();
       setPhase({ kind: 'ready', name: clean, full: started.full });
     } catch {
@@ -135,12 +153,13 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
       title={W.title}
       description={W.lead}
       hideClose
+      initialFocus={resume ? createRef : undefined}
       footer={
         <ButtonGroup align="end">
           <Button variant="secondary" disabled={busy} onClick={onBack}>
             {W.back}
           </Button>
-          <Button type="submit" form={formId} variant="primary" loading={busy} disabled={busy}>
+          <Button ref={createRef} type="submit" form={formId} variant="primary" loading={busy} disabled={busy}>
             {W.create}
           </Button>
         </ButtonGroup>
@@ -155,6 +174,7 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
           onValueChange={(v) => {
             setName(v);
             setError(null);
+            setNote(null);
           }}
           autoComplete="off"
           disabled={busy}
@@ -174,10 +194,12 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
         )}
         <Checkbox label={A.copy} description={A.copyHelp} checked={copyOn} onCheckedChange={setCopyOn} disabled={busy} />
         <div role="status" aria-live="polite" className="addp-status">
-          {busy && (
+          {busy ? (
             <>
               <Spinner size="xs" /> {W.creating(cleanProductName(name))}
             </>
+          ) : (
+            note
           )}
         </div>
         {error && (

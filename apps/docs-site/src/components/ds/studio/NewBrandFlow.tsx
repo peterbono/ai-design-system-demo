@@ -3,7 +3,7 @@
 // scoped to the draft brand with CSS variable overrides. The draft stays in this browser until "Send for review" (or "Send suggestion").
 // Planning, ramps and the contrast gate come from @bridge-ds/core (planNewBrand), the same code the CLI, the MCP
 // server and the Figma plugin run.
-import { type CSSProperties, useDeferredValue, useEffect, useId, useMemo, useState } from 'react';
+import { type CSSProperties, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Accordion,
   AccordionItem,
@@ -92,6 +92,10 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorHref, setErrorHref] = useState<string | null>(null);
+  // Back from Bridge Direct's OK on GitHub (scripts/pending-action.ts): the draft is already kept in this browser, so
+  // only the line and the focus on Send come back. Nothing is sent before the click.
+  const [resumeLine, setResumeLine] = useState<string | null>(null);
+  const proposeRef = useRef<HTMLButtonElement>(null);
   const [done, setDone] = useState<ProposedBrand | null>(null);
   const [jira, setJira] = useState('');
   const headingId = useId();
@@ -123,6 +127,17 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
   useEffect(() => {
     if (restored && !done) saveDraft(draft, draftScope);
   }, [draft, restored, done, draftScope]);
+  useEffect(() => {
+    if (!restored) return;
+    void import('../../../scripts/resume')
+      .then(({ takeResume }) => {
+        const r = takeResume('new-brand');
+        if (!r) return;
+        setResumeLine(r.line);
+        requestAnimationFrame(() => proposeRef.current?.focus());
+      })
+      .catch(() => undefined);
+  }, [restored]);
 
   const deferred = useDeferredValue(draft);
   const plan = useMemo(() => planDraft(source, deferred), [source, deferred]);
@@ -147,10 +162,15 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
   const propose = async () => {
     setBusy(true);
     setError(null);
+    setResumeLine(null);
+    // Kept if Bridge has to ask GitHub for its OK first (scripts/pending-action.ts).
+    const kept = await import('../../../scripts/pending-action');
+    kept.armPendingAction('new-brand', { name: draft.name.trim() });
     try {
       const repo = target ?? source.config.repo ?? { owner: 'peterbono', name: 'ai-design-system-demo', defaultBranch: 'main' };
       const pr = await proposeBrand(draft, repo, source.config.tokens.root, parseJiraKey(jira), mode);
       setDone(pr);
+      kept.disarmPendingAction();
       saveDraft(null, draftScope);
     } catch (e) {
       // Waiting for Bridge Direct's OK (a team in direct mode): its dialog is open, nothing was sent.
@@ -460,6 +480,11 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
               </ul>
             </Alert>
           )}
+          {resumeLine && !error && (
+            <p className="t-body" role="status">
+              {resumeLine}
+            </p>
+          )}
           {error && (
             <Alert tone="danger" title={suggest ? 'The suggestion was not sent' : 'The change was not started'}>
               {error}
@@ -496,7 +521,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             {sendButton('brand', mode)}
           </Button>
         ) : connected ? (
-          <Button key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} loading={busy} disabled={!ready} onClick={propose}>
+          <Button ref={proposeRef} key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} loading={busy} disabled={!ready} onClick={propose}>
             {sendButton('brand', mode)}
           </Button>
         ) : sampleVisitor() ? (

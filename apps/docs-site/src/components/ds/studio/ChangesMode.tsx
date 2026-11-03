@@ -123,6 +123,8 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
     setBusy(true);
     setError(null);
     try {
+      // Kept if Bridge has to ask GitHub for its OK first: back on this page, it says to do it again.
+      (await import('../../../scripts/pending-action')).armPendingAction('retry', { label: 'send how this team saves changes' });
       const pr = await proposeChangesMode(value, { prefix, protectedBranches });
       setDone(pr);
       setEditing(false);

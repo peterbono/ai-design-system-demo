@@ -56,6 +56,8 @@ export default function ReviewRulesEditor(p: ReviewRulesEditorProps) {
     try {
       const { proposeReviewRules } = await import('../../../scripts/roles');
       const rights: Rights = { approveDesign: groupsOf(picks.approveDesign), approveTech: groupsOf(picks.approveTech), ship: groupsOf(picks.ship) };
+      // Kept if Bridge has to ask GitHub for its OK first: back on this page, it says to do it again.
+      (await import('../../../scripts/pending-action')).armPendingAction('retry', { label: 'send the new review rules' });
       const pr = await proposeReviewRules({ rights, leadsPublishTier1: leads, owners: p.owners, visualMode: p.visualMode }, { prefix: p.prefix, protectedBranches: p.protectedBranches });
       setSent({ number: pr.number });
       setEditing(false);

@@ -208,6 +208,15 @@ describe('callback step', () => {
     expect(odd).not.toHaveProperty('app');
   });
 
+  it('Bridge Direct OK given or refused: back to the very page the person was on (never Home)', () => {
+    const team = { ...pending, returnTo: '/studio/t/peterbono/ai-design-system-demo/?view=explorations', app: 'direct' as const, clientId: 'Iv23liDirect' };
+    expect(callbackStep(q({ code: 'abc123def456', state }), here, team, cfg, now)).toMatchObject({ kind: 'exchange', returnTo: team.returnTo });
+    // Refused: no error page, straight back, where the dialog that asked says what to do.
+    expect(callbackStep(q({ error: 'access_denied', state }), here, team, cfg, now)).toEqual({ kind: 'back', returnTo: team.returnTo });
+    // Only for the sign-in this tab started.
+    expect(callbackStep(q({ error: 'access_denied', state: encodeState('m'.repeat(32), here) }), here, team, cfg, now)).toMatchObject({ kind: 'error' });
+  });
+
   it('forwards a preview sign-in to the preview, with the code and state only', () => {
     const preview = 'https://bridge-docs-git-feat-acme.vercel.app';
     const s = encodeState(NONCE, preview);
