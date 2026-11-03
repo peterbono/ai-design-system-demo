@@ -321,6 +321,19 @@ describe('Studio: the library check of an exploration (?view=pieces)', () => {
     expect(w.checked).toEqual([]);
   });
 
+  it('a Can view member signed in by email runs no check (team-caller refuses a viewer any edit)', async () => {
+    const w = world({ app: true });
+    await putAccount(w.redis, { id: 'v1', email: 'vic@acme.design', name: 'Vic', github: null, createdAt: '2026-10-01T00:00:00Z', version: 1 });
+    await memberStore(w.redis).put('acme/design', { email: 'vic@acme.design', name: 'Vic', role: 'view', version: 1, addedBy: 'x', at: '2026-10-01T00:00:00Z' });
+    const vic = { cookie: `${ACCOUNT_COOKIE}=${signAccountSession({ email: 'vic@acme.design', v: 1, exp: w.now() + 60_000 }, SECRET)}`, 'x-bridge-contribute': '1', origin: SITE };
+    const r = await post(w, { repo: 'acme/design', pr: 12 }, vic);
+    expect(r.status).toBe(403);
+    expect((await r.json()).error).toBe('view-only');
+    // Reading the team's connections stays open to them (need: read).
+    expect((await w.call('/api/mcp?view=connections&repo=acme/design', { headers: vic })).status).toBe(200);
+    expect(w.checked).toEqual([]);
+  });
+
   it('answers a designer sentence when the check fails, never the error', async () => {
     const r = await post(world({ checkFails: true }), { repo: 'acme/design', pr: 12 });
     expect(r.status).toBe(422);

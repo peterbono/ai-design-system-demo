@@ -114,7 +114,7 @@ import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin, type FetchLike } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
-import { dropTeamFromSet, memberStore, membersKey, teamsInSet, type EmailMember, type MemberStore } from '../_lib/members.js';
+import { dropTeamFromSet, higherRole, memberStore, membersKey, teamsInSet, type EmailMember, type EmailRole, type MemberStore } from '../_lib/members.js';
 import { unwatchTeam } from '../_lib/notify.js';
 import { revokeTeamGrants } from '../_lib/oauth.js';
 import { settingKey as librarySettingKey } from '../library-access/index.js';
@@ -188,7 +188,7 @@ export interface EntryDeps {
   localAdmins?: LocalAdmins;
 }
 
-export type EntryTeamRole = 'edit' | 'reviewer' | 'admin';
+export type EntryTeamRole = 'view' | 'edit' | 'reviewer' | 'admin';
 
 export type Entry =
   | { kind: 'teams'; teams: { repo: string; id: string; name: string; role: EntryTeamRole; via: 'email' | 'github' }[] }
@@ -539,12 +539,13 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
   const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.teamsOf(a.email) : [];
   const memberships = await membershipsOf(ctx, a.email);
   const emailAdmin = new Set(memberships.filter(({ member }) => member.role === 'admin').map(({ repo }) => repo));
+  const emailViewer = new Set(memberships.filter(({ member }) => member.role === 'view').map(({ repo }) => repo));
   const memberOf = memberships.map(({ repo }) => repo);
   const emailRepos = [...new Set([...memberOf, ...local])];
   const githubRepos = (await githubTeams(ctx, req, a)).filter((t) => !emailRepos.includes(t.repo));
   // Each team by its configured name (bridge.config.json), kept with the team: the picker never shows the slug.
   const nameOf = await teamNamesOf(ctx, [...emailRepos, ...githubRepos.map((t) => t.repo)]);
-  const email = emailRepos.map((repo) => ({ repo, name: nameOf(repo), role: (local.includes(repo) || emailAdmin.has(repo) ? 'admin' : 'edit') as EntryTeamRole, via: 'email' as const }));
+  const email = emailRepos.map((repo) => ({ repo, name: nameOf(repo), role: (local.includes(repo) || emailAdmin.has(repo) ? 'admin' : emailViewer.has(repo) ? 'view' : 'edit') as EntryTeamRole, via: 'email' as const }));
   const github = githubRepos.map((t) => ({ ...t, name: nameOf(t.repo), via: 'github' as const }));
   const teams = [...email, ...github].map((t) => ({ ...t, id: teamId(ctx.svc.secret, t.repo) })).sort((x, y) => x.name.localeCompare(y.name));
   if (teams.length) return { kind: 'teams', teams };
@@ -681,7 +682,7 @@ export function approvedEmail(x: { to: string; admin: string; team: string; link
 // Actions
 
 /**
- * Joins with an invite sent to the account's email. Can edit and Admin join with the email (an admin needs GitHub only
+ * Joins with an invite sent to the account's email. Can view, Can edit and Admin join with the email (an admin needs GitHub only
  * to approve on GitHub); with GitHub linked, an Admin invite to a repository gives the GitHub admin role as before.
  * Reviewer needs linked GitHub. A team made in Bridge has no GitHub side: Admin joins as an email admin.
  */
@@ -690,9 +691,10 @@ async function acceptInvite(ctx: Ctx, req: Request, a: Account, inv: StoredInvit
   // An invite sent to any spelling of the account's mailbox (a Gmail address with dots) is theirs.
   if (!sameEmail(inv.email, email) || Date.parse(inv.expiresAt) <= ctx.now()) return fail(410, 'expired', INVITE_GONE);
   const t = await resolveTeam(ctx, inv.repo);
-  if (inv.role === 'edit' || (inv.role === 'admin' && (!a.github || t.id))) {
-    const role = inv.role === 'admin' ? 'admin' : 'edit';
+  if (inv.role === 'view' || inv.role === 'edit' || (inv.role === 'admin' && (!a.github || t.id))) {
+    const role: EmailRole = inv.role === 'admin' ? 'admin' : inv.role === 'view' ? 'view' : 'edit';
     const prev = await ctx.svc.members.get(t.full, email);
+    // An admin stays admin; otherwise the invite decides (an admin may invite someone again to change their role).
     const member: EmailMember = { email: prev?.email ?? shownEmail(a).toLowerCase(), name: a.name, role: prev?.role === 'admin' ? 'admin' : role, version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
     await ctx.svc.members.put(t.full, member);
     await ctx.svc.invites.remove(inv);
@@ -912,27 +914,27 @@ export interface PublicTeam {
   /** `_team/<id>`, or the repository once linked. */
   key: string;
   name: string;
-  role: 'edit' | 'admin';
+  role: EmailRole;
   repo: string | null;
   storybook: string | null;
   discovery: { domain: string; enabled: boolean } | null;
   memberCount: number;
   /** Who is on the team, by name and role (never an email): its Settings name the admins to everyone on it. */
-  people: { name: string; role: 'edit' | 'admin' }[];
+  people: { name: string; role: EmailRole }[];
   createdAt: string;
 }
 
-async function publicTeam(ctx: Ctx, rec: TeamRecord, role: 'edit' | 'admin'): Promise<PublicTeam> {
+async function publicTeam(ctx: Ctx, rec: TeamRecord, role: EmailRole): Promise<PublicTeam> {
   const key = rec.repo ?? teamKeyOf(rec.id);
   const d = await getDiscovery(ctx.svc.redis, key);
   const list = await ctx.svc.members.list(key);
   const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.adminsOf(key) : [];
-  const people = list.map((m) => ({ name: m.name, role: m.role === 'admin' || local.some((e) => sameEmail(e, m.email)) ? ('admin' as const) : ('edit' as const) }));
+  const people = list.map((m) => ({ name: m.name, role: local.some((e) => sameEmail(e, m.email)) ? ('admin' as const) : m.role }));
   return { id: rec.id, key, name: rec.name, role, repo: rec.repo, storybook: rec.storybook, discovery: d ? { domain: d.domain, enabled: d.enabled } : null, memberCount: list.length, people, createdAt: rec.createdAt };
 }
 
 /** The role of the account on a team made in Bridge, or null when it is not on it. */
-async function roleOn(ctx: Ctx, a: Account, key: string): Promise<'edit' | 'admin' | null> {
+async function roleOn(ctx: Ctx, a: Account, key: string): Promise<EmailRole | null> {
   if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(key, a.email))) return 'admin';
   return (await ctx.svc.members.get(key, a.email))?.role ?? null;
 }
@@ -1009,7 +1011,7 @@ async function moveTeam(ctx: Ctx, from: string, to: string): Promise<void> {
   const now = ctx.now();
   for (const m of await members.list(from)) {
     const prev = await members.get(to, m.email);
-    await members.put(to, prev ? { ...prev, role: prev.role === 'admin' || m.role === 'admin' ? 'admin' : 'edit' } : m);
+    await members.put(to, prev ? { ...prev, role: higherRole(prev.role, m.role) } : m);
     await members.remove(from, m.email);
   }
   if (ctx.svc.localAdmins) {

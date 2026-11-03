@@ -24,7 +24,7 @@
 import { type Account, accountKey, GITHUB_TEAMS_TTL_S, githubKey, githubTeamOfKey, githubTeamsKey, parseGithubTeams, unionGithubTeams } from './account.js';
 import { canonicalEmail, isGmail, legacyEmail, sameEmail } from './canonical-email.js';
 import { sha256 } from './http.js';
-import { accountTeamsKey, memberKey, membersKey, type EmailMember } from './members.js';
+import { accountTeamsKey, higherRole, memberKey, membersKey, type EmailMember } from './members.js';
 import { DUE_KEY, KEEP_S, YEAR_S } from './notify.js';
 import { accountGrantsKey, accountRef, accountRefs, getGrant, repointGrant, revokeTeamGrants } from './oauth.js';
 import { globEscape, type Redis } from './redis.js';
@@ -160,10 +160,10 @@ export function mergedAccount(canonical: string, accounts: readonly { a: Account
   };
 }
 
-/** Two memberships of one mailbox on one team: the older one, with Admin when either was. */
+/** Two memberships of one mailbox on one team: the older one, with the higher role of the two (Admin, Can edit, Can view). */
 function mergedMember(a: EmailMember, b: EmailMember): EmailMember {
   const [older, newer] = time(a.at) <= time(b.at) ? [a, b] : [b, a];
-  return { ...older, role: older.role === 'admin' || newer.role === 'admin' ? 'admin' : older.role, version: Math.max(a.version, b.version) };
+  return { ...older, role: higherRole(older.role, newer.role), version: Math.max(a.version, b.version) };
 }
 
 /**

@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { getAccount, type Account } from '../../api/_lib/account';
 import { mergeEmailAccounts, mergedKey, mergeLockKey, spellingsPattern } from '../../api/_lib/account-merge';
 import { canonicalEmail, emailSpellings, isGmail, sameEmail } from '../../api/_lib/canonical-email';
-import { memberStore, type EmailMember } from '../../api/_lib/members';
+import { higherRole, memberCanWrite, memberStore, type EmailMember } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { getTeamRecord, myRequests, putRequest, putTeamRecord } from '../../api/_lib/teams';
 import { accountRef, createGrant, getGrant } from '../../api/_lib/oauth';
@@ -302,5 +302,15 @@ describe('invites and memberships under an older spelling', () => {
     const s = setup();
     await putRequest(s.redis, { id: 'r1', repo: 'acme/ds', email: OLD, name: 'F', createdAt: '', expiresAt: new Date(T0 + 3600_000).toISOString() }, T0);
     expect([...(await myRequests(s.redis, 'floriangouloubi+x@googlemail.com', T0)).keys()]).toEqual(['acme/ds']);
+  });
+});
+
+describe('email roles meeting (a merge, a team moved to its repository)', () => {
+  it('keeps the higher role: Admin over Can edit over Can view; only Can view writes nothing', () => {
+    expect(higherRole('view', 'edit')).toBe('edit');
+    expect(higherRole('edit', 'view')).toBe('edit');
+    expect(higherRole('view', 'admin')).toBe('admin');
+    expect(higherRole('view', 'view')).toBe('view');
+    expect([memberCanWrite({ role: 'view' }), memberCanWrite({ role: 'edit' }), memberCanWrite({ role: 'admin' })]).toEqual([false, true, true]);
   });
 });

@@ -364,6 +364,11 @@ export interface StudioHomeProps {
    * contributor's.
    */
   lead?: boolean;
+  /**
+   * Can view (an email member who reads only): the quiet home asks what they want to look at, with no way to start an
+   * exploration (they change nothing; the server refuses every write anyway).
+   */
+  viewOnly?: boolean;
   /** Admins: Approve and Decline on join requests (board E7b). */
   join?: JoinHandlers;
   /**
@@ -489,11 +494,13 @@ function HomeBody(p: StudioHomeProps) {
                 {p.greeting} <QuietLine parts={quietParts(p.recent ? ownOpenWork(p.explorations, p.branches) : null, Boolean(p.failed))} />
               </p>
               <h1 id="sh-hello" className="sh-hello">
-                What do you want to explore?
+                {p.viewOnly ? 'What do you want to look at?' : 'What do you want to explore?'}
               </h1>
-              <span className="sh-start">
-                <StartExploration components={p.components} appearance="primary" />
-              </span>
+              {!p.viewOnly && (
+                <span className="sh-start">
+                  <StartExploration components={p.components} appearance="primary" />
+                </span>
+              )}
             </div>
           </div>
           {tour?.('branches')}

@@ -55,15 +55,13 @@ describe('roles', () => {
     expect(sameChoice({ role: 'reviewer', reviewAs: 'tech' }, { role: 'reviewer' })).toBe(false);
   });
 
-  it('offers contributor roles only, never Can view (readers use Library access)', () => {
-    expect(roleChoices(false).map((c) => c.role)).toEqual(['edit', 'reviewer', 'admin']);
-    expect(roleChoices(true).map((c) => c.role)).not.toContain('view');
-    // Someone who already has read access still reads as Can view.
+  it('offers the four roles, Can view first (board I2)', () => {
+    expect(roleChoices(false).map((c) => c.role)).toEqual(['view', 'edit', 'reviewer', 'admin']);
     expect(roleLabel({ role: 'view' })).toBe('Can view');
   });
 
-  it('on a personal account, only Can edit and Reviewer can be given', () => {
-    expect(roleChoices(true).filter((c) => !c.disabled).map((c) => c.role)).toEqual(['edit', 'reviewer']);
+  it('on a personal account, Admin cannot be given', () => {
+    expect(roleChoices(true).filter((c) => !c.disabled).map((c) => c.role)).toEqual(['view', 'edit', 'reviewer']);
     expect(roleChoices(false).every((c) => !c.disabled)).toBe(true);
   });
 });
@@ -98,7 +96,7 @@ describe('reading roles back from GitHub', () => {
     expect(memberLine({ role: 'reviewer', reviews: ['tech'] })).toBe('Reviews code');
     expect(memberLine({ role: 'edit', reviews: [] })).toBe('Explores products and asks for library changes');
     expect(memberLine({ role: 'reviewer', reviews: [] })).toBe('Changes the library and approves changes');
-    expect(memberLine({ role: 'view', reviews: [] })).toBe('Sees everything, comments and suggests');
+    expect(memberLine({ role: 'view', reviews: [] })).toBe('Sees everything in Studio and the library');
     expect(choiceOf({ role: 'reviewer', reviews: ['tech'] })).toEqual({ role: 'reviewer', reviewAs: 'tech' });
     expect(roleText({ role: 'reviewer', reviews: ['design', 'tech'] })).toBe('Reviewer: design and code');
   });

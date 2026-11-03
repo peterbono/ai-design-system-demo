@@ -81,8 +81,8 @@ export interface RepoRef {
 
 // The token, its check and its sign-in session live in one slot per GitHub App (lib/github-signin.ts slotKey):
 // 'bridge.github.token.suggest' for "Bridge", '.direct' for "Bridge Direct", no suffix without a GitHub App.
-/** An email contributor's role, in the words Members uses: "Can edit". */
-const CONTRIBUTOR_ROLE = ROLE_WORDS.edit.label;
+/** An email contributor's role, in the words Members uses: "Can edit", or "Can view" for a read-only member. */
+const contributorRole = () => (contributorFor(pageRepo())?.role === 'view' ? ROLE_WORDS.view.label : ROLE_WORDS.edit.label);
 const TOKEN_BASE = 'bridge.github.token';
 const CHECK_BASE = 'bridge.github.check';
 /** The sign-in session (expiry, refresh token) next to its token. Absent for a pasted token. */
@@ -1223,10 +1223,10 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   // (scripts/demo-gate.ts). First, so its capture listener runs before the gated-action one below.
   bindDemoGate({
     repo: () => repoName(readRepo()),
-    // An email contributor (no GitHub) is a member who can write: never a demo visitor. Nor is a Bridge account whose
-    // linked GitHub is on the team (its writes ask to reconnect GitHub: the session's gated actions).
+    // An email contributor (no GitHub) is a member: never a demo visitor. Nor is a Bridge account whose linked GitHub is
+    // on the team (its writes ask to reconnect GitHub: the session's gated actions). Can view writes nothing.
     login: () => viewer?.login ?? currentContributor()?.email ?? (linkedMember(linkedGitHubRole()) ? 'linked' : null),
-    write: () => (currentContributor() || linkedMember(linkedGitHubRole()) ? true : (currentAccess()?.write ?? null)),
+    write: () => (currentContributor() ? currentContributor()!.role !== 'view' : linkedMember(linkedGitHubRole()) ? true : (currentAccess()?.write ?? null)),
     signIn: prefersSignIn,
     known: () => checked || !githubToken(),
     subscribe: (fn) => {
@@ -1324,7 +1324,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       // (The team's name is [data-team-display], kept by scripts/team-links.ts; a contributor sees their role instead.)
       acct.querySelectorAll<HTMLElement>('[data-gh-acct-team]').forEach((el) => (el.hidden = Boolean(email)));
       acct.querySelectorAll<HTMLElement>('[data-gh-acct-role]').forEach((el) => {
-        el.textContent = email ? CONTRIBUTOR_ROLE : '';
+        el.textContent = email ? contributorRole() : '';
         el.hidden = !email;
       });
       acct.querySelectorAll<HTMLElement>('[data-gh-menu-email]').forEach((el) => {
@@ -1678,7 +1678,8 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
     if (name !== repoName(readRepo())) return null;
     // 'admin' for an email member made Admin (or seeded as admin in `npm run dev:full`): the server checks every admin
     // action again.
-    const a = contributorAccess(contributorFor(pageRepo())?.role === 'admin');
+    const role = contributorFor(pageRepo())?.role;
+    const a = contributorAccess(role === 'admin', role === 'view');
     accessByRepo.set(name, a);
     return a;
   }
@@ -1748,13 +1749,16 @@ const readAccess = () => resolveAccess(readRepo(), { anonymous: repoContext().ho
 
 function paintAccess() {
   const r = readRepo();
+  // Can view (an email member who reads only): every action marked as a write ([data-demo-write]) and New token leave
+  // the page (site.css). The server refuses them anyway; this keeps the page to what they can do.
+  document.documentElement.toggleAttribute('data-view-only', Boolean(viewer?.email && contributorFor(pageRepo())?.role === 'view'));
   const app = sessionMode() === 'app';
   const access = currentAccess();
   const shown = viewer ? access : null;
   document.querySelectorAll<HTMLElement>('[data-gh-perm]').forEach((el) => {
     // An email member reads their role in designer words, the one the team chip shows (lib/access pillState): Admin
     // for an email admin, else Can edit.
-    el.textContent = viewer?.email ? (pillState(shown) === 'admin' ? ROLE_WORDS.admin.label : CONTRIBUTOR_ROLE) : accessLabel(Boolean(viewer), shown);
+    el.textContent = viewer?.email ? (pillState(shown) === 'admin' ? ROLE_WORDS.admin.label : contributorRole()) : accessLabel(Boolean(viewer), shown);
     el.className = `gh-perm${shown ? (shown.write ? ' is-write' : ' is-read') : ''}`;
   });
   document.querySelectorAll<HTMLElement>('[data-gh-perm-help]').forEach((el) => {

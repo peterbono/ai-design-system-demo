@@ -1,5 +1,6 @@
 // Email members: people who joined with their email, no GitHub account needed (api/contribute, api/entry). Most are
-// "Can edit"; an admin can make one Admin, which covers everything that does not happen on GitHub: members and roles,
+// "Can edit"; "Can view" sees everything in Studio and the library and changes nothing (every write path refuses them:
+// api/contribute's proxy, api/_lib/team-caller `need: 'edit'`, api/ship); an admin can make one Admin, which covers everything that does not happen on GitHub: members and roles,
 // join requests, discovery, team settings and invites by email (Reviewer stays GitHub: approvals happen there). The
 // creator of a team made in Bridge before any repository ("Create your team", api/entry) is its first email admin.
 // api/invites lists them in Members, changes their role and removes them; api/contribute reads them on every request.
@@ -17,9 +18,16 @@
 import type { Redis } from './redis.js';
 import { canonicalEmail, emailSpellings, legacyEmail } from './canonical-email.js';
 
-/** What an email member can be: Can edit, or Admin (everything that does not need GitHub). */
-export type EmailRole = 'edit' | 'admin';
-export const EMAIL_ROLES: readonly EmailRole[] = ['edit', 'admin'];
+/** What an email member can be: Can view (read only), Can edit, or Admin (everything that does not need GitHub). */
+export type EmailRole = 'view' | 'edit' | 'admin';
+export const EMAIL_ROLES: readonly EmailRole[] = ['view', 'edit', 'admin'];
+
+/** Rank of an email role, to keep the higher one when two memberships meet (a merge, a team moved to its repository). */
+const RANK: Record<EmailRole, number> = { view: 0, edit: 1, admin: 2 };
+export const higherRole = (a: EmailRole, b: EmailRole): EmailRole => (RANK[a] >= RANK[b] ? a : b);
+
+/** True for an email member who may change things (Can edit or Admin); a Can view member reads only. */
+export const memberCanWrite = (m: Pick<EmailMember, 'role'>): boolean => m.role !== 'view';
 
 export interface EmailMember {
   email: string;

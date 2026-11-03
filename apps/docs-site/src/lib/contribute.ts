@@ -51,8 +51,11 @@ export function restoreMissing(res: Response): Response {
 export interface ContributeMember {
   email: string;
   name: string;
-  /** 'admin' only in `npm run dev:full`, for a member seeded as admin (api/_lib/local-admin.ts). */
-  role: 'edit' | 'admin';
+  /**
+   * 'view': Can view, reads only (the server refuses every write anyway). 'admin' only in `npm run dev:full`, for a
+   * member seeded as admin (api/_lib/local-admin.ts).
+   */
+  role: 'view' | 'edit' | 'admin';
   /** Their stable member reference (api/_lib/exploration-member memberRef): how exploration blocks name them, never by email. */
   ref?: string;
 }
@@ -109,14 +112,17 @@ export function contributeEligible(repo: string | null | undefined, hosted: bool
 export const localDevHost = (hostname: string | null | undefined = typeof location === 'undefined' ? null : location.hostname): boolean =>
   hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 
-/** A member record read back from storage or the server, or null when it is not one. Always Can edit, but locally. */
+/**
+ * A member record read back from storage or the server, or null when it is not one. Can view stays Can view (it only
+ * takes rights away); Admin only locally; anything else is Can edit.
+ */
 export function parseMember(v: unknown, local = localDevHost()): ContributeMember | null {
   if (!v || typeof v !== 'object') return null;
   const m = v as Record<string, unknown>;
   if (typeof m.email !== 'string' || !m.email.includes('@')) return null;
   const name = typeof m.name === 'string' && m.name.trim() ? m.name.trim() : m.email;
   const ref = typeof m.ref === 'string' && /^[0-9a-f]{16}$/.test(m.ref) ? m.ref : null;
-  return { email: m.email, name, role: local && m.role === 'admin' ? 'admin' : 'edit', ...(ref ? { ref } : {}) };
+  return { email: m.email, name, role: m.role === 'view' ? 'view' : local && m.role === 'admin' ? 'admin' : 'edit', ...(ref ? { ref } : {}) };
 }
 
 /** Every designer-facing sentence of the email path, in one place. */

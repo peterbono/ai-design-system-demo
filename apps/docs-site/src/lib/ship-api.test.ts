@@ -6,6 +6,9 @@ import type { AppTokens } from '../../api/_lib/github-app';
 import { FIGMA_SHIP_HEADING, VALUES_SHIP_HEADING } from '../../api/_lib/figma-ship';
 import { figmaMark, figmaMarkKey } from '../../api/_lib/figma-mark';
 import { TIER1_PUBLISH_HEADING } from '../../api/_lib/tier1-publish';
+import { memberStore } from '../../api/_lib/members';
+import { memoryRedis } from '../../api/_lib/redis';
+import { issueSession } from '../../api/contribute/index';
 import { bearerToken, handleShip, PUBLISH_WORDS, SHIP_DEVELOPER_WORDS, SHIP_WORDS, type FetchLike, type ShipDeps } from '../../api/ship/index';
 
 const HOST = 'bridge.example.com';
@@ -370,6 +373,21 @@ describe('POST /api/ship, a token value change from Studio (TV-1)', () => {
     const { call } = setup({ reviews: [approval('dana')] }, studio);
     // Without a member session the cookie path answers 401: asking never widens anything.
     expect((await call({ repo: 'acme/design', pr: 7 }, { 'x-bridge-contribute': '1', origin: `https://${HOST}` })).status).toBe(401);
+  });
+
+  it('a Can view member asks nothing: the cookie path answers 401, while a Can edit member is heard', async () => {
+    const { deps } = setup({ reviews: [approval('dana')] }, studio);
+    const redis = memoryRedis();
+    const members = memberStore(redis);
+    const asMember = async (email: string, role: 'view' | 'edit') => {
+      const m = { email, name: email, role, version: 1, addedBy: 'dana', at: '2026-10-01T00:00:00Z' };
+      await members.put('acme/design', m);
+      const cookie = issueSession(m, 'acme/design', SECRET, Date.now()).split(';')[0]!;
+      const headers = { 'content-type': 'application/json', host: HOST, origin: `https://${HOST}`, 'x-bridge-contribute': '1', cookie };
+      return handleShip(new Request(`https://${HOST}/api/ship`, { method: 'POST', headers, body: JSON.stringify({ repo: 'acme/design', pr: 7 }) }), ENV, { ...deps, redis, members });
+    };
+    expect((await asMember('vic@acme.design', 'view')).status).toBe(401);
+    expect((await asMember('mia@acme.design', 'edit')).status).toBe(200);
   });
 
   it('waits for the design approval: none, a tech approval only, or the author alone', async () => {

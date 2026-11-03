@@ -127,6 +127,9 @@ describe('pillState', () => {
     expect(pillState(null)).toBeNull();
     expect(pillState(contributorAccess(false))).toBe('writer');
     expect(pillState(contributorAccess(true))).toBe('admin');
+    // Can view: the read-only Studio a GitHub reader gets.
+    expect(contributorAccess(false, true)).toEqual({ state: 'reader', write: false, admin: false, reach: true, contributor: true });
+    expect(pillState(contributorAccess(false, true))).toBe('reader');
     expect(pillState(contributorAccess(false), 'admin')).toBe('admin');
     expect(pillState(contributorAccess(true), 'edit')).toBe('writer');
     expect(pillState({ state: 'reader', admin: false }, 'admin')).toBe('reader');

@@ -225,17 +225,18 @@ describe('admin checks on the server', () => {
     expect((await handleInvites(get(`?repo=${REPO}`, 'ghu_ann01'), {}, deps)).status).toBe(403);
   });
 
-  it('offers contributor roles only: Can view is refused for invites and role changes', async () => {
-    const { deps, sent } = setup();
-    for (const body of [
-      { action: 'invite', repo: REPO, role: 'view', people: [{ email: 'x@acme.design' }] },
-      { action: 'set-role', repo: REPO, login: 'leo', role: 'view' },
-    ]) {
-      const r = await handleInvites(post(body), {}, deps);
-      expect(r.status).toBe(400);
-      expect((await r.json()).message).toBe('Pick a role: Can edit, Reviewer or Admin.');
-    }
-    expect(sent).toHaveLength(0);
+  it('offers Can view: the invite goes by email, says no GitHub is needed, and never touches GitHub', async () => {
+    const { deps, sent, w } = setup();
+    // Even for someone Bridge knows on GitHub (an organization member): Can view joins by email.
+    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'x@acme.design', login: 'leo' }] }), {}, deps);
+    expect(r.status).toBe(200);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain('Your role: Can view. Sees everything in Studio and the library.');
+    expect(sent[0]!.text).toContain('You join with this email, no GitHub account needed.');
+    expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
+    const bad = await handleInvites(post({ action: 'invite', repo: REPO, role: 'owner', people: [{ email: 'y@acme.design' }] }), {}, deps);
+    expect(bad.status).toBe(400);
+    expect((await bad.json()).message).toBe('Pick a role: Can view, Can edit, Reviewer or Admin.');
   });
 
   it('still honours a Can view invite sent before readers moved to Library access', async () => {
@@ -769,6 +770,11 @@ describe('email contributors in Members', () => {
     expect((await handleInvites(post({ action: 'set-role', repo: REPO, email: 'mia@acme.design', role: 'edit' }), {}, deps)).status).toBe(200);
     expect((await deps.members!.get(REPO, 'mia@acme.design'))?.role).toBe('edit');
     expect((await handleInvites(post({ action: 'set-role', repo: REPO, email: 'nobody@acme.design', role: 'edit' }), {}, deps)).status).toBe(404);
+    // To and from Can view.
+    expect(await (await handleInvites(post({ action: 'set-role', repo: REPO, email: 'mia@acme.design', role: 'view' }), {}, deps)).json()).toEqual({ ok: true, role: 'view' });
+    expect((await deps.members!.get(REPO, 'mia@acme.design'))?.role).toBe('view');
+    expect((await handleInvites(post({ action: 'set-role', repo: REPO, email: 'mia@acme.design', role: 'edit' }), {}, deps)).status).toBe(200);
+    expect((await deps.members!.get(REPO, 'mia@acme.design'))?.role).toBe('edit');
     expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
   });
 

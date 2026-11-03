@@ -27,6 +27,10 @@ import { libraryHref } from '../lib/library-shells';
 import { teamFailure } from '../lib/team-load';
 import { contrastFailures, teamGuidance } from '../lib/team-facts';
 
+
+/** Can view: an email member who reads only (the home offers no exploration). */
+const viewOnly = () => currentContributor()?.role === 'view';
+
 // Approve and Decline on a join request live in scripts/join-handlers.ts (shared with the Review page).
 export { joinHandlers };
 
@@ -190,7 +194,8 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
         startHrefs: f.startHrefs,
         // No review right and not an admin: only what waits on them, and their tour (once the owner teams are read). An
         // admin (an email admin included) or a reviewer is a lead: the lead tour.
-        contributor: Boolean(d && !d.loading && !d.reviewer && !currentAccess()?.admin),
+        contributor: Boolean(d && !d.loading && !d.reviewer && !currentAccess()?.admin && !viewOnly()),
+        viewOnly: viewOnly(),
         lead: Boolean(d && !d.loading && (d.reviewer || currentAccess()?.admin)),
         join,
         note,
