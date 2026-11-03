@@ -24,9 +24,10 @@ export const PENDING_MAX_AGE_MS = 10 * 60 * 1000;
 export const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 /**
- * The two GitHub Apps (docs/SIGN-IN.md). 'suggest': "Bridge", read only on code (Contents read, Issues write), the
- * default. 'direct': "Bridge Direct" (the original "Bridge Studio" app), writes branches and pull requests; Studio
- * signs in with it only when bridge.config.json says `"changes": "direct"`.
+ * The GitHub Apps (docs/SIGN-IN.md). 'direct': "Bridge Direct" (slug bridge-design-studio), the server's app, writes
+ * branches and pull requests. 'suggest': the older second app "Bridge" (slug bridge-ds). With the one-app switch on
+ * (BRIDGE_ONE_APP, oneAppOn) every page signs in with Bridge Direct and 'suggest' is never picked; with it off, team
+ * pages sign in with 'suggest' and ask for Bridge Direct once in direct mode (the two-app model, removed once flipped).
  */
 export type SignInApp = 'suggest' | 'direct';
 
@@ -51,6 +52,10 @@ export interface SignInConfig {
    * site, which signs in with the app its mode needs up front.
    */
   direct?: DirectApp;
+  /** github.com/apps/<slug> of the app people install ("Install Bridge", "Give Bridge access"): appSlugFrom. */
+  slug?: string;
+  /** The one-app switch is on: one sign-in (Bridge Direct) covers reads and writes, no second OK. */
+  oneApp?: boolean;
 }
 
 /** Bridge Direct as a team page asks for it: its client ID (public) and the slug of its GitHub page. */
@@ -62,6 +67,8 @@ export interface DirectApp {
 
 /** Bridge Direct's slug on GitHub when GITHUB_APP_DIRECT_SLUG is not set. */
 export const DIRECT_APP_SLUG = 'bridge-design-studio';
+/** The second app's slug ("Bridge", two-app model only). */
+export const SUGGEST_APP_SLUG = 'bridge-ds';
 
 /** The env vars Sign in with GitHub reads at build time. */
 export interface SignInEnv {
@@ -69,6 +76,8 @@ export interface SignInEnv {
   GITHUB_APP_SUGGEST_CLIENT_ID?: string | undefined;
   /** Bridge Direct's slug (github.com/apps/<slug>), for the install link on team pages. */
   GITHUB_APP_DIRECT_SLUG?: string | undefined;
+  /** The one-app switch: "1" (or true, on, yes) makes Bridge Direct the only app. Off when absent. */
+  BRIDGE_ONE_APP?: string | undefined;
 }
 
 const trimSlash = (s: string) => s.replace(/\/+$/, '');
@@ -78,8 +87,24 @@ const validId = (id: string | undefined) => {
   return v && /^[A-Za-z0-9._-]{4,64}$/.test(v) ? v : null;
 };
 
+/** The one-app switch is on and Bridge Direct is configured (without its client ID the switch changes nothing). */
+export function oneAppOn(env: SignInEnv): boolean {
+  return /^(1|true|on|yes)$/i.test(env.BRIDGE_ONE_APP?.trim() ?? '') && Boolean(validId(env.GITHUB_APP_CLIENT_ID));
+}
+
+const directSlugFrom = (env: SignInEnv) => {
+  const slug = env.GITHUB_APP_DIRECT_SLUG?.trim();
+  return slug && /^[a-z0-9-]{1,100}$/.test(slug) ? slug : DIRECT_APP_SLUG;
+};
+
 /**
- * Which app a sign-in uses (multi-team plan 3.2). Identity first: every visitor signs in with the read-only Bridge app
+ * The one slug every "Install Bridge", "Give Bridge access" and ask-your-admin link uses: Bridge Direct's with the
+ * one-app switch on, else the second app's (bridge-ds), as before the switch.
+ */
+export const appSlugFrom = (env: SignInEnv): string => (oneAppOn(env) ? directSlugFrom(env) : SUGGEST_APP_SLUG);
+
+/**
+ * Which app a sign-in uses (multi-team plan 3.2). One-app switch on: always Bridge Direct. Identity first: every visitor signs in with the read-only Bridge app
  * (suggest), whose token reads, comments and files suggestions on any repository it is installed on. Bridge Direct
  * only when it is needed: the repository's `changes` is "direct" (read at runtime on a team shell) and the sign-in is
  * for writing code (`need: 'write'`). When only one app is configured, that one (a site that never set up the
@@ -91,6 +116,7 @@ export function pickSignInApp(
   need: 'identity' | 'write' = 'identity',
 ): { clientId: string; app: SignInApp } | null {
   const direct = validId(env.GITHUB_APP_CLIENT_ID);
+  if (direct && oneAppOn(env)) return { clientId: direct, app: 'direct' };
   const suggest = validId(env.GITHUB_APP_SUGGEST_CLIENT_ID);
   if (need === 'write' && changes === 'direct' && direct) return { clientId: direct, app: 'direct' };
   if (suggest) return { clientId: suggest, app: 'suggest' };
@@ -117,13 +143,16 @@ export function signInConfigFrom(
   const prod = previews?.production?.docs?.trim();
   const preview = previews?.apps?.docs?.trim();
   const directId = validId(env.GITHUB_APP_CLIENT_ID);
-  const slug = env.GITHUB_APP_DIRECT_SLUG?.trim();
+  const oneApp = oneAppOn(env);
   return {
     ...picked,
     suggestApp: pickSignInApp(env)!.app,
     productionOrigin: prod && /^https:\/\/[^/]+\/?$/.test(prod) ? trimSlash(prod) : null,
     previewPattern: preview && preview.includes('{branch}') && preview.startsWith('https://') ? trimSlash(preview) : null,
-    ...(opts.hosted && picked.app === 'suggest' && directId ? { direct: { clientId: directId, slug: slug && /^[a-z0-9-]{1,100}$/.test(slug) ? slug : DIRECT_APP_SLUG } } : {}),
+    slug: appSlugFrom(env),
+    ...(oneApp ? { oneApp: true } : {}),
+    // Two-app model only: Bridge Direct's one more OK. With one app the sign-in already is Bridge Direct's.
+    ...(opts.hosted && picked.app === 'suggest' && directId ? { direct: { clientId: directId, slug: directSlugFrom(env) } } : {}),
   };
 }
 
@@ -264,6 +293,8 @@ export const SIGNIN_TEXT = {
   unreachable: 'Studio could not reach its sign-in service. Check your connection, then sign in again.',
   expired: 'Your GitHub sign-in expired. Sign in again to keep editing.',
   switched: 'Bridge now signs in to GitHub with a different app, so your previous sign-in was removed. Sign in again to keep editing.',
+  /** The one-app switch moved this browser off its old sign-in: one plain sentence, asked once. */
+  oneApp: 'Bridge changed how it connects to GitHub. Sign in again once to keep working.',
   unknownClient: 'This site no longer signs in with that GitHub App. Sign in again.',
   failed: 'GitHub could not finish the sign-in. Sign in again.',
 } as const;

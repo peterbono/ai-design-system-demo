@@ -1,5 +1,5 @@
 // The screen, words and messages of each access state on a team's Bridge.
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RepoAccessState } from '@bridge-ds/core';
 import {
   accessBadge,
@@ -15,6 +15,7 @@ import {
   installUrl,
   requestAccessUrl,
   accessSettingsUrl,
+  bridgeAppSlug,
   installationToAdjust,
   manageAccessUrl,
   forgetsTeam,
@@ -292,5 +293,40 @@ describe('Add a product, for someone who can only request', () => {
     const m = askDeveloperMessage(url, 'https://bridge.example/studio/acme/ds/');
     expect(m).toBe(`Hi, can you show Bridge where our product's code is? Open ${url}, tick the product, then Save. Then it shows in Bridge: https://bridge.example/studio/acme/ds/`);
     expect(m).not.toMatch(/—|repositor/);
+  });
+});
+
+describe('one GitHub App (BRIDGE_ONE_APP)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('off: every install link and ask names bridge-ds', () => {
+    vi.stubEnv('BRIDGE_ONE_APP', '');
+    expect(bridgeAppSlug()).toBe('bridge-ds');
+    expect(installUrl()).toBe('https://github.com/apps/bridge-ds/installations/new');
+  });
+
+  it('on at build time: Install Bridge, Give Bridge access and the ask message name Bridge Direct', () => {
+    vi.stubEnv('BRIDGE_ONE_APP', '1');
+    vi.stubEnv('GITHUB_APP_CLIENT_ID', 'Iv23liDirect');
+    vi.stubEnv('GITHUB_APP_DIRECT_SLUG', '');
+    expect(bridgeAppSlug()).toBe('bridge-design-studio');
+    const direct = 'https://github.com/apps/bridge-design-studio/installations/new';
+    expect(accessScreen('not-installed', { ...base, admin: true })!.primary).toEqual({ kind: 'link', label: 'Install Bridge', href: direct, external: true });
+    expect(askInstallMessage('acme/ds', LINK)).toContain(direct);
+    expect(requestAccessUrl({ id: 8, account: { login: 'acme', type: 'Organization', id: 42 } })).toBe(`${direct}/permissions?target_id=42`);
+    expect(accessSettingsUrl(null)).toBe(direct);
+  });
+
+  it('on in the browser: the slug the layout wrote on <html data-gh-slug>, never a malformed one', () => {
+    const attr = { v: 'bridge-design-studio' as string | null };
+    vi.stubGlobal('document', { documentElement: { getAttribute: () => attr.v } });
+    expect(installUrl()).toBe('https://github.com/apps/bridge-design-studio/installations/new');
+    attr.v = 'bad slug/<x>';
+    expect(bridgeAppSlug()).toBe('bridge-ds');
+    attr.v = null;
+    expect(bridgeAppSlug()).toBe('bridge-ds');
   });
 });

@@ -11,6 +11,7 @@
 // Team pages (`hosted`) always sign in with Bridge. When both apps are set up they also get the "Allow Bridge to save to
 // branches" dialog: a team in direct mode gives Bridge Direct its OK once, the first time it writes code
 // (scripts/github-session.ts, multi-team plan 3.2). The same dialog says when Bridge Direct is not set up on the team.
+// One-app switch on (BRIDGE_ONE_APP): every page signs in with Bridge Direct, one consent, and that dialog is not built.
 import { Alert, Button, Input, Link } from '@bridge-ds/react';
 import ScriptDialog from './ds/ScriptDialog.astro';
 import ButtonLink from './ds/ButtonLink';
@@ -32,7 +33,8 @@ const cfg = signInConfig(hosted);
 const signIn = Boolean(cfg);
 const direct = hosted ? cfg?.direct : undefined;
 // The read-only app cannot write code: say what signing in is for in that mode.
-const signInLead = cfg?.app === 'suggest' ? 'Sign in to comment, review and suggest changes. Reading works without it.' : 'Sign in to approve, comment and send changes. Reading works without it.';
+// A team page reads its mode at runtime: with one app (BRIDGE_ONE_APP) it keeps the team page's words.
+const signInLead = cfg?.app === 'suggest' || (hosted && cfg?.oneApp) ? 'Sign in to comment, review and suggest changes. Reading works without it.' : 'Sign in to approve, comment and send changes. Reading works without it.';
 ---
 
 <ScriptDialog id="gh-dialog" title={ghButton(signIn)} closeLabel="Close" popup={signIn ? { 'data-signin': signInConfigJson(hosted) } : undefined}>

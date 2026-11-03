@@ -246,6 +246,13 @@ count (organization members added directly, addresses already invited and failed
 
 ### Set it up (owner of the site)
 
+**One GitHub App.** The hosted Bridge runs on one GitHub App, **Bridge Direct** (`bridge-design-studio`): the server
+(`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, the webhook, the MCP sign-in) and, with `BRIDGE_ONE_APP=1`, every person's
+sign-in, every **Install Bridge** and **Give Bridge access** link and every installation check (docs/SIGN-IN.md, "One
+app: Bridge Direct"). The second app **Bridge** (`bridge-ds`, `GITHUB_APP_SUGGEST_CLIENT_*`) only serves the
+two-app model while the switch is off, and goes away in a follow-up once the switch is on in production.
+
+
 1. **Storage.** In the Vercel project (`bridge-docs`): **Storage**, **Create Database**, **Upstash for Redis** (Vercel
    Marketplace), connect it to the project for Production and Preview. It adds `KV_REST_API_URL` and
    `KV_REST_API_TOKEN` (the function also reads `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`).
@@ -255,8 +262,8 @@ count (organization members added directly, addresses already invited and failed
    **Private keys**, **Generate a private key** (a `.pem` file). Check its permissions include Repository
    **Administration: Read and write** (already in the list), **Contents** and **Pull requests: Read and write** (for
    the reviewer pull request), and for organization repositories **Organization, Members: Read only**. Each
-   installation must accept a permission GitHub added since it was installed. On **both** apps (Bridge and Bridge
-   Direct), add the account permission **Email addresses: Read-only**, so the invite page can check the invited email
+   installation must accept a permission GitHub added since it was installed. On Bridge Direct (and on Bridge
+   `bridge-ds` while the two-app model is still on), add the account permission **Email addresses: Read-only**, so the invite page can check the invited email
    belongs to the person who accepts. People already signed in get it when they sign in again (the invite page asks
    them to).
 4. **Environment variables** on Vercel, Production and Preview, all **Sensitive**:
@@ -739,8 +746,8 @@ would refuse is named first, with "Make <name> admin" inline (an email member, t
 team is never the last one: the repository keeps its admins on GitHub. A team made in Bridge has email admins only, so
 the others there decide. For a GitHub-linked account,
 Studio sends the person's own GitHub token as `Authorization: Bearer` with `delete`: the function reads the
-repositories the Bridge app and the person share (`GET /user/installations`, then each installation's repositories),
-and for each one where they are admin, its collaborators and email members. Without that token the GitHub check is
+repositories the Bridge app and the person share (`GET /user/installations`, then each installation's repositories;
+GitHub lists the installations of the app that issued the token: Bridge Direct with `BRIDGE_ONE_APP` on), and for each one where they are admin, its collaborators and email members. Without that token the GitHub check is
 skipped: deleting a Bridge account never changes anything on GitHub, so the team keeps its GitHub admin either way.
 
 ### Where to go after sign-in: `/api/entry`

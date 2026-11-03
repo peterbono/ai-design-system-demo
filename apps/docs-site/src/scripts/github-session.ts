@@ -151,6 +151,12 @@ export function signInSwitched(): boolean {
   }
 }
 
+/**
+ * Why this browser looks signed out after a switch of app. One-app switch on (BRIDGE_ONE_APP): a plain sentence, asked
+ * once (the old sign-in stays in its own slot, so turning the switch off again finds it).
+ */
+export const switchedText = (): string => (readSignInConfig()?.oneApp ? SIGNIN_TEXT.oneApp : SIGNIN_TEXT.switched);
+
 function clearSwitched() {
   try {
     localStorage.removeItem(SWITCHED_KEY);
@@ -1300,7 +1306,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       if (text) text.textContent = viewer?.email ? CONTRIBUTE_WORDS.signedInWithEmail : viewer ? `Connected as @${viewer.login}` : rejected ? (app ? 'Sign-in expired' : 'Token stopped working') : switched ? 'Signed out' : 'Read only';
       const label = block.querySelector('[data-gh-open-label]');
       if (label) label.textContent = viewer ? (app ? 'Account' : 'Token') : rejected || switched ? (app || signIn ? 'Sign in again' : 'Reconnect') : ghButton(signIn);
-      block.querySelectorAll<HTMLElement>('[data-gh-rejected-text]').forEach((el) => (el.textContent = switched ? 'Bridge changed its GitHub app' : app ? 'Your GitHub sign-in expired' : 'Your GitHub token stopped working'));
+      block.querySelectorAll<HTMLElement>('[data-gh-rejected-text]').forEach((el) => (el.textContent = switched ? (readSignInConfig()?.oneApp ? 'Bridge changed how it connects to GitHub' : 'Bridge changed its GitHub app') : app ? 'Your GitHub sign-in expired' : 'Your GitHub token stopped working'));
       block.querySelectorAll<HTMLElement>('[data-gh-reconnect-label]').forEach((el) => (el.textContent = app || switched ? 'Sign in again' : signIn ? 'Sign in with GitHub' : 'Reconnect'));
       // Change token only for a pasted token on a site without Sign in with GitHub.
       block.querySelectorAll<HTMLElement>('[data-gh-token-only]').forEach((el) => (el.hidden = app || signIn || Boolean(viewer?.email)));
@@ -1380,7 +1386,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       rejectedNoteText.textContent = linked
         ? RECONNECT_WORDS.dialog
         : switched
-        ? SIGNIN_TEXT.switched
+        ? switchedText()
         : app
         ? 'Your GitHub sign-in expired and could not be renewed. Sign in again to keep editing.'
         : signInView
@@ -1780,11 +1786,13 @@ export function paintGates(root: ParentNode = document) {
   root.querySelectorAll<HTMLElement>('[data-gh-gate]').forEach((el) => {
     if (on) {
       el.removeAttribute('aria-disabled');
-      if (/^(Connect GitHub|Sign in|Your GitHub|Bridge now signs in)/.test(el.dataset.tooltip ?? '')) delete el.dataset.tooltip;
+      if (/^(Connect GitHub|Sign in|Your GitHub|Bridge now signs in|Bridge changed how)/.test(el.dataset.tooltip ?? '')) delete el.dataset.tooltip;
     } else {
       el.setAttribute('aria-disabled', 'true');
       el.dataset.tooltip = !rejected && signIn && signInSwitched()
-        ? `Bridge now signs in with a different GitHub App. Sign in again to ${el.dataset.ghGate}.`
+        ? readSignInConfig()?.oneApp
+          ? `Bridge changed how it connects to GitHub. Sign in again to ${el.dataset.ghGate}.`
+          : `Bridge now signs in with a different GitHub App. Sign in again to ${el.dataset.ghGate}.`
         : rejected
         ? app
           ? `Your GitHub sign-in expired. Sign in again to ${el.dataset.ghGate}.`

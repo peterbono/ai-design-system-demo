@@ -6,7 +6,9 @@
 // pasted token. Two requests, both JSON from the same origin:
 //   { "grant": "code", "code", "code_verifier", "redirect_uri", "client_id"? }   finish a sign-in (PKCE)
 //   { "grant": "refresh", "refresh_token", "client_id"? }                        renew an expired token
-// Two GitHub Apps (docs/SIGN-IN.md): "Bridge" (read only, suggest mode) and "Bridge Direct" (writes code).
+// GitHub Apps (docs/SIGN-IN.md): "Bridge Direct" (the one app with BRIDGE_ONE_APP on) and, for the two-app model
+// while the switch is off, "Bridge" (bridge-ds). Both stay accepted whatever the switch, so a tab opened before a flip
+// still finishes its sign-in; the follow-up that removes bridge-ds drops its pair.
 // Env (server only): GITHUB_APP_SUGGEST_CLIENT_ID + GITHUB_APP_SUGGEST_CLIENT_SECRET for Bridge,
 // GITHUB_APP_CLIENT_ID + GITHUB_APP_CLIENT_SECRET for Bridge Direct. `client_id` picks the app, from an allow-list of
 // those two configured ids; without it the Direct app answers (the one-app setup and tabs opened before the switch).

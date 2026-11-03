@@ -183,3 +183,44 @@ describe('the self-hosted site', () => {
     expect(calls).toEqual([{ method: 'POST', url: 'https://api.github.com/repos/peterbono/ai-design-system-demo/git/refs', auth: 'Bearer fake-direct' }]);
   });
 });
+
+// One-app switch on (BRIDGE_ONE_APP): the page signs in with Bridge Direct, so the first code write needs no second OK.
+const ONE_APP = { clientId: 'Iv23liDirect', app: 'direct', suggestApp: 'direct', productionOrigin: null, previewPattern: null, slug: 'bridge-design-studio', oneApp: true };
+
+describe('one GitHub App (BRIDGE_ONE_APP on)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    rememberRepo('acme', 'ds', { defaultBranch: 'main', site: { owner: 'acme', repo: 'ds', defaultBranch: 'main', changes: 'direct' } as never });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('CSS', { escape: (s: string) => s });
+    document.body.innerHTML = '';
+  });
+
+  it('sends a code write with the one sign-in, no consent dialog, no second token', async () => {
+    page({ hosted: true, app: 'direct', cfg: ONE_APP });
+    localStorage.setItem('bridge.github.token.direct', 'fake-direct');
+    const calls = fakeGitHub({ 'POST /repos/acme/ds/git/refs': { status: 201, body: { ref: 'refs/heads/bridge/x' } } });
+    await ghWrite('POST', '/repos/acme/ds/git/refs', { ref: 'refs/heads/bridge/x', sha: 'a' });
+    expect(writes(calls)).toEqual([expect.objectContaining({ method: 'POST', auth: 'Bearer fake-direct' })]);
+    // No Bridge Direct reach check either: the sign-in already is Bridge Direct's.
+    expect(calls.some((c) => c.url.includes('/user/installations'))).toBe(false);
+    expect(directOpen()).toBe(false);
+  });
+
+  it('a browser with only the old bridge-ds sign-in looks signed out and is asked once, in plain words', async () => {
+    page({ hosted: true, app: 'direct', cfg: ONE_APP });
+    localStorage.setItem('bridge.github.token.suggest', 'fake-suggest');
+    localStorage.setItem('bridge.github.app.suggest', JSON.stringify({ kind: 'app', clientId: 'Iv23liSuggest', expiresAt: null, refreshToken: null, refreshExpiresAt: null }));
+    // A fresh page: the slots are settled once per page load.
+    vi.resetModules();
+    const { getToken, signInSwitched, switchedText } = await import('./github-session');
+    expect(getToken()).toBeNull();
+    expect(signInSwitched()).toBe(true);
+    expect(switchedText()).toBe('Bridge changed how it connects to GitHub. Sign in again once to keep working.');
+    // Kept in its own slot: turning the switch off again finds it.
+    expect(localStorage.getItem('bridge.github.token.suggest')).toBe('fake-suggest');
+  });
+});

@@ -11,6 +11,9 @@ import {
   encodeState,
   exchangeErrorText,
   DIRECT_APP_SLUG,
+  appSlugFrom,
+  oneAppOn,
+  SUGGEST_APP_SLUG,
   installationFor,
   needsDirectApp,
   needsRefresh,
@@ -45,13 +48,14 @@ describe('sign-in config', () => {
   });
 
   it('reads the production origin and the preview pattern from bridge.config.json previews', () => {
-    expect(cfg).toEqual({ clientId: 'Iv23liAbCdEf', app: 'direct', suggestApp: 'direct', productionOrigin: PROD, previewPattern: 'https://bridge-docs-git-{branch}-acme.vercel.app' });
+    expect(cfg).toEqual({ clientId: 'Iv23liAbCdEf', app: 'direct', suggestApp: 'direct', productionOrigin: PROD, previewPattern: 'https://bridge-docs-git-{branch}-acme.vercel.app', slug: 'bridge-ds' });
     expect(signInConfigFrom({ GITHUB_APP_CLIENT_ID: 'Iv23liAbCdEf' }, null)).toEqual({
       clientId: 'Iv23liAbCdEf',
       app: 'direct',
       suggestApp: 'direct',
       productionOrigin: null,
       previewPattern: null,
+      slug: 'bridge-ds',
     });
   });
 
@@ -101,6 +105,38 @@ describe('sign-in config', () => {
     // The self-hosted site is unchanged: no Direct entry, Direct up front in direct mode.
     expect(signInConfigFrom(both, PREVIEWS, 'direct')).not.toHaveProperty('direct');
     expect(signInConfigFrom(both, PREVIEWS, 'direct')).toEqual(signInConfigFrom(both, PREVIEWS, 'direct', { hosted: false }));
+  });
+
+  it('one-app switch on: Bridge Direct signs everyone in, one consent, its slug everywhere', () => {
+    const both = { GITHUB_APP_CLIENT_ID: 'Iv23liDirect', GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' };
+    const on = { ...both, BRIDGE_ONE_APP: '1' };
+    expect(oneAppOn(on)).toBe(true);
+    for (const v of ['true', 'ON', ' yes ']) expect(oneAppOn({ ...both, BRIDGE_ONE_APP: v })).toBe(true);
+    for (const v of [undefined, '', '0', 'false', 'off']) expect(oneAppOn({ ...both, BRIDGE_ONE_APP: v })).toBe(false);
+    // Without Bridge Direct's client ID the switch changes nothing.
+    expect(oneAppOn({ GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest', BRIDGE_ONE_APP: '1' })).toBe(false);
+    // Sign-in client id: Bridge Direct for identity and for writes, whatever the mode.
+    for (const changes of ['direct', 'suggest', undefined]) {
+      for (const need of ['identity', 'write'] as const) expect(pickSignInApp(on, changes, need)).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
+    }
+    // Team pages: no second consent (no `direct` entry), Bridge Direct's slug for every install link.
+    for (const hosted of [true, false]) {
+      const c = signInConfigFrom(on, PREVIEWS, 'suggest', { hosted })!;
+      expect(c).toMatchObject({ clientId: 'Iv23liDirect', app: 'direct', suggestApp: 'direct', slug: DIRECT_APP_SLUG, oneApp: true });
+      expect(c).not.toHaveProperty('direct');
+    }
+    expect(appSlugFrom(on)).toBe(DIRECT_APP_SLUG);
+    expect(appSlugFrom({ ...on, GITHUB_APP_DIRECT_SLUG: 'acme-bridge' })).toBe('acme-bridge');
+    expect(appSlugFrom({ ...on, GITHUB_APP_DIRECT_SLUG: 'bad slug/<x>' })).toBe(DIRECT_APP_SLUG);
+  });
+
+  it('one-app switch off: the two-app model as before (sign-in with bridge-ds, Bridge Direct asked once)', () => {
+    const off = { GITHUB_APP_CLIENT_ID: 'Iv23liDirect', GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest', BRIDGE_ONE_APP: '0' };
+    const c = signInConfigFrom(off, PREVIEWS, 'direct', { hosted: true })!;
+    expect(c).toMatchObject({ clientId: 'Iv23liSuggest', app: 'suggest', slug: SUGGEST_APP_SLUG, direct: { clientId: 'Iv23liDirect', slug: DIRECT_APP_SLUG } });
+    expect(c).not.toHaveProperty('oneApp');
+    expect(appSlugFrom(off)).toBe('bridge-ds');
+    expect(appSlugFrom({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect' })).toBe('bridge-ds');
   });
 
   it('keeps the server and the browser on the same callback path', () => {
@@ -325,6 +361,15 @@ describe('token slots per app', () => {
     expect(planSlots(both, 'direct', 'Iv23liDirect')).toEqual({ move: null, clear: [], switched: false });
     // A pasted token kept in the other app's slot stays there too.
     expect(planSlots({ suggest: signIn('Iv23liSuggest'), direct: pasted }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: [], switched: false });
+  });
+
+  it('one-app switch on: an old bridge-ds sign-in asks to sign in again once, in plain words, and is kept for a rollback', () => {
+    // Pages sign in with Bridge Direct ('direct'): the old Bridge sign-in is not used, the page says why, once.
+    expect(planSlots({ suggest: signIn('Iv23liSuggest') }, 'direct', 'Iv23liDirect')).toEqual({ move: null, clear: [], switched: true });
+    // Someone who already gave Bridge Direct its OK goes on signed in, no prompt.
+    expect(planSlots({ suggest: signIn('Iv23liSuggest'), direct: signIn('Iv23liDirect') }, 'direct', 'Iv23liDirect').switched).toBe(false);
+    expect(SIGNIN_TEXT.oneApp).not.toMatch(/\b(app|token|OAuth|install|client|permission)/i);
+    expect(SIGNIN_TEXT.oneApp).toMatch(/Sign in again once/);
   });
 
   it('removes the current sign-in when the app behind it was replaced', () => {
