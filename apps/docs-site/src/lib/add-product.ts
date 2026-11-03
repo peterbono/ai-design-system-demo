@@ -15,7 +15,7 @@ export const ADD_PRODUCT_WORDS = {
   codeHelp: 'The products Bridge can see on GitHub.',
   codeLoading: 'Looking for your products…',
   // Only admins add products: they give the Bridge app access themselves, then come back (the list reads again).
-  codeNone: 'Bridge sees no other product yet. Give Bridge access to it on GitHub, then come back here.',
+  codeNone: 'Every product Bridge can open is already here. To add another one, give Bridge access to its code on GitHub, then come back.',
   giveAccess: 'Give Bridge access on GitHub',
   name: 'Name',
   nameHelp: 'What your team calls it.',
