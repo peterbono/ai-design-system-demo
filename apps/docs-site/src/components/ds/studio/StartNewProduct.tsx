@@ -1,13 +1,13 @@
 // "It's a new product", the second choice card of Add a product: the team has no code for the product yet (a new
-// product, or code not on GitHub). One small form (its name, its address on GitHub, where it
-// lives when Bridge reaches more than one account), then Bridge starts its code from the product starter with the
+// product, or code not on GitHub). One small form (its name; no place to pick: it goes where the team's products
+// live, lib/new-product.ts newProductOwner), then Bridge starts its code from the product starter with the
 // viewer's own GitHub sign-in (scripts/new-product.ts) and proposes it for review like Add product
 // (scripts/roles.ts proposeNewProduct, designers' copy on). Last step: the way to its previews, Vercel or Cloudflare
 // in a new window, Bridge never handles a password there. Words and rules: lib/new-product.ts. Rendered inside Add
 // a product's dialog (AddProduct.tsx), which owns opening, closing and the busy lock.
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, ExternalLink } from 'lucide-react';
-import { Button, ButtonGroup, Checkbox, DialogContent, Input, Select, Spinner, VisuallyHidden } from '@bridge-ds/react';
+import { Button, ButtonGroup, Checkbox, DialogContent, Input, Spinner, VisuallyHidden } from '@bridge-ds/react';
 import type { ProductConfig } from '@bridge-ds/core';
 import ButtonLink from '../ButtonLink';
 import { Drawing } from './Drawing';
@@ -17,9 +17,8 @@ import { cleanProductName } from '../../../lib/product-name';
 import {
   CLOUDFLARE_IMPORT_URL,
   NEW_PRODUCT_WORDS as W,
-  addressLine,
+  newProductOwner,
   newProductProblem,
-  ownerChoices,
   refusalLine,
   slugFor,
   startRefusal,
@@ -29,10 +28,10 @@ import '../../../styles/add-product.css';
 
 export interface StartNewProductProps {
   products: ProductConfig[];
-  /** The GitHub account the team works in (Add a product's installation account), first in Where. */
+  /** The team's library ("owner/repo"): its owner is where a team with no product yet starts one. */
+  library: string | null;
+  /** The GitHub account the team works in (Add a product's installation account), when the library is not known. */
   account: string | null;
-  /** The products Bridge can see: their accounts are the other places the product can live. */
-  repos: readonly ProductRepoChoice[];
   busy: boolean;
   setBusy: (busy: boolean) => void;
   /** Back to Add a product's choice. */
@@ -47,13 +46,10 @@ export interface StartNewProductProps {
 
 type Phase = { kind: 'form' } | { kind: 'ready'; name: string; full: string };
 
-export default function StartNewProduct({ products, account, repos, busy, setBusy, onBack, onProposed, onStartedOnly, onDone }: StartNewProductProps) {
-  // Where it can live, in plain words (lib/new-product.ts ownerChoices): where the team's products already live first.
-  // Read on every render: the accounts often arrive after the form opens.
-  const choices = ownerChoices(account, repos, products);
-  const owners = choices.map((c) => c.value);
-  const [picked, setOwner] = useState<string | null>(null);
-  const owner = picked && owners.includes(picked) ? picked : (owners[0] ?? null);
+export default function StartNewProduct({ products, library, account, busy, setBusy, onBack, onProposed, onStartedOnly, onDone }: StartNewProductProps) {
+  // Where it goes, no choice to make (lib/new-product.ts newProductOwner): where the team's products already live, else
+  // the team's own account. Read on every render: the account often arrives after the form opens.
+  const owner = newProductOwner(products, library, account);
   const [name, setName] = useState('');
   const [copyOn, setCopyOn] = useState(true);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
@@ -151,7 +147,7 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
         <Input
           ref={nameRef}
           label={W.name}
-          hint={owner ? addressLine(owner, slug) : W.nameHelp}
+          hint={W.nameHelp}
           value={name}
           onValueChange={(v) => {
             setName(v);
@@ -160,19 +156,6 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
           autoComplete="off"
           disabled={busy}
         />
-        {owners.length > 1 && (
-          <Select
-            label={W.where}
-            hint={W.whereHelp}
-            options={choices}
-            value={owner}
-            onValueChange={(v) => {
-              setOwner(v);
-              setError(null);
-            }}
-            disabled={busy}
-          />
-        )}
         <Checkbox label={A.copy} description={A.copyHelp} checked={copyOn} onCheckedChange={setCopyOn} disabled={busy} />
         <div role="status" aria-live="polite" className="addp-status">
           {busy && (

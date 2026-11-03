@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   CLOUDFLARE_IMPORT_URL,
-  ownerChoices,
   NEW_PRODUCT_WORDS as W,
-  addressLine,
   askOwnerMessage,
   newProductProblem,
-  ownersFrom,
+  newProductOwner,
   productPointer,
   refusalLine,
   slugFor,
@@ -24,24 +22,13 @@ describe('Start a new product: rules and words', () => {
     expect(slugFor(`${'a'.repeat(59)} b`)).toBe('a'.repeat(59));
   });
 
-  it('says its address in plain words', () => {
-    expect(addressLine('acme', 'shop')).toBe('Its address: acme/shop');
-    expect(addressLine('acme', '')).toBe('Its address: acme/…');
-  });
-
-  it("lists where it can live: the team's account first, each account once", () => {
-    expect(ownersFrom('acme', [{ full: 'Acme/shop' }, { full: 'studio/site' }, { full: 'studio/app' }])).toEqual(['acme', 'studio']);
-    expect(ownersFrom(null, [])).toEqual([]);
-    expect(ownersFrom('', [{ full: 'studio/site' }])).toEqual(['studio']);
-  });
-
   it('checks the name and the place before GitHub is asked', () => {
     const products = [{ name: 'Shop', repo: 'acme/shop' }, { name: 'Site', repo: 'acme/site', design: { repo: 'acme/new-thing' } }];
     expect(newProductProblem({ name: ' ', owner: 'acme' }, products)).toBe('Type a name for the product.');
     expect(newProductProblem({ name: '***', owner: 'acme' }, products)).toBe('Use at least one letter or digit in the name.');
     expect(newProductProblem({ name: 'shop', owner: 'acme' }, products)).toMatch(/already has this name/);
-    expect(newProductProblem({ name: 'New thing', owner: 'acme' }, products)).toMatch(/already lists a product at this address/);
-    expect(newProductProblem({ name: 'Checkout', owner: null }, products)).toBe('Pick where it lives.');
+    expect(newProductProblem({ name: 'New thing', owner: 'acme' }, products)).toMatch(/almost the same name/);
+    expect(newProductProblem({ name: 'Checkout', owner: null }, products)).toBe('Bridge is still reading your team. Try again in a minute.');
     expect(newProductProblem({ name: 'Checkout', owner: 'acme' }, products)).toBeNull();
   });
 
@@ -83,12 +70,23 @@ describe('Start a new product: rules and words', () => {
   });
 });
 
-describe('ownerChoices', () => {
-  it('puts the account of the team\'s products first, then the team\'s own, in plain words', () => {
-    const c = ownerChoices('peterbono', [{ full: 'peterbono/ai-design-system-demo' }], [{ name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop' }, { name: 'Library', repo: 'peterbono/ai-design-system-demo' }]);
-    expect(c).toEqual([
-      { value: 'art-print-shop-co', label: 'art-print-shop-co', description: 'Where Art print shop lives' },
-      { value: 'peterbono', label: 'peterbono', description: 'Where your library lives' },
-    ]);
+describe('newProductOwner', () => {
+  it("goes where the team's products live, never the viewer's own account", () => {
+    const products = [
+      { name: 'Library', repo: 'peterbono/ai-design-system-demo' },
+      { name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop' },
+      { name: 'Site', repo: 'studio/site' },
+    ];
+    expect(newProductOwner(products, 'peterbono/ai-design-system-demo', 'peterbono')).toBe('art-print-shop-co');
+    expect(newProductOwner([{ repo: 'Acme/shop' }], 'acme/ds')).toBe('Acme');
+    // A product without code yet is skipped.
+    expect(newProductOwner([{ repo: undefined }, { repo: 'studio/site' }], 'acme/ds')).toBe('studio');
+  });
+
+  it("falls back to the team's own account when the team has no product yet", () => {
+    expect(newProductOwner([], 'acme/ds', 'someone')).toBe('acme');
+    expect(newProductOwner([{ repo: 'acme/ds' }], 'acme/ds')).toBe('acme');
+    expect(newProductOwner([], null, 'acme')).toBe('acme');
+    expect(newProductOwner([], null, null)).toBeNull();
   });
 });

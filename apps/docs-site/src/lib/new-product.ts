@@ -17,8 +17,6 @@ export const NEW_PRODUCT_WORDS = {
   lead: 'Bridge sets it up with your library, ready for previews and explorations.',
   name: 'Name',
   nameHelp: 'What your team calls it.',
-  where: 'Where',
-  whereHelp: 'The GitHub account it lives in.',
   create: 'Create product',
   back: 'Back',
   // While GitHub makes it (a few seconds).
@@ -33,9 +31,6 @@ export const NEW_PRODUCT_WORDS = {
   done: 'Done',
 } as const;
 
-/** Its address on GitHub, in plain words. */
-export const addressLine = (owner: string, slug: string) => `Its address: ${owner}/${slug || '…'}`;
-
 /** A GitHub name from the product's name: "Art print shop" -> "art-print-shop". Empty when nothing usable is left. */
 export function slugFor(name: string): string {
   return name
@@ -49,52 +44,22 @@ export function slugFor(name: string): string {
 }
 
 /**
- * Where the product can live: the account the team works in first, then the other accounts Bridge reaches (the owners
- * of the products it can see), each once.
+ * The GitHub account a new product goes to, with no choice to make: where the team's products already live (the owner
+ * of the first product's code in the team's settings, the library itself aside). A team with no product yet: the
+ * team's own account, the owner of the library (`library`, "owner/repo"), else `account`. Null when none is known.
  */
-export function ownersFrom(account: string | null | undefined, repos: readonly { full: string }[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const o of [account ?? '', ...repos.map((r) => r.full.split('/')[0] ?? '')]) {
-    const k = o.toLowerCase();
-    if (!o || seen.has(k)) continue;
-    seen.add(k);
-    out.push(o);
-  }
-  return out;
-}
-
-/**
- * The accounts a new product can live in, in plain words: the accounts that already hold the team's products first
- * ("Where Art print shop lives"), then the team's own account ("Where your library lives"), then any other account
- * Bridge reads. The first one is the default.
- */
-export function ownerChoices(
-  account: string | null | undefined,
-  repos: readonly { full: string }[],
-  products: readonly Pick<ProductConfig, 'name' | 'repo'>[],
-): { value: string; label: string; description?: string }[] {
-  const ownerOf = (full: string) => full.split('/')[0] ?? '';
-  const team = (account ?? '').toLowerCase();
-  const names = new Map<string, string[]>();
+export function newProductOwner(
+  products: readonly Pick<ProductConfig, 'repo'>[],
+  library: string | null | undefined,
+  account?: string | null,
+): string | null {
+  const lib = (library ?? '').toLowerCase();
   for (const p of products) {
-    const o = p.repo ? ownerOf(p.repo) : '';
-    if (!o || o.toLowerCase() === team) continue;
-    names.set(o.toLowerCase(), [...(names.get(o.toLowerCase()) ?? []), p.name]);
+    const full = p.repo?.trim() ?? '';
+    const owner = full.split('/')[0] ?? '';
+    if (owner && full.toLowerCase() !== lib) return owner;
   }
-  const all = ownersFrom(account, [...repos, ...products.flatMap((p) => (p.repo ? [{ full: p.repo }] : []))]);
-  const rank = (o: string) => (names.has(o.toLowerCase()) ? 0 : o.toLowerCase() === team ? 1 : 2);
-  return [...all]
-    .sort((a, b) => rank(a) - rank(b))
-    .map((o) => {
-      const held = names.get(o.toLowerCase());
-      const description = held?.length
-        ? `Where ${held.length === 1 ? `${held[0]} lives` : `${held.slice(0, -1).join(', ')} and ${held[held.length - 1]} live`}`
-        : o.toLowerCase() === team
-          ? 'Where your library lives'
-          : undefined;
-      return { value: o, label: o, ...(description ? { description } : {}) };
-    });
+  return (library ?? '').split('/')[0] || account || null;
 }
 
 /** What is wrong with the new product, in one sentence; null when it can be created. */
@@ -104,9 +69,9 @@ export function newProductProblem(x: { name: string; owner: string | null }, pro
   if (name.length > PRODUCT_NAME_MAX) return `Keep it to ${PRODUCT_NAME_MAX} characters.`;
   if (!slugFor(name)) return 'Use at least one letter or digit in the name.';
   if (products.some((p) => p.name.trim().toLowerCase() === name.toLowerCase())) return 'Another product already has this name. Pick a different one.';
-  if (!x.owner) return 'Pick where it lives.';
+  if (!x.owner) return 'Bridge is still reading your team. Try again in a minute.';
   const full = `${x.owner}/${slugFor(name)}`.toLowerCase();
-  if (products.some((p) => p.repo?.toLowerCase() === full || p.design?.repo?.toLowerCase() === full)) return 'Bridge already lists a product at this address. Pick a different name.';
+  if (products.some((p) => p.repo?.toLowerCase() === full || p.design?.repo?.toLowerCase() === full)) return 'Another product already has almost the same name. Pick a different one.';
   return null;
 }
 

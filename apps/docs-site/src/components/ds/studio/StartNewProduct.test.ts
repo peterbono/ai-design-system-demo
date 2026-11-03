@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // "It's a new product" in Add a product (AddProduct.tsx, StartNewProduct.tsx, lib/new-product.ts): the second choice
-// card, a small form with the address in plain words, Bridge starts the code and proposes it with the designers' copy
+// card, a small form (its name only: it goes where the team's products live, no Where to pick), Bridge starts the code and proposes it with the designers' copy
 // on, then the previews step. Refusals in designer words, with the ask-an-owner message when an owner decides. Started
 // but not proposed: "It's already built" with it picked. Back goes to the choice.
 import '../../../../../../packages/react/src/test/setup';
@@ -9,7 +9,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { ADD_PRODUCT_WORDS as A, type ProductRepoChoice } from '../../../lib/add-product';
-import { CLOUDFLARE_IMPORT_URL, NEW_PRODUCT_WORDS as W, addressLine, askOwnerMessage, vercelImportUrl } from '../../../lib/new-product';
+import { CLOUDFLARE_IMPORT_URL, NEW_PRODUCT_WORDS as W, askOwnerMessage, vercelImportUrl } from '../../../lib/new-product';
 import AddProduct from './AddProduct';
 
 const gh = vi.hoisted(() => ({
@@ -60,13 +60,14 @@ describe('Add a product: no code yet', () => {
     expect(await screen.findByRole('button', { name: A.fresh })).toBeInTheDocument();
   });
 
-  it('shows the address in plain words, one primary action, Back to the choice', async () => {
+  it('asks only for the name, no Where and no address, one primary action, Back to the choice', async () => {
     const { baseElement } = show();
     await openForm();
     fireEvent.change(screen.getByLabelText(W.name), { target: { value: 'Art print shop' } });
-    expect(screen.getByText(addressLine('acme', 'art-print-shop'))).toBeInTheDocument();
-    // One account only: no Where field.
-    expect(screen.queryByText(W.where)).toBeNull();
+    expect(screen.getByText(W.nameHelp)).toBeInTheDocument();
+    expect(screen.queryByText('Where')).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByText(/Its address|acme\/art-print-shop/)).toBeNull();
     expect(screen.getByRole('checkbox', { name: A.copy })).toBeChecked();
     expect(screen.getByRole('button', { name: W.create })).toBeInTheDocument();
     await expectNoAxeViolations(baseElement);
@@ -75,21 +76,23 @@ describe('Add a product: no code yet', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: A.fresh })));
   });
 
-  it('nothing read on GitHub yet: lives in the account of the team\'s products, never "Pick where it lives"', async () => {
-    gh.access = { repos: [], installation: null, account: null as unknown as string };
-    render(createElement(AddProduct, { products: [{ key: 'shop', name: 'Shop', repo: 'acme/shop' }], open: true, onOpenChange: vi.fn(), onSent: vi.fn() }));
+  it("goes where the team's products live, even when Bridge reaches other accounts", async () => {
+    gh.access = { repos: [SHOP, { full: 'peterbono/site', name: 'site', defaultBranch: 'main' }], installation: null, account: 'peterbono' };
+    render(createElement(AddProduct, { products: [{ key: 'prints', name: 'Prints', repo: 'art-print-shop-co/prints' }], open: true, onOpenChange: vi.fn(), onSent: vi.fn() }));
     await openForm();
+    expect(screen.queryByRole('combobox')).toBeNull();
     fireEvent.change(screen.getByLabelText(W.name), { target: { value: 'Data pilot' } });
-    expect(screen.getByText(addressLine('acme', 'data-pilot'))).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: W.create }));
-    await waitFor(() => expect(gh.start).toHaveBeenCalledWith(expect.objectContaining({ owner: 'acme', slug: 'data-pilot' })));
+    await waitFor(() => expect(gh.start).toHaveBeenCalledWith(expect.objectContaining({ owner: 'art-print-shop-co', slug: 'data-pilot' })));
   });
 
-  it('offers Where when Bridge reaches more than one account', async () => {
-    gh.access.repos = [SHOP, { full: 'studio/site', name: 'site', defaultBranch: 'main' }];
+  it("no product yet: goes to the team's own account (the library's owner)", async () => {
+    gh.access = { repos: [{ full: 'studio/site', name: 'site', defaultBranch: 'main' }], installation: null, account: 'studio' };
     show();
     await openForm();
-    expect(screen.getByText(W.where)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(W.name), { target: { value: 'Data pilot' } });
+    fireEvent.click(screen.getByRole('button', { name: W.create }));
+    await waitFor(() => expect(gh.start).toHaveBeenCalledWith(expect.objectContaining({ owner: 'acme', slug: 'data-pilot' })));
   });
 
   it('starts the code, proposes it with the copy on, then shows the way to its previews', async () => {

@@ -614,8 +614,8 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         {view === 'new' && (
           <StartNewProduct
             products={products}
+            library={pageTeam}
             account={target?.account ?? null}
-            repos={repos ?? []}
             busy={busy}
             setBusy={setBusy}
             onBack={() => show('choice')}
