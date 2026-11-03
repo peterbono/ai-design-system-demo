@@ -347,14 +347,25 @@
   min-height: var(--control-height-md);
 }
 
+/* Collapsed: the wordmark, the change's title (ellipsis, full title in its tooltip), the Live product | This change
+   switch (one click flips, as in the open bar) and Show Bridge details. The title gives way first when space runs out. */
 .pill {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--space-2);
-  max-width: min(100%, var(--size-120));
+  max-width: min(100%, var(--size-140));
   padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
   border-radius: var(--radius-pill);
+}
+
+.pill .sides {
+  grid-area: auto;
+}
+
+.pillTitle {
+  min-width: 0;
+  color: var(--color-text-muted);
 }
 
 /* With a note under it, the pill becomes a small card. */
@@ -510,7 +521,6 @@
   }
 
   .grip,
-  .brand,
   .studio {
     display: none;
   }
@@ -527,8 +537,14 @@
     padding-inline-start: 0;
   }
 
+  /* Phone, collapsed: the title goes first; the wordmark, the switch and Show Bridge details stay. */
   .pill {
     grid-template-columns: minmax(0, 1fr) auto auto;
+    padding-inline-start: var(--space-3);
+  }
+
+  .pill .pillTitle {
+    display: none;
   }
 
   .sheetPhone {
@@ -541,5 +557,17 @@
   .noteAction {
     flex-basis: 100%;
     justify-content: flex-start;
+  }
+}
+
+/* The narrowest phones: the wordmark gives way too, the switch keeps its full labels. */
+@media (max-width: 359px) {
+  .pill {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-inline-start: var(--space-1);
+  }
+
+  .pill .brand {
+    display: none;
   }
 }
