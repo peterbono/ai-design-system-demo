@@ -143,6 +143,20 @@ describe('ProductPageView', () => {
     await expectNoAxeViolations(container);
   });
 
+  it('the copy is made but Bridge may not open it yet: the one more step in the same zone, in designer words', async () => {
+    const access = { kind: 'needs-access' as const, copy: 'acme/product-admin-design', name: 'product-admin-design', installation: { id: 42, account: { login: 'acme', type: 'Organization' }, repository_selection: 'selected' } };
+    const make = vi.fn(async () => ({ line: '', ready: false, access }));
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ copy: { kind: 'missing' }, reached: null }), copy: { make, finish: vi.fn(), latest: vi.fn() } }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Make my copy' }));
+    });
+    const zone = container.querySelector('[data-copy-missing]')!;
+    await waitFor(() => expect(zone.textContent).toContain('One more step: let Bridge open your copy. Tick product-admin-design on GitHub, then Save.'));
+    expect(within(zone as HTMLElement).getByRole('button', { name: 'Open GitHub' })).toBeInTheDocument();
+    expect(zone.textContent).not.toMatch(/fork|repositor|installation/i);
+    await expectNoAxeViolations(container);
+  });
+
   it('the product moved on since the copy: one quiet line and Get the latest, nothing when up to date', async () => {
     const latest = vi.fn(async () => 'Your copy is up to date.');
     const { container, unmount } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)], copy: { kind: 'ready', behind: 2 } }), copy: { make: vi.fn(), latest } }));

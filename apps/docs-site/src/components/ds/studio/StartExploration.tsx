@@ -47,7 +47,8 @@ import {
   startTargets,
 } from '../../../lib/create-branch';
 import { installUrl } from '../../../lib/access-view';
-import { COPY_WORDS, madeLine } from '../../../lib/design-copy';
+import { COPY_WORDS, madeLine, needsCopyAccess, type CopyAccess } from '../../../lib/design-copy';
+import { CopyAccessStep } from './CopyAccessStep';
 import { siteConfig } from '../../../scripts/repo-context';
 import { isSampleTeam } from '../../../lib/demo';
 import { JIRA_IN_BRIDGE } from '../../../lib/studio-flags';
@@ -138,6 +139,10 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const [blocked, setBlocked] = useState<{ product: string; repo: string; reason: 'not-connected' | 'read-only' | 'no-copy'; config?: ProductConfig } | null>(null);
   /** "Make my copy" from the dialog, for a product explored in the design team's copy that has none yet. */
   const [making, setMaking] = useState(false);
+  // The copy is made but Bridge may not open it yet: the one more step on GitHub (CopyAccessStep).
+  const [copyAccess, setCopyAccess] = useState<CopyAccess | null>(null);
+  // Another product picked (or nothing blocks any more): that step was for the copy of the one before.
+  useEffect(() => setCopyAccess(null), [blocked?.product, blocked?.reason]);
   const { copied, said, copy } = useCopy(3000);
   const [done, setDone] = useState<{ prompt: string; app: string; href: string; name: string; where: string; setup: ToolSetup } | null>(null);
   const [claudeLink, setClaudeLink] = useState<ClaudeLink>('unknown');
@@ -438,7 +443,23 @@ export default function StartExploration({ components, appearance = 'menu', prod
             </Button>
           </span>
         )}
-        {blocked?.reason === 'no-copy' && !error && (
+        {blocked?.reason === 'no-copy' && copyAccess && !error && (
+          <CopyAccessStep
+            access={copyAccess}
+            onVisible={async () => {
+              const config = blocked.config;
+              if (!config) return;
+              const { finishCopy } = await import('../../../scripts/design-copy');
+              const r = await finishCopy(config);
+              setCopyAccess(null);
+              if (r === 'ready') {
+                setBlocked(null);
+                await start();
+              } else setError(madeLine(blocked.product, r));
+            }}
+          />
+        )}
+        {blocked?.reason === 'no-copy' && !copyAccess && !error && (
           <Alert
             tone="info"
             id="sc-blocked"
@@ -453,7 +474,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
                     try {
                       const { makeCopy } = await import('../../../scripts/design-copy');
                       const r = await makeCopy(blocked.config);
-                      if (r === 'ready') {
+                      if (needsCopyAccess(r)) setCopyAccess(r);
+                      else if (r === 'ready') {
                         setBlocked(null);
                         await start();
                       } else setError(madeLine(blocked.product, r));
