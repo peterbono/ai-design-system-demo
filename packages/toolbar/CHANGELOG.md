@@ -1,5 +1,15 @@
 # @bridge-ds/toolbar
 
+## 0.8.0
+
+### Minor Changes
+
+- 9970737: The toolbar reads a change of a private product: Bridge Studio hands a member's tab a short-lived read pass in the link's fragment, the toolbar takes it out of the address, keeps it for the tab and sends it with its reads through Bridge. When the change still cannot be read, Live product keeps working for a code change, the toolbar names the change by its branch (else "This exploration") and points back to Studio instead of asking for a reload.
+
+### Patch Changes
+
+- 80a2a9b: The collapsed toolbar says what you are looking at and flips in one click. It reads "Bridge", the change's title (ellipsis, the full title in a tooltip) and the same Live product | This change switch as the open bar, so the main action no longer hides behind expand; the grey "This change" chip that looked like a disabled button is gone. The chevron is "Show Bridge details". A side that cannot be opened yet stays focusable and its tooltip says why. On a phone the title gives way first, then the wordmark below 360px; the switch always stays.
+
 ## 0.7.0
 
 ### Minor Changes
