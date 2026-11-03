@@ -9,11 +9,29 @@ import { CONTRIBUTE_WORDS } from './contribute';
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { isDemoRepo, isSampleTeam, SAMPLE_TEAM, teamDisplayName } from './demo';
 
-/** The public GitHub App people sign in with (docs/SIGN-IN.md). Its page lists it at github.com/apps/<slug>. */
-export const BRIDGE_APP_SLUG = 'bridge-ds';
+import { appSlugFrom, SUGGEST_APP_SLUG } from './github-signin';
+
+/** The second app's slug, the default with the one-app switch off (docs/SIGN-IN.md). */
+export const BRIDGE_APP_SLUG = SUGGEST_APP_SLUG;
+
+const SLUG = /^[a-z0-9-]{1,100}$/;
+
+/**
+ * The one slug of the GitHub App people install and sign in with (github.com/apps/<slug>), from config: in the
+ * browser, what the layout wrote on <html data-gh-slug> (lib/signin-config.ts appSlugAtBuild); at build time, the
+ * env vars (BRIDGE_ONE_APP: Bridge Direct, else bridge-ds). Every install link and installation check uses it.
+ */
+export function bridgeAppSlug(): string {
+  if (typeof document !== 'undefined') {
+    const s = document.documentElement.getAttribute('data-gh-slug');
+    return s && SLUG.test(s) ? s : BRIDGE_APP_SLUG;
+  }
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  return env ? appSlugFrom(env) : BRIDGE_APP_SLUG;
+}
 
 /** Where an admin installs Bridge on a repository (GitHub asks which repositories). */
-export const installUrl = (slug = BRIDGE_APP_SLUG) => `https://github.com/apps/${slug}/installations/new`;
+export const installUrl = (slug = bridgeAppSlug()) => `https://github.com/apps/${slug}/installations/new`;
 
 /** One installation of the Bridge app, as GET /user/installations lists it (account type: "User" or "Organization"). */
 export interface AppInstallation {
@@ -25,7 +43,7 @@ export interface AppInstallation {
  * Where an admin picks which of an account's products Bridge sees: the existing installation's page (its repository
  * list and Save), under the person's settings or the organization's. No installation: the app's install page.
  */
-export function accessSettingsUrl(inst: AppInstallation | null | undefined, slug = BRIDGE_APP_SLUG): string {
+export function accessSettingsUrl(inst: AppInstallation | null | undefined, slug = bridgeAppSlug()): string {
   const id = inst && Number.isSafeInteger(inst.id) && inst.id > 0 ? inst.id : null;
   if (!id) return installUrl(slug);
   const login = inst?.account?.login;
@@ -38,7 +56,7 @@ export function accessSettingsUrl(inst: AppInstallation | null | undefined, slug
  * Save becomes a request the owners approve (an organization's settings page is for its owners only). No account id:
  * the app's install page, where GitHub asks which account. Not an organization: accessSettingsUrl.
  */
-export function requestAccessUrl(inst: AppInstallation | null | undefined, slug = BRIDGE_APP_SLUG): string {
+export function requestAccessUrl(inst: AppInstallation | null | undefined, slug = bridgeAppSlug()): string {
   if (inst?.account?.type !== 'Organization') return accessSettingsUrl(inst, slug);
   const target = inst.account.id;
   return Number.isSafeInteger(target) && (target as number) > 0 ? `${installUrl(slug)}/permissions?target_id=${target}` : installUrl(slug);
@@ -79,7 +97,7 @@ export function askAccessMessage(login: string | null | undefined, repo: string,
 }
 
 /** Bridge is not set up on the repository: what a teammate sends their lead (an admin). */
-export function askInstallMessage(repo: string, link: string, slug = BRIDGE_APP_SLUG): string {
+export function askInstallMessage(repo: string, link: string, slug = bridgeAppSlug()): string {
   return `Hi, can you install Bridge on github.com/${repo}? It takes a minute: ${installUrl(slug)} (pick ${repo.split('/')[1] ?? repo}). Then the team opens ${link}`;
 }
 

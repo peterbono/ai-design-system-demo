@@ -4,8 +4,20 @@
 // (GITHUB_APP_CLIENT_ID, used when "changes" is "direct"). Client IDs are public: they are written into the pages.
 // Null when neither is set: the Studio then offers the token paste only, exactly as before.
 // Team pages (`hosted`) always sign in with Bridge and carry Bridge Direct for the one-time OK of a direct-mode team.
-import { signInConfigFrom, type SignInConfig } from './github-signin';
+// One-app switch (BRIDGE_ONE_APP=1, read at build time): every page signs in with Bridge Direct only, and every install
+// link names Bridge Direct (appSlugFrom). Flip: set it on the host and redeploy; roll back with the previous deployment.
+import { appSlugFrom, signInConfigFrom, type SignInConfig, type SignInEnv } from './github-signin';
 import { repoModel } from './model';
+
+const signInEnv = (): SignInEnv => ({
+  GITHUB_APP_CLIENT_ID: process.env.GITHUB_APP_CLIENT_ID,
+  GITHUB_APP_SUGGEST_CLIENT_ID: process.env.GITHUB_APP_SUGGEST_CLIENT_ID,
+  GITHUB_APP_DIRECT_SLUG: process.env.GITHUB_APP_DIRECT_SLUG,
+  BRIDGE_ONE_APP: process.env.BRIDGE_ONE_APP,
+});
+
+/** The slug install links use, written on <html data-gh-slug> by the layout for the browser (lib/access-view.ts). */
+export const appSlugAtBuild = (): string => appSlugFrom(signInEnv());
 
 const cache = new Map<boolean, SignInConfig | null>();
 
@@ -14,11 +26,7 @@ export function signInConfig(hosted = false): SignInConfig | null {
   if (kept !== undefined) return kept;
   const { config } = repoModel;
   const cfg = signInConfigFrom(
-    {
-      GITHUB_APP_CLIENT_ID: process.env.GITHUB_APP_CLIENT_ID,
-      GITHUB_APP_SUGGEST_CLIENT_ID: process.env.GITHUB_APP_SUGGEST_CLIENT_ID,
-      GITHUB_APP_DIRECT_SLUG: process.env.GITHUB_APP_DIRECT_SLUG,
-    },
+    signInEnv(),
     config.previews,
     config.changes,
     { hosted },

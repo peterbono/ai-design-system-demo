@@ -13,6 +13,7 @@ import { Link } from '@bridge-ds/react';
 import SiteHeader from '../components/site/SiteHeader.astro';
 import SiteFooter from '../components/site/SiteFooter.astro';
 import SiteIcons from '../components/site/SiteIcons.astro';
+import { appSlugAtBuild } from '../lib/signin-config';
 
 interface Props {
   /** The full document title. */
@@ -26,7 +27,7 @@ const path = Astro.url.pathname.replace(/\/?$/, '/');
 ---
 
 <!doctype html>
-<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space="landing">
+<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space="landing" data-gh-slug={appSlugAtBuild()}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

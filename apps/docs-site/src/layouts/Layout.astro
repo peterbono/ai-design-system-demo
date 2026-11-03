@@ -31,7 +31,7 @@ import { productKeyFromPath } from '../lib/product-page';
 import { productsOf } from '@bridge-ds/core';
 import AccountMenu from '../components/ds/account/AccountMenu';
 import { TeamAccessGate } from '../components/ds/studio/NoAccess';
-import { signInConfig } from '../lib/signin-config';
+import { appSlugAtBuild, signInConfig } from '../lib/signin-config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
@@ -128,6 +128,8 @@ const builtRepo = hosted ? null : `${siteRepo().owner}/${siteRepo().repo}`;
 // A team's Library signs in with the same GitHub App as the team's Studio, so a Studio sign-in reads private repos here.
 // The start screen and the browser workspace sign in like a team page too: the team picked there keeps the sign-in.
 const ghApp = signInConfig(hosted || library || noRepo)?.app ?? '';
+// The GitHub App every install link names (lib/access-view.ts bridgeAppSlug): Bridge Direct with BRIDGE_ONE_APP on.
+const ghSlug = appSlugAtBuild();
 // The hosted deployment (BRIDGE_HOSTED, multi-team plan 4.3) opens other teams: the chip menu offers it.
 const hostedSite = process.env.BRIDGE_HOSTED === '1' || process.env.BRIDGE_HOSTED === 'true';
 // The header switch's build-time target: the same page in the other space (lib/space-switch.ts). The browser resolves
@@ -143,7 +145,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
 ---
 
 <!doctype html>
-<html lang="en" data-hosted={hosted ? '' : undefined} data-hosted-site={hostedSite ? '' : undefined} data-no-repo={noRepo ? '' : undefined} data-workspace={workspace ? '' : undefined} data-bare={bare ? '' : undefined} data-shell={shell} data-library-shell={library ? libraryShellMarker(libraryRoute ?? '') : undefined} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-own-library={`${siteRepo().owner}/${siteRepo().repo}`} data-gh-app={ghApp} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
+<html lang="en" data-hosted={hosted ? '' : undefined} data-hosted-site={hostedSite ? '' : undefined} data-no-repo={noRepo ? '' : undefined} data-workspace={workspace ? '' : undefined} data-bare={bare ? '' : undefined} data-shell={shell} data-library-shell={library ? libraryShellMarker(libraryRoute ?? '') : undefined} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-own-library={`${siteRepo().owner}/${siteRepo().repo}`} data-gh-app={ghApp} data-gh-slug={ghSlug} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
