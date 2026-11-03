@@ -523,15 +523,18 @@ export interface TeamInfo {
   /** `_team/<id>`, or the repository once one is linked. */
   key: string;
   name: string;
-  role: 'edit' | 'admin';
+  role: 'view' | 'edit' | 'admin';
   /** owner/repo once linked: the team lives there now. */
   repo: string | null;
   storybook: string | null;
   discovery: { domain: string; enabled: boolean } | null;
   memberCount: number;
   /** Who is on the team, by name and role (no emails): read by its Settings. */
-  people: { name: string; role: 'edit' | 'admin' }[];
+  people: { name: string; role: 'view' | 'edit' | 'admin' }[];
 }
+
+/** An email member's role as the server says it: Admin, Can view, else Can edit. */
+const emailRoleOf = (v: unknown): 'view' | 'edit' | 'admin' => (v === 'admin' ? 'admin' : v === 'view' ? 'view' : 'edit');
 
 /** A team answer of /api/entry, or null when it is not one. */
 export function parseTeamInfo(v: unknown): TeamInfo | null {
@@ -547,15 +550,15 @@ export function parseTeamInfo(v: unknown): TeamInfo | null {
     id,
     key,
     name,
-    role: o.role === 'admin' ? 'admin' : 'edit',
+    role: emailRoleOf(o.role),
     repo: repoOf(o.repo),
     storybook: str(o.storybook),
     discovery: domain ? { domain, enabled: d!.enabled === true } : null,
     memberCount: countOf(o.memberCount),
     people: Array.isArray(o.people)
-      ? o.people.flatMap((p): { name: string; role: 'edit' | 'admin' }[] => {
+      ? o.people.flatMap((p): { name: string; role: 'view' | 'edit' | 'admin' }[] => {
           const n = p && typeof p === 'object' ? str((p as Record<string, unknown>).name) : null;
-          return n ? [{ name: n, role: (p as Record<string, unknown>).role === 'admin' ? 'admin' : 'edit' }] : [];
+          return n ? [{ name: n, role: emailRoleOf((p as Record<string, unknown>).role) }] : [];
         })
       : [],
   };

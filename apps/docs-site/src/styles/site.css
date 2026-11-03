@@ -1389,3 +1389,10 @@ label {
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
 }
+
+/* Can view: an email member who reads only (scripts/github-session.ts paintAccess). Write actions are marked
+   [data-demo-write] (the same marks the demo gate uses); New token starts a token draft. Not shown to them. */
+:root[data-view-only] [data-demo-write],
+:root[data-view-only] #ed-add {
+  display: none;
+}

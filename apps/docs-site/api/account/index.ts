@@ -148,7 +148,7 @@ export interface AccountDeps {
 export interface PublicTeam {
   repo: string;
   name: string;
-  role: 'edit' | 'reviewer' | 'admin';
+  role: 'view' | 'edit' | 'reviewer' | 'admin';
   /** email: an email membership; github: the linked GitHub account is admin or editor of the repository (api/entry
    *  ?linked= read it with the Bridge app; a display list, every action checks GitHub again). */
   via: 'email' | 'github';
@@ -343,7 +343,7 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
       await dropTeamFromSet(ctx.svc.redis, email, repo);
       continue;
     }
-    out.push({ repo, name: teamDisplayName(repo), role: m.role === 'admin' ? 'admin' : 'edit', via: 'email', at: m.at });
+    out.push({ repo, name: teamDisplayName(repo), role: m.role, via: 'email', at: m.at });
   }
   // Local mode only: the teams this email was seeded admin of (api/_lib/local-admin.ts) say admin.
   const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.teamsOf(email) : [];

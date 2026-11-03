@@ -177,14 +177,16 @@ function, `apps/docs-site/api/invites/index.ts`.
 
 | Role in Studio | On GitHub                  | In `bridge.config.json`                                              |
 | -------------- | -------------------------- | -------------------------------------------------------------------- |
-| Can view       | `pull` (read)              | nothing. No longer offered: readers use Library access (below)       |
+| Can view       | none: joins with their email; `pull` (read) for someone on GitHub | nothing                                  |
 | Can edit       | `push` (write), or none when they join with their email (Email contributors) | nothing    |
 | Reviewer       | `push` (write)             | added to `governance.owners.design` (Designer) or `.tech` (Developer) |
 | Admin          | `admin`                    | owner lists left as they are                                         |
 
-Invites are for contributors: Studio offers Can edit, Reviewer and Admin, and the server refuses Can view for a new
-invite or a role change. People who only read the design system need no GitHub account: see "Library access". A member
-or a pending invite that already has Can view keeps it, shows it, and can be moved to a contributor role.
+Studio offers the four roles, Can view first. Can view joins the team with their email (no GitHub account) and gets
+the read-only Studio: they see everything in Studio and the library and change nothing. The server refuses every write
+from them (the contribute proxy, explorations, library updates, shipping, the connector's checks), whatever the page
+shows. Admins move a member to and from Can view in Members. The whole company can still read the library without
+joining the team: see "Library access".
 
 Owners live in `bridge.config.json`, a guardrail file, so a reviewer is listed through a pull request on it (the same
 keys Settings edits), opened by the Bridge Direct app. The reviewer role applies once it is merged. A repository owned

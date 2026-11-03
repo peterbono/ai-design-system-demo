@@ -75,7 +75,7 @@ import {
 import { figmaMark, figmaMarkKey, figmaMarkValid, withFigmaMark } from '../_lib/figma-mark.js';
 import { localAdminsOn } from '../_lib/local-admin.js';
 import { isLead, isTier1, leadsPublishTier1On, tier1Domain, tier1PublishReviewBody, TIER1_PUBLISH_HEADING } from '../_lib/tier1-publish.js';
-import type { MemberStore } from '../_lib/members.js';
+import { memberCanWrite, type MemberStore } from '../_lib/members.js';
 import type { Redis } from '../_lib/redis.js';
 
 export type { FetchLike };
@@ -275,7 +275,8 @@ async function allowed(req: Request, owner: string, repo: string, full: string, 
   }
   if (req.headers.get('x-bridge-contribute') !== '1' || !sameOriginWhenPresent(req)) throw new HttpError(403, 'origin', 'Ship from Studio on this site, or from the Figma plugin.');
   const m = await contributorOf(req, full, env, { fetch: deps.fetch, ...(deps.now ? { now: deps.now } : {}), ...(deps.redis ? { redis: deps.redis } : {}), ...(deps.members ? { members: deps.members } : {}), ...(deps.app ? { app: deps.app } : {}) });
-  return m ? { kind: 'member' } : null;
+  // Can view asks nothing to ship: they approve and publish nothing.
+  return m && memberCanWrite(m) ? { kind: 'member' } : null;
 }
 
 const lowerLogin = (x: unknown) => String(x ?? '').trim().replace(/^@/, '').toLowerCase();

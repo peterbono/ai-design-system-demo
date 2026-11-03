@@ -102,7 +102,7 @@ export function seedContributors(account: { email: string; name: string | null }
   for (const t of teams) {
     if (t.via !== 'email' || !/^[^/\s]+\/[^/\s]+$/.test(t.repo)) continue;
     if (contributorFor(t.repo)) continue;
-    const m = parseMember({ email: account.email, name: account.name ?? '', role: t.role === 'admin' ? 'admin' : 'edit' });
+    const m = parseMember({ email: account.email, name: account.name ?? '', role: t.role === 'admin' ? 'admin' : t.role === 'view' ? 'view' : 'edit' });
     if (!m) continue;
     try {
       localStorage.setItem(HINT_PREFIX + key(t.repo), JSON.stringify(m));
@@ -192,7 +192,7 @@ export interface TeamPeople {
   collaborators: TeamCollaborator[];
   /** Email members by name and role; `you` marks the signed-in one. Never another member's email. */
   /** 'admin' only in `npm run dev:full`, for a member seeded as admin (api/_lib/local-admin.ts). */
-  members: { name: string; role: 'edit' | 'admin'; you?: boolean }[];
+  members: { name: string; role: 'view' | 'edit' | 'admin'; you?: boolean }[];
 }
 
 /**
@@ -203,7 +203,7 @@ export async function contributeTeam(repo: string, githubToken: string | null = 
   const r = await call<Partial<TeamPeople>>('GET', `?repo=${encodeURIComponent(repo)}&members=1`, undefined, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
   const collaborators = Array.isArray(r.collaborators) ? r.collaborators.filter((c): c is TeamCollaborator => Boolean(c && typeof c.login === 'string')) : [];
   const members = Array.isArray(r.members)
-    ? r.members.filter((m) => m && typeof m.name === 'string').map((m) => ({ name: m.name.trim() || 'Contributor', role: localDevHost() && m.role === 'admin' ? ('admin' as const) : ('edit' as const), ...(m.you ? { you: true } : {}) }))
+    ? r.members.filter((m) => m && typeof m.name === 'string').map((m) => ({ name: m.name.trim() || 'Contributor', role: localDevHost() && m.role === 'admin' ? ('admin' as const) : m.role === 'view' ? ('view' as const) : ('edit' as const), ...(m.you ? { you: true } : {}) }))
     : [];
   return { collaborators, members };
 }

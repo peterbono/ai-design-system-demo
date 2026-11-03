@@ -7,7 +7,8 @@
 // api/_lib, not a function.
 //
 // Roles, as designers read them, and what each one is on GitHub (keep the Studio words in lib/invites.ts in step):
-//   view      "Can view"   GitHub `pull`  (read). No longer offered (CHOOSABLE_ROLES): readers use Library access.
+//   view      "Can view"   joins by email, no GitHub: sees everything in Studio and the library, changes nothing (every
+//                          write path refuses an email viewer). Someone on GitHub with read (`pull`) also reads as Can view.
 //   edit      "Can edit"   GitHub `push`  (write)
 //   reviewer  "Reviewer"   GitHub `push`, and the login is listed in bridge.config.json `governance.owners.design`
 //                          (reviews as Designer) or `governance.owners.tech` (reviews as Developer)
@@ -42,7 +43,7 @@
 // Email admins (api/_lib/members.ts): an email member made Admin manages the team without GitHub. A request without a
 // Bearer token but with the Bridge account cookie (api/account, `X-Bridge-Account: 1` on POSTs) is checked as that
 // account: an email admin of the team (or, in `npm run dev:full` only, a seeded local admin) may list, send, resend,
-// re-role and cancel invites, and change the role of or remove email members (Can edit or Admin). What happens on
+// re-role and cancel invites, and change the role of or remove email members (Can view, Can edit or Admin). What happens on
 // GitHub stays with GitHub admins: GitHub people's roles, and Reviewer (approvals happen on GitHub). A team made in
 // Bridge without a repository (`_team/<id>`, api/entry) is managed this way only; its admins can never be removed or
 // demoted to none: the last one stays.
@@ -98,17 +99,17 @@ export type GitHubPermission = 'pull' | 'push' | 'admin';
 export const ROLES: readonly Role[] = ['view', 'edit', 'reviewer', 'admin'];
 
 /**
- * The roles an admin picks in Studio: contributors only. Readers need no GitHub account (Settings, Library access,
- * api/library-access), so "Can view" is no longer offered; a pending invite or a member that already has it keeps it.
+ * The roles an admin picks in Studio, in the picker's order. Can view joins by email like Can edit and reads only; the
+ * whole company can still read the library without joining (Settings, Library access, api/library-access).
  */
-export const CHOOSABLE_ROLES: readonly Role[] = ['edit', 'reviewer', 'admin'];
+export const CHOOSABLE_ROLES: readonly Role[] = ['view', 'edit', 'reviewer', 'admin'];
 
 /** The GitHub permission of each role. Reviewer is `push` plus an owners entry in bridge.config.json. */
 export const ROLE_PERMISSION: Record<Role, GitHubPermission> = { view: 'pull', edit: 'push', reviewer: 'push', admin: 'admin' };
 
 /** The role in the words of the email (the same words as the Studio role picker). */
 export const ROLE_WORDS: Record<Role, { label: string; text: string }> = {
-  view: { label: 'Can view', text: 'Sees everything, comments and suggests.' },
+  view: { label: 'Can view', text: 'Sees everything in Studio and the library.' },
   edit: { label: 'Can edit', text: 'Also explores and changes the library.' },
   reviewer: { label: 'Reviewer', text: 'Also approves changes before they ship.' },
   admin: { label: 'Admin', text: 'Also invites people and changes settings.' },
@@ -238,7 +239,7 @@ const ID = /^[a-f0-9]{16}$/;
 export const validEmail = (v: unknown): v is string => typeof v === 'string' && v.length <= 254 && EMAIL.test(v.trim());
 
 function parseRole(role: unknown, reviewAs: unknown): { role: Role; reviewAs?: ReviewAs } {
-  if (typeof role !== 'string' || !(CHOOSABLE_ROLES as readonly string[]).includes(role)) throw new HttpError(400, 'bad_request', 'Pick a role: Can edit, Reviewer or Admin.');
+  if (typeof role !== 'string' || !(CHOOSABLE_ROLES as readonly string[]).includes(role)) throw new HttpError(400, 'bad_request', 'Pick a role: Can view, Can edit, Reviewer or Admin.');
   if (role === 'reviewer') {
     if (reviewAs !== 'design' && reviewAs !== 'tech') throw new HttpError(400, 'bad_request', 'Pick how they review: Designer or Developer.');
     return { role, reviewAs };
@@ -501,8 +502,9 @@ export function inviteEmail(x: { to: string; inviter: string; repo: string; team
   const roleLabel = x.role === 'reviewer' && x.reviewAs ? `${w.label}: ${REVIEW_AS_WORDS[x.reviewAs]}` : w.label;
   const team = x.team ?? teamDisplayName(x.repo);
   const subject = `${x.inviter} invited you to ${team}${onBridge(team)}`;
-  // Can edit and Admin join with the email (an admin needs GitHub only to approve there); reviewers approve on GitHub.
-  const how = x.role === 'edit' || x.role === 'admin' ? 'You join with this email, no GitHub account needed.' : 'You sign in with GitHub.';
+  // Can view, Can edit and Admin join with the email (an admin needs GitHub only to approve there); reviewers approve on
+  // GitHub.
+  const how = x.role === 'view' || x.role === 'edit' || x.role === 'admin' ? 'You join with this email, no GitHub account needed.' : 'You sign in with GitHub.';
   const lines = [
     `${x.inviter} invited you to the ${team} design system${onBridge(team)}.`,
     '',
@@ -1054,8 +1056,9 @@ async function inviteMany(
       seen.add(canonicalEmail(email));
       const rawLogin = (p as Record<string, unknown>).login;
       try {
-        // An organization member Bridge already knows is added straight away: no email, no link.
-        if (x.github && !x.github.facts.personal && rawLogin !== undefined) {
+        // An organization member Bridge already knows is added straight away: no email, no link. Can view always joins by
+        // email (no GitHub access to give).
+        if (x.github && !x.github.facts.personal && rawLogin !== undefined && x.role !== 'view') {
           const { appToken, facts } = x.github;
           const login = parseLogin(rawLogin);
           const member = await gh(ctx.f, appToken, 'GET', `/orgs/${facts.ownerLogin}/members/${encodeURIComponent(login)}`);
@@ -1163,7 +1166,7 @@ async function otherAdmins(ctx: Ctx, full: string, except: string): Promise<numb
 }
 
 /**
- * Changes an email member's role: Can edit or Admin (Reviewer approves on GitHub: 409 github-required). `by.email`: the
+ * Changes an email member's role: Can view, Can edit or Admin (Reviewer approves on GitHub: 409 github-required). `by.email`: the
  * email admin acting (never on themselves); `by.teamless`: a team made in Bridge keeps at least one admin.
  */
 async function setEmailRole(ctx: Ctx, full: string, body: Record<string, unknown>, by: { email: string | null; teamless: boolean }): Promise<Response> {
@@ -1172,7 +1175,7 @@ async function setEmailRole(ctx: Ctx, full: string, body: Record<string, unknown
   if (role === 'reviewer') throw new HttpError(409, 'github-required', GITHUB_REQUIRED);
   if (by.email && sameEmail(email, by.email)) throw new HttpError(409, 'self', SELF_ROLE);
   const m = (await ctx.svc.members!.get(full, email))!;
-  const next = role === 'admin' ? 'admin' : 'edit';
+  const next: EmailRole = role === 'admin' ? 'admin' : role === 'view' ? 'view' : 'edit';
   if (m.role === 'admin' && next !== 'admin' && by.teamless && (await otherAdmins(ctx, full, email)) === 0) throw new HttpError(409, 'last-admin', LAST_ADMIN);
   if (m.role !== next) await ctx.svc.members!.put(full, { ...m, role: next });
   return json(200, { ok: true, role: next });
@@ -1300,7 +1303,7 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
     case 'set-role': {
       const { me, appToken, facts } = await authorize(ctx, req, body.repo, 'admin');
       if (body.login === undefined && body.email !== undefined) {
-        // An email member is Can edit or Admin: reviewing happens on GitHub, with a GitHub account.
+        // An email member is Can view, Can edit or Admin: reviewing happens on GitHub, with a GitHub account.
         return setEmailRole(ctx, facts.full, body, { email: null, teamless: false });
       }
       const login = parseLogin(body.login);

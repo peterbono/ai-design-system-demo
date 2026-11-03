@@ -52,6 +52,8 @@ describe('the email session', () => {
   it('keeps a member only with an email, always Can edit', () => {
     expect(parseMember({ email: 'leo@acme.design', name: ' Leo ', role: 'admin' })).toEqual({ email: 'leo@acme.design', name: 'Leo', role: 'edit' });
     expect(parseMember({ email: 'leo@acme.design' })).toEqual({ email: 'leo@acme.design', name: 'leo@acme.design', role: 'edit' });
+    // Can view stays Can view: it only takes rights away.
+    expect(parseMember({ email: 'vic@acme.design', name: 'Vic', role: 'view' })).toEqual({ email: 'vic@acme.design', name: 'Vic', role: 'view' });
     expect(parseMember({ name: 'Leo' })).toBeNull();
   });
 

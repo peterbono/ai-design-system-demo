@@ -161,7 +161,7 @@ import {
   type FetchLike,
 } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
-import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
+import { memberCanWrite, memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import { sharedAppTokens } from '../_lib/shared-token.js';
 import { configName, putTeamName } from '../_lib/teams.js';
@@ -256,6 +256,8 @@ export const NOT_CONFIGURED = 'Joining with an email is not available yet on thi
 export const EXPIRED = 'This link expired or was already used. Ask your admin for a new invitation, or enter your email to get a sign-in link.';
 export const NOT_ALLOWED = 'Bridge does not do this for people who joined with their email. Ask a reviewer or an admin.';
 const SIGNIN = 'You signed out. Sign in again with your email: Bridge sends you a code.';
+/** A member with Can view writes nothing through Bridge: the same sentence as api/_lib/team-caller CALLER_WORDS.viewOnly. */
+export const VIEW_ONLY = 'You can view this team. Ask an admin for Can edit to change things.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 const APP_MISSING = 'Bridge cannot write to this design system yet. An admin of the repository gives the Bridge app access to it.';
 const PRODUCT_APP_MISSING = 'Bridge cannot work in this product yet. Ask an admin to connect it to Bridge.';
@@ -1638,6 +1640,8 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
     }
   }
   if (!member) return json(401, { error: 'signin', message: SIGNIN }, { 'Set-Cookie': clearSession(full) });
+  // Can view reads (GETs went to onTeamRead above) and writes nothing: no branch, commit, pull request, issue or review.
+  if (!memberCanWrite(member)) return fail(403, 'view-only', VIEW_ONLY);
   if (!own && !scope) throw notAllowed();
   const target: Target = { rest: any.rest, rawRest: any.rawRest, query: any.query };
   const at = own ? { owner, repo, full } : { owner: any.owner, repo: any.repo, full: `${any.owner}/${any.repo}`.toLowerCase() };

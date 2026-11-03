@@ -7,7 +7,7 @@ import { contributorOf, type ContribEnv } from '../contribute/index.js';
 import type { AppTokens } from './github-app.js';
 import { GITHUB_DOWN, HttpError, sameOriginWhenPresent, type FetchLike } from './http.js';
 import { localAdminsOn } from './local-admin.js';
-import type { MemberStore } from './members.js';
+import { memberCanWrite, type MemberStore } from './members.js';
 import { accountRef } from './oauth.js';
 import type { Redis } from './redis.js';
 
@@ -36,6 +36,8 @@ export const CALLER_WORDS = {
   signin: 'Sign in to Bridge first: with GitHub, or with your email in Studio.',
   expired: 'Your GitHub sign-in expired. Sign in again.',
   notOnTeam: 'Only people on this team can see this.',
+  /** An email member with Can view: they read everything, change nothing. */
+  viewOnly: 'You can view this team. Ask an admin for Can edit to change things.',
 } as const;
 
 /** The GitHub token of an `Authorization: Bearer` header (20 characters or more; local mode accepts the personas'). */
@@ -76,5 +78,7 @@ export async function teamCaller(req: Request, x: { owner: string; repo: string;
   if (req.headers.get('x-bridge-contribute') !== '1' || !sameOriginWhenPresent(req)) throw new HttpError(401, 'signin', CALLER_WORDS.signin);
   const m = await contributorOf(req, x.full, env, { fetch: deps.fetch, ...(deps.now ? { now: deps.now } : {}), ...(deps.redis ? { redis: deps.redis } : {}), ...(deps.members ? { members: deps.members } : {}), ...(deps.app ? { app: deps.app } : {}) });
   if (!m) throw new HttpError(401, 'signin', CALLER_WORDS.signin);
-  return { kind: 'member', name: m.name, login: null, account: accountRef(m.email), admin: m.role === 'admin', canEdit: true };
+  const canEdit = memberCanWrite(m);
+  if (x.need === 'edit' && !canEdit) throw new HttpError(403, 'view-only', CALLER_WORDS.viewOnly);
+  return { kind: 'member', name: m.name, login: null, account: accountRef(m.email), admin: m.role === 'admin', canEdit };
 }

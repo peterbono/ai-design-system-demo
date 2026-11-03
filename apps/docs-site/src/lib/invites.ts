@@ -6,7 +6,8 @@
 //
 // Role mapping, invisible to designers (they only read the four roles below). The server applies it
 // (api/invites/index.ts), and re-checks on GitHub that the caller is a repository admin before any change:
-//   Can view  = GitHub "read" (pull)
+//   Can view  = joins by email, no GitHub: the read-only Studio (api/_lib/members.ts); on GitHub, "read" (pull) reads
+//               back as Can view
 //   Can edit  = GitHub "write" (push)
 //   Reviewer  = GitHub "write" + listed in bridge.config.json governance.owners: `design` when they review as a
 //               Designer, `tech` as a Developer. The owner lists are the ones Settings > Review rules edits, and a change
@@ -14,9 +15,9 @@
 //   Admin     = GitHub "admin"
 // Reading it back (roleOf): GitHub admin is Admin whatever the owner lists say; write (or maintain) plus an owner
 // entry is Reviewer; write alone is Can edit; read (or triage) is Can view.
-// Studio invites are for contributors: the picker offers Can edit, Reviewer and Admin (CHOOSABLE_ROLES). Readers need
-// no GitHub account; Settings, Library access lets them in by work email (lib/library-access.ts). Someone who already
-// has read access on GitHub still shows as "Can view" (roleOf), and an admin can move them to a contributor role.
+// The picker offers all four roles, Can view first (CHOOSABLE_ROLES). Can view joins the team by email and changes
+// nothing (the server refuses every write). The whole company can still read the library without joining: Settings,
+// Library access (lib/library-access.ts).
 // A repository owned by a personal account has no admin collaborators on GitHub (everyone added can write, only the
 // account itself is admin), so the picker offers Admin only on an organization's repository (roleChoices) and says why.
 
@@ -37,12 +38,12 @@ export interface RoleChoice {
 
 export const ROLE_ORDER: readonly MemberRole[] = ['view', 'edit', 'reviewer', 'admin'];
 
-/** The roles an admin picks, in invites and in Members: contributors only (the server refuses Can view too). */
-export const CHOOSABLE_ROLES: readonly MemberRole[] = ['edit', 'reviewer', 'admin'];
+/** The roles an admin picks, in invites and in Members, in the board's order (I2). */
+export const CHOOSABLE_ROLES: readonly MemberRole[] = ['view', 'edit', 'reviewer', 'admin'];
 
-/** The roles in words (board I2): each one "Also" adds to the one before. Can view is shown, never offered. */
+/** The roles in words (board I2): each one "Also" adds to the one before. */
 export const ROLE_WORDS: Record<MemberRole, { label: string; help: string }> = {
-  view: { label: 'Can view', help: 'Sees everything, comments and suggests.' },
+  view: { label: 'Can view', help: 'Sees everything in Studio and the library.' },
   edit: { label: 'Can edit', help: 'Also explores and changes the library.' },
   reviewer: { label: 'Reviewer', help: 'Also approves changes before they ship.' },
   admin: { label: 'Admin', help: 'Also invites people and changes settings.' },
@@ -141,7 +142,7 @@ export function memberLine(m: { role: MemberRole; reviews: ReviewAs[] }): string
   // Only leads change the library itself (create-branch libraryLead): someone who can edit explores and asks for it.
   if (m.role === 'reviewer') return 'Changes the library and approves changes';
   if (m.role === 'edit') return 'Explores products and asks for library changes';
-  return 'Sees everything, comments and suggests';
+  return 'Sees everything in Studio and the library';
 }
 
 /**
@@ -197,7 +198,7 @@ export function emailMembers(rows: readonly unknown[], viewerEmail: string | nul
     if (!r || r.via !== 'email' || typeof r.email !== 'string' || !isEmail(r.email)) continue;
     const email = r.email.toLowerCase();
     const you = Boolean(viewerEmail && viewerEmail.toLowerCase() === email);
-    out.push({ login: email, name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : email, role: r.role === 'admin' ? 'admin' : 'edit', reviews: [], email, via: 'email', ...(you ? { you: true } : {}) });
+    out.push({ login: email, name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : email, role: r.role === 'admin' ? 'admin' : r.role === 'view' ? 'view' : 'edit', reviews: [], email, via: 'email', ...(you ? { you: true } : {}) });
   }
   return out;
 }

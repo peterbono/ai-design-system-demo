@@ -151,6 +151,58 @@ async function join(s: ReturnType<typeof setup>, email = 'mia@acme.design', name
 
 const P = '/repos/acme/design';
 
+/** A "Can view" member joined by email and their session cookie: reads only. */
+async function joinViewer(s: ReturnType<typeof setup>, email = 'vic@acme.design', name = 'Vic Lund') {
+  const member = { email, name, role: 'view' as const, version: 1, addedBy: 'dana', at: new Date(s.deps.now!()).toISOString() };
+  await s.members.put(REPO, member);
+  return issueSession(member, REPO, SECRET, s.deps.now!()).split(';')[0]!;
+}
+
+describe('Can view: reads everything, writes nothing', () => {
+  it('reads through the proxy and says its role', async () => {
+    const s = setup();
+    const cookie = await joinViewer(s);
+    expect((await handleContribute(gh('GET', `${P}/pulls`, cookie), ENV, s.deps)).status).toBe(200);
+    expect((await (await handleContribute(status(cookie), ENV, s.deps)).json()).member).toMatchObject({ email: 'vic@acme.design', role: 'view' });
+  });
+
+  it('every write through the proxy answers 403 view-only, and nothing reaches GitHub', async () => {
+    const s = setup();
+    const cookie = await joinViewer(s);
+    const writes: [string, string, unknown][] = [
+      ['POST', `${P}/git/refs`, { ref: 'refs/heads/bridge/vic-1', sha: SHA }],
+      ['PATCH', `${P}/git/refs/heads/bridge/vic-1`, { sha: SHA2, force: false }],
+      ['POST', `${P}/git/blobs`, { content: 'x', encoding: 'utf-8' }],
+      ['PUT', `${P}/contents/design/tokens/color.tokens.json`, { message: 'x', content: 'e30=' }],
+      ['POST', `${P}/pulls`, { title: 'x', head: 'bridge/vic-1', base: 'main' }],
+      ['POST', `${P}/issues`, { title: 'x' }],
+      ['POST', `${P}/pulls/1/reviews`, { event: 'APPROVE' }],
+      ['DELETE', `${P}/git/refs/heads/bridge/vic-1`, undefined],
+    ];
+    for (const [method, path, body] of writes) {
+      const r = await handleContribute(gh(method, path, cookie, body), ENV, s.deps);
+      expect(r.status, `${method} ${path}`).toBe(403);
+      expect((await r.json()).error).toBe('view-only');
+    }
+    expect(s.w.calls.filter((c) => c.method !== 'GET')).toEqual([]);
+  });
+
+  it('cannot send a library update', async () => {
+    const s = setup();
+    const cookie = await joinViewer(s);
+    const r = await handleContribute(act({ action: 'library-update', repo: REPO, product: 'shop' }, { cookie }), ENV, s.deps);
+    expect(r.status).toBe(403);
+  });
+
+  it('made Can edit again, writes again (the role is read on every request)', async () => {
+    const s = setup();
+    const cookie = await joinViewer(s);
+    const m = (await s.members.get(REPO, 'vic@acme.design'))!;
+    await s.members.put(REPO, { ...m, role: 'edit' });
+    expect((await handleContribute(gh('POST', `${P}/git/refs`, cookie, { ref: 'refs/heads/bridge/vic-1', sha: SHA }), ENV, s.deps)).status).toBe(201);
+  });
+});
+
 describe('availability', () => {
   it('is unavailable without storage, the secret or the app, and says no member', async () => {
     const bare: ContribDeps = { fetch: async () => res(599) };

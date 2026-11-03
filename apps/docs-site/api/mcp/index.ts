@@ -217,7 +217,7 @@ export async function grantIdentity(x: {
 }): Promise<WhoAmI> {
   const names = await getTeamNames(x.redis, [x.grant.repo]).catch(() => new Map<string, { name: string }>());
   const team = teamDisplayName(x.grant.repo, { name: names.get(x.grant.repo.toLowerCase())?.name });
-  if (x.emailMember) return { name: x.emailMember.name || 'Email member', email: maskEmail(x.emailMember.email), role: x.emailMember.role === 'admin' ? 'Admin' : 'Can edit', via: 'email', team, writes: 'bridge' };
+  if (x.emailMember) return { name: x.emailMember.name || 'Email member', email: maskEmail(x.emailMember.email), role: x.emailMember.role === 'admin' ? 'Admin' : x.emailMember.role === 'view' ? 'Reader' : 'Can edit', via: 'email', team, writes: 'bridge' };
   const login = x.grant.login || undefined;
   if (x.designer) return { name: x.grant.name || x.grant.login, ...(login ? { login } : {}), role: 'Can edit', via: 'github', team, writes: x.routed ? 'bridge' : 'own' };
   const [owner, repo] = x.grant.repo.split('/');
@@ -230,14 +230,14 @@ export async function grantIdentity(x: {
 // OAuth steps
 
 /** The teams of a Bridge account that have a repository (a design system), by the name their settings gave. */
-async function teamsWithDesignSystem(redis: Redis, email: string): Promise<{ repo: string; name: string; email: true; role: 'admin' | 'edit' }[]> {
+async function teamsWithDesignSystem(redis: Redis, email: string): Promise<{ repo: string; name: string; email: true; role: 'admin' | 'edit' | 'view' }[]> {
   const raw = await redis.cmd('SMEMBERS', accountTeamsKey(email));
   const repos = (Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []).filter((r) => !isTeamKey(r) && /^[^/_][^/]*\/[^/]+$/.test(r)).sort();
   const members = memberStore(redis);
-  const live: { repo: string; role: 'admin' | 'edit' }[] = [];
+  const live: { repo: string; role: 'admin' | 'edit' | 'view' }[] = [];
   for (const repo of repos) {
     const m = await members.get(repo, email);
-    if (m) live.push({ repo, role: m.role === 'admin' ? 'admin' : 'edit' });
+    if (m) live.push({ repo, role: m.role });
   }
   const names = await getTeamNames(redis, live.map((t) => t.repo)).catch(() => new Map<string, { name: string }>());
   // Every team here knows the account by its email: Claude can connect with the Bridge sign-in alone (no GitHub). Its

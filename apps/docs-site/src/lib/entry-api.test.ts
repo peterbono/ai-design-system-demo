@@ -654,6 +654,16 @@ describe('accept-invite', () => {
     expect((await post(s, mia, { action: 'accept-invite', repo: REPO, id: inv.id })).status).toBe(410);
   });
 
+  it('joins a Can view invite with the email alone, even with GitHub linked, and lists the team as Can view', async () => {
+    const s = setup();
+    const inv = await invite(s, { email: 'vic@acme.design', role: 'view' });
+    const vic = await account(s, 'vic@acme.design', 'Vic Lund', { login: 'vic', id: 9 });
+    const r = await post(s, vic, { action: 'accept-invite', repo: REPO, id: inv.id });
+    expect(await r.json()).toEqual({ joined: true, status: 'joined', repo: REPO, role: 'view', next: '/studio/acme/ds/' });
+    expect(await s.members.get(REPO, 'vic@acme.design')).toMatchObject({ role: 'view' });
+    expect((await (await get(s, vic)).json()).teams).toEqual([expect.objectContaining({ repo: REPO, role: 'view', via: 'email' })]);
+  });
+
   it('never accepts someone else’s invite', async () => {
     const s = setup();
     const inv = await invite(s, { email: 'zed@acme.design' });

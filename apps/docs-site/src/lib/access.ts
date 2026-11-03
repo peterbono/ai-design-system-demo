@@ -35,10 +35,11 @@ export interface RepoAccess {
 }
 
 /**
- * What an email contributor may do: edit, never review. Never administer, except a member seeded as admin in
- * `npm run dev:full` (`admin`, api/_lib/local-admin.ts). Reachable through Bridge's own app.
+ * What an email contributor may do: edit, never review. Never administer, except an email admin (`admin`). Can view
+ * (`view`) is the read-only Studio a GitHub reader gets: state reader, no write. Reachable through Bridge's own app.
  */
-export function contributorAccess(admin = false): RepoAccess {
+export function contributorAccess(admin = false, view = false): RepoAccess {
+  if (view && !admin) return { state: 'reader', write: false, admin: false, reach: true, contributor: true };
   return { state: 'writer', write: true, admin, reach: true, contributor: true };
 }
 
