@@ -9,6 +9,9 @@
 // list again every few seconds (and at once when the return page, pages/studio/auth/access.astro, says so), and goes
 // back to the form with the new product picked and named. GitHub closed with nothing new: one line says the owners
 // decide (someone who does not own the account can only ask). GitHub busy: the busy line, no more reads.
+//
+// "No code yet? Start a new product" (one more quiet line under the list): the same dialog shows StartNewProduct.tsx,
+// where Bridge starts the product's code on GitHub itself, so no access step, then shows the way to its previews.
 import { useEffect, useId, useReducer, useRef, useState } from 'react';
 import { Button, ButtonGroup, Checkbox, Combobox, Dialog, DialogClose, DialogContent, Input, Spinner } from '@bridge-ds/react';
 import { accessSettingsUrl, type AppInstallation } from '../../../lib/access-view';
@@ -16,6 +19,7 @@ import { githubBusy } from '../../../lib/github-busy';
 import type { ProductConfig } from '@bridge-ds/core';
 import { BusyNotice } from './BusyNotice';
 import { Drawing } from './Drawing';
+import StartNewProduct from './StartNewProduct';
 import '../../../styles/add-product.css';
 import {
   ACCESS_TICK_MS,
@@ -34,6 +38,7 @@ import {
   waitedTooLong,
   type ProductRepoChoice,
 } from '../../../lib/add-product';
+import { NEW_PRODUCT_WORDS as NW } from '../../../lib/new-product';
 
 /** Whether this viewer may add a product: the same rule as renaming one (lib/product-name canRenameProduct). */
 export function useCanAddProduct(): boolean {
@@ -108,11 +113,20 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   const before = useRef<string[] | null>(null);
   const sendRef = useRef<HTMLButtonElement>(null);
   const formId = useId();
+  // "Start a new product": the dialog shows its own form; once proposed, closing counts as sent.
+  const [startNew, setStartNew] = useState(false);
+  const proposedNew = useRef(false);
 
   const setOpen = (o: boolean) => {
     if (!o) {
       go({ type: 'cancel' });
       setFound(null);
+      setStartNew(false);
+      if (proposedNew.current) {
+        proposedNew.current = false;
+        if (!controlled) setSent(true);
+        onSent?.();
+      }
     }
     if (onOpenChange) onOpenChange(o);
     else setOpenOwn(o);
@@ -284,6 +298,16 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     }
   };
 
+  // No code yet: Bridge starts the product itself (StartNewProduct.tsx).
+  const startLine = (
+    <p className="addp-more">
+      <span>{NW.noCode}</span>{' '}
+      <Button variant="link" size="sm" onClick={() => setStartNew(true)}>
+        {NW.start}
+      </Button>
+    </p>
+  );
+
   // The line under the list (or, once GitHub closed with nothing new, what happened and Try again).
   const note =
     step.kind === 'nothing-new' ? (
@@ -310,7 +334,29 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         </Button>
       )}
       <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
-        <DialogContent
+        {startNew && (
+          <StartNewProduct
+            products={products}
+            account={target?.account ?? null}
+            repos={repos ?? []}
+            busy={busy}
+            setBusy={setBusy}
+            onBack={() => setStartNew(false)}
+            onProposed={() => {
+              proposedNew.current = true;
+            }}
+            onStartedOnly={(r, n) => {
+              // Started on GitHub, not proposed: back to the list with it picked, Add product sends it again.
+              setRepos((list) => mergeRepos(list ?? [], [r]));
+              setRepo(r.full);
+              setName(n);
+              setError(W.refused);
+              setStartNew(false);
+            }}
+            onDone={() => setOpen(false)}
+          />
+        )}
+        {!startNew && <DialogContent
           title={W.title}
           description={W.lead}
           hideClose
@@ -359,11 +405,10 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
               {step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />}
               {none ? (
                 // Nothing to pick: no empty field, one sentence, and the footer's one action gives Bridge access.
-                step.kind === 'nothing-new' ? (
-                  note
-                ) : (
-                  <p className="addp-none-line">{W.emptyLine}</p>
-                )
+                <>
+                  {step.kind === 'nothing-new' ? note : <p className="addp-none-line">{W.emptyLine}</p>}
+                  {startLine}
+                </>
               ) : (
                 <div className="addp-pick">
                   <Combobox
@@ -384,6 +429,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
                     emptyMessage={W.codeNone}
                   />
                   {repos && note}
+                  {repos && startLine}
                 </div>
               )}
               {!none && (
@@ -407,7 +453,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
               )}
             </form>
           )}
-        </DialogContent>
+        </DialogContent>}
       </Dialog>
     </>
   );
