@@ -139,9 +139,9 @@ export function memberLine(m: { role: MemberRole; reviews: ReviewAs[] }): string
   if (d) return 'Reviews design';
   if (t) return 'Reviews code';
   if (m.role === 'admin') return 'Invites people and changes settings';
-  // Only leads change the library itself (create-branch libraryLead): someone who can edit explores and asks for it.
+  // Same words as the role picker (ROLE_TEXT.edit); their library changes still go through review.
   if (m.role === 'reviewer') return 'Changes the library and approves changes';
-  if (m.role === 'edit') return 'Explores products and asks for library changes';
+  if (m.role === 'edit') return 'Explores and changes the library';
   return 'Sees everything in Studio and the library';
 }
 
