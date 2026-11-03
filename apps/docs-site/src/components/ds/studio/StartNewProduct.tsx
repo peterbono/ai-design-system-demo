@@ -1,11 +1,11 @@
-// "Start a new product", the second quiet line under Add a product's list ("No code yet?"): the team has no code for
-// the product yet (a new product, or code not on GitHub). One small form (its name, its address on GitHub, where it
+// "It's a new product", the second choice card of Add a product: the team has no code for the product yet (a new
+// product, or code not on GitHub). One small form (its name, its address on GitHub, where it
 // lives when Bridge reaches more than one account), then Bridge starts its code from the product starter with the
 // viewer's own GitHub sign-in (scripts/new-product.ts) and proposes it for review like Add product
 // (scripts/roles.ts proposeNewProduct, designers' copy on). Last step: the way to its previews, Vercel or Cloudflare
 // in a new window, Bridge never handles a password there. Words and rules: lib/new-product.ts. Rendered inside Add
 // a product's dialog (AddProduct.tsx), which owns opening, closing and the busy lock.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, ExternalLink } from 'lucide-react';
 import { Button, ButtonGroup, Checkbox, DialogContent, Input, Select, Spinner, VisuallyHidden } from '@bridge-ds/react';
 import type { ProductConfig } from '@bridge-ds/core';
@@ -35,7 +35,7 @@ export interface StartNewProductProps {
   repos: readonly ProductRepoChoice[];
   busy: boolean;
   setBusy: (busy: boolean) => void;
-  /** Back to the list. */
+  /** Back to Add a product's choice. */
   onBack: () => void;
   /** The product is started and proposed: the dialog counts it as sent when it closes. */
   onProposed: () => void;
@@ -57,6 +57,9 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
   const { copied, said, copy } = useCopy(3000);
   const formId = 'addp-new-form';
   const slug = slugFor(cleanProductName(name));
+  // Chosen from the cards: the name takes the focus (the card that opened this step is gone).
+  const nameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => nameRef.current?.focus(), []);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,6 +145,7 @@ export default function StartNewProduct({ products, account, repos, busy, setBus
     >
       <form id={formId} onSubmit={(e) => void create(e)} noValidate className="addp-form">
         <Input
+          ref={nameRef}
           label={W.name}
           hint={owner ? addressLine(owner, slug) : W.nameHelp}
           value={name}
