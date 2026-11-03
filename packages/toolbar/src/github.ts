@@ -3,6 +3,7 @@
 // and brands its tokens touch), how far live has moved on since it started, and the visual impact manifest of that
 // commit. At most six API reads per change and session, kept in sessionStorage. The manifest is looked up in the tree
 // first, so a change without one never shows a failed request.
+import { tabPass } from './pass';
 import { DEFAULT_PROXY, githubReads, type Reads } from './reads';
 import { changedScreens, changeMode, readableTitle, tokenChanges, type BridgeBuild, type ChangeMode, type ManifestShot, type Screen, type TokenChange } from './session';
 
@@ -33,9 +34,12 @@ function session(): Storage | null {
   }
 }
 
-/** The reads of a build: Bridge's proxy for its design system (the product's repository is one it lists), else GitHub. */
+/**
+ * The reads of a build: Bridge's proxy for its design system (the product's repository is one it lists), with the
+ * tab's read pass when Studio gave one (a private product), else GitHub.
+ */
 export function readsOf(build: Pick<BridgeBuild, 'owner' | 'repo' | 'ds' | 'proxy'>): Reads {
-  return githubReads({ team: build.ds ?? `${build.owner}/${build.repo}`, proxy: build.proxy === undefined ? DEFAULT_PROXY : build.proxy });
+  return githubReads({ team: build.ds ?? `${build.owner}/${build.repo}`, proxy: build.proxy === undefined ? DEFAULT_PROXY : build.proxy, pass: tabPass() });
 }
 
 type Tree = { tree: { path: string; type: string; sha: string }[] };

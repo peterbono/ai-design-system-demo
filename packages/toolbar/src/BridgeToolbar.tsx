@@ -2,6 +2,7 @@
 // nothing and loads nothing unless Bridge Studio opened the page with `?bridge=<change>` (kept for the session), then
 // loads the toolbar itself as one lazy chunk, with its styles.
 import { lazy, Suspense, useState } from 'react';
+import { takePassFromAddress } from './pass';
 import { readChanges, type BridgeBuild } from './session';
 import type { ToolbarScope, ToolbarShop } from './scope';
 import type { TogetherBase } from './together';
@@ -41,6 +42,10 @@ export interface BridgeToolbarProps {
 
 const Toolbar = lazy(() => import('./Toolbar'));
 
+// Studio's read pass leaves the address now, on import: before the product renders and its hash router reads the
+// fragment (pass.ts).
+takePassFromAddress();
+
 function asked(): boolean {
   let store: Storage | null = null;
   try {
@@ -48,6 +53,7 @@ function asked(): boolean {
   } catch {
     store = null;
   }
+  takePassFromAddress();
   return readChanges(window.location.search, store).length > 0;
 }
 

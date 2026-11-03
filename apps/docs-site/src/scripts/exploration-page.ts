@@ -77,6 +77,7 @@ import { libraryScope } from './next-release';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
 import { askerRole, declineNoteOf, devQuestionOf, explorationLifecycle, reviewStateOf, taskDeclined, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
 import { answerDevPull, forgetQuestion, readDesignTask, readDevPull, replyOnTask, taskRef } from './design-task';
+import { installReadPass } from './read-pass';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -213,6 +214,8 @@ async function capturedImage(r: ExplorationRow, files: readonly string[] | null)
  * reads it again after a write and opens the page of its new state with `said`, the line the write produced.
  */
 export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pull: ExplorationPullLike, product: ProductConfig, products: readonly ProductConfig[], reopen: (said?: string) => void, said?: string) {
+  // Try it in the product, on a private product too: the toolbar there reads the change with the member's pass.
+  installReadPass();
   mod ??= await import('../components/ds/studio/ExplorationPage');
   const key = explorationKey(r);
   const own = productRepoByKey(r.product);

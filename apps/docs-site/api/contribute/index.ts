@@ -11,6 +11,9 @@
 //   GET  /api/contribute?repo=owner/name                 { available, member }  member is { email, name, role } or null
 //   GET  /api/contribute?repo=owner/name&mine=1          { branches, issues, products }  what the signed-in member made
 //                                                        and owns, on the team and per product repository (copy, task)
+//   GET  /api/contribute?repo=owner/name&mint=read-pass  { pass, exp, origins } | { pass: null }  for a member: a read
+//                                                        pass for the team's product repositories (api/_lib/read-pass)
+//                                                        and the product origins Studio may hand it to
 //   GET  /api/contribute?repo=owner/name&members=1       { collaborators, members }  who is on the team, for Settings >
 //                                                        Members of anyone on it: an email contributor (the cookie) or
 //                                                        a GitHub account that can read the repository (Bearer). The
@@ -49,7 +52,9 @@
 // A GET from a page of another origin (the Bridge toolbar in a product) reads gh= or blobs= of a public demo team as a
 // visitor (every cookie ignored), and gets Access-Control-Allow-Origin (no credentials) only when the team's
 // bridge.config.json names that origin or it is a local dev server (api/_lib/team-read.ts originAllowed); anything
-// else from another origin answers 403 origin without CORS headers.
+// else from another origin answers 403 origin without CORS headers. With `&pass=<read pass>` (GET ?repo=<team>&
+// mint=read-pass, members only, api/_lib/read-pass.ts), the same page reads gh= of a product repository the pass
+// names, private ones and any team's included, read only.
 //
 // The proxy policy (anything else answers 403 { error: 'not-allowed' }). Only paths under /repos/<the session's repo>:
 //   GET    the read allow-list of api/_lib/team-read.ts (READ_RULES), with a read-only token
@@ -164,7 +169,8 @@ import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/sessi
 import { teamInSet } from '../_lib/members.js';
 import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-update.js';
 import { validPackageName } from '../../src/lib/library-update.js';
-import { corsHeaders, isPublicRepo, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, profileNameOf, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
+import { mintReadPass, passOpens, verifyReadPass, type ReadPass } from '../_lib/read-pass.js';
+import { corsHeaders, isPublicRepo, memberBudgetId, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, profileNameOf, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
 
@@ -1723,7 +1729,10 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
  * team, or in local mode a seeded admin), else anyone when it is a public demo team GitHub says is public. Null:
  * nobody we know.
  */
-async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx): Promise<Reader | null> {
+async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx, pass: ReadPass | null = null): Promise<Reader | null> {
+  // A page of another origin with a member's read pass for the product it reads (onTeamRead checked it names it):
+  // read only, that product only, the visitor's allow-list, the member's budget. Cookies still ignored.
+  if (ctx.cross && pass) return { kind: 'member', pass: { budget: pass.m, repos: pass.r } };
   // A page of another origin reads as a visitor of a public demo team, whatever cookie the browser sent.
   if (ctx.cross) return PUBLIC_TEAMS.includes(full.toLowerCase()) && (await isPublicRepo(rctx, ...(full.split('/') as [string, string]))) ? { kind: 'guest' } : null;
   // A member reads on their own budget (api/_lib/team-read.ts budgetOf), not their address's.
@@ -1752,15 +1761,33 @@ async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx): Pr
  * GET gh= (one GitHub read), blobs= (many blobs at once), users= (public profiles) or changes= (the status reads of
  * open changes), for a member or (gh= and blobs= only) a visitor of a public demo team.
  */
+const readCtxOf = (ctx: Ctx): ReadCtx => ({
+  f: ctx.f,
+  now: ctx.now,
+  redis: ctx.svc.redis,
+  token: (o, r) => ctx.svc.readApp.installationToken(o, r),
+  env: { READ_MAX_IP: ctx.env.READ_MAX_IP, READ_MAX_GUEST: ctx.env.READ_MAX_GUEST, READ_MAX_TEAM: ctx.env.READ_MAX_TEAM, READ_MAX_UPSTREAM: ctx.env.READ_MAX_UPSTREAM },
+});
+
+/**
+ * GET ?repo=<team>&mint=read-pass, for a member of the team on this site: a read pass (api/_lib/read-pass.ts) for the
+ * product repositories the team's config lists, and the origins it may be handed to (the team's product pages). Studio
+ * puts it in the fragment of the preview links it opens for this member; the Bridge toolbar there sends it back with
+ * its reads. { pass: null } when the team lists no product.
+ */
+async function mintPass(ctx: Ctx, req: Request, full: string): Promise<Response> {
+  const rctx = readCtxOf(ctx);
+  const reader = await readerOf(ctx, req, full, rctx);
+  if (reader?.kind !== 'member' || !reader.email) return fail(401, 'signin', SIGNIN);
+  const { owner, repo } = parseRepo(full);
+  const config = await teamReadConfigOf(rctx, owner, repo);
+  const minted = mintReadPass({ team: full, repos: config.repos, member: memberBudgetId(reader.email) }, ctx.svc.secret, ctx.now());
+  return json(200, minted ? { pass: minted.pass, exp: minted.exp, origins: config.origins } : { pass: null }, { 'Cache-Control': 'private, no-store' });
+}
+
 async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Promise<Response> {
   const { owner, repo, full } = parseRepo(params.get('repo'));
-  const rctx: ReadCtx = {
-    f: ctx.f,
-    now: ctx.now,
-    redis: ctx.svc.redis,
-    token: (o, r) => ctx.svc.readApp.installationToken(o, r),
-    env: { READ_MAX_IP: ctx.env.READ_MAX_IP, READ_MAX_GUEST: ctx.env.READ_MAX_GUEST, READ_MAX_TEAM: ctx.env.READ_MAX_TEAM, READ_MAX_UPSTREAM: ctx.env.READ_MAX_UPSTREAM },
-  };
+  const rctx = readCtxOf(ctx);
   const blobs = params.get('blobs');
   const usersArg = params.get('users');
   const changesArg = params.get('changes');
@@ -1774,13 +1801,17 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
   const target = any;
   const shas = blobs !== null && !logins && !changes ? parseBlobList(blobs) : null;
   if (target && !readAllowed(target.rest, { kind: product ? 'guest' : 'member' })) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
+  // A member's read pass, from another origin only, for a product repository it names: anything else is ignored (the
+  // page reads as a visitor, as without it).
+  const given = ctx.cross && product ? verifyReadPass(params.get('pass'), ctx.svc.secret, ctx.now()) : null;
+  const pass = given && passOpens(given, full, `${product!.owner}/${product!.repo}`) ? given : null;
   if (ctx.cross) {
-    // Another origin: only a public demo team, and only from an origin its bridge.config.json names.
-    if (!PUBLIC_TEAMS.includes(full.toLowerCase())) return json(401, { error: 'signin', message: SIGNIN });
+    // Another origin: a public demo team or a member's read pass, and only from an origin its bridge.config.json names.
+    if (!PUBLIC_TEAMS.includes(full.toLowerCase()) && !pass) return json(401, { error: 'signin', message: SIGNIN });
     if (!originAllowed(ctx.cross.origin, (await teamReadConfigOf(rctx, owner, repo)).origins)) throw new HttpError(403, 'origin', CROSS_ORIGIN);
     ctx.cross.ok = true;
   }
-  const reader = await readerOf(ctx, req, full, rctx);
+  const reader = await readerOf(ctx, req, full, rctx, pass);
   if (!reader) {
     if (ctx.cross) return json(401, { error: 'signin', message: SIGNIN });
     // A team cookie that no longer holds is cleared, as for any other call.
@@ -1949,6 +1980,7 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
       }
       const { full } = parseRepo(repoArg);
       const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
+      if (params.get('mint') === 'read-pass') return await mintPass(ctx, req, full);
       const m = await sessionMember(ctx, req, full);
       if (params.get('members') === '1') return await membersOf(ctx, req, full, m);
       if (params.get('mine') === '1') {

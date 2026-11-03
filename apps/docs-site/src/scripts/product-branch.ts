@@ -52,6 +52,7 @@ import { viewerRole } from './needs-you';
 import { explorationsConfig } from './exploration-start';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { siteConfig } from './repo-context';
+import { installReadPass } from './read-pass';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -255,6 +256,8 @@ export function pieceActor(x: { r: ExplorationRow; gh: ReturnType<typeof client>
 
 /** Paints a product branch in place. `reopen` reads it again after a write, with the line it produced (`said`). */
 export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull: ExplorationPullLike, product: ProductConfig, products: readonly ProductConfig[], reopen: (said?: string) => void, said?: string) {
+  // Try it in the product, on a private product too: the toolbar there reads the change with the member's pass.
+  installReadPass();
   mod ??= await import('../components/ds/studio/ProductBranch');
   const record = parsePiecesRecord(pull.body);
   const jira = shownJiraKey(pull.title);
