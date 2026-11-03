@@ -2,4 +2,4 @@
 "@bridge-ds/docs-site": patch
 ---
 
-It's a new product: Where lists the account of the team's products first, each with a plain line ("Where Art print shop lives", "Where your library lives").
+It's a new product: no Where field and no address line any more. A new product goes to the account where the team's products live, or the team's own account when it has no product yet.
