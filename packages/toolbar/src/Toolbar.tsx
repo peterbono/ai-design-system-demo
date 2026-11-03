@@ -10,7 +10,7 @@
 // measured (its live side is another origin): its exploration marks each new or changed area with data-bridge-change,
 // and This change outlines, counts and steps through those areas the same way (markers.ts).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { Badge, Button, ButtonGroup, Checkbox, Icon, IconButton, Kbd, Link, Popover, PopoverContent, PopoverTrigger, ThemeProvider, Tooltip } from '@bridge-ds/react';
+import { Button, ButtonGroup, Checkbox, Icon, IconButton, Kbd, Link, Popover, PopoverContent, PopoverTrigger, ThemeProvider, Tooltip } from '@bridge-ds/react';
 import { Check, ChevronUp, GripVertical, Info, ListChecks, Minimize2, ScanSearch } from 'lucide-react';
 import { loadChange, type ChangeFacts } from './github';
 import { loadBuild } from './config';
@@ -762,30 +762,52 @@ function Toolbar({
             : NO_MARKS_LINE
         : 'The screens this change affects are not measured yet.';
 
+  // Why a side cannot be opened yet, in its tooltip: a disabled side still says what it is waiting for.
+  const flipBlocked = canFlip
+    ? null
+    : !facts
+      ? error
+        ? 'Bridge could not read this change, so there is nothing to compare. Reload the page to try again.'
+        : 'Reading the change. You can switch sides once it has loaded.'
+      : side === 'after'
+        ? "Bridge does not know where this product runs in production. Add its production URL to bridge.config.json."
+        : 'Open this change from Studio to come back to it.';
+  // The two sides: one switch, the same in the collapsed pill and the open bar, so flipping is always one click.
   const sides = (
     <ButtonGroup appearance="attached" aria-label="Compare" className={styles.sides}>
-      {(['before', 'after'] as const).map((s) => (
-        <Tooltip
-          className={PIN_CLASS}
-          key={s}
-          content={
-            <>
-              {sideLabel(s)}: {s === 'before' ? 'what customers see today.' : modeDetail(facts, 'after', 'idle')} <Kbd keys="B" size="sm" /> flips sides on the same screen.
-            </>
-          }
-        >
-          <Button
-            variant="secondary"
-            size="md"
-            pressed={side === s}
-            aria-keyshortcuts="B"
-            disabled={!canFlip && side !== s}
-            onClick={() => choose(s)}
+      {(['before', 'after'] as const).map((s) => {
+        const blocked = !canFlip && side !== s;
+        return (
+          <Tooltip
+            className={PIN_CLASS}
+            key={s}
+            content={
+              blocked ? (
+                <>
+                  {sideLabel(s)} is not available yet. {flipBlocked}
+                </>
+              ) : (
+                <>
+                  {sideLabel(s)}: {s === 'before' ? 'what customers see today.' : modeDetail(facts, 'after', 'idle')} <Kbd keys="B" size="sm" /> flips sides on the same screen.
+                </>
+              )
+            }
           >
-            {sideLabel(s)}
-          </Button>
-        </Tooltip>
-      ))}
+            <Button
+              variant="secondary"
+              size="md"
+              pressed={side === s}
+              aria-keyshortcuts="B"
+              disabled={blocked}
+              // Stays focusable and hoverable while disabled (aria-disabled), so its tooltip can say why.
+              {...{ focusableWhenDisabled: true }}
+              onClick={() => choose(s)}
+            >
+              {sideLabel(s)}
+            </Button>
+          </Tooltip>
+        );
+      })}
     </ButtonGroup>
   );
 
@@ -1088,13 +1110,14 @@ function Toolbar({
           </>
         ) : (
           <>
+            {/* Collapsed: what this is (Bridge, the change's title), the switch between its two sides, and the details. */}
             <span className={styles.brand}>Bridge</span>
-            <span className={styles.pillTitle} title={title}>
-              {title}
-            </span>
-            <Badge size="sm">{label}</Badge>
-            <Tooltip className={PIN_CLASS} content="Open the toolbar">
-              <IconButton icon={ChevronUp} size="md" label={`Open the Bridge toolbar. Showing ${label.toLowerCase()}. Press B to flip.`} onClick={() => toggleOpen(true)} />
+            <Tooltip className={PIN_CLASS} content={title}>
+              <span className={styles.pillTitle}>{title}</span>
+            </Tooltip>
+            {sides}
+            <Tooltip className={PIN_CLASS} content="Show Bridge details">
+              <IconButton icon={ChevronUp} size="md" label="Show Bridge details" onClick={() => toggleOpen(true)} />
             </Tooltip>
           </>
         )}
