@@ -68,7 +68,8 @@ import { LIBRARY_ASKS, archivedHref, archivedLine, emptyProductLine, productFact
 import { studioHref } from '../../../lib/team-path';
 import { PRODUCT_NAME_MAX, PRODUCT_NAME_WORDS, productNameProblem } from '../../../lib/product-name';
 import { REMOVE_PRODUCT_WORDS, removeConfirmMatches } from '../../../lib/remove-product';
-import { COPY_WORDS, latestLine, madeLine, showsBehind } from '../../../lib/design-copy';
+import { COPY_WORDS, latestLine, madeLine, needsCopyAccess, showsBehind, type CopyAccess } from '../../../lib/design-copy';
+import { CopyAccessStep } from './CopyAccessStep';
 import type { ProductPageData } from '../../../scripts/product-page';
 import { LIBRARY_UPDATE_WORDS, libraryLine, type LibraryLine } from '../../../lib/library-update';
 import type { LibraryView } from '../../../scripts/library-update';
@@ -330,7 +331,10 @@ function ProductMenu({ name, rename, remove, onRename, onRemove, trigger }: { na
  * when the viewer may not: making the copy needs a GitHub sign-in, getting the latest anyone who can edit the team.
  */
 export interface CopyActions {
-  make?: (() => Promise<{ line: string; ready: boolean }>) | null;
+  /** `access`: the copy is made but Bridge may not open it yet; the card shows the one more step (CopyAccessStep). */
+  make?: (() => Promise<{ line: string; ready: boolean; access?: CopyAccess }>) | null;
+  /** After the one more step: waits for the copy, then the sentence to show. */
+  finish?: (() => Promise<{ line: string; ready: boolean }>) | null;
   latest?: (() => Promise<string>) | null;
 }
 
@@ -441,7 +445,7 @@ function choiceCard(drawing: IllustrationName, title: ReactNode, line: ReactNode
 /** No copy of the product yet: why the team gets one, in one sentence, and the one action. */
 function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyActions | null }) {
   const [busy, setBusy] = useState(false);
-  const [said, setSaid] = useState<{ line: string; ready: boolean } | null>(null);
+  const [said, setSaid] = useState<{ line: string; ready: boolean; access?: CopyAccess } | null>(null);
   const make = async () => {
     if (!copy?.make || busy) return;
     setBusy(true);
@@ -452,6 +456,15 @@ function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyAction
       setBusy(false);
     }
   };
+  // Made, but Bridge may not open it yet: the one more step on GitHub in the same zone, then on as before.
+  if (said?.access) {
+    const finish = copy?.finish;
+    return (
+      <section className="zone sh-zone pp-empty" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
+        <CopyAccessStep access={said.access} onVisible={async () => setSaid(finish ? await finish() : null)} />
+      </section>
+    );
+  }
   // The viewer may make it: the same choice card as Start an exploration in this slot (one shape, one size). The
   // card's line says how it goes once asked, read out as it changes.
   if (copy?.make) {
@@ -782,7 +795,16 @@ export default function ProductPage({ productKey, components = [] }: { productKe
                 }
                 const { makeCopy } = await import('../../../scripts/design-copy');
                 const r = await makeCopy(data.product!);
+                if (needsCopyAccess(r)) return { line: '', ready: false, access: r };
                 // Made: the page reads the copy again, and shows the explorations and the start action.
+                if (r === 'ready') setReload((n) => n + 1);
+                return { line: madeLine(data.product!.name, r), ready: r === 'ready' };
+              }
+            : null,
+          finish: canMake
+            ? async () => {
+                const { finishCopy } = await import('../../../scripts/design-copy');
+                const r = await finishCopy(data.product!);
                 if (r === 'ready') setReload((n) => n + 1);
                 return { line: madeLine(data.product!.name, r), ready: r === 'ready' };
               }

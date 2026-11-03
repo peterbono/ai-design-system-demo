@@ -2,6 +2,7 @@
 // card while there is none ("Make my copy"), the quiet line when the product moved on ("Get the latest"), and what
 // each outcome says. Designers never read "fork", "branch" or "repository" here. Pure: tested in design-copy.test.ts.
 
+import type { AppInstallation } from './access-view';
 import type { GitHubBusy } from './github-busy';
 
 /**
@@ -29,6 +30,10 @@ export const COPY_WORDS = {
   bringConflict: 'Bridge could not bring it in on its own. Ask a developer.',
   bringFailed: 'Bridge could not bring it in. Try again in a minute.',
   failed: 'Bridge could not reach GitHub. Try again in a moment.',
+  /** The copy is made but Bridge may not open it yet (Bridge sees only the products ticked on GitHub). */
+  access: (copyName: string) => `One more step: let Bridge open your copy. Tick ${copyName} on GitHub, then Save.`,
+  openGitHub: 'Open GitHub',
+  accessWaiting: (copyName: string) => `Tick ${copyName} on GitHub, then Save. Bridge waits here.`,
   noCopyStart: (product: string) => `There is no copy of ${product} to explore in yet. Make one first: the developers' code stays untouched.`,
 } as const;
 
@@ -69,3 +74,38 @@ export function claudeCodeUrl(x: { copy: string; branch: string; name: string; p
   const q = new URLSearchParams({ repositories: x.copy, prompt: lines.join('\n') });
   return `https://claude.ai/code?${q.toString()}`;
 }
+
+/** One installation of the Bridge app with what it sees: every product of the account ("all") or the ticked ones. */
+export interface CopyInstallation extends AppInstallation {
+  repository_selection?: string;
+}
+
+/**
+ * The copy is made but Bridge cannot open it: the GitHub app sees only the products ticked on the copy's account, and
+ * GitHub does not tick a new copy on its own. `installation` is the one to open on GitHub (its list of products and
+ * Save). `name` is what GitHub lists: the copy's own name.
+ */
+export interface CopyAccess {
+  kind: 'needs-access';
+  copy: string;
+  name: string;
+  installation: CopyInstallation;
+}
+
+/**
+ * What the copy's account lets Bridge see: every product ("all": nothing to do), only the ticked ones ("selected", with
+ * the installation to adjust), or nothing (Bridge is not on that account).
+ */
+export function copyAccessTarget(list: readonly CopyInstallation[], copy: string): { kind: 'all' } | { kind: 'selected'; installation: CopyInstallation } | { kind: 'none' } {
+  const owner = copy.split('/')[0]!.toLowerCase();
+  const own = list.find((i) => i.account?.login?.toLowerCase() === owner);
+  if (!own) return { kind: 'none' };
+  return own.repository_selection === 'selected' ? { kind: 'selected', installation: own } : { kind: 'all' };
+}
+
+/** Whether `copy` ("owner/name") is among the products an installation lists (GitHub's names ignore case). */
+export const copyListed = (repos: readonly { full_name?: string | null }[], copy: string): boolean =>
+  repos.some((r) => r.full_name?.toLowerCase() === copy.toLowerCase());
+
+/** The access step's outcome of "Make my copy", told apart from its words. */
+export const needsCopyAccess = (r: unknown): r is CopyAccess => typeof r === 'object' && r !== null && (r as { kind?: unknown }).kind === 'needs-access';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claudeCodeUrl, COPY_WORDS, latestLine, madeLine, showsBehind } from './design-copy';
+import { claudeCodeUrl, copyAccessTarget, copyListed, COPY_WORDS, latestLine, madeLine, needsCopyAccess, showsBehind } from './design-copy';
 import { productReposOfConfig } from './contribute';
 import { productConnectionRow } from './settings-view';
 import { takeItLines } from './explorations-view';
@@ -57,5 +57,25 @@ describe('the design team copy, in designer words', () => {
   it('developers take the code from the copy, into their own repository', () => {
     expect(takeItLines('explore/orders', 'acme/shop-design').commands).toEqual(['git fetch https://github.com/acme/shop-design.git explore/orders', 'git switch -c explore/orders FETCH_HEAD']);
     expect(takeItLines('explore/orders').commands).toEqual(['git fetch origin', 'git checkout explore/orders']);
+  });
+});
+
+describe('what Bridge may open of a new copy', () => {
+  const inst = (login: string, selection?: string) => ({ id: 7, account: { login, type: 'Organization' }, ...(selection ? { repository_selection: selection } : {}) });
+
+  it('the copy account’s installation: every product, only the ticked ones, or not there', () => {
+    expect(copyAccessTarget([inst('acme', 'all')], 'acme/shop-design')).toEqual({ kind: 'all' });
+    expect(copyAccessTarget([inst('other', 'selected'), inst('ACME', 'selected')], 'acme/shop-design')).toEqual({ kind: 'selected', installation: inst('ACME', 'selected') });
+    expect(copyAccessTarget([inst('other', 'selected')], 'acme/shop-design')).toEqual({ kind: 'none' });
+    expect(copyAccessTarget([inst('acme')], 'acme/shop-design')).toEqual({ kind: 'all' });
+  });
+
+  it('a listed copy ignores case; the words never say fork, repository or installation', () => {
+    expect(copyListed([{ full_name: 'Acme/Shop-Design' }], 'acme/shop-design')).toBe(true);
+    expect(copyListed([{ full_name: 'acme/shop' }], 'acme/shop-design')).toBe(false);
+    expect(COPY_WORDS.access('shop-design')).toBe('One more step: let Bridge open your copy. Tick shop-design on GitHub, then Save.');
+    for (const w of [COPY_WORDS.access('x'), COPY_WORDS.accessWaiting('x'), COPY_WORDS.openGitHub]) expect(w).not.toMatch(/fork|repositor|installation|—/i);
+    expect(needsCopyAccess({ kind: 'needs-access' })).toBe(true);
+    expect(needsCopyAccess('ready')).toBe(false);
   });
 });
