@@ -2,22 +2,24 @@
 // "Add a product" when the product is not in the list (AddProduct.tsx, lib/add-product.ts): the list is never a dead
 // end, "Give Bridge access" opens GitHub in a centered window on the installation's page, the dialog waits and reads
 // again, then goes back to the form with the new product picked, named and announced. GitHub closed with nothing new
-// says the owners decide. Messages from another site are ignored.
+// says the owners decide. Messages from another site are ignored. Someone who does not own the account: told before
+// GitHub opens, a message to copy for the owners, "Request sent" after, remembered per team in this browser.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
-import { ACCESS_MESSAGE, ACCESS_TICK_MS, ADD_PRODUCT_WORDS as W, foundLine, nothingNewLine, type ProductRepoChoice } from '../../../lib/add-product';
+import { ACCESS_MESSAGE, ACCESS_TICK_MS, ADD_PRODUCT_WORDS as W, foundLine, nothingNewLine, ownersOnlyLine, pendingKey, requestSentLine, type ProductRepoChoice } from '../../../lib/add-product';
 import AddProduct from './AddProduct';
 
 const gh = vi.hoisted(() => ({
   access: { repos: [] as ProductRepoChoice[], installation: { id: 42, account: { login: 'acme', type: 'Organization' } } as unknown, account: 'acme' },
   poll: vi.fn(),
   readFails: false,
+  owner: null as boolean | null,
 }));
 
-vi.mock('../../../scripts/github-session', () => ({ onAccess: (fn: (a: unknown) => void) => fn({ admin: true }) }));
+vi.mock('../../../scripts/github-session', () => ({ onAccess: (fn: (a: unknown) => void) => fn({ admin: true }), readRepo: () => ({ owner: 'acme', repo: 'ds' }) }));
 vi.mock('../../../scripts/repo-context', () => ({ repoContext: () => ({ owner: 'acme', repo: 'ds' }), siteConfig: () => ({ products: [] }) }));
 vi.mock('../../../scripts/add-product', () => ({
   readProductAccess: async () => {
@@ -26,6 +28,7 @@ vi.mock('../../../scripts/add-product', () => ({
   },
   pollProductRepos: (...a: unknown[]) => gh.poll(...a),
   detectPreviews: async () => null,
+  readOwnership: async () => gh.owner,
 }));
 
 const SHOP: ProductRepoChoice = { full: 'acme/shop', name: 'shop', defaultBranch: 'main' };
@@ -43,6 +46,8 @@ beforeEach(() => {
   gh.access = { repos: [], installation: { id: 42, account: { login: 'acme', type: 'Organization' } }, account: 'acme' };
   gh.poll.mockReset();
   gh.readFails = false;
+  gh.owner = null;
+  localStorage.clear();
   opened = [];
   popup = {
     closed: false,
@@ -182,5 +187,77 @@ describe('Add a product: a product Bridge cannot see yet', () => {
     expect(screen.queryByText(foundLine('Shop'))).toBeNull();
     expect(screen.getByRole('button', { name: W.send })).toBeInTheDocument();
     expect(gh.poll).toHaveBeenCalledWith([], null);
+  });
+});
+
+describe('Add a product: someone who can only request access', () => {
+  const KEY = pendingKey('acme/ds');
+
+  it('says before GitHub opens that the owners decide, and offers a message for them', async () => {
+    gh.owner = false;
+    const { baseElement } = show();
+    expect(await screen.findByText(ownersOnlyLine('acme'))).toBeInTheDocument();
+    expect(screen.queryByText(W.emptyLine)).toBeNull();
+    expect(screen.getByText(W.emptyNone)).toBeInTheDocument();
+    // The same one action: GitHub shows them its Request button.
+    expect(screen.getByRole('button', { name: W.giveAccess })).toBeInTheDocument();
+    const writeText = vi.fn(async () => undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    fireEvent.click(screen.getByRole('button', { name: W.copyForOwners }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(String((writeText.mock.calls[0] as unknown[])[0])).toContain('https://github.com/organizations/acme/settings/installations/42');
+    expect(await screen.findByRole('button', { name: W.copiedForOwners })).toBeInTheDocument();
+    await expectNoAxeViolations(baseElement);
+  });
+
+  it('an owner, or Bridge not knowing, keeps the usual words', async () => {
+    gh.owner = true;
+    show();
+    expect(await screen.findByText(W.emptyLine)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: W.copyForOwners })).toBeNull();
+  });
+
+  it('opens the organization on the install page, where Save becomes a request', async () => {
+    gh.owner = false;
+    gh.access.installation = { id: 42, account: { login: 'acme', type: 'Organization', id: 7 } };
+    show();
+    await screen.findByText(ownersOnlyLine('acme'));
+    await startWaiting();
+    expect(opened[0]![0]).toBe('https://github.com/apps/bridge-ds/installations/new/permissions?target_id=7');
+  });
+
+  it('GitHub closed with nothing new: the request is sent, remembered, and said again on reopening', async () => {
+    gh.owner = false;
+    gh.access.repos = [SHOP];
+    const view = show();
+    await screen.findByText(ownersOnlyLine('acme'));
+    fireEvent.change(screen.getByLabelText(W.name), { target: { value: 'Print shop' } });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await startWaiting();
+    gh.poll.mockResolvedValue([SHOP]);
+    popup.closed = true;
+    await act(() => vi.advanceTimersByTimeAsync(ACCESS_TICK_MS));
+    expect(await screen.findByText(requestSentLine('acme', 'Print shop'))).toBeInTheDocument();
+    expect(screen.queryByText(nothingNewLine('acme'))).toBeNull();
+    expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({ account: 'acme', product: 'Print shop', before: ['acme/shop'] });
+    view.unmount();
+    show();
+    expect(await screen.findByText(requestSentLine('acme', 'Print shop'))).toBeInTheDocument();
+    // Coming back to the window reads the list: the approved product is picked and the request forgotten.
+    gh.poll.mockResolvedValue([SHOP, PRINT]);
+    fireEvent.focus(window);
+    expect(await screen.findByText(foundLine('Art print shop'))).toBeInTheDocument();
+    expect(localStorage.getItem(KEY)).toBeNull();
+    // The picked product starts its own reads: let them settle before the next test.
+    await act(() => new Promise((r) => setTimeout(r, 100)));
+  });
+
+  it('reopened after the owners approved: the product is picked at once', async () => {
+    gh.access.repos = [SHOP, PRINT];
+    localStorage.setItem(KEY, JSON.stringify({ account: 'acme', product: null, before: ['acme/shop'], at: Date.now() }));
+    show();
+    expect(await screen.findByText(foundLine('Art print shop'))).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toHaveValue('art-print-shop');
+    expect(localStorage.getItem(KEY)).toBeNull();
   });
 });

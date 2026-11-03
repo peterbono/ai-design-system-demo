@@ -12,14 +12,20 @@
 //
 // "No code yet? Start a new product" (one more quiet line under the list): the same dialog shows StartNewProduct.tsx,
 // where Bridge starts the product's code on GitHub itself, so no access step, then shows the way to its previews.
+// Someone who does not own the GitHub account (scripts/add-product readOwnership): before GitHub opens, one line says
+// only its owners can give access and GitHub sends them the request, with "Copy a message for the owners". GitHub
+// closed with nothing new: "Request sent to the owners", remembered in this browser per team (localStorage) so the
+// dialog says it again when reopened; coming back to the window reads the list, and the approved product is picked.
 import { useEffect, useId, useReducer, useRef, useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 import { Button, ButtonGroup, Checkbox, Combobox, Dialog, DialogClose, DialogContent, Input, Spinner } from '@bridge-ds/react';
-import { accessSettingsUrl, type AppInstallation } from '../../../lib/access-view';
+import { accessSettingsUrl, askOwnersMessage, requestAccessUrl, type AppInstallation } from '../../../lib/access-view';
 import { githubBusy } from '../../../lib/github-busy';
 import type { ProductConfig } from '@bridge-ds/core';
 import { BusyNotice } from './BusyNotice';
 import { Drawing } from './Drawing';
 import StartNewProduct from './StartNewProduct';
+import { useCopy } from './TeamLink';
 import '../../../styles/add-product.css';
 import {
   ACCESS_TICK_MS,
@@ -33,12 +39,20 @@ import {
   newProductEntry,
   newRepoIn,
   nothingNewLine,
+  ownersOnlyLine,
+  parsePending,
+  pendingKey,
   popupFeatures,
+  requestSentLine,
   productKeyFor,
   waitedTooLong,
+  type PendingRequest,
   type ProductRepoChoice,
 } from '../../../lib/add-product';
 import { NEW_PRODUCT_WORDS as NW } from '../../../lib/new-product';
+
+/** The page's team ("owner/repo"), noted by useCanAddProduct: the dialog only shows once it is known. */
+let pageTeam: string | null = null;
 
 /** Whether this viewer may add a product: the same rule as renaming one (lib/product-name canRenameProduct). */
 export function useCanAddProduct(): boolean {
@@ -55,6 +69,7 @@ export function useCanAddProduct(): boolean {
       onAccess((a) => {
         if (!live) return;
         const r = repoContext();
+        pageTeam = `${r.owner}/${r.repo}`;
         setCan(canRenameProduct(a, isSampleTeam(`${r.owner}/${r.repo}`)));
       });
     })().catch(() => undefined);
@@ -116,6 +131,18 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   // "Start a new product": the dialog shows its own form; once proposed, closing counts as sent.
   const [startNew, setStartNew] = useState(false);
   const proposedNew = useRef(false);
+  // Whether the viewer owns the GitHub account (null: unknown, the usual words). Not an owner: GitHub only lets them
+  // request, so the dialog says so before and after.
+  const [owner, setOwner] = useState<boolean | null>(null);
+  const openRef = useRef(open);
+  openRef.current = open;
+  const asker = owner === false;
+  const askerRef = useRef(asker);
+  askerRef.current = asker;
+  // The request kept for this team (this browser), shown as "Request sent" until the product arrives.
+  const [request, setRequest] = useState<PendingRequest | null>(null);
+  const requestName = useRef<string | null>(null);
+  const { copied, said, copy: copyText } = useCopy(3000);
 
   const setOpen = (o: boolean) => {
     if (!o) {
@@ -136,7 +163,15 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     if (!open || repos) return;
     let live = true;
     void import('../../../scripts/add-product')
-      .then((m) => m.readProductAccess(products))
+      .then(async (m) => {
+        const a = await m.readProductAccess(products);
+        // Who can give access, once the account is known (one light read, kept for the page). It may answer after the
+        // list is shown, so it only checks the dialog is still open. Never in the way of the list.
+        Promise.resolve()
+          .then(() => m.readOwnership(a.account, a.installation))
+          .then((o) => openRef.current && setOwner(o), () => undefined);
+        return a;
+      })
       .then(
         (a) => {
           if (!live) return;
@@ -154,6 +189,31 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       live = false;
     };
   }, [open, repos, products]);
+
+  // A request this browser sent earlier: the approved product arrived (picked, as if found now), or "Request sent" again.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      restored.current = false;
+      return;
+    }
+    // `can`: the page's team is known (useCanAddProduct notes it).
+    if (!repos || !can || restored.current) return;
+    restored.current = true;
+    const kept = readPending();
+    if (!kept) return;
+    const fresh = newRepoIn(kept.before, repos);
+    if (fresh) {
+      forgetPending();
+      setRepo(fresh.full);
+      setName(nameFromRepo(fresh.name));
+      setFound(cleanFoundName(fresh.name));
+      return;
+    }
+    before.current = kept.before;
+    setRequest(kept);
+    go({ type: 'pending' });
+  }, [open, repos, can]);
 
   // One light read: a product that was not there when GitHub opened goes into the list, picked and named, GitHub's
   // window closes and the Add product button takes the focus. `last`: GitHub is closed, nothing new says so.
@@ -179,6 +239,8 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         popup.current = null;
         before.current = [...(before.current ?? []), ...now.map((r) => r.full)];
         lastPending.current = false;
+        forgetPending();
+        setRequest(null);
         setRepos((list) => mergeRepos(list ?? [], now));
         setRepo(fresh.full);
         setName(nameFromRepo(fresh.name));
@@ -187,11 +249,11 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         go({ type: 'found' });
         return;
       }
-      if (last) go({ type: 'closed' });
+      if (last) closeWithNothingNew();
     } catch (err) {
       const b = githubBusy(err);
       if (b) go({ type: 'busy', ...b });
-      else if (last) go({ type: 'closed' });
+      else if (last) closeWithNothingNew();
     } finally {
       reading.current = false;
       setRereading(false);
@@ -200,6 +262,15 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         void readRef.current(true);
       }
     }
+  };
+  // GitHub closed with nothing new. Someone who could only request: the request is sent, remembered for this team.
+  const closeWithNothingNew = () => {
+    if (askerRef.current && target) {
+      const kept: PendingRequest = { account: target.account, product: requestName.current, before: before.current ?? [], at: Date.now() };
+      rememberPending(kept);
+      setRequest(kept);
+    }
+    go({ type: 'closed', requested: askerRef.current });
   };
   const readRef = useRef(readAgain);
   readRef.current = readAgain;
@@ -227,7 +298,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       if (isAccessMessage(e, location.origin)) void readRef.current(false);
     };
     const onFocus = () => {
-      if (document.visibilityState === 'visible' && (step.kind === 'waiting' || step.kind === 'nothing-new')) void readRef.current(false);
+      if (document.visibilityState === 'visible' && (step.kind === 'waiting' || step.kind === 'nothing-new' || step.kind === 'requested')) void readRef.current(false);
     };
     window.addEventListener('message', onMessage);
     window.addEventListener('focus', onFocus);
@@ -243,7 +314,9 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   }, [found, step.kind]);
 
   const giveAccess = () => {
-    const url = accessSettingsUrl(target?.installation);
+    // Not an owner: GitHub's own install page for the organization, where Save becomes a request.
+    const url = asker ? requestAccessUrl(target?.installation) : accessSettingsUrl(target?.installation);
+    requestName.current = name.trim() || null;
     // A centered window (the dialog keeps its place); blocked, a new tab. Never noopener: Bridge watches it close.
     const w = window.open(url, 'bridge-github-access', popupFeatures(window)) ?? window.open(url, '_blank');
     if (!w) return;
@@ -288,6 +361,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       });
       const { proposeNewProduct } = await import('../../../scripts/roles');
       await proposeNewProduct(entry);
+      forgetPending();
       if (!controlled) setSent(true);
       onSent?.();
       setOpen(false);
@@ -308,9 +382,42 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     </p>
   );
 
+  // Someone who does not own the account: a ready-made message for the owners, with the page where they tick it, and
+  // once the request is sent, Check again beside it.
+  const account = request?.account ?? target?.account ?? '';
+  const requested = step.kind === 'requested';
+  const sentLine = requestSentLine(account, request?.product ?? (name.trim() || null));
+  const ownerActions = (
+    <span className="addp-actions">
+      <Button
+        variant="link"
+        size="sm"
+        iconStart={copied ? Check : Copy}
+        onClick={() => void copyText(askOwnersMessage(request?.product ?? (name.trim() || null), accessSettingsUrl(target?.installation)), W.copiedForOwnersSaid)}
+      >
+        {copied ? W.copiedForOwners : W.copyForOwners}
+      </Button>
+      {requested && (
+        <Button variant="link" size="sm" loading={rereading} onClick={() => void readAgain(false)}>
+          {W.checkAgain}
+        </Button>
+      )}
+      <span className="sr-only" role="status" aria-live="polite">
+        {said}
+      </span>
+    </span>
+  );
+  const forOwners = (
+    <p className="addp-more">
+      <span>{requested ? sentLine : ownersOnlyLine(account)}</span> {ownerActions}
+    </p>
+  );
+
   // The line under the list (or, once GitHub closed with nothing new, what happened and Try again).
   const note =
-    step.kind === 'nothing-new' ? (
+    requested ? (
+      forOwners
+    ) : step.kind === 'nothing-new' ? (
       <p className="addp-more">
         <span>{nothingNewLine(target?.account)}</span>{' '}
         <Button variant="link" size="sm" loading={rereading} onClick={() => void readAgain(false)}>
@@ -318,12 +425,15 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         </Button>
       </p>
     ) : (
-      <p className="addp-more">
-        <span>{W.notListed}</span>{' '}
-        <Button variant="link" size="sm" onClick={giveAccess}>
-          {W.giveAccess}
-        </Button>
-      </p>
+      <>
+        <p className="addp-more">
+          <span>{W.notListed}</span>{' '}
+          <Button variant="link" size="sm" onClick={giveAccess}>
+            {W.giveAccess}
+          </Button>
+        </p>
+        {asker && forOwners}
+      </>
     );
 
   return (
@@ -406,7 +516,22 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
               {none ? (
                 // Nothing to pick: no empty field, one sentence, and the footer's one action gives Bridge access.
                 <>
-                  {step.kind === 'nothing-new' ? note : <p className="addp-none-line">{W.emptyLine}</p>}
+                  {step.kind === 'nothing-new' ? (
+                    note
+                  ) : requested ? (
+                    // The request is the dialog's news: its own sentence, the actions under it.
+                    <>
+                      <p className="addp-none-line">{sentLine}</p>
+                      <p className="addp-more">{ownerActions}</p>
+                    </>
+                  ) : asker ? (
+                    <>
+                      <p className="addp-none-line">{W.emptyNone}</p>
+                      {forOwners}
+                    </>
+                  ) : (
+                    <p className="addp-none-line">{W.emptyLine}</p>
+                  )}
                   {startLine}
                 </>
               ) : (
@@ -457,6 +582,29 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       </Dialog>
     </>
   );
+}
+
+// The request kept for the page's team, in this browser (a per-viewer convenience: never required, never shared).
+function readPending(): PendingRequest | null {
+  try {
+    return pageTeam ? parsePending(localStorage.getItem(pendingKey(pageTeam)), Date.now()) : null;
+  } catch {
+    return null;
+  }
+}
+function rememberPending(p: PendingRequest) {
+  try {
+    if (pageTeam) localStorage.setItem(pendingKey(pageTeam), JSON.stringify(p));
+  } catch {
+    /* storage refused: the dialog still says it this time */
+  }
+}
+function forgetPending() {
+  try {
+    if (pageTeam) localStorage.removeItem(pendingKey(pageTeam));
+  } catch {
+    /* ignore */
+  }
 }
 
 /** The name the found line says: the readable one Bridge proposes. */

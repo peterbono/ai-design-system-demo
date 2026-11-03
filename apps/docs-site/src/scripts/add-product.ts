@@ -3,8 +3,8 @@
 // scripts/roles.ts proposeNewProduct.
 import type { PreviewCheckRun, ProductConfig } from '@bridge-ds/core';
 import { installationToAdjust, type AppInstallation } from '../lib/access-view';
-import { pickableRepos, previewsFromCheckRuns, previewsFromStatuses, type ProductRepoChoice, type RepoLike, type StatusLike } from '../lib/add-product';
-import { ghGet, RateLimitError, readRepo, sessionMode, type Fetched } from './github-session';
+import { ownsAccount, pickableRepos, previewsFromCheckRuns, previewsFromStatuses, type ProductRepoChoice, type RepoLike, type StatusLike } from '../lib/add-product';
+import { currentViewer, ghGet, GitHubError, RateLimitError, readRepo, sessionMode, type Fetched } from './github-session';
 
 /** What the dialog reads when it opens: the products it can pick, and the installation an admin adjusts on GitHub. */
 export interface ProductAccess {
@@ -50,6 +50,32 @@ export async function readProductAccess(listed: readonly ProductConfig[], opts: 
     repos.push(...take(await ghGet<RepoLike[]>('/user/repos?per_page=100&sort=updated&affiliation=owner,organization_member', opts)));
   }
   return { repos: pickableRepos(repos, listed, ds()), installation, account: installation?.account?.login || readRepo().owner };
+}
+
+// Whether the viewer owns the account, per account for this page: asked once, GitHub's answer kept by ghGet too.
+const owned = new Map<string, Promise<boolean | null>>();
+
+/**
+ * Whether the viewer can give Bridge access on `account` themselves (lib/add-product ownsAccount): their own account,
+ * or an organization they own (one light read, GET /user/memberships/orgs/{org}). Null when Bridge cannot tell.
+ */
+export function readOwnership(account: string, installation: AppInstallation | null): Promise<boolean | null> {
+  const login = currentViewer()?.login ?? null;
+  const type = installation?.account?.type ?? null;
+  const known = ownsAccount({ login, account, type });
+  if (known !== null || !login || !account) return Promise.resolve(known);
+  const key = `${login}|${account}`.toLowerCase();
+  let p = owned.get(key);
+  if (!p) {
+    p = ghGet<{ role?: string; state?: string }>(`/user/memberships/orgs/${encodeURIComponent(account)}`).then(
+      (r) => ownsAccount({ login, account, type, membership: r.data }),
+      // 404: not a member of that organization (or it is a person's account): they can only request. Anything else:
+      // Bridge cannot tell, the dialog keeps its usual words.
+      (err: unknown) => (err instanceof GitHubError && err.status === 404 ? ownsAccount({ login, account, type, membership: null }) : null),
+    );
+    owned.set(key, p);
+  }
+  return p;
 }
 
 /** The pick list only (kept for callers that do not open GitHub). */

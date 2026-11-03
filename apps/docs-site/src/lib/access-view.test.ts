@@ -10,7 +10,9 @@ import {
   accessSummary,
   askAccessMessage,
   askInstallMessage,
+  askOwnersMessage,
   installUrl,
+  requestAccessUrl,
   accessSettingsUrl,
   installationToAdjust,
   manageAccessUrl,
@@ -263,5 +265,24 @@ describe('access settings on GitHub', () => {
     expect(installationToAdjust([other], 'acme')).toBe(other);
     expect(installationToAdjust([other, { id: 3, account: { login: 'x' } }], 'acme')).toBeNull();
     expect(installationToAdjust([], 'acme')).toBeNull();
+  });
+});
+
+describe('Add a product, for someone who can only request', () => {
+  it('opens the organization on the install page, where Save becomes a request', () => {
+    expect(requestAccessUrl({ id: 8, account: { login: 'acme', type: 'Organization', id: 42 } })).toBe('https://github.com/apps/bridge-ds/installations/new/permissions?target_id=42');
+    expect(requestAccessUrl({ id: 8, account: { login: 'acme', type: 'Organization' } })).toBe(installUrl());
+    // A person's account: its own page, as for an owner.
+    expect(requestAccessUrl({ id: 7, account: { login: 'bob', type: 'User', id: 5 } })).toBe(accessSettingsUrl({ id: 7, account: { login: 'bob', type: 'User' } }));
+    expect(requestAccessUrl(null)).toBe(installUrl());
+  });
+
+  it('writes the message for the owners, with the product and the page where they tick it', () => {
+    const url = 'https://github.com/organizations/acme/settings/installations/8';
+    const named = askOwnersMessage('Shop', url);
+    expect(named).toContain('Shop');
+    expect(named).toContain(url);
+    expect(askOwnersMessage(null, url)).toContain(url);
+    for (const m of [named, askOwnersMessage(' ', url)]) expect(m).not.toMatch(/—/);
   });
 });

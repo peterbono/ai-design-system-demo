@@ -17,6 +17,8 @@ export const ADD_PRODUCT_WORDS = {
   codeNone: 'Every product Bridge can open is already here.',
   // Nothing at all to pick: the dialog says so in one sentence and its one action is Give Bridge access.
   emptyLine: "Bridge can't see any other product yet. Give it access on GitHub, it takes a minute.",
+  // The same, for someone who does not own the account on GitHub (ownersOnlyLine follows).
+  emptyNone: "Bridge can't see any other product yet.",
   // Under the list, always: the way to a product Bridge cannot see yet (GitHub opens in a small window).
   notListed: 'Product not in the list?',
   giveAccess: 'Give Bridge access',
@@ -36,6 +38,11 @@ export const ADD_PRODUCT_WORDS = {
   cancel: 'Cancel',
   sent: 'Product added for review. It shows everywhere once merged.',
   refused: 'Bridge could not add the product. Ask an admin of the design system.',
+  // Someone who does not own the account on GitHub: GitHub lets them request access, its owners approve.
+  copyForOwners: 'Copy a message for the owners',
+  copiedForOwners: 'Message copied',
+  copiedForOwnersSaid: 'Message copied. Paste it to the owners.',
+  checkAgain: 'Check again',
 } as const;
 
 /** The line that says the new product arrived (announced, then the form waits with it picked). */
@@ -47,6 +54,67 @@ export const foundLine = (name: string) => `${name} is here. Add it when you're 
  */
 export const nothingNewLine = (account: string | null | undefined) =>
   `Nothing new yet. If GitHub asked you to request access, the owners of ${account || 'that account'} get it; this list updates when they approve.`;
+
+/** Said before GitHub opens, to someone who cannot give access themselves: GitHub turns their Save into a request. */
+export const ownersOnlyLine = (account: string) => `Only the owners of ${account} can give Bridge access. GitHub sends them your request.`;
+
+/** GitHub closed with nothing new for someone who could only request: what happens next. */
+export const requestSentLine = (account: string, product: string | null | undefined) =>
+  `Request sent to the owners of ${account}. Bridge adds ${product?.trim() || 'your product'} to this list as soon as they approve.`;
+
+/**
+ * Whether the viewer can give Bridge access on `account` themselves: their own account, or an organization where
+ * GitHub says they are an owner (GET /user/memberships/orgs/{org}: role "admin", state "active"). Null when Bridge
+ * cannot tell (the membership was not readable): the dialog then keeps its usual words.
+ */
+export function ownsAccount(x: {
+  login: string | null | undefined;
+  account: string;
+  /** The installation's account type, when there is one ("User" or "Organization"). */
+  type?: string | null;
+  /** The viewer's membership of `account`; null when GitHub answered that they have none, undefined when unknown. */
+  membership?: { role?: string | null; state?: string | null } | null;
+}): boolean | null {
+  const login = x.login?.trim().toLowerCase();
+  const account = x.account.trim().toLowerCase();
+  if (login && login === account) return true;
+  if (x.type === 'User') return false;
+  if (x.membership === undefined) return null;
+  if (x.membership === null) return false;
+  return x.membership.role === 'admin' && x.membership.state !== 'pending';
+}
+
+/** A request this browser sent to the owners, kept per team until the product arrives (localStorage). */
+export interface PendingRequest {
+  /** The GitHub account whose owners decide. */
+  account: string;
+  /** The product's name when the person typed one, else null. */
+  product: string | null;
+  /** The products listed when GitHub opened ("owner/name"): anything else that shows up is the approved one. */
+  before: string[];
+  at: number;
+}
+
+/** How long a request is remembered: GitHub keeps it until the owners answer, Bridge stops saying so after a while. */
+export const PENDING_KEEP_MS = 30 * 24 * 60 * 60_000;
+
+/** The localStorage key of a team's pending request ("owner/repo", case-insensitive). */
+export const pendingKey = (team: string) => `bridge.addProduct.requested:${team.toLowerCase()}`;
+
+/** A stored request, or null when there is none, it is not one, or it is older than PENDING_KEEP_MS. */
+export function parsePending(text: string | null, now: number): PendingRequest | null {
+  if (!text) return null;
+  try {
+    const v = JSON.parse(text) as Partial<PendingRequest> | null;
+    if (!v || typeof v !== 'object' || typeof v.account !== 'string' || !v.account.trim() || typeof v.at !== 'number') return null;
+    if (now - v.at > PENDING_KEEP_MS || v.at > now + 60_000) return null;
+    const before = Array.isArray(v.before) ? v.before.filter((r): r is string => typeof r === 'string').slice(0, 500) : [];
+    const product = typeof v.product === 'string' && v.product.trim() ? v.product.trim().slice(0, PRODUCT_NAME_MAX) : null;
+    return { account: v.account.trim(), product, before, at: v.at };
+  } catch {
+    return null;
+  }
+}
 
 /** One product Bridge can see on GitHub: "owner/name", its name, its default branch. */
 export interface ProductRepoChoice {
@@ -118,21 +186,33 @@ export function popupFeatures(from: { screenX: number; screenY: number; outerWid
   return `popup=yes,width=${size.width},height=${size.height},left=${left},top=${top}`;
 }
 
-/** Where the dialog is: the form, waiting on GitHub, GitHub closed with nothing new, or GitHub busy for the viewer. */
-export type AccessStep = { kind: 'list' } | { kind: 'waiting'; since: number } | { kind: 'nothing-new' } | { kind: 'busy'; resetsAt: Date | null; source: 'github' | 'bridge' };
+/**
+ * Where the dialog is: the form, waiting on GitHub, GitHub closed with nothing new, a request waiting on the owners
+ * (someone who could only request), or GitHub busy for the viewer.
+ */
+export type AccessStep =
+  | { kind: 'list' }
+  | { kind: 'waiting'; since: number }
+  | { kind: 'nothing-new' }
+  | { kind: 'requested' }
+  | { kind: 'busy'; resetsAt: Date | null; source: 'github' | 'bridge' };
 
 export type AccessEvent =
   | { type: 'open'; at: number }
   | { type: 'cancel' }
   | { type: 'found' }
-  | { type: 'closed' }
-  | { type: 'timeout' }
+  /** `requested`: the viewer could only request access (not an owner), so GitHub sent the owners a request. */
+  | { type: 'closed'; requested?: boolean }
+  | { type: 'timeout'; requested?: boolean }
+  /** The dialog opened with a request this browser sent earlier. */
+  | { type: 'pending' }
   | { type: 'busy'; resetsAt: Date | null; source: 'github' | 'bridge' }
   | { type: 'read' };
 
 /**
  * The next step. GitHub opened: waiting. Cancel, or the new product found: the form. GitHub closed, or the wait ran
- * out, with nothing new: "Nothing new yet". GitHub busy: the busy line, until a read works again (`read`).
+ * out, with nothing new: "Nothing new yet", or "Request sent" for someone who could only request. A request kept
+ * from earlier: "Request sent". GitHub busy: the busy line, until a read works again (`read`).
  */
 export function accessStep(step: AccessStep, e: AccessEvent): AccessStep {
   switch (e.type) {
@@ -143,7 +223,9 @@ export function accessStep(step: AccessStep, e: AccessEvent): AccessStep {
       return { kind: 'list' };
     case 'closed':
     case 'timeout':
-      return step.kind === 'waiting' ? { kind: 'nothing-new' } : step;
+      return step.kind === 'waiting' ? (e.requested ? { kind: 'requested' } : { kind: 'nothing-new' }) : step;
+    case 'pending':
+      return step.kind === 'list' ? { kind: 'requested' } : step;
     case 'busy':
       return { kind: 'busy', resetsAt: e.resetsAt, source: e.source };
     case 'read':
