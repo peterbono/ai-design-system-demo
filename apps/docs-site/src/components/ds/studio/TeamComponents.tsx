@@ -17,7 +17,7 @@ import ClientExample from './ClientExample';
 import { ChangeFooter, ChangeStep, CLOSED_FLOW, type ChangeFlow } from './ChangeComponent';
 import { isChangeIntent, PICK_COMPONENT_LINE, type ChangeIntent } from '../../../lib/change-intent';
 import { filterTeamRows, pickStorybook, rowExceptions, storyPreview, teamCatalogRows, teamComponentRows, teamComponentsLead, teamFamilies, type TeamComponentRow } from '../../../lib/team-components';
-import type { ProductAudit } from '../../../lib/components-studio';
+import { usedInFact, type ProductAudit } from '../../../lib/components-studio';
 import { fitFrames } from '../../../scripts/explorer/preview-frames';
 import { exampleCode, storyInIndex } from '../../../lib/library/component-page';
 import { tokenSpecimens } from '../../../lib/token-specimens';
@@ -99,7 +99,22 @@ function useStoryHeight(frame: RefObject<HTMLIFrameElement | null>, src: string 
   return state && state.src === src ? state.height : null;
 }
 
-function ComponentDrawer({ row, data, storybook, startIntent = null, onClose }: { row: TeamComponentRow | null; data: TeamData; storybook: string | undefined; startIntent?: ChangeIntent | null; onClose: () => void }) {
+function ComponentDrawer({
+  row,
+  data,
+  storybook,
+  usedIn,
+  startIntent = null,
+  onClose,
+}: {
+  row: TeamComponentRow | null;
+  data: TeamData;
+  storybook: string | undefined;
+  /** The team's products that render it (the "Used in" cell); undefined without an audit of a product. */
+  usedIn?: { product: string; instances: number }[] | undefined;
+  startIntent?: ChangeIntent | null;
+  onClose: () => void;
+}) {
   const found = row ? storyPreview(storybook, row) : null;
   const listed = useStoryListed(found?.base, found?.id);
   // A story the published Storybook does not have yet would show Storybook's own error: the code instead.
@@ -192,6 +207,7 @@ function ComponentDrawer({ row, data, storybook, startIntent = null, onClose }: 
                 {storybook ? `${row.name} has no story in the Storybook, so there is nothing to preview yet.` : 'Add your Storybook to preview this component here.'}
               </p>
             )}
+            {usedIn && <p className="tcm-muted">{usedInFact(usedIn)}</p>}
             <p className="tcm-muted">
               {/* The list's words ("12 examples"); the folder is a developer's, behind More > Open the code on GitHub. */}
               {words(row.stories.length, 'example')} · {words(row.tokens, 'token')}
@@ -349,6 +365,7 @@ function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: bo
         row={open}
         data={data}
         storybook={storybook}
+        usedIn={catalog.find((c) => c.slug === open?.slug)?.usedIn}
         startIntent={deep.intent}
         onClose={() => {
           setDeep({ intent: null, pick: false });

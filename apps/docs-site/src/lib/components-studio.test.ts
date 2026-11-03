@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { componentsLead, componentsPrimary, drawerActions, drawerFacts, openRequestCounts, productUsage, requestFact, thumbnailNode, usedInCell, type LeadInput } from './components-studio';
+import { componentsLead, componentsPrimary, drawerActions, drawerFacts, openRequestCounts, productAudits, productUsage, requestFact, thumbnailNode, usedInCell, type LeadInput } from './components-studio';
 import { docsEditHref, guidanceState, loadComponents } from './components';
 import { exceptions } from '../components/ds/studio/ComponentsList';
+import type { ProductConfig } from '@bridge-ds/core';
 
 const row = (slug: string, guidance: LeadInput['guidance'] = 'ok', status: LeadInput['status'] = 'stable'): LeadInput => ({ slug, guidance, status });
 
@@ -127,5 +128,46 @@ describe('Studio Components list cells and drawer, in words', () => {
     expect(drawerActions({ guidance: 'missing' })).toEqual({ primary: 'docs', secondary: ['change'] });
     expect(drawerActions({ guidance: 'review' })).toEqual({ primary: 'docs', secondary: ['change'] });
     expect(drawerActions({ guidance: 'ok' })).toEqual({ primary: 'change', secondary: ['docs'] });
+  });
+});
+
+describe('Studio Components "Used in": the team products only', () => {
+  // Acme Flow: one product with its own repository, and the Library (the design system itself).
+  const ACME: ProductConfig[] = [
+    { key: 'admin-app', name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop' },
+    { key: 'library', name: 'Library', path: 'packages', default: true },
+  ];
+  const run = (id: string, generatedAt: string, extra: { label?: string; product?: string; target?: { path: string } } = {}) => ({ id, generatedAt, components: { Button: new Date(generatedAt).getUTCDate() }, ...extra });
+
+  it('keeps the latest run of each product, named as Bridge names it', () => {
+    const got = productAudits(ACME, [run('shop-1', '2026-10-01T00:00:01Z', { product: 'admin-app', label: 'Shop, main' }), run('shop-2', '2026-10-02T00:00:02Z', { product: 'admin-app', label: 'Shop, main' })]);
+    expect(got).toEqual([{ product: 'Art print shop', components: { Button: 2 } }]);
+  });
+
+  it('never counts a run before the move, even when it is the latest', () => {
+    const got = productAudits(ACME, [
+      run('shop-after', '2026-10-01T00:00:00Z', { product: 'admin-app' }),
+      run('shop-before', '2026-10-09T00:00:00Z', { product: 'admin-app' }),
+      run('shop-mui', '2026-10-08T00:00:00Z', { product: 'admin-app', label: 'Shop, original MUI source' }),
+    ]);
+    expect(got.map((a) => a.components.Button)).toEqual([1]);
+  });
+
+  it('drops the runs of apps that are not a listed product, and never lists the Library', () => {
+    const runs = [
+      run('admin-after', '2026-10-16T00:00:00Z', { label: 'Bridge admin, after migration', target: { path: 'apps/admin/src' } }),
+      run('bridge-docs-site-main', '2026-10-20T00:00:02Z', { label: 'Bridge docs site, main', target: { path: 'apps/docs-site/src' } }),
+      run('core', '2026-10-20T00:00:03Z', { target: { path: 'packages/core/src' } }),
+      run('lib', '2026-10-20T00:00:04Z', { product: 'library' }),
+      run('gone', '2026-10-20T00:00:05Z', { product: 'removed-product' }),
+    ];
+    // No run maps to a product: no "Used in" column at all (teamCatalogRows and the page leave it out on empty).
+    expect(productAudits(ACME, runs)).toEqual([]);
+  });
+
+  it('maps a run without a product key by its folder (products[].path), in products order', () => {
+    const products: ProductConfig[] = [{ key: 'admin', name: 'Admin demo', path: 'apps/admin' }, { key: 'docs', name: 'Docs', path: 'apps/docs-site' }, { key: 'library', name: 'Library', default: true }];
+    const got = productAudits(products, [run('docs', '2026-10-20T00:00:02Z', { target: { path: 'apps/docs-site/src' } }), run('admin-after', '2026-10-16T00:00:00Z', { label: 'Bridge admin, after migration', target: { path: 'apps/admin/src' } })]);
+    expect(got.map((a) => a.product)).toEqual(['Admin demo', 'Docs']);
   });
 });

@@ -10,14 +10,14 @@
 // A team's Library (/library/<owner>/<repo>/..., multi-team PR 4a) reads the same way when signed in. Signed out, it
 // reads the published snapshot first, straight from the raw host: no GitHub API call at all, so an anonymous reader
 // never spends the 60 requests an hour GitHub gives an address. Only a team without a snapshot is read live.
-import { hasWriteAccess, loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
+import { hasWriteAccess, loadRepoModel, parseSnapshot, productsOf, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { getToken, hasWorkingToken, studioClient } from './github-session';
 import { contributeBlobs, contributorFor } from './contribute-session';
 import { CONTRIB_TOKEN, contributeEligible, isContribAuth } from '../lib/contribute';
 import { loadTeamModel, type SnapshotReader, type TeamModelSource } from './repo-context';
 import { isHosted, pageTeamFromPath } from '../lib/team-path';
 import { libraryFromPath } from '../lib/library-shells';
-import type { ProductAudit } from '../lib/components-studio';
+import { latestProductRuns, productAudits, type AuditRun, type ProductAudit } from '../lib/components-studio';
 import { githubBusy, type GitHubBusy } from '../lib/github-busy';
 import { TEAM_PROGRESS_START, teamProgress, type TeamLoadEvent, type TeamProgress } from '../lib/load-progress';
 
@@ -280,31 +280,38 @@ let usage: Promise<ProductAudit[] | null> | null = null;
 const AUDIT_MAX_CHARS = SNAPSHOT_MAX_BYTES;
 
 /**
- * Which design system components each audited product renders, from the adoption reports the team's bridge-data
- * workflow publishes next to its snapshot (audits/<id>.json, `bridge snapshot --audit`): the "Used in" column of
- * Components. Public repositories: the raw host, no API quota. Private ones: the contents API with the visitor's
- * token. Null without a snapshot or a report. Never rejects; a report that cannot be read is left out.
+ * Which design system components each of the team's products renders, from the adoption reports the team's
+ * bridge-data workflow publishes next to its snapshot (audits/<id>.json, `bridge snapshot --audit`): the "Used in"
+ * column of Components. Only the products of its bridge.config.json count, by their Bridge names, each from its
+ * latest run (latestProductRuns: runs before the move, other apps and the Library itself are left out), so only those
+ * reports are read. Public repositories: the raw host, no API quota. Private ones: the contents API with the
+ * visitor's token. Null without a snapshot or without a report of a product. Never rejects; a report that cannot be
+ * read is left out.
  */
 export function loadTeamProductUsage(): Promise<ProductAudit[] | null> {
   usage ??= Promise.all([loadTeamData(), loadTeamSnapshot()])
     .then(async ([d, snap]) => {
       if (!snap?.audits?.length || d.servedBy) return null;
+      const products = productsOf(d.model.config);
+      // Pick the runs from the summaries first (no report read), then read only those.
+      const picked = latestProductRuns(products, snap.audits).map((x) => x.run);
+      if (!picked.length) return null;
       const read = (path: string) => (d.private ? (d.client.canWrite ? d.client.getRawText(path, SNAPSHOT_BRANCH) : Promise.resolve(undefined)) : d.client.readRawFile(path, SNAPSHOT_BRANCH));
       const out = await Promise.all(
-        snap.audits.map(async (a): Promise<ProductAudit | null> => {
+        picked.map(async (a): Promise<AuditRun | null> => {
           const text = await read(a.path).catch(() => undefined);
           if (!text || text.length > AUDIT_MAX_CHARS) return null;
           try {
             const ds = (JSON.parse(text) as { components?: { ds?: unknown } }).components?.ds;
             if (!ds || typeof ds !== 'object') return null;
             const components = Object.fromEntries(Object.entries(ds as Record<string, unknown>).filter((e): e is [string, number] => typeof e[1] === 'number'));
-            return { product: a.label?.trim() || a.id, components };
+            return { id: a.id, label: a.label, product: a.product, target: a.target, generatedAt: a.generatedAt, components };
           } catch {
             return null;
           }
         }),
       );
-      const found = out.filter((x): x is ProductAudit => x !== null);
+      const found = productAudits(products, out.filter((x): x is AuditRun => x !== null));
       return found.length ? found : null;
     })
     .catch(() => null);

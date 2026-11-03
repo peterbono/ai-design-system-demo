@@ -27,10 +27,11 @@ import ChangeIntent from '../../../components/ds/studio/ChangeIntent';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
 import { docsEditHref, editTokensHref, guidanceState, loadComponents, type ComponentInfo } from '../../../lib/components';
 import { figmaCell, loadFigmaCoverage } from '../../../lib/figma-coverage';
-import { componentsLead, componentsPrimary, drawerActions, drawerFacts, productUsage } from '../../../lib/components-studio';
-import { groupByApp, loadAudits } from '../../../lib/audits';
+import { componentsLead, componentsPrimary, drawerActions, drawerFacts, productAudits, productUsage } from '../../../lib/components-studio';
+import { loadAudits } from '../../../lib/audits';
 import { PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl } from '../../../lib/repo';
 import { VOCAB } from '../../../lib/vocabulary';
+import { productsOf } from '@bridge-ds/core';
 import { siteRepo } from '../../../lib/config';
 import { ghAction } from '../../../lib/gh-wording';
 import { COPY_MESSAGE, FRAME_MISSING, PICK_COMPONENT_LINE } from '../../../lib/change-intent';
@@ -42,12 +43,13 @@ import { componentsHead } from '../../../lib/team-components';
 const components = loadComponents();
 const updated = freshness(PAGE_SOURCES.components);
 const statusOf = (c: ComponentInfo) => c.docs?.status ?? 'stable';
-// "Used in products": the DS component instances `bridge audit` counted in each audited product (the committed
-// reports under src/data/audits, latest per product). No report: nothing is said about usage.
-const audits = groupByApp(loadAudits()).apps.map((a) => {
-  const latest = a.after ?? a.reports[a.reports.length - 1]!;
-  return { product: a.app.title.replace(/\s*\(.*$/, ''), components: latest.report.components?.ds ?? {}, label: latest.report.label ?? '' };
-});
+// "Used in products": the DS component instances `bridge audit` counted in each product of bridge.config.json (the
+// committed reports under src/data/audits, latest run per product; runs before the move, other apps and the Library
+// itself never count). No report of a product: nothing is said about usage.
+const audits = productAudits(
+  productsOf(siteRepo()),
+  loadAudits().map((e) => ({ id: e.id, label: e.report.label, target: e.report.target, generatedAt: e.report.generatedAt, components: e.report.components?.ds ?? {} })),
+);
 const usage = productUsage(audits, components.map((c) => c.name));
 const figma = loadFigmaCoverage();
 const rows: ComponentListRow[] = components.map((c) => ({

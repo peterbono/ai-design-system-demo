@@ -2,9 +2,9 @@
 // read it from the raw host, no API quota). Adds what only Node can compute: adoption audits of product folders.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { basename, join, posix, relative, resolve } from 'node:path';
+import { basename, join, posix, relative, resolve, sep } from 'node:path';
 import type { AuditReport } from '@bridge-ds/core/audit';
-import { ACTIVITY_FILE, activityBytes, auditId, buildSnapshot, collectActivity, collectReleases, GitHubClient, loadRepoModel, parseActivity, recordingSource, snapshotAudit, snapshotLlmsTxt, SNAPSHOT_AUDITS_DIR, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, type FetchLike, type RepoActivity, type RepoSnapshot, type SnapshotAudit, type SnapshotPackage } from '@bridge-ds/core';
+import { ACTIVITY_FILE, activityBytes, auditId, buildSnapshot, defaultProduct, productForPlace, productsOf, collectActivity, collectReleases, GitHubClient, loadRepoModel, parseActivity, recordingSource, snapshotAudit, snapshotLlmsTxt, SNAPSHOT_AUDITS_DIR, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, type FetchLike, type RepoActivity, type RepoSnapshot, type SnapshotAudit, type SnapshotPackage } from '@bridge-ds/core';
 import { fsSource, runAudit } from '@bridge-ds/core/node';
 
 export interface SnapshotOptions {
@@ -50,6 +50,9 @@ const git = (root: string, args: string[]) => {
     return '';
   }
 };
+
+/** "owner/name" of a folder's git origin on github.com, else undefined. */
+const originOf = (dir: string): string | undefined => /github\.com[:/]([\w.-]+\/[\w.-]+?)(\.git)?$/.exec(git(dir, ['remote', 'get-url', 'origin']))?.[1];
 
 const readJsonFile = <T>(file: string): T | null => {
   try {
@@ -158,7 +161,15 @@ export async function writeSnapshot(opts: SnapshotOptions): Promise<SnapshotResu
   const rec = recordingSource(fsSource(opts.root));
   const model = await loadRepoModel(rec.source);
 
-  // Adoption audits: reports carried from files, then fresh runs. An id used twice keeps the last one.
+  // Adoption audits: reports carried from files, then fresh runs. An id used twice keeps the last one. Each names the
+  // product it measured (products[].path holds the folder, or the folder's git origin is products[].repo), so Studio
+  // says "Used in <product>"; the library itself and folders of no product name none.
+  const products = productsOf(model.config);
+  const dsRepo = model.config.repo ? `${model.config.repo.owner}/${model.config.repo.name}` : originOf(opts.root);
+  const productOf = (place: { relPath: string; repo?: string | undefined }): string | undefined => {
+    const { product, how } = productForPlace(products, { ...place, designSystemRepo: dsRepo });
+    return how !== 'default' && product.key !== defaultProduct(products).key ? product.key : undefined;
+  };
   const audits = new Map<string, { summary: SnapshotAudit; report: AuditReport }>();
   for (const entry of opts.auditReports ?? []) {
     for (const file of reportFiles(opts.root, entry)) {
@@ -170,7 +181,7 @@ export async function writeSnapshot(opts: SnapshotOptions): Promise<SnapshotResu
       }
       if (!isReport(data)) continue; // not an audit report (schema version 1): skipped
       const id = auditId(basename(file));
-      audits.set(id, { summary: snapshotAudit(id, data), report: data });
+      audits.set(id, { summary: snapshotAudit(id, data, productOf({ relPath: data.target.path })), report: data });
     }
   }
   for (const spec of opts.audit ?? []) {
@@ -179,7 +190,9 @@ export async function writeSnapshot(opts: SnapshotOptions): Promise<SnapshotResu
     if (!existsSync(abs)) throw new Error(`No such file or folder to audit: ${path}`);
     const report = runAudit(abs, { ds: opts.root, version: opts.version, ...(label ? { label } : {}) });
     const id = auditId(label || relative(opts.root, abs) || basename(abs));
-    audits.set(id, { summary: snapshotAudit(id, report), report });
+    // A folder outside this checkout (a product's own repository checked out next to it) is named by its git origin.
+    const relPath = relative(opts.root, abs).split(sep).join('/');
+    audits.set(id, { summary: snapshotAudit(id, report, productOf({ relPath, repo: relPath.startsWith('..') ? originOf(abs) : undefined })), report });
   }
 
   const packages = workspacePackages(opts.root);
