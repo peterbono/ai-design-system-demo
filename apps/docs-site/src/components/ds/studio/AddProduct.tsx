@@ -323,6 +323,11 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
               ) : (
                 <DialogClose render={<Button variant="secondary" disabled={busy} />}>{W.cancel}</DialogClose>
               )}
+              {!waiting && none && (
+                <Button variant="primary" onClick={giveAccess}>
+                  {W.giveAccess}
+                </Button>
+              )}
               {!waiting && !none && (
                 <Button ref={sendRef} type="submit" form={formId} variant="primary" loading={busy} disabled={busy || !repo}>
                   {W.send}
@@ -352,26 +357,35 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
                 {found && foundLine(found)}
               </div>
               {step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />}
-              <div className="addp-pick">
-                <Combobox
-                  label={W.code}
-                  hint={W.codeHelp}
-                  options={(repos ?? []).map((r) => ({ value: r.full, label: r.name, description: r.full }))}
-                  loading={!repos}
-                  loadingMessage={W.codeLoading}
-                  value={repo}
-                  onValueChange={(v) => {
-                    const full = typeof v === 'string' ? v : null;
-                    setRepo(full);
-                    setError(null);
-                    setFound(null);
-                    const r = repos?.find((x) => x.full === full);
-                    if (r && !name.trim()) setName(nameFromRepo(r.name));
-                  }}
-                  emptyMessage={W.codeNone}
-                />
-                {repos && note}
-              </div>
+              {none ? (
+                // Nothing to pick: no empty field, one sentence, and the footer's one action gives Bridge access.
+                step.kind === 'nothing-new' ? (
+                  note
+                ) : (
+                  <p className="addp-none-line">{W.emptyLine}</p>
+                )
+              ) : (
+                <div className="addp-pick">
+                  <Combobox
+                    label={W.code}
+                    hint={W.codeHelp}
+                    options={(repos ?? []).map((r) => ({ value: r.full, label: r.name, description: r.full }))}
+                    loading={!repos}
+                    loadingMessage={W.codeLoading}
+                    value={repo}
+                    onValueChange={(v) => {
+                      const full = typeof v === 'string' ? v : null;
+                      setRepo(full);
+                      setError(null);
+                      setFound(null);
+                      const r = repos?.find((x) => x.full === full);
+                      if (r && !name.trim()) setName(nameFromRepo(r.name));
+                    }}
+                    emptyMessage={W.codeNone}
+                  />
+                  {repos && note}
+                </div>
+              )}
               {!none && (
                 <>
                   <Input label={W.name} hint={W.nameHelp} value={name} onValueChange={(v) => setName(v)} autoComplete="off" />

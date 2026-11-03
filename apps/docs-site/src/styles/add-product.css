@@ -42,6 +42,14 @@
   line-height: var(--typography-ui-line-height);
 }
 
+/* Nothing to pick yet: one sentence; the footer's primary button gives Bridge access. */
+.addp-none-line {
+  margin: 0;
+  text-wrap: pretty;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
 /* The new product arrived from GitHub: one sentence above the form, in the text color. */
 .addp-found {
   margin: 0;

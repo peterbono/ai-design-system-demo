@@ -15,6 +15,8 @@ export const ADD_PRODUCT_WORDS = {
   codeHelp: 'The products Bridge can see on GitHub.',
   codeLoading: 'Looking for your products…',
   codeNone: 'Every product Bridge can open is already here.',
+  // Nothing at all to pick: the dialog says so in one sentence and its one action is Give Bridge access.
+  emptyLine: "Bridge can't see any other product yet. Give it access on GitHub, it takes a minute.",
   // Under the list, always: the way to a product Bridge cannot see yet (GitHub opens in a small window).
   notListed: 'Product not in the list?',
   giveAccess: 'Give Bridge access',

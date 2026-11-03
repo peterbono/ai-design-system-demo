@@ -70,11 +70,14 @@ const startWaiting = async () => {
 };
 
 describe('Add a product: a product Bridge cannot see yet', () => {
-  it('never dead-ends: an empty list keeps the field and the way to give access, without the Add button', async () => {
+  it('never dead-ends: an empty list says so in one sentence and Give Bridge access is the primary action', async () => {
     const { baseElement } = show();
-    expect(await screen.findByText(W.notListed)).toBeInTheDocument();
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: W.giveAccess })).toBeInTheDocument();
+    expect(await screen.findByText(W.emptyLine)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByText(W.notListed)).toBeNull();
+    const give = screen.getByRole('button', { name: W.giveAccess });
+    expect(give.closest('form')).toBeNull();
+    expect(screen.getByRole('button', { name: W.cancel })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: W.send })).toBeNull();
     await expectNoAxeViolations(baseElement);
   });
@@ -93,7 +96,7 @@ describe('Add a product: a product Bridge cannot see yet', () => {
     expect(String(opened[0]![2])).toMatch(/^popup=yes,width=1020,height=760,left=\d+,top=\d+$/);
     expect(screen.queryByRole('combobox')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: W.cancel }));
-    expect(await screen.findByText(W.notListed)).toBeInTheDocument();
+    expect(await screen.findByText(W.emptyLine)).toBeInTheDocument();
   });
 
   it('falls back to a new tab when the window is blocked', async () => {
@@ -126,7 +129,7 @@ describe('Add a product: a product Bridge cannot see yet', () => {
 
   it('GitHub closed with nothing new: one last read, then the owners decide, and Try again reads again', async () => {
     show();
-    await screen.findByText(W.notListed);
+    await screen.findByText(W.emptyLine);
     vi.useFakeTimers({ shouldAdvanceTime: true });
     await startWaiting();
     gh.poll.mockResolvedValue([]);
@@ -159,7 +162,7 @@ describe('Add a product: a product Bridge cannot see yet', () => {
 
   it('stops on GitHub busy and says when Bridge is back', async () => {
     show();
-    await screen.findByText(W.notListed);
+    await screen.findByText(W.emptyLine);
     vi.useFakeTimers({ shouldAdvanceTime: true });
     await startWaiting();
     gh.poll.mockRejectedValue(Object.assign(new Error('GitHub rate limit reached'), { status: 429, resetAt: null }));
