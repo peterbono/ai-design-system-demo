@@ -28,7 +28,7 @@ beforeEach(() => {
   localStorage.clear();
   history.replaceState(null, '', PAGE);
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
-    if (url === 'https://api.github.com/repos/peterbono/ai-design-system-demo') return new Response(JSON.stringify({ permissions: { admin: true, push: true, pull: true } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url === 'https://api.github.com/repos/the-bridge-company/ai-design-system-demo') return new Response(JSON.stringify({ permissions: { admin: true, push: true, pull: true } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (url === 'https://api.github.com/user') return new Response(JSON.stringify({ login: 'peterbono', name: 'Florian', avatar_url: 'https://avatars.example/f.png' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (url.startsWith('/oauth/request')) return new Response(JSON.stringify(info), { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (url === '/oauth/approve') {
@@ -81,14 +81,14 @@ describe('Use Bridge in Claude: the consent card', () => {
   });
 
   it("an admin of the site's own team with zero Bridge account teams picks it (regression: 'You are not in a team yet')", async () => {
-    document.documentElement.dataset.ownLibrary = 'peterbono/ai-design-system-demo';
+    document.documentElement.dataset.ownLibrary = 'the-bridge-company/ai-design-system-demo';
     githubToken = 'ghu_signed_in_token_0000000000';
     reply({ teams: [] });
     render(createElement(ConnectClaude));
     expect(await screen.findByText('ai-design-system-demo')).toBeTruthy();
     expect(screen.queryByText("Your Bridge account isn't in a team with a design system yet.")).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Allow' }));
-    await waitFor(() => expect(approvals[0]).toMatchObject({ allow: true, repo: 'peterbono/ai-design-system-demo' }));
+    await waitFor(() => expect(approvals[0]).toMatchObject({ allow: true, repo: 'the-bridge-company/ai-design-system-demo' }));
   });
 
   it('one team: preselected, with what Claude gets', async () => {
@@ -133,7 +133,7 @@ describe('Use Bridge in Claude: the consent card', () => {
 
   it('says the GitHub account GitHub will confirm, with its role, when the GitHub path is taken', async () => {
     githubToken = 'ghu_signed_in_token_0000000000';
-    reply({ name: 'Dino', email: 'd***@yopmail.com', teams: [{ repo: 'peterbono/ai-design-system-demo', name: 'Bridge DS', email: true, role: 'edit' }] });
+    reply({ name: 'Dino', email: 'd***@yopmail.com', teams: [{ repo: 'the-bridge-company/ai-design-system-demo', name: 'Bridge DS', email: true, role: 'edit' }] });
     render(createElement(ConnectClaude));
     expect(await screen.findByText("You're connecting Claude as Florian (Admin, signed in with GitHub).")).toBeTruthy();
     expect(screen.getByText(/GitHub account @peterbono\./)).toBeTruthy();

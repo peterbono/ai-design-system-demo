@@ -53,7 +53,7 @@ export function isOpenExploration(p) {
   return names.includes(EXPLORATION_LABEL) || (p.head?.ref ?? '').startsWith('explore/') || /<!-- bridge-exploration \{/.test(p.body ?? '') || names.includes('ready-for-devs');
 }
 
-/** "art-print-shop-co/art-print-shop" and 2: the files of that capture, relative to the shots folder. */
+/** "the-bridge-company/art-print-shop" and 2: the files of that capture, relative to the shots folder. */
 export function shotPaths(repo, pr) {
   const base = `${repo.toLowerCase()}/${pr}`;
   return { image: `${base}.webp`, meta: `${base}.json` };

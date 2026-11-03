@@ -322,7 +322,7 @@ export const ALL_ROWS: CompareRow[] = [...SHORT, ...GROUPS.flatMap((g) => g.rows
 
 /** Public pages the cells come from, per tool (/compare/ lists them). */
 export const SOURCES: Record<(typeof TOOLS)[number], { label: string; href: string }[]> = {
-  Bridge: [{ label: 'Bridge on GitHub', href: 'https://github.com/peterbono/ai-design-system-demo' }],
+  Bridge: [{ label: 'Bridge on GitHub', href: 'https://github.com/the-bridge-company/ai-design-system-demo' }],
   'Tokens Studio': [
     { label: 'Branch reviews', href: 'https://documentation-v2.tokens.studio/branching/branch-reviews.html' },
     { label: 'Pricing', href: 'https://tokens.studio/pricing' },

@@ -89,7 +89,7 @@ describe('requests HTML (untrusted issue data)', () => {
       assignees: [],
       created_at: '2026-01-01T00:00:00Z',
     };
-    sessionStorage.setItem(requestsCacheKey('peterbono/ai-design-system-demo', 'issues'), JSON.stringify({ at: Date.now(), data: [issue] }));
+    sessionStorage.setItem(requestsCacheKey('the-bridge-company/ai-design-system-demo', 'issues'), JSON.stringify({ at: Date.now(), data: [issue] }));
     const rows = await loadRequestRows({ openPulls: [], closed: false });
     expect(rows.length).toBe(1);
     expectInert(rowHtml(rows[0]!));

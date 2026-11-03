@@ -37,7 +37,7 @@ export interface RepoContext {
 }
 
 /** The repository a page without any context works on (the demo), as readRepo always did. */
-export const FALLBACK_REPO = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main' } as const;
+export const FALLBACK_REPO = { owner: 'the-bridge-company', repo: 'ai-design-system-demo', defaultBranch: 'main' } as const;
 
 // The address parsing lives in lib/team-path.ts (pure, shared with studioHref); re-exported for existing callers.
 export { isHosted, repoFromPath };

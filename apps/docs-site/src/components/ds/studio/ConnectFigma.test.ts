@@ -18,10 +18,10 @@ const { default: ConnectFigma } = await import('./ConnectFigma');
 beforeEach(() => {
   approvals.length = 0;
   localStorage.clear();
-  document.documentElement.dataset.ownLibrary = 'peterbono/ai-design-system-demo';
+  document.documentElement.dataset.ownLibrary = 'the-bridge-company/ai-design-system-demo';
   history.replaceState(null, '', '/studio/connect-figma/?code=ABCDEFGHIJ');
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
-    if (url === 'https://api.github.com/repos/peterbono/ai-design-system-demo') return new Response(JSON.stringify({ permissions: { admin: true, push: true, pull: true } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url === 'https://api.github.com/repos/the-bridge-company/ai-design-system-demo') return new Response(JSON.stringify({ permissions: { admin: true, push: true, pull: true } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (url === '/api/plugin-link') {
       approvals.push(JSON.parse(String(init?.body)));
       return new Response(JSON.stringify({ approved: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -42,6 +42,6 @@ describe('Connect Figma: the teams to pick', () => {
     expect(await screen.findByText('ai-design-system-demo')).toBeTruthy();
     expect(screen.queryByText(/You are not in a team yet/)).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Connect Figma' }));
-    await waitFor(() => expect(approvals[0]).toMatchObject({ action: 'approve', code: 'ABCDEFGHIJ', repo: 'peterbono/ai-design-system-demo' }));
+    await waitFor(() => expect(approvals[0]).toMatchObject({ action: 'approve', code: 'ABCDEFGHIJ', repo: 'the-bridge-company/ai-design-system-demo' }));
   });
 });

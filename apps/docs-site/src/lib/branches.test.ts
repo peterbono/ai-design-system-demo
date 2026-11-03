@@ -3,7 +3,7 @@ import { branchChecks, branchEntry, orphanBranches, pullEntry, setupGaps, type B
 
 const SHA = 'abcdef0123456789abcdef0123456789abcdef01';
 const cfg: BranchesConfig = {
-  owner: 'peterbono',
+  owner: 'the-bridge-company',
   repo: 'ai-design-system-demo',
   defaultBranch: 'main',
   apps: { docs: 'https://bridge-docs-git-{branch}-acme.vercel.app', storybook: 'https://bridge-sb-git-{branch}-acme.vercel.app' },
@@ -12,10 +12,10 @@ const cfg: BranchesConfig = {
 const pull = (over: Partial<PullLike> = {}): PullLike => ({
   number: 12,
   title: 'Badge subtle variant',
-  html_url: 'https://github.com/peterbono/ai-design-system-demo/pull/12',
+  html_url: 'https://github.com/the-bridge-company/ai-design-system-demo/pull/12',
   draft: false,
   user: { login: 'agent' },
-  head: { ref: 'agent/badge-subtle', sha: SHA, repo: { full_name: 'peterbono/ai-design-system-demo' } },
+  head: { ref: 'agent/badge-subtle', sha: SHA, repo: { full_name: 'the-bridge-company/ai-design-system-demo' } },
   updated_at: '2026-10-16T10:00:00Z',
   ...over,
 });
@@ -34,12 +34,12 @@ describe('pullEntry', () => {
   });
 
   it('reads the install command from the sticky comment of the head commit', () => {
-    const command = `npm i https://github.com/peterbono/ai-design-system-demo/releases/download/preview-pr-12/bridge-ds-react-${SHA.slice(0, 7)}.tgz`;
+    const command = `npm i https://github.com/the-bridge-company/ai-design-system-demo/releases/download/preview-pr-12/bridge-ds-react-${SHA.slice(0, 7)}.tgz`;
     const sticky = `<!-- bridge-branch-preview -->\n## Try this DS branch in your product\n\nSnapshot of \`${SHA.slice(0, 7)}\` on \`agent/badge-subtle\`.\n\n\`\`\`sh\n${command}\n\`\`\`\n`;
     const e = pullEntry(pull(), cfg, { comments: [{ body: 'LGTM' }, { body: sticky }] });
     expect(e).toMatchObject({ install: command, installState: 'ready' });
     // About an older commit: still being prepared for this one.
-    const old = pullEntry(pull({ head: { ref: 'agent/badge-subtle', sha: 'f'.repeat(40), repo: { full_name: 'peterbono/ai-design-system-demo' } } }), cfg, { comments: [{ body: sticky }] });
+    const old = pullEntry(pull({ head: { ref: 'agent/badge-subtle', sha: 'f'.repeat(40), repo: { full_name: 'the-bridge-company/ai-design-system-demo' } } }), cfg, { comments: [{ body: sticky }] });
     expect(old).toMatchObject({ install: null, installState: 'building' });
   });
 
@@ -52,7 +52,7 @@ describe('pullEntry', () => {
         admin: 'https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app',
       },
     };
-    const p64 = pull({ number: 64, head: { ref: 'explore/button-normal-again', sha: SHA, repo: { full_name: 'peterbono/ai-design-system-demo' } } });
+    const p64 = pull({ number: 64, head: { ref: 'explore/button-normal-again', sha: SHA, repo: { full_name: 'the-bridge-company/ai-design-system-demo' } } });
     const bare = pullEntry(p64, real);
     expect(bare.previews.map((p) => p.app)).toEqual(['docs']);
     expect(bare.pendingPreviews).toEqual(['Storybook', 'Admin demo']);
@@ -97,7 +97,7 @@ describe('branches without a PR', () => {
     const e = branchEntry(rest[0]!, cfg);
     expect(e.pr).toBeNull();
     expect(e.install).toBeNull();
-    expect(e.url).toBe('https://github.com/peterbono/ai-design-system-demo/tree/feat%2Fx');
+    expect(e.url).toBe('https://github.com/the-bridge-company/ai-design-system-demo/tree/feat%2Fx');
     expect(e.previews).toHaveLength(2);
   });
 });

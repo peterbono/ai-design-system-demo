@@ -73,7 +73,7 @@ const argv = (...xs: string[]) => {
 };
 
 describe('build requests in the MCP server and the CLI', () => {
-  const gh = fakeGitHub('peterbono', 'ai-design-system-demo', files());
+  const gh = fakeGitHub('the-bridge-company', 'ai-design-system-demo', files());
   const requested = seed(gh, {}, { created: daysAgo(10) });
   const picked = seed(gh, { title: 'Add an icon slot' }, { assignees: ['ana'] });
   const building = seed(gh, { component: 'Card', title: 'New header layout' });
@@ -81,7 +81,7 @@ describe('build requests in the MCP server and the CLI', () => {
   seed(gh, { title: 'Not one' }, { labels: ['exploration'] });
   pull(gh, `Builds it.\n\nCloses #${building}`, { author: 'bo' });
   pull(gh, `Closes #${shipped}`, { state: 'closed', draft: false, merged_at: daysAgo(1) });
-  const ctx = () => BridgeContext.create({ repo: 'peterbono/ai-design-system-demo', fetch: gh.fetch });
+  const ctx = () => BridgeContext.create({ repo: 'the-bridge-company/ai-design-system-demo', fetch: gh.fetch });
 
   it('lists them with the status read from GitHub, and filters them', async () => {
     const r = await buildRequests.listBuildRequests(await ctx());

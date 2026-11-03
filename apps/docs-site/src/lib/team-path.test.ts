@@ -10,7 +10,7 @@ describe('teamShareBase', () => {
     expect(teamShareBase('/studio/acme/ds/settings/', { hosted: true, hostedSite: true }, 'acme', 'ds', reserved)).toBe('/studio/acme/ds/');
   });
   it("is the team's address on the hosted site's root, never the showcase at /studio/", () => {
-    expect(teamShareBase('/studio/', { hosted: false, hostedSite: true }, 'peterbono', 'ai-design-system-demo', reserved)).toBe('/studio/peterbono/ai-design-system-demo/');
+    expect(teamShareBase('/studio/', { hosted: false, hostedSite: true }, 'the-bridge-company', 'ai-design-system-demo', reserved)).toBe('/studio/the-bridge-company/ai-design-system-demo/');
     expect(teamShareBase('/studio/settings/', { hosted: false, hostedSite: true }, 'acme', 'ds', null)).toBe('/studio/~/acme/ds/');
   });
   it('is /studio/ on a self-hosted Studio, which is that team', () => {

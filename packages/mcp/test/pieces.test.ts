@@ -164,7 +164,7 @@ describe('a library branch per piece, linked both ways', () => {
 
   it('a new component opens a request, and the CLI says the same', async () => {
     // The CLI runs in this repository: its config names the GitHub repository the fake stands for.
-    const { gh, rw, productBranch } = setup('peterbono', 'ai-design-system-demo');
+    const { gh, rw, productBranch } = setup('the-bridge-company', 'ai-design-system-demo');
     const n = productBranch({ 'apps/admin/src/rating/Rating.tsx': "import { Rating } from '@mui/material';\nexport const R = () => <Rating value={3} />;\n" });
     await pieces.missingPiecesOp(await rw(), { pr: n, record: true });
     const lines: string[] = [];

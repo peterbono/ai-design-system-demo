@@ -5,14 +5,14 @@
   "description": "ESLint rules for product code that uses a Bridge design system: bridge/no-hardcoded-style-values (raw values in style, sx, styled and theme objects, with the token to use) and bridge/prefer-ds-components (native elements and foreign UI libraries). Reads the tokens through @bridge-ds/core and bridge.config.json.",
   "license": "MIT",
   "author": "Florian Gouloubi",
-  "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/eslint-plugin#readme",
+  "homepage": "https://github.com/the-bridge-company/ai-design-system-demo/tree/main/packages/eslint-plugin#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "url": "git+https://github.com/the-bridge-company/ai-design-system-demo.git",
     "directory": "packages/eslint-plugin"
   },
   "bugs": {
-    "url": "https://github.com/peterbono/ai-design-system-demo/issues"
+    "url": "https://github.com/the-bridge-company/ai-design-system-demo/issues"
   },
   "keywords": [
     "eslint",

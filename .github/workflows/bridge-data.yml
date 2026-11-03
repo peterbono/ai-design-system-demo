@@ -6,7 +6,7 @@ name: Bridge data
 # the design system). Hosted Bridge Studio and Library read it from raw.githubusercontent.com, which costs visitors no
 # GitHub API quota and works without signing in on a public repository. Same mechanics as `bridge-visual`
 # (visual-impact.yml): an orphan branch written by github-actions[bot], never merged anywhere.
-# Without activity.json a signed-out visitor of /studio/peterbono/ai-design-system-demo/ spends GitHub API requests
+# Without activity.json a signed-out visitor of /studio/the-bridge-company/ai-design-system-demo/ spends GitHub API requests
 # (60 an hour per address) on every page; with it they spend none. It runs on the same events as
 # templates/bridge-data.yml so the activity stays fresh, and the branch keeps one commit with the latest files.
 #
@@ -75,7 +75,7 @@ jobs:
         continue-on-error: true
         uses: actions/checkout@v4
         with:
-          repository: art-print-shop-co/art-print-shop
+          repository: the-bridge-company/art-print-shop
           path: art-print-shop
           token: ${{ secrets.ART_PRINT_SHOP_TOKEN }}
 

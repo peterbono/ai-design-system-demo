@@ -5,14 +5,14 @@
   "description": "The Bridge toolbar for a product built with the Bridge design system: opened from Bridge Studio with ?bridge=<change>, it flips the real product between before and after and shows what changed.",
   "license": "MIT",
   "author": "Florian Gouloubi",
-  "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/toolbar#readme",
+  "homepage": "https://github.com/the-bridge-company/ai-design-system-demo/tree/main/packages/toolbar#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "url": "git+https://github.com/the-bridge-company/ai-design-system-demo.git",
     "directory": "packages/toolbar"
   },
   "bugs": {
-    "url": "https://github.com/peterbono/ai-design-system-demo/issues"
+    "url": "https://github.com/the-bridge-company/ai-design-system-demo/issues"
   },
   "keywords": [
     "react",

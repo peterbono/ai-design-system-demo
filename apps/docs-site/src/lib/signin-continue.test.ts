@@ -13,10 +13,10 @@ describe('signed in already: Continue as them', () => {
   });
 
   it('an email member continues to their team Studio, named with its role', () => {
-    const c = continueAs({ account: acct({ teams: [team('peterbono/ai-design-system-demo', 'edit', 'Bridge DS')] }) });
+    const c = continueAs({ account: acct({ teams: [team('the-bridge-company/ai-design-system-demo', 'edit', 'Bridge DS')] }) });
     expect(c).toMatchObject({ name: 'Dino', detail: 'Bridge DS · Can edit', avatar: null, seed: '~dino' });
-    expect(c!.href).toContain('peterbono/ai-design-system-demo/');
-    expect(sessionCta({ account: acct({ teams: [team('peterbono/ai-design-system-demo')] }) })).toEqual({ label: 'Open Studio', href: c!.href });
+    expect(c!.href).toContain('the-bridge-company/ai-design-system-demo/');
+    expect(sessionCta({ account: acct({ teams: [team('the-bridge-company/ai-design-system-demo')] }) })).toEqual({ label: 'Open Studio', href: c!.href });
   });
 
   it('several teams: the last one used on this browser', () => {
@@ -37,19 +37,19 @@ describe('signed in already: Continue as them', () => {
     expect(continueAs({ account: null, github: { login: 'peterbono' } })!.href).toBe('/studio/');
     // A GitHub sign-in with a name, on a team this browser knows: the name, the team and the role, like the consent.
     expect(
-      continueAs({ account: null, github: { login: 'peterbono', name: 'Florian' }, recent: ['peterbono/ai-design-system-demo'], teamNames: { 'peterbono/ai-design-system-demo': 'Bridge DS' }, teamRoles: { 'peterbono/ai-design-system-demo': 'Admin' } }),
+      continueAs({ account: null, github: { login: 'peterbono', name: 'Florian' }, recent: ['the-bridge-company/ai-design-system-demo'], teamNames: { 'the-bridge-company/ai-design-system-demo': 'Bridge DS' }, teamRoles: { 'the-bridge-company/ai-design-system-demo': 'Admin' } }),
     ).toMatchObject({ name: 'Florian', detail: 'Bridge DS · Admin' });
   });
 
   it('a lead signed in with GitHub, no member team on the account: the last team opened, with its role', () => {
     const c = continueAs({
       account: acct({ name: 'Florian', github: { login: 'peterbono', id: 1 } }),
-      recent: ['peterbono/ai-design-system-demo'],
-      teamNames: { 'peterbono/ai-design-system-demo': 'Bridge DS' },
-      teamRoles: { 'peterbono/ai-design-system-demo': 'Admin' },
+      recent: ['the-bridge-company/ai-design-system-demo'],
+      teamNames: { 'the-bridge-company/ai-design-system-demo': 'Bridge DS' },
+      teamRoles: { 'the-bridge-company/ai-design-system-demo': 'Admin' },
     });
     expect(c).toMatchObject({ name: 'Florian', detail: 'Bridge DS · Admin' });
-    expect(c!.href).toContain('peterbono/ai-design-system-demo/');
+    expect(c!.href).toContain('the-bridge-company/ai-design-system-demo/');
     // An email account without a team still starts a team: nothing it did not open is guessed.
     expect(continueAs({ account: acct(), recent: ['a/one'] })).toMatchObject({ href: START_PAGE, detail: null });
   });

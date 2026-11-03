@@ -22,7 +22,7 @@ the pull request a Push opened (PR #4). Components are in [Storybook](https://br
 
 ## Install (Figma desktop)
 
-1. Download the latest build: [bridge-figma-plugin.zip](https://github.com/peterbono/ai-design-system-demo/releases/download/figma-plugin-latest/bridge-figma-plugin.zip),
+1. Download the latest build: [bridge-figma-plugin.zip](https://github.com/the-bridge-company/ai-design-system-demo/releases/download/figma-plugin-latest/bridge-figma-plugin.zip),
    and unzip it. `.github/workflows/figma-plugin-release.yml` rebuilds it on every plugin change to `main`.
 2. In the Figma desktop app: **Plugins > Development > Import plugin from manifest...** and pick
    `bridge-figma-plugin/manifest.json`.

@@ -7,7 +7,7 @@ import type { Redis } from '../../api/_lib/redis';
 import { LOCK, LOCK_TEXT, PKG_TEXT, REACT_184 } from './library-update.fixture';
 import { UPDATE_MARKER } from './library-update';
 
-const REPO = 'art-print-shop-co/art-print-shop';
+const REPO = 'the-bridge-company/art-print-shop';
 const sha = (n: number) => n.toString(16).padStart(40, '0');
 
 function scope(over: Partial<UpdateScope> = {}): UpdateScope {

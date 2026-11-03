@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emailMemberTeam, emailStudioLink, emailStudioRedirect, teamStudioRoute } from './email-studio';
 
 const reserved = { firsts: [], pairs: [] };
-const base = { github: false, teamPage: false, emailTeams: ['peterbono/ai-design-system-demo'], recent: [], reserved: null };
+const base = { github: false, teamPage: false, emailTeams: ['the-bridge-company/ai-design-system-demo'], recent: [], reserved: null };
 
 describe('email member Studio', () => {
   it('picks the page team, else the most recent, else the first', () => {
@@ -17,14 +17,14 @@ describe('email member Studio', () => {
     expect(teamStudioRoute('/studio')).toBe('');
     expect(teamStudioRoute('/studio/changes/')).toBe('changes/');
     expect(teamStudioRoute('/studio/products/admin-app/')).toBe('products/admin-app/');
-    for (const p of ['/studio/auth/', '/studio/invite/', '/studio/connect-claude/', '/studio/workspace/', '/studio/peterbono/ai-design-system-demo/', '/components/button/'])
+    for (const p of ['/studio/auth/', '/studio/invite/', '/studio/connect-claude/', '/studio/workspace/', '/studio/the-bridge-company/ai-design-system-demo/', '/components/button/'])
       expect(teamStudioRoute(p)).toBeNull();
   });
 
   it('sends an email member from /studio to the same page of their team', () => {
-    expect(emailStudioRedirect({ ...base, pathname: '/studio/' })).toBe('/studio/~/peterbono/ai-design-system-demo/');
+    expect(emailStudioRedirect({ ...base, pathname: '/studio/' })).toBe('/studio/~/the-bridge-company/ai-design-system-demo/');
     expect(emailStudioRedirect({ ...base, pathname: '/studio/tokens/', search: '?focus=color', hash: '#x', reserved })).toBe(
-      '/studio/peterbono/ai-design-system-demo/tokens/?focus=color#x',
+      '/studio/the-bridge-company/ai-design-system-demo/tokens/?focus=color#x',
     );
   });
 
@@ -36,10 +36,10 @@ describe('email member Studio', () => {
   });
 
   it('points a build-time Studio link at the team, keeping its query', () => {
-    const team = { owner: 'peterbono', repo: 'ai-design-system-demo' };
-    expect(emailStudioLink('/studio/', team, reserved)).toBe('/studio/peterbono/ai-design-system-demo/');
-    expect(emailStudioLink('/studio', team, reserved)).toBe('/studio/peterbono/ai-design-system-demo/');
-    expect(emailStudioLink('/studio/components/?c=button', team, reserved)).toBe('/studio/peterbono/ai-design-system-demo/components/?c=button');
+    const team = { owner: 'the-bridge-company', repo: 'ai-design-system-demo' };
+    expect(emailStudioLink('/studio/', team, reserved)).toBe('/studio/the-bridge-company/ai-design-system-demo/');
+    expect(emailStudioLink('/studio', team, reserved)).toBe('/studio/the-bridge-company/ai-design-system-demo/');
+    expect(emailStudioLink('/studio/components/?c=button', team, reserved)).toBe('/studio/the-bridge-company/ai-design-system-demo/components/?c=button');
     expect(emailStudioLink('/studio/auth/', team, reserved)).toBeNull();
   });
 });

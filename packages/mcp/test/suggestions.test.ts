@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { BridgeContext, brand, history, ops, studio, suggestions } from '../dist/lib.js';
 import { fakeGitHub, git, readTree, REAL_PATHS, REPO, tempGitRepo } from './helpers.js';
 
-const OWNER = 'peterbono';
+const OWNER = 'the-bridge-company';
 const NAME = 'ai-design-system-demo';
 const FULL = `${OWNER}/${NAME}`;
 const DARKEN = { title: 'Darken muted text', summary: 'Muted text is too light on subtle backgrounds.', edits: [{ op: 'set' as const, path: 'color.text.muted', value: '{palette.neutral.700}', mode: { theme: 'light' } }] };

@@ -26,7 +26,7 @@ export const REPO_MODEL_DEFAULTS = {
   tokensUsage: 'usage.json',
   /** Most global stylesheets read (components.styles): a broad glob never turns into hundreds of reads. */
   maxStylesheets: 50,
-  repo: { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main' },
+  repo: { owner: 'the-bridge-company', repo: 'ai-design-system-demo', defaultBranch: 'main' },
 } as const;
 
 /** The repository settings the site and Studio act on (roles, owners, mode), derived from bridge.config.json. */

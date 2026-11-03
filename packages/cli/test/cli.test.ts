@@ -318,7 +318,7 @@ describe('bridge snapshot', () => {
     expect(res.written).toEqual(['snapshot.json', 'llms.txt', 'audits/admin-after.json', 'audits/clean-app.json']);
     // llms.txt for agents, linked from the hosted Library.
     const llms = readFileSync(join(out, 'llms.txt'), 'utf8');
-    expect(llms).toMatch(/^# peterbono\/ai-design-system-demo design system\n/);
+    expect(llms).toMatch(/^# the-bridge-company\/ai-design-system-demo design system\n/);
     expect(llms).toContain('`--color-bg-default`');
     expect(llms).toContain('### Button');
     expect(llms).not.toContain('\u2014');
@@ -347,7 +347,7 @@ describe('bridge snapshot', () => {
     // Text mode, and a second run leaves no stale audit behind.
     const t = bridge(REPO, 'snapshot', '--out', out);
     expect(t.code, t.err).toBe(0);
-    expect(t.out).toMatch(/^Wrote .*snapshot\.json \(\d+ KB\) for peterbono\/ai-design-system-demo at [0-9a-f]{7}/);
+    expect(t.out).toMatch(/^Wrote .*snapshot\.json \(\d+ KB\) for the-bridge-company\/ai-design-system-demo at [0-9a-f]{7}/);
     expect(t.out).toMatch(/contrast\s+\d+ checks over \d+ pairs, 0 failing/);
     expect(existsSync(join(out, 'audits'))).toBe(false);
   });

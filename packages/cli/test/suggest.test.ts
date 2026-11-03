@@ -9,7 +9,7 @@ import { changesFlag, runApply, runReview, runSuggestions, SuggestUsageError } f
 import type { RequestIO } from '../src/request.js';
 import { fakeGitHub, git, readTree, REAL_PATHS, REPO, tempGitRepo } from '../../mcp/test/helpers.js';
 
-const OWNER = 'peterbono';
+const OWNER = 'the-bridge-company';
 const NAME = 'ai-design-system-demo';
 const LIGHT = 'packages/tokens/src/semantic/light.tokens.json';
 

@@ -183,7 +183,7 @@ export const VISUAL_CHECK_LABEL = 'visual-check';
 export const VISUAL_WORKFLOW_FILES: readonly string[] = ['visual-impact.yml', 'visual-impact.yaml'];
 
 /** Where a team reads how to set up visual checks. */
-export const VISUAL_CHECKS_DOCS = 'https://github.com/peterbono/ai-design-system-demo/blob/main/docs/GOVERNANCE.md#visual-before-and-after';
+export const VISUAL_CHECKS_DOCS = 'https://github.com/the-bridge-company/ai-design-system-demo/blob/main/docs/GOVERNANCE.md#visual-before-and-after';
 
 /**
  * Whether the repo has the visual impact workflow, from the files in .github/workflows (paths or names). Without it,

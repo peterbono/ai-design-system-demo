@@ -71,7 +71,7 @@ describe('topScreen', () => {
 
 describe('tryInProductUrl', () => {
   it("names the design team's copy the change lives in, and ignores anything that is not owner/name", () => {
-    expect(tryInProductUrl(`https://${ADMIN}/`, 1, null, 'art-print-shop-co/art-print-shop-design')).toBe(`https://${ADMIN}/?bridge=1&bridge-repo=art-print-shop-co%2Fart-print-shop-design`);
+    expect(tryInProductUrl(`https://${ADMIN}/`, 1, null, 'the-bridge-company/art-print-shop-design')).toBe(`https://${ADMIN}/?bridge=1&bridge-repo=the-bridge-company%2Fart-print-shop-design`);
     expect(tryInProductUrl(`https://${ADMIN}/`, 1, null, 'not a repo')).toBe(`https://${ADMIN}/?bridge=1`);
   });
 

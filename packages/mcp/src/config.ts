@@ -6,7 +6,7 @@ import { type BridgeConfig, type BridgeConfigInput, CONFIG_FILE, DEFAULT_RIGHTS,
 export { CONFIG_FILE, loadConfig as parseConfig, toConfigJson, type BridgeConfig };
 
 /** Where `bridge init` points "$schema" in a detected config. */
-export const SCHEMA_URL = 'https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/bridge.config.schema.json';
+export const SCHEMA_URL = 'https://raw.githubusercontent.com/the-bridge-company/ai-design-system-demo/main/packages/core/bridge.config.schema.json';
 
 // --- Detection (bridge init, and remote repos with no config) --------------------------------------------
 

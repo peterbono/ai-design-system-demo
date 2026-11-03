@@ -186,7 +186,7 @@ describe('the email field', () => {
 describe('contexts', () => {
   it('never mixes the sample team, a real team and the workspace', () => {
     expect(membersContext('peterbono/bridge-demo-ds', false)).toBe('sample');
-    expect(membersContext('peterbono/ai-design-system-demo', false)).toBe('real');
+    expect(membersContext('the-bridge-company/ai-design-system-demo', false)).toBe('real');
     expect(membersContext('acme/ds', false)).toBe('real');
     expect(membersContext('acme/ds', true)).toBe('none');
     expect(membersContext(null, false)).toBe('none');

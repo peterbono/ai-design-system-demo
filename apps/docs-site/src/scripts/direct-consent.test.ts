@@ -32,7 +32,7 @@ function page(opts: { hosted: boolean; app?: string; cfg?: object }) {
   html.toggleAttribute('data-hosted', opts.hosted);
   html.setAttribute('data-gh-app', opts.app ?? 'suggest');
   const cfg = JSON.stringify(opts.cfg ?? BOTH).replace(/'/g, '&#39;');
-  document.body.innerHTML = `<div id="gh-dialog"><div data-signin='${cfg}'></div></div>${opts.hosted ? DIRECT_DIALOG : ''}<script type="application/json" id="bridge-repo">${JSON.stringify({ owner: 'peterbono', repo: 'ai-design-system-demo', changes: 'direct' })}</script>`;
+  document.body.innerHTML = `<div id="gh-dialog"><div data-signin='${cfg}'></div></div>${opts.hosted ? DIRECT_DIALOG : ''}<script type="application/json" id="bridge-repo">${JSON.stringify({ owner: 'the-bridge-company', repo: 'ai-design-system-demo', changes: 'direct' })}</script>`;
   history.replaceState(null, '', opts.hosted ? '/studio/acme/ds/tokens/' : '/studio/tokens/');
 }
 
@@ -178,9 +178,9 @@ describe('the self-hosted site', () => {
   it('writes with its own sign-in, exactly as before', async () => {
     page({ hosted: false, app: 'direct', cfg: { ...BOTH, clientId: 'Iv23liDirect', app: 'direct', direct: undefined } });
     localStorage.setItem('bridge.github.token.direct', 'fake-direct');
-    const calls = fakeGitHub({ 'POST /repos/peterbono/ai-design-system-demo/git/refs': { status: 201, body: {} } });
-    await ghWrite('POST', '/repos/peterbono/ai-design-system-demo/git/refs', {});
-    expect(calls).toEqual([{ method: 'POST', url: 'https://api.github.com/repos/peterbono/ai-design-system-demo/git/refs', auth: 'Bearer fake-direct' }]);
+    const calls = fakeGitHub({ 'POST /repos/the-bridge-company/ai-design-system-demo/git/refs': { status: 201, body: {} } });
+    await ghWrite('POST', '/repos/the-bridge-company/ai-design-system-demo/git/refs', {});
+    expect(calls).toEqual([{ method: 'POST', url: 'https://api.github.com/repos/the-bridge-company/ai-design-system-demo/git/refs', auth: 'Bearer fake-direct' }]);
   });
 });
 

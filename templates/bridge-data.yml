@@ -15,7 +15,7 @@
 #
 # Token: only the GITHUB_TOKEN of this run, with `contents: write` to push the bridge-data branch and read access to
 # pull requests, issues and checks. No secret to add. The branch holds one commit with the latest files and is never
-# merged; delete it to start over. Docs: https://github.com/peterbono/ai-design-system-demo/blob/main/docs/HOSTED.md
+# merged; delete it to start over. Docs: https://github.com/the-bridge-company/ai-design-system-demo/blob/main/docs/HOSTED.md
 
 name: Bridge data
 

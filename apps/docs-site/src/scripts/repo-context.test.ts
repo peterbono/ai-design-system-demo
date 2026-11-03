@@ -35,8 +35,8 @@ describe('repoContext and siteConfig', () => {
   afterEach(() => page());
 
   it('self-hosted: the layout config, exactly as readRepo read it', () => {
-    page({ json: JSON.stringify({ owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', changes: 'direct' }) });
-    expect(repoContext()).toEqual({ owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', hosted: false });
+    page({ json: JSON.stringify({ owner: 'the-bridge-company', repo: 'ai-design-system-demo', defaultBranch: 'main', changes: 'direct' }) });
+    expect(repoContext()).toEqual({ owner: 'the-bridge-company', repo: 'ai-design-system-demo', defaultBranch: 'main', hosted: false });
     expect(siteConfig().changes).toBe('direct');
   });
 
@@ -52,7 +52,7 @@ describe('repoContext and siteConfig', () => {
   });
 
   it('team shell: the address names the repository; settings wait for the team config', () => {
-    page({ json: JSON.stringify({ owner: 'peterbono', repo: 'ai-design-system-demo', changes: 'direct' }), hosted: true, path: '/studio/Acme/ds/tokens/' });
+    page({ json: JSON.stringify({ owner: 'the-bridge-company', repo: 'ai-design-system-demo', changes: 'direct' }), hosted: true, path: '/studio/Acme/ds/tokens/' });
     expect(repoContext()).toEqual({ owner: 'Acme', repo: 'ds', defaultBranch: 'main', hosted: true });
     // Never the build checkout's settings on another team's page.
     expect(siteConfig()).toEqual({});

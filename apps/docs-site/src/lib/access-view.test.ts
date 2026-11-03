@@ -116,17 +116,17 @@ describe('the team chip', () => {
   });
 
   it("shows Bridge's own design system as one to explore, never as signed out", () => {
-    const anon = chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: null, signedIn: false });
+    const anon = chipIdentity('the-bridge-company/ai-design-system-demo', { demo: true, state: null, signedIn: false });
     expect(anon).toMatchObject({ kind: 'demo', name: 'Bridge DS', badge: { label: 'Explore freely' } });
     expect(anon.sample).toBeFalsy();
     expect(anon.title).toBe('Bridge DS design system');
-    expect(chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: 'admin', signedIn: true }).badge.label).toBe('Admin');
+    expect(chipIdentity('the-bridge-company/ai-design-system-demo', { demo: true, state: 'admin', signedIn: true }).badge.label).toBe('Admin');
     expect(chipIdentity('acme/ds', { demo: false, state: 'anonymous-public', signedIn: false })).toMatchObject({ kind: 'team', name: 'Ds', title: 'Ds, acme/ds', badge: { label: 'Guest' } });
     expect(chipIdentity('acme/ds', { demo: false, state: 'writer', signedIn: true, name: 'Acme Studio' })).toMatchObject({ name: 'Acme Studio', title: 'Acme Studio, acme/ds' });
     expect(chipIdentity('peterbono/bridge-demo-ds', { demo: true, state: null, signedIn: false, name: 'Other' }).name).toBe('Acme Design');
     expect(chipIdentity('acme/ds', { demo: false, state: 'writer', signedIn: true }).badge.label).toBe('Can edit');
-    expect(isDemoTeam('Peterbono/AI-design-system-demo', false)).toBe(true);
-    expect(isDemoTeam('peterbono/ai-design-system-demo', true)).toBe(true);
+    expect(isDemoTeam('The-Bridge-Company/AI-design-system-demo', false)).toBe(true);
+    expect(isDemoTeam('the-bridge-company/ai-design-system-demo', true)).toBe(true);
     expect(isDemoTeam('peterbono/bridge-demo-ds', true)).toBe(true);
     expect(isDemoTeam('acme/ds', false)).toBe(false);
   });
@@ -152,7 +152,7 @@ describe('the team chip', () => {
     for (const t of ['acme', 'acme/', '/ds', 'acme/ds/x', '-acme/ds', 'acme-/ds', 'ac--me/ds', 'acme/.', 'acme/..', 'ac me/ds']) {
       expect(isRecentTeamName(t)).toBe(false);
     }
-    for (const t of ['acme/ds', 'peterbono/ai-design-system-demo', 'a/1', 'owners/ds', 'acme/owner']) expect(isRecentTeamName(t)).toBe(true);
+    for (const t of ['acme/ds', 'the-bridge-company/ai-design-system-demo', 'a/1', 'owners/ds', 'acme/owner']) expect(isRecentTeamName(t)).toBe(true);
     const stored = JSON.stringify(['owner/design', 'acme/ds', 'owner/repo', 'ACME/ds', 'acme-/x', 'globex/tokens']);
     expect(parseRecentTeams(stored)).toEqual(['acme/ds', 'globex/tokens']);
     expect(pushRecentTeam(['acme/ds'], 'owner/design')).toEqual(['acme/ds']);

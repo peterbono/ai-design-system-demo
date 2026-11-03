@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/bridge.config.schema.json",
+  "$id": "https://raw.githubusercontent.com/the-bridge-company/ai-design-system-demo/main/packages/core/bridge.config.schema.json",
   "title": "Bridge config",
   "description": "bridge.config.json at the root of a design system repository: where its DTCG tokens live, how they layer per mode, the contrast gate, components, docs, changesets and the governance rules Bridge enforces. One schema for @bridge-ds/core, the DS Bridge Figma plugin, the docs site, the CLI and the MCP server. The older flat form (tokens.primitives and friends, modes.brands/themes/densities) is still accepted.",
   "type": "object",

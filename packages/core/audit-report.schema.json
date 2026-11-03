@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/audit-report.schema.json",
+  "$id": "https://raw.githubusercontent.com/the-bridge-company/ai-design-system-demo/main/packages/core/audit-report.schema.json",
   "title": "Bridge audit report",
   "description": "Output of `bridge audit --json`: design system adoption and drift in a product codebase. Versioned by schemaVersion.",
   "type": "object",

@@ -242,7 +242,7 @@ test('tokens.usage is an optional config key, written back by toConfigJson', () 
 
 test('this repo: the model is the same through the local, memory and GitHub sources', async () => {
   const root = join(__dirname, '../../..');
-  const fs = fsSource(root, { owner: 'peterbono', repo: 'ai-design-system-demo', sha: 'local' });
+  const fs = fsSource(root, { owner: 'the-bridge-company', repo: 'ai-design-system-demo', sha: 'local' });
   const fromFs = await loadRepoModel(fs);
   assert.deepEqual(fromFs.problems, []);
   assert.ok(fromFs.tokens.rows.all.length > 100);
@@ -265,10 +265,10 @@ test('this repo: the model is the same through the local, memory and GitHub sour
   const sha = 'b'.repeat(40);
   const blobs = Object.keys(files).map((path, i) => ({ path, type: 'blob', sha: i.toString(16).padStart(40, '0'), mode: '100644', size: files[path]!.length }));
   const gh = fakeGitHub({
-    routes: { [`GET /repos/peterbono/ai-design-system-demo/git/trees/${sha}?recursive=1`]: { body: { truncated: false, tree: blobs } } },
-    raw: Object.fromEntries(Object.entries(files).map(([path, body]) => [`peterbono/ai-design-system-demo/${sha}/${path}`, body])),
+    routes: { [`GET /repos/the-bridge-company/ai-design-system-demo/git/trees/${sha}?recursive=1`]: { body: { truncated: false, tree: blobs } } },
+    raw: Object.fromEntries(Object.entries(files).map(([path, body]) => [`the-bridge-company/ai-design-system-demo/${sha}/${path}`, body])),
   });
-  const client = new GitHubClient('peterbono/ai-design-system-demo', '', gh.fetchImpl, noSleep);
+  const client = new GitHubClient('the-bridge-company/ai-design-system-demo', '', gh.fetchImpl, noSleep);
   // component-specs.json is over the source's default 1 MB cap: raise it for the parity check.
   const fromGitHub = await loadRepoModel(gitHubSource(client, sha, { maxFileBytes: 5_000_000 }));
   assert.deepEqual({ ...fromGitHub, ref: fs.ref }, fromFs);

@@ -50,8 +50,8 @@ using `where: "library"`; the CLI takes `--in-library`.
 A product can name a copy of it that the design team owns, a GitHub fork, with `products[].design`:
 
 ```json
-{ "key": "admin-app", "name": "Art print shop", "repo": "art-print-shop-co/art-print-shop",
-  "design": { "repo": "art-print-shop-co/art-print-shop-design", "preview": "https://<copy project>-git-{branch}-<team>.vercel.app" } }
+{ "key": "admin-app", "name": "Art print shop", "repo": "the-bridge-company/art-print-shop",
+  "design": { "repo": "the-bridge-company/art-print-shop-design", "preview": "https://<copy project>-git-{branch}-<team>.vercel.app" } }
 ```
 
 Then every new exploration of that product starts **in the copy**, never in `repo`, and Bridge only ever writes one
@@ -114,9 +114,9 @@ on a branch that deploys to staging:
 ```sh
 npm i @bridge-ds/tokens@<snapshot> @bridge-ds/core@<snapshot> @bridge-ds/react@<snapshot>
 # with pkg.pr.new, <snapshot> is the URL of the latest commit of pull request 12:
-npm i @bridge-ds/tokens@https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/tokens@12 \
-      @bridge-ds/core@https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/core@12 \
-      @bridge-ds/react@https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/react@12
+npm i @bridge-ds/tokens@https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/tokens@12 \
+      @bridge-ds/core@https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/core@12 \
+      @bridge-ds/react@https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/react@12
 ```
 
 `name@url` keeps the package names in the product's `package.json`, so imports do not change. Install the
@@ -127,7 +127,7 @@ sha to pin one commit.
 the `preview-pr-<n>` GitHub prerelease (latest commit only, removed when the pull request closes):
 
 ```sh
-npm i @bridge-ds/react@https://github.com/peterbono/ai-design-system-demo/releases/download/preview-pr-12/bridge-ds-react-<sha7>.tgz
+npm i @bridge-ds/react@https://github.com/the-bridge-company/ai-design-system-demo/releases/download/preview-pr-12/bridge-ds-react-<sha7>.tgz
 ```
 
 The comment lists the exact URLs. **Tokens only, no reinstall:** open the staging with
@@ -222,7 +222,7 @@ once, at its root, from [`@bridge-ds/toolbar`](../packages/toolbar/README.md):
 ```tsx
 import { BridgeToolbar } from '@bridge-ds/toolbar';
 
-<BridgeToolbar ds="peterbono/ai-design-system-demo" product="admin-app" />
+<BridgeToolbar ds="the-bridge-company/ai-design-system-demo" product="admin-app" />
 ```
 
 It reads the product's repository, `production` and `preview` from this repository's `bridge.config.json` when Studio
@@ -239,7 +239,7 @@ the toolbar.
 **Connect the product repository once.** Inside a checkout of it, run:
 
 ```sh
-npx @bridge-ds/cli connect --ds peterbono/ai-design-system-demo     # --product shop when its origin is not the product's repo
+npx @bridge-ds/cli connect --ds the-bridge-company/ai-design-system-demo     # --product shop when its origin is not the product's repo
 ```
 
 It writes three small files and prints what changed: `.mcp.json` (the Bridge MCP server for the design system, the

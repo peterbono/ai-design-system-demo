@@ -42,7 +42,7 @@ export function shotsFileUrl(owner: string, repo: string, path: string): string 
 
 export const shotsIndexUrl = (owner: string, repo: string) => shotsFileUrl(owner, repo, 'index.json');
 
-/** "art-print-shop-co/art-print-shop#2": the key of a capture, lower case. */
+/** "the-bridge-company/art-print-shop#2": the key of a capture, lower case. */
 export const shotKey = (repo: string, pr: number) => `${repo.toLowerCase()}#${pr}`;
 
 /**

@@ -33,9 +33,9 @@ describe('the design team copy, in designer words', () => {
   });
 
   it('Open in Claude Code: the copy selected, the first message naming the branch, the goal and the preview', () => {
-    const url = new URL(claudeCodeUrl({ copy: 'art-print-shop-co/art-print-shop-design', branch: 'explore/orders', name: 'Orders', purpose: 'Pack first', product: 'Art print shop', previewUrl: 'https://x.vercel.app' }));
+    const url = new URL(claudeCodeUrl({ copy: 'the-bridge-company/art-print-shop-design', branch: 'explore/orders', name: 'Orders', purpose: 'Pack first', product: 'Art print shop', previewUrl: 'https://x.vercel.app' }));
     expect(url.origin + url.pathname).toBe('https://claude.ai/code');
-    expect(url.searchParams.get('repositories')).toBe('art-print-shop-co/art-print-shop-design');
+    expect(url.searchParams.get('repositories')).toBe('the-bridge-company/art-print-shop-design');
     const prompt = url.searchParams.get('prompt')!;
     expect(prompt).toContain('Check out the branch explore/orders');
     expect(prompt).toContain('Goal: Pack first');

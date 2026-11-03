@@ -140,7 +140,7 @@ test('resolveBranchPreviews: Vercel sources are read exactly as before', () => {
   assert.equal(p!.state, 'ready');
 });
 
-// The check run Cloudflare Pages posted on art-print-shop-co/art-print-shop main (an HTML table, no branch alias on
+// The check run Cloudflare Pages posted on the-bridge-company/art-print-shop main (an HTML table, no branch alias on
 // the production branch), and the same table on a preview branch, where Cloudflare adds its Branch Preview URL row.
 const REAL_MAIN = "<table><tr><td><strong>Latest commit:</strong> </td><td>\n<code>ee20562</code>\n</td></tr>\n<tr><td><strong>Status:</strong></td><td>&nbsp;✅&nbsp; Deploy successful!</td></tr>\n<tr><td><strong>Preview URL:</strong></td><td>\n<a href='https://725046a6.art-print-shop.pages.dev'>https://725046a6.art-print-shop.pages.dev</a>\n</td></tr>\n</table>\n\n[View logs](https://dash.cloudflare.com/?to=/1606eed0cc5fc32fff864fa84e3b3be7/pages/view/art-print-shop/725046a6-5f5a-45e9-ad9c-852274f46d51)\n";
 const REAL_BRANCH = REAL_MAIN.replace(

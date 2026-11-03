@@ -69,7 +69,7 @@ const SCOPE = {
   tooling: { paths: ['apps/docs-site/', 'apps/figma-plugin/', 'packages/core/', 'packages/cli/', 'packages/mcp/'] },
   products: [
     { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
-    { key: 'admin-app', name: 'Product admin', repo: 'art-print-shop-co/art-print-shop' },
+    { key: 'admin-app', name: 'Product admin', repo: 'the-bridge-company/art-print-shop' },
     { key: 'library', name: 'Library', path: 'packages', default: true },
   ],
 };

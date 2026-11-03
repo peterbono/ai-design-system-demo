@@ -52,7 +52,7 @@ const throwing: StorageLike = {
 
 const TEMPLATE = 'https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app';
 const build = {
-  owner: 'peterbono',
+  owner: 'the-bridge-company',
   repo: 'ai-design-system-demo',
   studio: 'https://bridge.floriangouloubi.com',
   production: 'https://bridge-demo.floriangouloubi.com',
@@ -145,7 +145,7 @@ describe('links', () => {
     expect(liveTokensUrl({ studio: 'https://x.example/docs/' })).toBe('https://x.example/docs/tokens.css');
     expect(liveTokensUrl({ studio: null })).toBeNull();
     expect(studioChangeUrl(build, 101)).toBe('https://bridge.floriangouloubi.com/studio/changes/?pr=101');
-    expect(studioChangeUrl({ ...build, studio: null }, 101)).toBe('https://github.com/peterbono/ai-design-system-demo/pull/101');
+    expect(studioChangeUrl({ ...build, studio: null }, 101)).toBe('https://github.com/the-bridge-company/ai-design-system-demo/pull/101');
   });
 
   it('opens the same screen on the other deployment, with the change, the way back and the scroll', () => {
@@ -316,7 +316,7 @@ describe('token roles', () => {
 });
 
 describe("the design copy a change lives in (bridge-repo)", () => {
-  const copy = 'art-print-shop-co/art-print-shop-design';
+  const copy = 'the-bridge-company/art-print-shop-design';
   it('comes with the change, is kept for the session, and is dropped by a change without it', () => {
     const store = memoryStorage();
     expect(readRepo(`?bridge=1&bridge-repo=${copy}`, store)).toBe(copy);

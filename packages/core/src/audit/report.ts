@@ -155,7 +155,7 @@ export function buildAuditReport(input: AuditInput, ds: DesignSystemIndex): Audi
     .slice(0, 25)
     .map(({ fileSet, ...f }) => ({ ...f, files: fileSet.size }));
   return {
-    $schema: 'https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/audit-report.schema.json',
+    $schema: 'https://raw.githubusercontent.com/the-bridge-company/ai-design-system-demo/main/packages/core/audit-report.schema.json',
     schemaVersion: AUDIT_SCHEMA_VERSION,
     tool: { name: 'bridge', version: input.version ?? '0.1.0' },
     ...(input.label ? { label: input.label } : {}),

@@ -8,7 +8,7 @@ import { runFigma } from '../../cli/src/figma.js';
 import { fakeGitHub, readTree, REAL_PATHS, REPO } from './helpers.js';
 
 // The CLI runs in this repository: its config names the GitHub repository the fake stands for.
-function setup(owner = 'peterbono', name = 'ai-design-system-demo') {
+function setup(owner = 'the-bridge-company', name = 'ai-design-system-demo') {
   const gh = fakeGitHub(owner, name, readTree(REPO, [...REAL_PATHS, 'packages/react/component-specs.json']));
   const ro = () => BridgeContext.create({ repo: `${owner}/${name}`, fetch: gh.fetch });
   const rw = () => BridgeContext.create({ repo: `${owner}/${name}`, token: 't', fetch: gh.fetch });

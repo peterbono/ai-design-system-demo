@@ -16,7 +16,7 @@ import { REQUEST_HELP, runRequest, type RequestIO } from '../src/request.js';
 import { runApply, runReview, runSuggestions, SUGGESTIONS_HELP } from '../src/suggest.js';
 import { fakeGitHub, pinStart, readTree, REAL_PATHS, REPO, tempGitRepo, withoutSoloOwner } from '../../mcp/test/helpers.js';
 
-const OWNER = 'peterbono';
+const OWNER = 'the-bridge-company';
 const NAME = 'ai-design-system-demo';
 
 /** Signed in with gh (a token is there for the taking), nothing in the environment. */

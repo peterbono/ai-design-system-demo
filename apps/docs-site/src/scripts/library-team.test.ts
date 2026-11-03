@@ -39,7 +39,7 @@ describe('pointLibraryLinks', () => {
       <a id="tokens" href="/library-shell/tokens/">Tokens</a>
       <a id="studio" href="/studio/">Open Studio</a>
       <a id="other" href="/studio/changes/">Changes</a>
-      <a id="gh" href="https://github.com/peterbono/ai-design-system-demo" data-team-github>GitHub</a>
+      <a id="gh" href="https://github.com/the-bridge-company/ai-design-system-demo" data-team-github>GitHub</a>
       <span data-team-name>owner/repo</span>`;
     const href = (id: string) => document.getElementById(id)!.getAttribute('href');
     pointLibraryLinks({ owner: 'acme', repo: 'ds' }, null);

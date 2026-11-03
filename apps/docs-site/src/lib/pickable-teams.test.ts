@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { connectStep } from './connect-figma';
 import { pickableTeams } from './pickable-teams';
 
-const SITE = 'peterbono/ai-design-system-demo';
+const SITE = 'the-bridge-company/ai-design-system-demo';
 const account = { email: 'florian@example.com', name: 'Florian', nameSet: true, github: { login: 'peterbono', id: 1 }, teams: [] };
 
 describe('pickable teams: the team switcher list, for the pickers too', () => {

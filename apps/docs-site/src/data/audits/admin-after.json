@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/audit-report.schema.json",
+  "$schema": "https://raw.githubusercontent.com/the-bridge-company/ai-design-system-demo/main/packages/core/audit-report.schema.json",
   "schemaVersion": 1,
   "tool": {
     "name": "bridge",

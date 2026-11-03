@@ -5,14 +5,14 @@
   "description": "Bridge core: bridge.config.json, DTCG token loading (tiers and layered modes), alias resolution, WCAG contrast, diffs, minimal-diff edits, PR body, the shared risk tier classifier, changesets and a fetch-based GitHub client. No Figma API, no DOM; Node-only helpers (git, reading a product folder) under @bridge-ds/core/node; the adoption audit under @bridge-ds/core/audit.",
   "license": "MIT",
   "author": "Florian Gouloubi",
-  "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/core#readme",
+  "homepage": "https://github.com/the-bridge-company/ai-design-system-demo/tree/main/packages/core#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "url": "git+https://github.com/the-bridge-company/ai-design-system-demo.git",
     "directory": "packages/core"
   },
   "bugs": {
-    "url": "https://github.com/peterbono/ai-design-system-demo/issues"
+    "url": "https://github.com/the-bridge-company/ai-design-system-demo/issues"
   },
   "keywords": [
     "design-tokens",

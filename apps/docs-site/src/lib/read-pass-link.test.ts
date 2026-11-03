@@ -4,7 +4,7 @@ import { parseGrant, passOrigin, withReadPass } from './read-pass-link';
 const NOW = Date.parse('2026-11-03T10:00:00Z');
 const PASS = 'v1.eyJ0IjoiYWNtZS9kcyJ9.c2lnbmF0dXJlLWJ5dGVz';
 const grant = { pass: PASS, exp: NOW + 8 * 3600_000, origins: ['https://{branch}.art-print-shop-design.pages.dev', 'https://art-print-shop.pages.dev'] };
-const TRY = 'https://explore-add-a-toast-alert.art-print-shop-design.pages.dev/?bridge=4&bridge-repo=art-print-shop-co%2Fart-print-shop-design';
+const TRY = 'https://explore-add-a-toast-alert.art-print-shop-design.pages.dev/?bridge=4&bridge-repo=the-bridge-company%2Fart-print-shop-design';
 
 describe('read pass on a toolbar link', () => {
   it('goes in front of the fragment of a toolbar link to a product page the team names, keeping the hash route', () => {

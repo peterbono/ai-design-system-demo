@@ -8,10 +8,13 @@ import { DEMO_APPROVED_KEY, demoApprovedSet, markDemoApproved, DEMO_REPOS, demoA
 
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
-    expect(DEMO_REPOS).toContain('peterbono/ai-design-system-demo');
+    expect(DEMO_REPOS).toContain('the-bridge-company/ai-design-system-demo');
     expect(DEMO_REPOS).toContain('peterbono/bridge-demo-ds');
     expect(isDemoRepo('Peterbono/Bridge-Demo-DS')).toBe(true);
     expect(isDemoRepo('acme/ds')).toBe(false);
+    // Bridge's own repository moves to the-bridge-company: both names are the demo while it moves.
+    expect(isDemoRepo('The-Bridge-Company/AI-Design-System-Demo')).toBe(true);
+    expect(isDemoRepo('The-Bridge-Company/AI-Design-System-Demo')).toBe(true);
     expect(isDemoRepo(null)).toBe(false);
   });
 
@@ -58,7 +61,7 @@ describe('the demo', () => {
   });
 
   it("never calls Bridge's own design system the demo", () => {
-    const own = demoDialog('peterbono/ai-design-system-demo');
+    const own = demoDialog('the-bridge-company/ai-design-system-demo');
     expect(`${own.title} ${own.lead}`).not.toMatch(/demo|for real/i);
   });
 
@@ -126,14 +129,14 @@ describe('the demo Settings', () => {
 
 describe('teamDisplayName', () => {
   it('a demo goes by its own name, any other team by its repository name in words, never owner/repo', () => {
-    expect(teamDisplayName('peterbono/ai-design-system-demo')).toBe('Bridge DS');
+    expect(teamDisplayName('the-bridge-company/ai-design-system-demo')).toBe('Bridge DS');
     expect(teamDisplayName('PeterBono/Bridge-Demo-DS')).toBe('Acme Design');
     expect(teamDisplayName('acme/design-system')).toBe('Design system');
   });
 
   it("a team's own name from bridge.config.json wins, except on the sample team", () => {
     expect(teamDisplayName('acme/design-system', { name: '  Acme   Studio ' })).toBe('Acme Studio');
-    expect(teamDisplayName('peterbono/ai-design-system-demo', { name: 'Bridge DS' })).toBe('Bridge DS');
+    expect(teamDisplayName('the-bridge-company/ai-design-system-demo', { name: 'Bridge DS' })).toBe('Bridge DS');
     expect(teamDisplayName('peterbono/bridge-demo-ds', { name: 'Other' })).toBe('Acme Design');
     expect(teamDisplayName('acme/ds', { name: ' ' })).toBe('Ds');
     expect(teamDisplayName('acme/ds', null)).toBe('Ds');
@@ -149,11 +152,11 @@ describe('teamDisplayName', () => {
   it("names Bridge's own design system as the root bridge.config.json does", () => {
     const root = JSON.parse(readFileSync(new URL('../../../../bridge.config.json', import.meta.url), 'utf8')) as { name?: string };
     expect(root.name).toBe(OWN_TEAM);
-    expect(teamDisplayName('peterbono/ai-design-system-demo', root)).toBe('Bridge DS');
+    expect(teamDisplayName('the-bridge-company/ai-design-system-demo', root)).toBe('Bridge DS');
   });
 
   it('puts a repository name in words', () => {
-    expect(humanizeRepo('peterbono/ai-design-system-demo')).toBe('Ai design system demo');
+    expect(humanizeRepo('the-bridge-company/ai-design-system-demo')).toBe('Ai design system demo');
     expect(humanizeRepo('acme_ui.kit')).toBe('Acme ui kit');
     expect(humanizeRepo('acme/ds')).toBe('Ds');
   });

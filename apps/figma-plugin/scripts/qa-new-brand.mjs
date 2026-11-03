@@ -46,7 +46,7 @@ const stub = `
   };
   // Figma main-thread stand-in.
   const answers = {
-    init: () => ({ settings: { repo: 'peterbono/ai-design-system-demo', branch: 'main', tokensPath: 'packages/tokens/src' }, sync: { baseSha: DATA.headSha }, hasToken: true, token: 'qa', fileName: DATA.snapshot.fileName }),
+    init: () => ({ settings: { repo: 'the-bridge-company/ai-design-system-demo', branch: 'main', tokensPath: 'packages/tokens/src' }, sync: { baseSha: DATA.headSha }, hasToken: true, token: 'qa', fileName: DATA.snapshot.fileName }),
     snapshot: () => DATA.snapshot,
   };
   window.addEventListener('message', (e) => {

@@ -78,12 +78,12 @@ describe('Add a product: no code yet', () => {
 
   it("goes where the team's products live, even when Bridge reaches other accounts", async () => {
     gh.access = { repos: [SHOP, { full: 'peterbono/site', name: 'site', defaultBranch: 'main' }], installation: null, account: 'peterbono' };
-    render(createElement(AddProduct, { products: [{ key: 'prints', name: 'Prints', repo: 'art-print-shop-co/prints' }], open: true, onOpenChange: vi.fn(), onSent: vi.fn() }));
+    render(createElement(AddProduct, { products: [{ key: 'prints', name: 'Prints', repo: 'the-bridge-company/prints' }], open: true, onOpenChange: vi.fn(), onSent: vi.fn() }));
     await openForm();
     expect(screen.queryByRole('combobox')).toBeNull();
     fireEvent.change(screen.getByLabelText(W.name), { target: { value: 'Data pilot' } });
     fireEvent.click(screen.getByRole('button', { name: W.create }));
-    await waitFor(() => expect(gh.start).toHaveBeenCalledWith(expect.objectContaining({ owner: 'art-print-shop-co', slug: 'data-pilot' })));
+    await waitFor(() => expect(gh.start).toHaveBeenCalledWith(expect.objectContaining({ owner: 'the-bridge-company', slug: 'data-pilot' })));
   });
 
   it("no product yet: goes to the team's own account (the library's owner)", async () => {

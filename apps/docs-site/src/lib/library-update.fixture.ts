@@ -1,5 +1,5 @@
 // A product's package.json and npm lockfile (v3) for the library update tests: the structure of
-// art-print-shop-co/art-print-shop's files, its library entries as npm wrote them, and @bridge-ds/react 1.8.4 from the registry.
+// the-bridge-company/art-print-shop's files, its library entries as npm wrote them, and @bridge-ds/react 1.8.4 from the registry.
 import type { RegistryManifest } from './library-update';
 
 export const PKG = {

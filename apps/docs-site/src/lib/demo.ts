@@ -16,7 +16,9 @@ import { isTeamKey } from './team-path.js';
  * The design systems that are the public demo, lower case "owner/repo": the self-hosted site's own repository and
  * the demo team on the hosted site (/studio/peterbono/bridge-demo-ds/). The one place to change what "demo" means.
  */
-export const DEMO_REPOS: readonly string[] = ['peterbono/ai-design-system-demo', 'peterbono/bridge-demo-ds'];
+// 'peterbono/ai-design-system-demo' is the old key of Bridge's own repository, kept while it moves to
+// the-bridge-company so the switch has no gap: remove it once nothing reads the old name.
+export const DEMO_REPOS: readonly string[] = ['the-bridge-company/ai-design-system-demo', 'peterbono/bridge-demo-ds', 'peterbono/ai-design-system-demo'];
 
 /** True for a demo design system ("owner/repo", any case). */
 export const isDemoRepo = (repo: string | null | undefined): boolean => DEMO_REPOS.includes((repo ?? '').trim().toLowerCase());
@@ -24,7 +26,7 @@ export const isDemoRepo = (repo: string | null | undefined): boolean => DEMO_REP
 /**
  * The two demo design systems are not the same thing for a visitor, so they never share a name:
  *   - peterbono/bridge-demo-ds is a simulated team with sample data: "Acme Design" (Dana leads its design system).
- *   - peterbono/ai-design-system-demo is Bridge's own design system, the real one behind this site: "Bridge DS".
+ *   - the-bridge-company/ai-design-system-demo is Bridge's own design system, the real one behind this site: "Bridge DS".
  */
 export const SAMPLE_REPO = 'peterbono/bridge-demo-ds';
 export const SAMPLE_TEAM = 'Acme Design';

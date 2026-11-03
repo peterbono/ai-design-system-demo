@@ -154,7 +154,7 @@ describe('TeamChip names the team', () => {
 describe('TeamChip "Your teams"', () => {
   it("on the person's own team, lists it first with a check and their role, never the empty workspace", async () => {
     page.viewer = { login: 'peterbono', name: 'Florian' };
-    page.team = { owner: 'peterbono', repo: 'ai-design-system-demo' };
+    page.team = { owner: 'the-bridge-company', repo: 'ai-design-system-demo' };
     page.site = { name: 'Bridge DS' };
     localStorage.setItem('bridge.start', JSON.stringify({ connect: true }));
     const user = userEvent.setup();
@@ -171,27 +171,27 @@ describe('TeamChip "Your teams"', () => {
     expect(within(menu).queryByText(/workspace/)).toBeNull();
     expect(within(menu).queryByText('Not connected yet')).toBeNull();
     expect(within(menu).getByRole('menuitem', { name: 'Invite collaborators' })).toBeInTheDocument();
-    await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamRoles') ?? '{}')).toEqual({ 'peterbono/ai-design-system-demo': 'Admin' }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamRoles') ?? '{}')).toEqual({ 'the-bridge-company/ai-design-system-demo': 'Admin' }));
     await expectNoAxeViolations(menu);
   });
 
   it('a GitHub admin with a stale "Can view" in this browser: the chip says Admin and the stale role is replaced', async () => {
     page.viewer = { login: 'peterbono', name: 'Florian' };
-    page.team = { owner: 'peterbono', repo: 'ai-design-system-demo' };
+    page.team = { owner: 'the-bridge-company', repo: 'ai-design-system-demo' };
     page.site = { name: 'Bridge DS' };
-    localStorage.setItem('bridge.teamRoles', JSON.stringify({ 'peterbono/ai-design-system-demo': 'Can view' }));
+    localStorage.setItem('bridge.teamRoles', JSON.stringify({ 'the-bridge-company/ai-design-system-demo': 'Can view' }));
     render(createElement(TeamChip, { launcher: true }));
     await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
     act(() => page.listeners.forEach((l) => l({ state: 'admin' })));
     expect(await screen.findByRole('button', { name: 'Bridge DS, Admin, team menu' })).toBeInTheDocument();
-    await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamRoles') ?? '{}')).toEqual({ 'peterbono/ai-design-system-demo': 'Admin' }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamRoles') ?? '{}')).toEqual({ 'the-bridge-company/ai-design-system-demo': 'Admin' }));
   });
 
   it('a GitHub sign-in read as "Can view" and the linked GitHub account is admin: the stronger role, Admin', async () => {
     page.viewer = { login: 'peterbono', name: 'Florian' };
-    page.team = { owner: 'peterbono', repo: 'ai-design-system-demo' };
+    page.team = { owner: 'the-bridge-company', repo: 'ai-design-system-demo' };
     page.site = { name: 'Bridge DS' };
-    localStorage.setItem('bridge.teamRoles', JSON.stringify({ 'peterbono/ai-design-system-demo': 'Can view' }));
+    localStorage.setItem('bridge.teamRoles', JSON.stringify({ 'the-bridge-company/ai-design-system-demo': 'Can view' }));
     const { readLinkedRole, resetLinkedRole } = await import('../../../scripts/linked-role');
     resetLinkedRole();
     render(createElement(TeamChip, { launcher: true }));
@@ -199,9 +199,9 @@ describe('TeamChip "Your teams"', () => {
     act(() => page.listeners.forEach((l) => l({ state: 'reader' })));
     expect(await screen.findByRole('button', { name: 'Bridge DS, Can view, team menu' })).toBeInTheDocument();
     page.linked = 'admin';
-    await act(async () => void (await readLinkedRole('peterbono/ai-design-system-demo', { account: async () => ({ github: { login: 'peterbono' }, teams: [{ repo: 'peterbono/ai-design-system-demo' }] }), role: async () => 'admin' })));
+    await act(async () => void (await readLinkedRole('the-bridge-company/ai-design-system-demo', { account: async () => ({ github: { login: 'peterbono' }, teams: [{ repo: 'the-bridge-company/ai-design-system-demo' }] }), role: async () => 'admin' })));
     expect(await screen.findByRole('button', { name: 'Bridge DS, Admin, team menu' })).toBeInTheDocument();
-    await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamRoles') ?? '{}')).toEqual({ 'peterbono/ai-design-system-demo': 'Admin' }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamRoles') ?? '{}')).toEqual({ 'the-bridge-company/ai-design-system-demo': 'Admin' }));
     resetLinkedRole();
   });
 
@@ -237,7 +237,7 @@ describe('TeamChip "Your teams" from a Bridge account', () => {
 describe('TeamChip teams to switch to (board EmptyB)', () => {
   it('names the browser workspace after the viewer, current under "Your teams", with the demo under "Try it"', async () => {
     page.viewer = { login: 'ann-lee', name: 'Ann Lee' };
-    page.team = { owner: 'peterbono', repo: 'ai-design-system-demo' };
+    page.team = { owner: 'the-bridge-company', repo: 'ai-design-system-demo' };
     localStorage.setItem('bridge.start', JSON.stringify({ connect: true }));
     const user = userEvent.setup();
     render(createElement(TeamChip, { launcher: true, workspace: true }));

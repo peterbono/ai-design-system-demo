@@ -4,7 +4,7 @@ import { runExplore } from '../src/explore.js';
 import { runRequest, type RequestIO } from '../src/request.js';
 import { fakeGitHub, git, REAL_PATHS, REPO, tempGitRepo } from '../../mcp/test/helpers.js';
 
-const OWNER = 'peterbono';
+const OWNER = 'the-bridge-company';
 const NAME = 'ai-design-system-demo';
 
 function io(gh: ReturnType<typeof fakeGitHub>, env: NodeJS.ProcessEnv = { GITHUB_TOKEN: 't' }) {

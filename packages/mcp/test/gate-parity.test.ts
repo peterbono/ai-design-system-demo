@@ -18,7 +18,7 @@ import { studioVerdict } from '../../../apps/docs-site/src/lib/review-rules.js';
 import { effectiveTier } from '../../../apps/docs-site/src/lib/review-queue.js';
 import { fakeGitHub, readTree, REAL_PATHS, REPO, tempGitRepo } from './helpers.js';
 
-const OWNER = 'peterbono';
+const OWNER = 'the-bridge-company';
 const NAME = 'ai-design-system-demo';
 const FULL = `${OWNER}/${NAME}`;
 

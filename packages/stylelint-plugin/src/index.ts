@@ -27,7 +27,7 @@ export const messages = ruleMessages(ruleName, {
     level === 'exact' ? `Use var(${token}) instead of ${value}: it is the same ${category} (${tokenValue}).` : `Use a token instead of the raw ${category} ${value}: closest is var(${token}) (${tokenValue}, ${level} match).`,
 });
 
-const meta = { url: 'https://github.com/peterbono/ai-design-system-demo/tree/main/packages/stylelint-plugin#bridgeuse-tokens', fixable: true };
+const meta = { url: 'https://github.com/the-bridge-company/ai-design-system-demo/tree/main/packages/stylelint-plugin#bridgeuse-tokens', fixable: true };
 const RANK: Record<Confidence, number> = { exact: 3, high: 2, medium: 1, low: 0 };
 const isString = (x: unknown) => typeof x === 'string';
 
