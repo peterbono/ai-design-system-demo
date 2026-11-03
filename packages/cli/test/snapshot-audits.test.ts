@@ -1,9 +1,9 @@
 // bridge snapshot --audit / --audit-report: each audit names the bridge.config.json product it measured, so Studio's
 // "Used in" lists the team's products, never other apps of the repository or the library itself.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RepoSnapshot } from '@bridge-ds/core';
 import { writeSnapshot } from '../src/snapshot.js';
@@ -28,5 +28,23 @@ describe('bridge snapshot audits name their product', () => {
     const snap = JSON.parse(readFileSync(join(out, 'snapshot.json'), 'utf8')) as RepoSnapshot;
     const byId = Object.fromEntries(snap.audits.map((a) => [a.id, a.product ?? null]));
     expect(byId).toEqual({ 'admin-after': null, 'art-print-shop-main': 'admin-app', 'library-fixture': null });
+  });
+
+  it('a product checkout inside the repo (actions/checkout path:) is named by its own git origin', async () => {
+    // Under node_modules (ignored by git): a nested repository, as the bridge-data workflow checks the product out.
+    const cache = join(REPO, 'node_modules/.cache');
+    mkdirSync(cache, { recursive: true });
+    const shop = mkdtempSync(join(cache, 'bridge-test-nested-shop-'));
+    try {
+      cpSync(CLEAN_APP, shop, { recursive: true });
+      execFileSync('git', ['init', '-q'], { cwd: shop });
+      execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/art-print-shop-co/art-print-shop'], { cwd: shop });
+      const out = mkdtempSync(join(tmpdir(), 'bridge-test-snapshot-'));
+      await writeSnapshot({ root: REPO, out, version: '9.9.9', generatedAt: '2026-11-03T10:00:00.000Z', audit: [`${relative(REPO, shop)}=Art print shop, main`] });
+      const snap = JSON.parse(readFileSync(join(out, 'snapshot.json'), 'utf8')) as RepoSnapshot;
+      expect(snap.audits.map((a) => a.product ?? null)).toEqual(['admin-app']);
+    } finally {
+      rmSync(shop, { recursive: true, force: true });
+    }
   });
 });

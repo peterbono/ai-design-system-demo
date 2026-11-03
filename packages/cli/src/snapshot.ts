@@ -2,7 +2,7 @@
 // read it from the raw host, no API quota). Adds what only Node can compute: adoption audits of product folders.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { basename, join, posix, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, posix, relative, resolve, sep } from 'node:path';
 import type { AuditReport } from '@bridge-ds/core/audit';
 import { ACTIVITY_FILE, activityBytes, auditId, buildSnapshot, defaultProduct, productForPlace, productsOf, collectActivity, collectReleases, GitHubClient, loadRepoModel, parseActivity, recordingSource, snapshotAudit, snapshotLlmsTxt, SNAPSHOT_AUDITS_DIR, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, type FetchLike, type RepoActivity, type RepoSnapshot, type SnapshotAudit, type SnapshotPackage } from '@bridge-ds/core';
 import { fsSource, runAudit } from '@bridge-ds/core/node';
@@ -190,9 +190,12 @@ export async function writeSnapshot(opts: SnapshotOptions): Promise<SnapshotResu
     if (!existsSync(abs)) throw new Error(`No such file or folder to audit: ${path}`);
     const report = runAudit(abs, { ds: opts.root, version: opts.version, ...(label ? { label } : {}) });
     const id = auditId(label || relative(opts.root, abs) || basename(abs));
-    // A folder outside this checkout (a product's own repository checked out next to it) is named by its git origin.
+    // A product's own repository checked out next to this one, or inside it (actions/checkout `path:`), is named by its
+    // git origin when that origin is not the design system's.
     const relPath = relative(opts.root, abs).split(sep).join('/');
-    audits.set(id, { summary: snapshotAudit(id, report, productOf({ relPath, repo: relPath.startsWith('..') ? originOf(abs) : undefined })), report });
+    const origin = originOf(statSync(abs).isDirectory() ? abs : dirname(abs));
+    const foreign = origin && origin.toLowerCase() !== (dsRepo ?? originOf(opts.root) ?? '').toLowerCase() ? origin : undefined;
+    audits.set(id, { summary: snapshotAudit(id, report, productOf({ relPath, repo: foreign })), report });
   }
 
   const packages = workspacePackages(opts.root);
