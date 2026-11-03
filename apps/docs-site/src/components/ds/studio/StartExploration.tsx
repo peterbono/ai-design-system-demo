@@ -69,9 +69,10 @@ export interface StartExplorationProps {
    * `menu`: the page header's action (the Changes page), its weight set by the page.
    * `card`: the dashed first card of the home's explorations, always shown (the page only mounts it signed in).
    * `button`: a lone secondary button (the home's explorations when there are none yet).
-   * `choice`: the title of a way-to-start card (the home with nothing at all), the card's primary action.
+   * `choice`: the title of a way-to-start card (a product page with nothing explored yet), the card's primary action.
+   * `primary`: the home's one primary action when nothing needs the viewer, under "What do you want to explore?".
    */
-  appearance?: 'menu' | 'card' | 'button' | 'choice';
+  appearance?: 'menu' | 'card' | 'button' | 'choice' | 'primary';
   /** The product the start is for (a product page): "Where" is decided, shown as a read-only line instead of the Select. */
   product?: string | null;
 }
@@ -571,6 +572,10 @@ export default function StartExploration({ components, appearance = 'menu', prod
           ) : appearance === 'choice' ? (
             <Button variant="link" className="sh-choice-btn" data-card-primary data-start-change data-demo-write={gate}>
               <span className="sh-choice-title">{label}</span>
+            </Button>
+          ) : appearance === 'primary' ? (
+            <Button variant="primary" className="sh-start-btn" data-start-change data-demo-write={gate}>
+              {label}
             </Button>
           ) : appearance === 'button' ? (
             <Button variant="secondary" size="lg" iconStart={Plus} data-start-change data-demo-write={gate}>

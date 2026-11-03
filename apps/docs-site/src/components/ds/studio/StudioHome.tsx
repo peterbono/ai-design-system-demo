@@ -6,7 +6,8 @@
 //     screen, "Start an exploration" as the first card. Library changes are not cards here: they wait in the review
 //     queue for reviewers, live on Changes, and their author gets one line under the section ("Your changes").
 //   - Nothing needs the viewer: "What do you want to explore?" in a window onto the calm harbor (QuietScene), what is
-//     open of their own work in one sentence (each clause opens Changes on it), and the Start card, the one action.
+//     open of their own work in one sentence (each clause opens Changes on it), and "Start an exploration", the one
+//     primary button, right under the headline in the same window.
 //   - Someone without a review right (`contributor`): only what waits on them (their branches sent back with changes),
 //     never the review queue, and on the first visit a two-step tour of their explorations and how to start (HomeTour.tsx).
 // NeedList is shared with the review queue (pages/studio/review.astro), so a row reads the same in both places.
@@ -16,7 +17,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { Fragment, useState, type ReactNode } from 'react';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import { Who } from './faces';
-import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, Skeleton, ToastProvider } from '@bridge-ds/react';
+import { Alert, AvatarGroup, Badge, Button, Icon, Link, Skeleton, ToastProvider } from '@bridge-ds/react';
 import { ExplorationCardItem, ProductFolders } from './ExplorationCards';
 import { Drawing } from './Drawing';
 import { QuietScene } from './QuietScene';
@@ -313,27 +314,6 @@ function pageProducts(): ProductConfig[] {
   }
 }
 
-/**
- * The one way to start on the Home: an exploration, through the start flow (StartExploration). Designers mostly
- * explore; editing tokens, asking for a component change and writing guidance stay on their own pages (Tokens,
- * Components), never next to it here.
- */
-const EXPLORE_CHOICE = 'Try a product screen with Claude AI. Bridge shows what the library does not have yet.';
-
-function Start({ components }: { components: HomeComponent[] }) {
-  return (
-    <Card interactive className="sh-choice sh-choice-one">
-      <CardBody className="sh-choice-body">
-        <Drawing name="paint" width={88} />
-        <span className="sh-choice-text">
-          <StartExploration components={components} appearance="choice" />
-          <span className="t-ui t-muted">{EXPLORE_CHOICE}</span>
-        </span>
-      </CardBody>
-    </Card>
-  );
-}
-
 export interface StudioHomeProps {
   state: HomeState;
   /** Once, right after Entry opened a team the person just joined: "You joined Acme Design." */
@@ -356,7 +336,7 @@ export interface StudioHomeProps {
   signedOut: { line: string; button: string; signIn: boolean };
   /** GitHub could not be read. */
   failed: string | null;
-  /** Kept for callers: the library ways to start live on their own pages now, not on the Home (see Start). */
+  /** Kept for callers: the library ways to start live on their own pages now, not on the Home (the one button). */
   startHrefs: Record<'tokens' | 'component' | 'guidance', string>;
   /**
    * Signed in with setup steps left: "4 of 8 connected" and its checklist (Onboarding.tsx), on the status line under
@@ -499,8 +479,9 @@ function HomeBody(p: StudioHomeProps) {
       <div className="sh">
         {note}
         <section className="zone sh-zone sh-zone-empty" aria-labelledby="sh-hello">
-          {/* Nothing needs the viewer: the head stands in a window onto the calm harbor (on a phone, only the water),
-              the Start card under it stays the one action, on the zone, never over the drawing. */}
+          {/* Nothing needs the viewer: the zone is one window onto the calm harbor (on a phone, only the water). The
+              sentence, the headline and the one primary button stand in its sky; designers mostly explore, so editing
+              tokens, asking for a component change and writing guidance stay on their own pages, never here. */}
           <div className="sh-window">
             <QuietScene scene="harbor" layout="window" />
             <div className="sh-head-text">
@@ -510,10 +491,12 @@ function HomeBody(p: StudioHomeProps) {
               <h1 id="sh-hello" className="sh-hello">
                 What do you want to explore?
               </h1>
+              <span className="sh-start">
+                <StartExploration components={p.components} appearance="primary" />
+              </span>
             </div>
           </div>
           {tour?.('branches')}
-          <Start components={p.components} />
           {tour?.('start')}
         </section>
         {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}

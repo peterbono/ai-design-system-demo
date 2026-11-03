@@ -500,12 +500,23 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* The first card opens Start an exploration: a dashed placeholder the size of a card. */
+/* The first card opens Start an exploration: an empty slot to fill, quieter than the queue's primary (Review all).
+   A hairline dashed edge at the card radius, the "+" and the label in the link color, no fill; the subtle surface on
+   hover; the Button's own focus ring follows the radius. */
 .sh-cards .sh-create-btn {
   height: 100%;
   min-height: var(--size-40);
-  border: var(--border-width-default) dashed var(--color-border-emphasis);
+  border: var(--border-width-default) dashed var(--color-border-default);
   border-radius: var(--radius-container);
+  background-color: transparent;
+  color: var(--color-text-link);
+}
+
+@media (hover: hover) {
+  .sh-cards .sh-create-btn:hover:not([data-disabled]) {
+    border-color: var(--color-border-emphasis);
+    background-color: var(--color-surface-hover);
+  }
 }
 
 /* Who explores it: the face next to the name, on one line. */
@@ -533,16 +544,16 @@
   margin: 0;
 }
 
-/* --- Nothing at all: three ways to start ---------------------------------------------------------------------- */
+/* --- Nothing needs you: one window onto the harbor -------------------------------------------------------------- */
 
 .sh-zone-empty {
   gap: var(--space-6);
 }
 
-/* Nothing needs you: the head of the zone is a window onto the calm harbor (QuietScene layout="window"), bled to the
-   zone's top and side edges and clipped by its top corners. The text stands in the sky, the harbor to its right, the
-   water along the window's bottom; the Start card sits under the water, on the zone, so the drawing never runs behind
-   it. Phones: only the water (quiet-scene.css). */
+/* The zone is a window onto the calm harbor (QuietScene layout="window"), bled to the zone's edges and clipped by its
+   corners: its bottom is the water. The sentence, the headline and "Start an exploration" stand in the sky, the
+   harbor to their right, the water along the window's bottom. A tour step on a phone (an inline card) follows it on
+   the zone. Phones: only the water (quiet-scene.css). */
 .sh-window {
   --_view: 44%;
   position: relative;
@@ -556,13 +567,36 @@
   border-radius: var(--radius-container) var(--radius-container) 0 0;
 }
 
-/* The text keeps to the sky left of the harbor: a long sentence wraps before it reaches the drawing. */
-.sh-window > .sh-head-text {
-  position: relative;
-  max-width: calc(100% - var(--_view));
+.sh-window:last-child {
+  margin-block-end: calc(var(--space-7) * -1);
+  border-radius: var(--radius-container);
 }
 
-/* Four ways to start: two by two on a wide screen (never three and an orphan), one column on a phone. */
+/* The text stands in the sky above the harbor: on a wide window it runs the full width (the drawing sits lower, under
+   the headline). A narrower window (the gulls are gone, quiet-scene.css) keeps it left of the harbor. */
+.sh-window > .sh-head-text {
+  position: relative;
+}
+
+/* A sentence too long for one line wraps without leaving one word alone. */
+.sh-window > .sh-head-text > p {
+  text-wrap: pretty;
+}
+
+/* The one primary action, right under the headline, at the DS control height. */
+.sh-start {
+  display: flex;
+  margin-block-start: var(--space-3);
+}
+
+@container (max-width: 720px) {
+  .sh-window > .sh-head-text {
+    max-width: calc(100% - var(--_view));
+  }
+}
+
+/* Ways to start as cards (ProductPage's empty product): two by two on a wide screen (never three and an orphan), one
+   column on a phone. */
 .sh-choices {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(max(var(--size-60), calc((100% - var(--space-4)) / 2)), 1fr));
@@ -588,14 +622,6 @@
   font-size: var(--typography-h3-size);
   font-weight: var(--typography-h3-weight);
   line-height: var(--typography-h3-line-height);
-}
-
-/* The Home's one way to start: the drawing beside the title and its line, one card across the zone. The title and
-   its line read as one block, centered on the drawing. */
-.sh-choice-one .sh-choice-body {
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  column-gap: var(--space-6);
 }
 
 .sh-choice-text {
@@ -646,6 +672,10 @@
     padding: var(--space-5) var(--space-4) calc(var(--space-10) + var(--space-6));
   }
 
+  .sh-window:last-child {
+    margin-block-end: calc(var(--space-5) * -1);
+  }
+
   .sh-window > .sh-head-text {
     max-width: none;
   }
@@ -670,7 +700,8 @@
   }
 
   .sh-more .sh-more-btn,
-  .sh-connect .sh-connect-btn {
+  .sh-connect .sh-connect-btn,
+  .sh-start .sh-start-btn {
     flex: 1 1 100%;
   }
 
@@ -686,8 +717,7 @@
 
   /* A phone: the drawing (56px) above the text, left-aligned, so the title keeps the card's full width (two lines at
      most at 390px). */
-  .sh-choice-body,
-  .sh-choice-one .sh-choice-body {
+  .sh-choice-body {
     grid-template-columns: minmax(0, 1fr);
     align-items: start;
     row-gap: var(--space-3);

@@ -3,7 +3,7 @@
 // contributor tour (their branches, then how to start) instead of the lead's.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
@@ -96,9 +96,10 @@ describe('StudioHome, contributor with nothing yet', () => {
     expect(await screen.findByText('Where to start')).toBeTruthy();
     expect(screen.queryByText(/of 1$/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
-    // "Start an exploration" is the one way to start on the Home: the library changes stay on their own pages.
-    const choices = [...container.querySelectorAll('.sh-choice')].map((c) => c.querySelector('.sh-choice-title')?.textContent);
-    expect(choices).toEqual(['Start an exploration']);
+    // "Start an exploration" is the one way to start on the Home, the zone's primary button, still there with no
+    // exploration at all: the library changes stay on their own pages. No Start card under the window.
+    expect(container.querySelector('.sh-window .sh-start-btn')?.textContent).toBe('Start an exploration');
+    expect(container.querySelector('.sh-choice')).toBeNull();
     expect(screen.queryByText('Edit tokens')).toBeNull();
     expect(screen.queryByText('Ask for a component change')).toBeNull();
     expect(screen.queryByText('Write usage guidance')).toBeNull();
@@ -233,6 +234,26 @@ describe('StudioHome, lead', () => {
     render(createElement(StudioHome, props({ contributor: false, lead: true, needs: [...joins, review] })));
     expect(screen.queryByText(/Changes wait for the lead/)).toBeNull();
     expect(screen.getByText(/The whole queue, one by one/)).toBeTruthy();
+  });
+});
+
+describe('StudioHome, one Start an exploration per state', () => {
+  const review = changeNeed({ number: 7, title: 'Deeper primary blue', author: leo, asker: leo, since: null, task: 'design', thumb: { kind: 'icon', icon: 'branch' } }, NOW);
+  const name = { name: 'Start an exploration' };
+
+  it('quiet: the zone holds it, the explorations row does not', () => {
+    localStorage.setItem('bridge.home.lead-tour', 'done');
+    const { container } = render(createElement(StudioHome, props({ state: 'empty', contributor: false, lead: true, recent: true, branches: [], explorations: [exploration(36), exploration(37)] })));
+    expect(screen.getAllByRole('button', name)).toHaveLength(1);
+    expect(container.querySelector('.sh-zone')!.contains(screen.getByRole('button', name))).toBe(true);
+  });
+
+  it('busy: the queue holds the zone, the explorations row holds it as its first card', () => {
+    localStorage.setItem('bridge.home.lead-tour', 'done');
+    const { container } = render(createElement(StudioHome, props({ contributor: false, lead: true, needs: [review], explorations: [exploration(36), exploration(37)] })));
+    expect(screen.getAllByRole('button', name)).toHaveLength(1);
+    expect(container.querySelector('.sh-zone')!.contains(screen.getByRole('button', name))).toBe(false);
+    expect(screen.getByRole('button', name).closest('.sh-create')).toBeTruthy();
   });
 });
 
@@ -416,9 +437,16 @@ describe('StudioHome, quiet team Home (recent)', () => {
     expect(container.querySelector('.sh-zone')!.textContent).toContain('Good evening, Florian. Nothing needs you. 1 of your explorations waits for a developer to pick it up.');
     // The clause opens Changes on the viewer's own explorations waiting to be picked up.
     expect(screen.getByRole('link', { name: '1 of your explorations waits for a developer to pick it up' }).getAttribute('href')).toMatch(/changes\/\?state=code&people=you$/);
-    // Nothing needs the viewer: the harbor scene in the zone (water only on a phone), the Start card still the one action.
+    // Nothing needs the viewer: the zone is one window onto the harbor (water only on a phone), with the one primary
+    // button "Start an exploration" under the headline, no card.
     expect(container.querySelector('.sh-zone .sh-window [data-scene="harbor"][data-layout="window"]')).toBeTruthy();
-    expect(container.querySelector('.sh-window')!.contains(container.querySelector('.sh-choice'))).toBe(false);
+    const zone = container.querySelector('.sh-zone')!;
+    const starts = within(zone as HTMLElement).getAllByRole('button', { name: 'Start an exploration' });
+    expect(starts).toHaveLength(1);
+    expect(starts[0]!.closest('.sh-window .sh-head-text')).toBeTruthy();
+    expect(starts[0]!.classList.contains('sh-start-btn')).toBe(true);
+    expect(zone.querySelector('.sh-choice')).toBeNull();
+    expect(container.querySelector('.sh-create')).toBeNull();
     expect(container.textContent).not.toContain('you have nothing in progress');
     const recent = container.querySelector('[aria-labelledby="sh-explorations"]')!;
     expect(screen.getByRole('heading', { level: 2, name: 'Recent explorations' })).toBeTruthy();
