@@ -1,4 +1,4 @@
-// "Start a new product" inside Add a product (components/ds/studio/StartNewProduct.tsx): the team has no code for the
+// "It's a new product", the second choice card of Add a product (components/ds/studio/StartNewProduct.tsx): the team has no code for the
 // product yet, so Bridge starts it on GitHub from Bridge's product starter (TEMPLATE_REPO, a public template: Vite,
 // React, the Bridge library, its tokens and toolbar), with the viewer's own GitHub sign-in (POST
 // /repos/{template}/generate, scripts/new-product.ts). A product the app starts is one it can open right away, so
@@ -12,11 +12,9 @@ import { cleanProductName, PRODUCT_NAME_MAX } from './product-name';
 export const TEMPLATE_REPO = 'peterbono/bridge-product-starter';
 
 export const NEW_PRODUCT_WORDS = {
-  // Under the list, after "Product not in the list? Give Bridge access": one more quiet line.
-  noCode: 'No code yet?',
-  start: 'Start a new product',
-  title: 'Start a new product',
-  lead: 'Bridge starts its code on GitHub with your library in it, ready for previews and explorations.',
+  // Add a product's second choice card ("It's a new product") opens this form.
+  title: "It's a new product",
+  lead: 'Bridge sets it up with your library, ready for previews and explorations.',
   name: 'Name',
   nameHelp: 'What your team calls it.',
   where: 'Where',
@@ -36,7 +34,7 @@ export const NEW_PRODUCT_WORDS = {
 } as const;
 
 /** Its address on GitHub, in plain words. */
-export const addressLine = (owner: string, slug: string) => `Its address on GitHub: ${owner}/${slug || '…'}`;
+export const addressLine = (owner: string, slug: string) => `Its address: ${owner}/${slug || '…'}`;
 
 /** A GitHub name from the product's name: "Art print shop" -> "art-print-shop". Empty when nothing usable is left. */
 export function slugFor(name: string): string {

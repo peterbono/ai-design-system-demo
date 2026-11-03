@@ -1,29 +1,36 @@
 // "Add a product" (Settings > Products, the onboarding Products step, and the foot of Start an exploration's Where
-// list, which opens this same dialog through `open`): an admin signed in with GitHub picks the
-// product's code among what Bridge can see, names it, and keeps or drops the designers' copy. Bridge reads its
-// previews from Vercel when it can, then proposes the new entry for review (scripts/roles.ts proposeNewProduct), the
-// same path as a product rename. Words and rules: lib/add-product.ts. Never the sample team, never an email admin.
+// list, which opens this same dialog through `open`). Every entry opens on one question, "Which product does your team
+// design for?", with two choice cards (Field Guide drawings): "It's already built" and "It's a new product". Never the
+// sample team, never an email admin. Words and rules: lib/add-product.ts.
 //
-// "Product not in the list?" (Vercel's "Adjust GitHub App permissions"): GitHub opens in a small centered window on
-// the page where the admin ticks which products Bridge sees. The dialog waits with a Field Guide drawing, reads the
-// list again every few seconds (and at once when the return page, pages/studio/auth/access.astro, says so), and goes
-// back to the form with the new product picked and named. GitHub closed with nothing new: one line says the owners
-// decide (someone who does not own the account can only ask). GitHub busy: the busy line, no more reads.
+// Already built, Bridge sees products: "Pick your product" among them (named for the person, renamed later if
+// needed), the designers' copy kept or dropped, Add product. Bridge reads its previews from Vercel when it can, then
+// proposes the new entry for review (scripts/roles.ts proposeNewProduct), the same path as a product rename.
 //
-// "No code yet? Start a new product" (one more quiet line under the list): the same dialog shows StartNewProduct.tsx,
-// where Bridge starts the product's code on GitHub itself, so no access step, then shows the way to its previews.
+// Already built, Bridge sees none (or "Not in the list? Find it on GitHub"), Vercel's "Adjust GitHub App permissions":
+// GitHub opens in a small centered window on the page where the admin ticks which products Bridge sees. The dialog
+// waits with a Field Guide drawing, reads the list again every few seconds (and at once when the return page,
+// pages/studio/auth/access.astro, says so), and goes back to the pick with the new product picked. "Not sure where it
+// is? Ask a developer" copies a ready message with that page and the team's Studio. GitHub closed with nothing new: one
+// line says the owners decide. GitHub busy: the busy line, no more reads.
+//
 // Someone who does not own the GitHub account (scripts/add-product readOwnership): before GitHub opens, one line says
-// only its owners can give access and GitHub sends them the request, with "Copy a message for the owners". GitHub
-// closed with nothing new: "Request sent to the owners", remembered in this browser per team (localStorage) so the
-// dialog says it again when reopened; coming back to the window reads the list, and the approved product is picked.
-import { useEffect, useId, useReducer, useRef, useState } from 'react';
-import { Check, Copy } from 'lucide-react';
-import { Button, ButtonGroup, Checkbox, Combobox, Dialog, DialogClose, DialogContent, Input, Spinner } from '@bridge-ds/react';
-import { accessSettingsUrl, askOwnersMessage, requestAccessUrl, type AppInstallation } from '../../../lib/access-view';
+// only its owners can show Bridge where it is and GitHub sends them the request, with "Copy a message for the owners".
+// GitHub closed with nothing new: "Request sent to the owners", remembered in this browser per team (localStorage) so
+// the dialog opens on it again; coming back to the window reads the list, and the approved product is picked.
+//
+// It's a new product: the same dialog shows StartNewProduct.tsx, where Bridge starts the product's code on GitHub
+// itself, so no GitHub step, then shows the way to its previews. Back goes to the choice from every step.
+import { forwardRef, useEffect, useId, useReducer, useRef, useState } from 'react';
+import { Check, Copy, ExternalLink } from 'lucide-react';
+import { Button, ButtonGroup, Checkbox, Combobox, Dialog, DialogClose, DialogContent, Spinner } from '@bridge-ds/react';
+import { accessSettingsUrl, askDeveloperMessage, askOwnersMessage, requestAccessUrl, teamLink, type AppInstallation } from '../../../lib/access-view';
+import { studioHref } from '../../../lib/team-path';
 import { githubBusy } from '../../../lib/github-busy';
 import type { ProductConfig } from '@bridge-ds/core';
 import { BusyNotice } from './BusyNotice';
 import { Drawing } from './Drawing';
+import type { IllustrationName } from '../../../brand/illustrations';
 import StartNewProduct from './StartNewProduct';
 import { useCopy } from './TeamLink';
 import '../../../styles/add-product.css';
@@ -38,18 +45,18 @@ import {
   nameFromRepo,
   newProductEntry,
   newRepoIn,
-  nothingNewLine,
+  nothingYetLine,
   ownersOnlyLine,
   parsePending,
   pendingKey,
   popupFeatures,
   requestSentLine,
   productKeyFor,
+  productNameFor,
   waitedTooLong,
   type PendingRequest,
   type ProductRepoChoice,
 } from '../../../lib/add-product';
-import { NEW_PRODUCT_WORDS as NW } from '../../../lib/new-product';
 
 /** The page's team ("owner/repo"), noted by useCanAddProduct: the dialog only shows once it is known. */
 let pageTeam: string | null = null;
@@ -114,7 +121,8 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   const [repos, setRepos] = useState<ProductRepoChoice[] | null>(null);
   const [target, setTarget] = useState<{ installation: AppInstallation | null; account: string } | null>(null);
   const [repo, setRepo] = useState<string | null>(null);
-  const [name, setName] = useState('');
+  // The name a product started from "It's a new product" keeps when it comes back to the pick (else Bridge names it).
+  const [named, setNamed] = useState<string | null>(null);
   const [copy, setCopy] = useState(true);
   const [previews, setPreviews] = useState<{ preview: string; production: string } | null | 'checking'>(null);
   const [busy, setBusy] = useState(false);
@@ -128,8 +136,11 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   const before = useRef<string[] | null>(null);
   const sendRef = useRef<HTMLButtonElement>(null);
   const formId = useId();
-  // "Start a new product": the dialog shows its own form; once proposed, closing counts as sent.
-  const [startNew, setStartNew] = useState(false);
+  // Which step: the choice (always first), "It's already built" (pick, find, wait) or "It's a new product"
+  // (StartNewProduct.tsx). Once a new product is proposed, closing counts as sent.
+  const [view, setView] = useState<'choice' | 'built' | 'new'>('choice');
+  // The card the person chose last: Back puts the focus on it again.
+  const chose = useRef<'built' | 'new'>('built');
   const proposedNew = useRef(false);
   // Whether the viewer owns the GitHub account (null: unknown, the usual words). Not an owner: GitHub only lets them
   // request, so the dialog says so before and after.
@@ -141,14 +152,13 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   askerRef.current = asker;
   // The request kept for this team (this browser), shown as "Request sent" until the product arrives.
   const [request, setRequest] = useState<PendingRequest | null>(null);
-  const requestName = useRef<string | null>(null);
   const { copied, said, copy: copyText } = useCopy(3000);
 
   const setOpen = (o: boolean) => {
     if (!o) {
       go({ type: 'cancel' });
       setFound(null);
-      setStartNew(false);
+      setView('choice');
       if (proposedNew.current) {
         proposedNew.current = false;
         if (!controlled) setSent(true);
@@ -203,10 +213,12 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     const kept = readPending();
     if (!kept) return;
     const fresh = newRepoIn(kept.before, repos);
+    // The request is the dialog's news: it opens on "It's already built", not on the choice.
+    setView('built');
     if (fresh) {
       forgetPending();
       setRepo(fresh.full);
-      setName(nameFromRepo(fresh.name));
+      setNamed(null);
       setFound(cleanFoundName(fresh.name));
       return;
     }
@@ -243,7 +255,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         setRequest(null);
         setRepos((list) => mergeRepos(list ?? [], now));
         setRepo(fresh.full);
-        setName(nameFromRepo(fresh.name));
+        setNamed(null);
         setError(null);
         setFound(cleanFoundName(fresh.name));
         go({ type: 'found' });
@@ -266,7 +278,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   // GitHub closed with nothing new. Someone who could only request: the request is sent, remembered for this team.
   const closeWithNothingNew = () => {
     if (askerRef.current && target) {
-      const kept: PendingRequest = { account: target.account, product: requestName.current, before: before.current ?? [], at: Date.now() };
+      const kept: PendingRequest = { account: target.account, product: null, before: before.current ?? [], at: Date.now() };
       rememberPending(kept);
       setRequest(kept);
     }
@@ -316,7 +328,6 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   const giveAccess = () => {
     // Not an owner: GitHub's own install page for the organization, where Save becomes a request.
     const url = asker ? requestAccessUrl(target?.installation) : accessSettingsUrl(target?.installation);
-    requestName.current = name.trim() || null;
     // A centered window (the dialog keeps its place); blocked, a new tab. Never noopener: Bridge watches it close.
     const w = window.open(url, 'bridge-github-access', popupFeatures(window)) ?? window.open(url, '_blank');
     if (!w) return;
@@ -327,6 +338,8 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   };
 
   const choice = repos?.find((r) => r.full === repo) ?? null;
+  // No name field: Bridge names the product for the person (renamed later from its page if needed).
+  const name = named ?? (choice ? productNameFor(choice, products) : '');
   // Nothing to pick yet: the name and the copy choice wait until there is a product (progressive disclosure).
   const none = repos !== null && repos.length === 0;
   const waiting = step.kind === 'waiting';
@@ -341,6 +354,25 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       live = false;
     };
   }, [choice]);
+
+  // Moving between steps: the focus goes to the new step's first thing to do (Back: the card chosen before).
+  const builtCard = useRef<HTMLButtonElement>(null);
+  const newCard = useRef<HTMLButtonElement>(null);
+  const findRef = useRef<HTMLButtonElement>(null);
+  const pickRef = useRef<HTMLInputElement>(null);
+  const moved = useRef(false);
+  useEffect(() => {
+    if (!moved.current || view === 'new') return;
+    moved.current = false;
+    const to = view === 'choice' ? (chose.current === 'built' ? builtCard : newCard).current : none ? findRef.current : pickRef.current;
+    to?.focus();
+  }, [view, none]);
+  const show = (v: 'choice' | 'built' | 'new') => {
+    if (v !== 'choice') chose.current = v;
+    moved.current = true;
+    setError(null);
+    setView(v);
+  };
 
   if (!can) return controlled || products.length ? null : <p className="set-row-value">{W.noneYet}</p>;
   if (sent && !controlled) return <p className="set-row-value" role="status">{W.sent}</p>;
@@ -372,28 +404,18 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     }
   };
 
-  // No code yet: Bridge starts the product itself (StartNewProduct.tsx).
-  const startLine = (
-    <p className="addp-more">
-      <span>{NW.noCode}</span>{' '}
-      <Button variant="link" size="sm" onClick={() => setStartNew(true)}>
-        {NW.start}
-      </Button>
-    </p>
-  );
-
   // Someone who does not own the account: a ready-made message for the owners, with the page where they tick it, and
   // once the request is sent, Check again beside it.
   const account = request?.account ?? target?.account ?? '';
   const requested = step.kind === 'requested';
-  const sentLine = requestSentLine(account, request?.product ?? (name.trim() || null));
+  const sentLine = requestSentLine(account, request?.product ?? null);
   const ownerActions = (
     <span className="addp-actions">
       <Button
         variant="link"
         size="sm"
         iconStart={copied ? Check : Copy}
-        onClick={() => void copyText(askOwnersMessage(request?.product ?? (name.trim() || null), accessSettingsUrl(target?.installation)), W.copiedForOwnersSaid)}
+        onClick={() => void copyText(askOwnersMessage(request?.product ?? null, accessSettingsUrl(target?.installation)), W.copiedForOwnersSaid)}
       >
         {copied ? W.copiedForOwners : W.copyForOwners}
       </Button>
@@ -412,29 +434,174 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       <span>{requested ? sentLine : ownersOnlyLine(account)}</span> {ownerActions}
     </p>
   );
+  const nothingYet = (
+    <p className="addp-more">
+      <span>{nothingYetLine(target?.account)}</span>{' '}
+      <Button variant="link" size="sm" loading={rereading} onClick={() => void readAgain(false)}>
+        {W.tryAgain}
+      </Button>
+    </p>
+  );
 
-  // The line under the list (or, once GitHub closed with nothing new, what happened and Try again).
-  const note =
-    requested ? (
-      forOwners
-    ) : step.kind === 'nothing-new' ? (
+  // "Not sure where it is? Ask a developer": a ready message with the page where the product is ticked and the team's
+  // Studio, where it then shows (the product is not known yet).
+  const askDeveloper = (
+    <p className="addp-more">
+      <span>{W.notSure}</span>{' '}
+      <Button
+        variant="link"
+        size="sm"
+        iconStart={copied ? Check : undefined}
+        onClick={() => void copyText(askDeveloperMessage(accessSettingsUrl(target?.installation), teamLink(location.origin, studioHref(''))), W.askDeveloperSaid)}
+      >
+        {copied ? W.copiedForOwners : W.askDeveloper}
+      </Button>{' '}
+      <span>{W.askDeveloperNote}</span>
+      <span className="sr-only" role="status" aria-live="polite">
+        {said}
+      </span>
+    </p>
+  );
+
+  // Under the pick list: the way to a product Bridge cannot see yet (or, once GitHub closed with nothing new, what
+  // happened and Try again).
+  const note = requested ? (
+    forOwners
+  ) : step.kind === 'nothing-new' ? (
+    nothingYet
+  ) : (
+    <>
       <p className="addp-more">
-        <span>{nothingNewLine(target?.account)}</span>{' '}
-        <Button variant="link" size="sm" loading={rereading} onClick={() => void readAgain(false)}>
-          {W.tryAgain}
+        <span>{W.notListed}</span>{' '}
+        <Button variant="link" size="sm" onClick={giveAccess}>
+          {W.findOnGitHub}
         </Button>
       </p>
-    ) : (
-      <>
-        <p className="addp-more">
-          <span>{W.notListed}</span>{' '}
-          <Button variant="link" size="sm" onClick={giveAccess}>
-            {W.giveAccess}
+      {asker && forOwners}
+    </>
+  );
+
+  // Step 1: which product. Two cards, each a real button with its Field Guide drawing on a grey plate.
+
+  const back = (
+    <Button variant="secondary" disabled={busy} onClick={() => show('choice')}>
+      {W.back}
+    </Button>
+  );
+
+  const footer =
+    view === 'choice' || waiting ? (
+      <ButtonGroup align="end">
+        {waiting ? (
+          <Button variant="secondary" onClick={() => go({ type: 'cancel' })}>
+            {W.cancel}
           </Button>
-        </p>
-        {asker && forOwners}
-      </>
+        ) : (
+          <DialogClose render={<Button variant="secondary" />}>{W.cancel}</DialogClose>
+        )}
+      </ButtonGroup>
+    ) : (
+      <ButtonGroup align="end">
+        {back}
+        {none ? (
+          <Button ref={findRef} variant="primary" iconEnd={ExternalLink} onClick={giveAccess}>
+            {W.findOnGitHub}
+          </Button>
+        ) : (
+          <Button ref={sendRef} type="submit" form={formId} variant="primary" loading={busy} disabled={busy || !repo}>
+            {W.send}
+          </Button>
+        )}
+      </ButtonGroup>
     );
+
+  let body: React.ReactNode;
+  if (view === 'choice') {
+    body = (
+      <div className="addp-choices">
+        <ChoiceButton ref={builtCard} art="components" title={W.built} help={W.builtHelp} onClick={() => show('built')} />
+        <ChoiceButton ref={newCard} art="fix" title={W.fresh} help={W.freshHelp} onClick={() => show('new')} />
+      </div>
+    );
+  } else if (waiting) {
+    // Step 4: GitHub is open. The dialog waits and reads again on its own.
+    body = (
+      <div className="addp-wait">
+        <Drawing name="guide" width={96} className="addp-wait-art" />
+        <div className="addp-wait-text">
+          <p className="addp-wait-line" role="status">
+            {W.waiting}
+          </p>
+          <p className="addp-more">
+            <Spinner size="xs" /> <span>{W.waitingNote}</span>{' '}
+            <Button variant="link" size="sm" onClick={() => popup.current?.focus()}>
+              {W.showGitHub}
+            </Button>
+          </p>
+        </div>
+      </div>
+    );
+  } else if (none) {
+    // Step 3: Bridge sees none yet. One drawing, one sentence, Find it on GitHub in the footer.
+    body = (
+      <div className="addp-form">
+        {step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />}
+        <div className="addp-wait addp-find">
+          <Drawing name="components" width={96} className="addp-wait-art" />
+          <p className="addp-wait-line addp-find-line">{requested ? sentLine : W.findLine}</p>
+        </div>
+        {requested ? <p className="addp-more">{ownerActions}</p> : step.kind === 'nothing-new' ? nothingYet : asker ? forOwners : askDeveloper}
+        {error && (
+          <p className="addp-error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  } else {
+    // Step 2: pick it among the products Bridge sees.
+    body = (
+      <form id={formId} onSubmit={(e) => void submit(e)} noValidate className="addp-form">
+        <div role="status" aria-live="polite" className="addp-found">
+          {found && foundLine(found)}
+        </div>
+        {step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />}
+        <div className="addp-pick">
+          <Combobox
+            ref={pickRef}
+            label={W.pick}
+            placeholder={W.pickPlaceholder}
+            options={(repos ?? []).map((r) => ({ value: r.full, label: nameFromRepo(r.name) || r.name, description: r.full }))}
+            loading={!repos}
+            loadingMessage={W.codeLoading}
+            value={repo}
+            onValueChange={(v) => {
+              setRepo(typeof v === 'string' ? v : null);
+              setNamed(null);
+              setError(null);
+              setFound(null);
+            }}
+            emptyMessage={W.codeNone}
+          />
+          {repos && note}
+        </div>
+        <Checkbox label={W.copy} description={W.copyHelp} checked={copy} onCheckedChange={setCopy} />
+        <div role="status" aria-live="polite" className="addp-status">
+          {choice && previews === 'checking' && (
+            <>
+              <Spinner size="xs" /> {W.checking}
+            </>
+          )}
+          {choice && previews !== 'checking' && (previews ? W.previewsFound : W.previewsLater)}
+        </div>
+        {error && (
+          <p className="addp-error" role="alert">
+            {error}
+          </p>
+        )}
+      </form>
+    );
+  }
 
   return (
     <>
@@ -444,145 +611,68 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         </Button>
       )}
       <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
-        {startNew && (
+        {view === 'new' && (
           <StartNewProduct
             products={products}
             account={target?.account ?? null}
             repos={repos ?? []}
             busy={busy}
             setBusy={setBusy}
-            onBack={() => setStartNew(false)}
+            onBack={() => show('choice')}
             onProposed={() => {
               proposedNew.current = true;
             }}
             onStartedOnly={(r, n) => {
-              // Started on GitHub, not proposed: back to the list with it picked, Add product sends it again.
+              // Started on GitHub, not proposed: the pick with it picked, Add product sends it again.
               setRepos((list) => mergeRepos(list ?? [], [r]));
               setRepo(r.full);
-              setName(n);
+              setNamed(n);
+              setView('built');
               setError(W.refused);
-              setStartNew(false);
             }}
             onDone={() => setOpen(false)}
           />
         )}
-        {!startNew && <DialogContent
-          title={W.title}
-          description={W.lead}
-          hideClose
-          footer={
-            <ButtonGroup align="end">
-              {waiting ? (
-                <Button variant="secondary" onClick={() => go({ type: 'cancel' })}>
-                  {W.cancel}
-                </Button>
-              ) : (
-                <DialogClose render={<Button variant="secondary" disabled={busy} />}>{W.cancel}</DialogClose>
-              )}
-              {!waiting && none && (
-                <Button variant="primary" onClick={giveAccess}>
-                  {W.giveAccess}
-                </Button>
-              )}
-              {!waiting && !none && (
-                <Button ref={sendRef} type="submit" form={formId} variant="primary" loading={busy} disabled={busy || !repo}>
-                  {W.send}
-                </Button>
-              )}
-            </ButtonGroup>
-          }
-        >
-          {waiting ? (
-            <div className="addp-wait">
-              <Drawing name="guide" width={96} className="addp-wait-art" />
-              <div className="addp-wait-text">
-                <p className="addp-wait-line" role="status">
-                  {W.waiting}
-                </p>
-                <p className="addp-more">
-                  <Spinner size="xs" /> <span>{W.waitingNote}</span>{' '}
-                  <Button variant="link" size="sm" onClick={() => popup.current?.focus()}>
-                    {W.showGitHub}
-                  </Button>
-                </p>
-              </div>
-            </div>
-          ) : (
-            <form id={formId} onSubmit={(e) => void submit(e)} noValidate className="addp-form">
-              <div role="status" aria-live="polite" className="addp-found">
-                {found && foundLine(found)}
-              </div>
-              {step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />}
-              {none ? (
-                // Nothing to pick: no empty field, one sentence, and the footer's one action gives Bridge access.
-                <>
-                  {step.kind === 'nothing-new' ? (
-                    note
-                  ) : requested ? (
-                    // The request is the dialog's news: its own sentence, the actions under it.
-                    <>
-                      <p className="addp-none-line">{sentLine}</p>
-                      <p className="addp-more">{ownerActions}</p>
-                    </>
-                  ) : asker ? (
-                    <>
-                      <p className="addp-none-line">{W.emptyNone}</p>
-                      {forOwners}
-                    </>
-                  ) : (
-                    <p className="addp-none-line">{W.emptyLine}</p>
-                  )}
-                  {startLine}
-                </>
-              ) : (
-                <div className="addp-pick">
-                  <Combobox
-                    label={W.code}
-                    hint={W.codeHelp}
-                    options={(repos ?? []).map((r) => ({ value: r.full, label: r.name, description: r.full }))}
-                    loading={!repos}
-                    loadingMessage={W.codeLoading}
-                    value={repo}
-                    onValueChange={(v) => {
-                      const full = typeof v === 'string' ? v : null;
-                      setRepo(full);
-                      setError(null);
-                      setFound(null);
-                      const r = repos?.find((x) => x.full === full);
-                      if (r && !name.trim()) setName(nameFromRepo(r.name));
-                    }}
-                    emptyMessage={W.codeNone}
-                  />
-                  {repos && note}
-                  {repos && startLine}
-                </div>
-              )}
-              {!none && (
-                <>
-                  <Input label={W.name} hint={W.nameHelp} value={name} onValueChange={(v) => setName(v)} autoComplete="off" />
-                  <Checkbox label={W.copy} description={W.copyHelp} checked={copy} onCheckedChange={setCopy} />
-                </>
-              )}
-              <div role="status" aria-live="polite" className="addp-status">
-                {choice && previews === 'checking' && (
-                  <>
-                    <Spinner size="xs" /> {W.checking}
-                  </>
-                )}
-                {choice && previews !== 'checking' && (previews ? W.previewsFound : W.previewsLater)}
-              </div>
-              {error && (
-                <p className="addp-error" role="alert">
-                  {error}
-                </p>
-              )}
-            </form>
-          )}
-        </DialogContent>}
+        {view !== 'new' && (
+          <DialogContent
+            title={view === 'choice' ? W.title : W.built}
+            description={view === 'choice' ? W.question : undefined}
+            hideClose
+            footer={footer}
+            // Back from "It's a new product" mounts this step again: the card chosen before takes the focus.
+            initialFocus={view === 'choice' ? (chose.current === 'built' ? builtCard : newCard) : undefined}
+          >
+            {body}
+          </DialogContent>
+        )}
       </Dialog>
     </>
   );
 }
+
+/** One choice card: a real button, the drawing on its grey plate, the title as its name and the line as its description. */
+const ChoiceButton = forwardRef<HTMLButtonElement, { art: IllustrationName; title: string; help: string; onClick: () => void }>(function ChoiceButton(
+  { art, title, help, onClick },
+  ref,
+) {
+  const id = useId();
+  return (
+    // bridge-audit-ignore-next-line: the whole card (drawing, title, line) is one target that opens its step, as on the validated board; the DS ChoiceCard is a radio (select, then confirm) and Button would cut it to one label
+    <button type="button" ref={ref} className="addp-choice" onClick={onClick} aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`}>
+      <span className="addp-choice-art">
+        <Drawing name={art} width={88} />
+      </span>
+      <span className="addp-choice-text">
+        <span id={`${id}-t`} className="addp-choice-title">
+          {title}
+        </span>
+        <span id={`${id}-d`} className="addp-choice-help">
+          {help}
+        </span>
+      </span>
+    </button>
+  );
+});
 
 // The request kept for the page's team, in this browser (a per-viewer convenience: never required, never shared).
 function readPending(): PendingRequest | null {

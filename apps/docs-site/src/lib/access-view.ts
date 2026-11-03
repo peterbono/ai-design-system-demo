@@ -90,8 +90,16 @@ export function askInstallMessage(repo: string, link: string, slug = BRIDGE_APP_
 export function askOwnersMessage(product: string | null | undefined, url: string): string {
   const name = product?.trim();
   return name
-    ? `Hi, can you give Bridge access to ${name} on GitHub? Open ${url}, tick ${name}, then Save. Bridge adds it to our design system as soon as you do.`
-    : `Hi, can you give Bridge access to our product's code on GitHub? Open ${url}, tick its repository, then Save. Bridge adds it to our design system as soon as you do.`;
+    ? `Hi, can you show Bridge where ${name} is on GitHub? Open ${url}, tick ${name}, then Save. Bridge adds it to our design system as soon as you do.`
+    : `Hi, can you show Bridge where our product's code is on GitHub? Open ${url}, tick the product, then Save. Bridge adds it to our design system as soon as you do.`;
+}
+
+/**
+ * Add a product, "Not sure where it is? Ask a developer": what a designer sends a developer when they do not know where
+ * the product's code lives. `url`: where it is ticked (accessSettingsUrl), `link`: the team's Studio, where it then shows.
+ */
+export function askDeveloperMessage(url: string, link: string): string {
+  return `Hi, can you show Bridge where our product's code is? Open ${url}, tick the product, then Save. Then it shows in Bridge: ${link}`;
 }
 
 /** Someone outside the team on GitHub who wants to join it. */

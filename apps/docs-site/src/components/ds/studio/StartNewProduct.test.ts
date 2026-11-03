@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-// "No code yet? Start a new product" in Add a product (AddProduct.tsx, StartNewProduct.tsx, lib/new-product.ts): one
-// more quiet line under the list (and under the empty line), a small form with the address in plain words, Bridge
-// starts the code and proposes it with the designers' copy on, then the previews step. Refusals in designer words,
-// with the ask-an-owner message when an owner decides. Started but not proposed: back to the list with it picked.
+// "It's a new product" in Add a product (AddProduct.tsx, StartNewProduct.tsx, lib/new-product.ts): the second choice
+// card, a small form with the address in plain words, Bridge starts the code and proposes it with the designers' copy
+// on, then the previews step. Refusals in designer words, with the ask-an-owner message when an owner decides. Started
+// but not proposed: "It's already built" with it picked. Back goes to the choice.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -45,24 +45,22 @@ beforeEach(() => {
 const show = (onSent = vi.fn(), onOpenChange = vi.fn()) => render(createElement(AddProduct, { products: [], open: true, onOpenChange, onSent }));
 
 const openForm = async () => {
-  fireEvent.click(await screen.findByRole('button', { name: W.start }));
+  fireEvent.click(await screen.findByRole('button', { name: A.fresh }));
   expect(await screen.findByRole('heading', { name: W.title })).toBeInTheDocument();
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(W.name)));
 };
 
 describe('Add a product: no code yet', () => {
-  it('offers a second quiet line under the list, and under the empty line', async () => {
+  it('is the second card of the choice, whatever Bridge sees on GitHub', async () => {
     const { unmount } = show();
-    expect(await screen.findByText(A.notListed)).toBeInTheDocument();
-    expect(screen.getByText(W.noCode)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: W.start })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: A.fresh })).toHaveAccessibleDescription(A.freshHelp);
     unmount();
     gh.access.repos = [];
     show();
-    expect(await screen.findByText(A.emptyLine)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: W.start })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: A.fresh })).toBeInTheDocument();
   });
 
-  it('shows the address in plain words, one primary action, Back to the list', async () => {
+  it('shows the address in plain words, one primary action, Back to the choice', async () => {
     const { baseElement } = show();
     await openForm();
     fireEvent.change(screen.getByLabelText(W.name), { target: { value: 'Art print shop' } });
@@ -73,7 +71,8 @@ describe('Add a product: no code yet', () => {
     expect(screen.getByRole('button', { name: W.create })).toBeInTheDocument();
     await expectNoAxeViolations(baseElement);
     fireEvent.click(screen.getByRole('button', { name: W.back }));
-    expect(await screen.findByText(A.notListed)).toBeInTheDocument();
+    expect(await screen.findByText(A.question)).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: A.fresh })));
   });
 
   it('offers Where when Bridge reaches more than one account', async () => {
@@ -128,14 +127,17 @@ describe('Add a product: no code yet', () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(askOwnerMessage('acme', 'no-permission', 'Checkout')));
   });
 
-  it('started but not proposed: back to the list with it picked and named', async () => {
+  it('started but not proposed: already built, with it picked and its name kept', async () => {
     gh.propose.mockRejectedValue(new Error('nope'));
     show();
     await openForm();
     fireEvent.change(screen.getByLabelText(W.name), { target: { value: 'Art print shop' } });
     fireEvent.click(screen.getByRole('button', { name: W.create }));
     expect(await screen.findByText(A.refused)).toBeInTheDocument();
-    expect(screen.getByRole('combobox')).toHaveValue('art-print-shop');
-    expect(screen.getByLabelText(A.name)).toHaveValue('Art print shop');
+    expect(screen.getByRole('heading', { name: A.built })).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toHaveValue('Art print shop');
+    gh.propose.mockResolvedValue({ number: 8, url: 'https://github.com/acme/ds/pull/8' });
+    fireEvent.click(screen.getByRole('button', { name: A.send }));
+    await waitFor(() => expect(gh.propose).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Art print shop', repo: 'acme/art-print-shop' })));
   });
 });

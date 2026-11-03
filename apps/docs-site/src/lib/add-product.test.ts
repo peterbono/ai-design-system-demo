@@ -15,6 +15,7 @@ import {
   newProductEntry,
   newRepoIn,
   nothingNewLine,
+  nothingYetLine,
   ownersOnlyLine,
   ownsAccount,
   parsePending,
@@ -25,6 +26,7 @@ import {
   previewsFromCheckRuns,
   previewsFromStatuses,
   productKeyFor,
+  productNameFor,
   requestSentLine,
   waitedTooLong,
   withNewProduct,
@@ -190,11 +192,19 @@ describe('giving Bridge access from the dialog', () => {
     expect(popupFeatures({ screenX: 0, screenY: 0, outerWidth: 390, outerHeight: 844 })).toBe('popup=yes,width=1020,height=760,left=0,top=42');
   });
 
+  it('names a picked product for the person, unique among the listed ones', () => {
+    const shop = { full: 'studio/shop', name: 'shop' };
+    expect(productNameFor({ full: 'acme/art-print-shop', name: 'art-print-shop' }, [])).toBe('Art print shop');
+    expect(productNameFor(shop, [{ name: 'Checkout' }])).toBe('Shop');
+    expect(productNameFor(shop, [{ name: ' shop ' }])).toBe('Shop (studio)');
+    expect(productNameFor(shop, [{ name: 'Shop' }, { name: 'Shop (studio)' }])).toBe('Shop (studio) 2');
+  });
+
   it('says what arrived and who decides, in designer words', () => {
     expect(foundLine('Art print shop')).toBe("Art print shop is here. Add it when you're ready.");
     expect(nothingNewLine('acme')).toBe('Nothing new yet. If GitHub asked you to request access, the owners of acme get it; this list updates when they approve.');
     expect(nothingNewLine(null)).toContain('the owners of that account');
-    for (const w of [foundLine('x'), nothingNewLine('acme'), ownersOnlyLine('acme'), requestSentLine('acme', null), ...Object.values(ADD_PRODUCT_WORDS)]) {
+    for (const w of [foundLine('x'), nothingNewLine('acme'), nothingYetLine('acme'), ownersOnlyLine('acme'), requestSentLine('acme', null), ...Object.values(ADD_PRODUCT_WORDS)]) {
       expect(w).not.toMatch(/repositor|installation|fork|config|—/i);
     }
   });
@@ -216,9 +226,11 @@ describe('someone who can only request access', () => {
   });
 
   it('says who decides before GitHub opens, and what happens after', () => {
-    expect(ownersOnlyLine('acme')).toBe('Only the owners of acme can give Bridge access. GitHub sends them your request.');
-    expect(requestSentLine('acme', 'Shop')).toBe('Request sent to the owners of acme. Bridge adds Shop to this list as soon as they approve.');
-    expect(requestSentLine('acme', '  ')).toBe('Request sent to the owners of acme. Bridge adds your product to this list as soon as they approve.');
+    expect(ownersOnlyLine('acme')).toBe('Only the owners of acme can show Bridge where it is. GitHub sends them your request.');
+    expect(requestSentLine('acme', 'Shop')).toBe('Request sent to the owners of acme. Bridge shows Shop here as soon as they approve.');
+    expect(requestSentLine('acme', '  ')).toBe('Request sent to the owners of acme. Bridge shows your product here as soon as they approve.');
+    expect(nothingYetLine('acme')).toBe('Nothing new yet. If GitHub asked you to request access, the owners of acme decide. Bridge shows your product here when they approve.');
+    expect(nothingYetLine(undefined)).toContain('the owners of that account');
   });
 
   it('closes on a request sent, and opens on it again', () => {

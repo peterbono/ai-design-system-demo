@@ -10,25 +10,34 @@ export const ADD_PRODUCT_WORDS = {
   open: 'Add a product',
   noneYet: 'No product yet. An admin of your team adds them here.',
   title: 'Add a product',
+  // The onboarding Products step's line while the team has none yet (the dialog itself asks `question`).
   lead: 'A product your team designs for. Its explorations happen in a copy of it, so the developers keep their code.',
-  code: 'Its code',
-  codeHelp: 'The products Bridge can see on GitHub.',
+  // Step 1: the choice. Two cards, Cancel only.
+  question: 'Which product does your team design for?',
+  built: "It's already built",
+  builtHelp: 'Your developers have it. Bring it into Bridge.',
+  fresh: "It's a new product",
+  freshHelp: 'Bridge sets it up with your library, ready to explore.',
+  back: 'Back',
+  // Step 2: already built, Bridge sees products to pick from.
+  pick: 'Pick your product',
+  pickPlaceholder: 'Choose a product',
   codeLoading: 'Looking for your products…',
   codeNone: 'Every product Bridge can open is already here.',
-  // Nothing at all to pick: the dialog says so in one sentence and its one action is Give Bridge access.
-  emptyLine: "Bridge can't see any other product yet. Give it access on GitHub, it takes a minute.",
-  // The same, for someone who does not own the account on GitHub (ownersOnlyLine follows).
-  emptyNone: "Bridge can't see any other product yet.",
   // Under the list, always: the way to a product Bridge cannot see yet (GitHub opens in a small window).
-  notListed: 'Product not in the list?',
-  giveAccess: 'Give Bridge access',
-  // While that window is open: the dialog waits and reads the list again on its own.
+  notListed: 'Not in the list?',
+  findOnGitHub: 'Find it on GitHub',
+  // Step 3: already built, Bridge sees none yet. One sentence, the footer's one action is Find it on GitHub.
+  findLine: 'Your developers keep its code on GitHub. Show Bridge where it is: tick it on GitHub, then come back.',
+  notSure: 'Not sure where it is?',
+  askDeveloper: 'Ask a developer',
+  askDeveloperNote: '(copies a message to send them)',
+  askDeveloperSaid: 'Message copied. Send it to a developer.',
+  // Step 4: while GitHub's window is open, the dialog waits and reads the list again on its own.
   waiting: 'Tick your product on GitHub, then Save. Bridge waits here.',
   waitingNote: 'Bridge looks for it every few seconds.',
   showGitHub: 'Show GitHub',
   tryAgain: 'Try again',
-  name: 'Name',
-  nameHelp: 'What your team calls it.',
   copy: 'Give designers their own copy',
   copyHelp: 'Designers explore in it. The developers only get a task when a designer is done.',
   previewsFound: 'Bridge found its previews.',
@@ -56,11 +65,18 @@ export const nothingNewLine = (account: string | null | undefined) =>
   `Nothing new yet. If GitHub asked you to request access, the owners of ${account || 'that account'} get it; this list updates when they approve.`;
 
 /** Said before GitHub opens, to someone who cannot give access themselves: GitHub turns their Save into a request. */
-export const ownersOnlyLine = (account: string) => `Only the owners of ${account} can give Bridge access. GitHub sends them your request.`;
+export const ownersOnlyLine = (account: string) => `Only the owners of ${account} can show Bridge where it is. GitHub sends them your request.`;
 
 /** GitHub closed with nothing new for someone who could only request: what happens next. */
 export const requestSentLine = (account: string, product: string | null | undefined) =>
-  `Request sent to the owners of ${account}. Bridge adds ${product?.trim() || 'your product'} to this list as soon as they approve.`;
+  `Request sent to the owners of ${account}. Bridge shows ${product?.trim() || 'your product'} here as soon as they approve.`;
+
+/**
+ * Add a product's own "nothing new" line (CopyAccessStep keeps nothingNewLine): GitHub closed and Bridge still sees
+ * nothing new. Someone who does not own the account could only ask, and its owners decide.
+ */
+export const nothingYetLine = (account: string | null | undefined) =>
+  `Nothing new yet. If GitHub asked you to request access, the owners of ${account || 'that account'} decide. Bridge shows your product here when they approve.`;
 
 /**
  * Whether the viewer can give Bridge access on `account` themselves: their own account, or an organization where
@@ -240,6 +256,23 @@ export const waitedTooLong = (step: AccessStep, now: number) => step.kind === 'w
 export function nameFromRepo(repoName: string): string {
   const words = repoName.replace(/[-_.]+/g, ' ').trim().replace(/\s+/g, ' ');
   return words ? (words[0]!.toUpperCase() + words.slice(1)).slice(0, PRODUCT_NAME_MAX) : '';
+}
+
+/**
+ * The name Bridge gives a picked product (there is no name field: it can be renamed later): the readable one, made
+ * unique with its GitHub account when another product already has it ("Shop (studio)", then "Shop (studio) 2").
+ */
+export function productNameFor(repo: Pick<ProductRepoChoice, 'full' | 'name'>, products: readonly Pick<ProductConfig, 'name'>[]): string {
+  const taken = new Set(products.map((p) => p.name.trim().toLowerCase()));
+  const base = nameFromRepo(repo.name) || repo.name;
+  if (!taken.has(base.toLowerCase())) return base;
+  const owner = repo.full.split('/')[0] ?? '';
+  const withOwner = cleanProductName(`${base} (${owner})`).slice(0, PRODUCT_NAME_MAX);
+  if (!taken.has(withOwner.toLowerCase())) return withOwner;
+  for (let i = 2; ; i++) {
+    const n = cleanProductName(`${withOwner.slice(0, PRODUCT_NAME_MAX - String(i).length - 1)} ${i}`);
+    if (!taken.has(n.toLowerCase())) return n;
+  }
 }
 
 /** A product key: lowercase letters, digits and dashes, unique among `taken` ("shop", then "shop-2"). */

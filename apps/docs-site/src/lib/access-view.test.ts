@@ -10,6 +10,7 @@ import {
   accessSummary,
   askAccessMessage,
   askInstallMessage,
+  askDeveloperMessage,
   askOwnersMessage,
   installUrl,
   requestAccessUrl,
@@ -284,5 +285,12 @@ describe('Add a product, for someone who can only request', () => {
     expect(named).toContain(url);
     expect(askOwnersMessage(null, url)).toContain(url);
     for (const m of [named, askOwnersMessage(' ', url)]) expect(m).not.toMatch(/—/);
+  });
+
+  it('writes the message for a developer: the page where they tick the product, then the Studio', () => {
+    const url = 'https://github.com/organizations/acme/settings/installations/8';
+    const m = askDeveloperMessage(url, 'https://bridge.example/studio/acme/ds/');
+    expect(m).toBe(`Hi, can you show Bridge where our product's code is? Open ${url}, tick the product, then Save. Then it shows in Bridge: https://bridge.example/studio/acme/ds/`);
+    expect(m).not.toMatch(/—|repositor/);
   });
 });

@@ -24,8 +24,8 @@ describe('Start a new product: rules and words', () => {
   });
 
   it('says its address in plain words', () => {
-    expect(addressLine('acme', 'shop')).toBe('Its address on GitHub: acme/shop');
-    expect(addressLine('acme', '')).toBe('Its address on GitHub: acme/…');
+    expect(addressLine('acme', 'shop')).toBe('Its address: acme/shop');
+    expect(addressLine('acme', '')).toBe('Its address: acme/…');
   });
 
   it("lists where it can live: the team's account first, each account once", () => {
