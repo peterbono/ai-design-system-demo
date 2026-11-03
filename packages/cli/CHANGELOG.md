@@ -1,5 +1,16 @@
 # @bridge-ds/cli
 
+## 0.18.0
+
+### Minor Changes
+
+- de71095: `bridge snapshot` records which bridge.config.json product each audit measured (`product` on snapshot audits): the product whose `path` holds the audited folder, or whose `repo` is the folder's git origin. Older snapshots without it still read.
+
+### Patch Changes
+
+- @bridge-ds/mcp@0.14.3
+- @bridge-ds/visual@0.3.22
+
 ## 0.17.6
 
 ### Patch Changes

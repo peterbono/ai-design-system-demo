@@ -1,5 +1,12 @@
 # @bridge-ds/stylelint-plugin
 
+## 0.2.26
+
+### Patch Changes
+
+- Updated dependencies [de71095]
+  - @bridge-ds/core@0.28.0
+
 ## 0.2.25
 
 ### Patch Changes
