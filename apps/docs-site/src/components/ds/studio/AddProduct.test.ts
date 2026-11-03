@@ -14,12 +14,16 @@ import AddProduct from './AddProduct';
 const gh = vi.hoisted(() => ({
   access: { repos: [] as ProductRepoChoice[], installation: { id: 42, account: { login: 'acme', type: 'Organization' } } as unknown, account: 'acme' },
   poll: vi.fn(),
+  readFails: false,
 }));
 
 vi.mock('../../../scripts/github-session', () => ({ onAccess: (fn: (a: unknown) => void) => fn({ admin: true }) }));
 vi.mock('../../../scripts/repo-context', () => ({ repoContext: () => ({ owner: 'acme', repo: 'ds' }), siteConfig: () => ({ products: [] }) }));
 vi.mock('../../../scripts/add-product', () => ({
-  readProductAccess: async () => gh.access,
+  readProductAccess: async () => {
+    if (gh.readFails) throw Object.assign(new Error('GitHub rate limit reached'), { status: 429, resetAt: null });
+    return gh.access;
+  },
   pollProductRepos: (...a: unknown[]) => gh.poll(...a),
   detectPreviews: async () => null,
 }));
@@ -38,6 +42,7 @@ let opened: unknown[][];
 beforeEach(() => {
   gh.access = { repos: [], installation: { id: 42, account: { login: 'acme', type: 'Organization' } }, account: 'acme' };
   gh.poll.mockReset();
+  gh.readFails = false;
   opened = [];
   popup = {
     closed: false,
@@ -162,5 +167,17 @@ describe('Add a product: a product Bridge cannot see yet', () => {
     expect(await screen.findByText(/GitHub is busy/)).toBeInTheDocument();
     await act(() => vi.advanceTimersByTimeAsync(ACCESS_TICK_MS * 3));
     expect(gh.poll).toHaveBeenCalledTimes(1);
+  });
+
+  it('GitHub busy when the dialog opens: Try again fills the list, never calls a product new', async () => {
+    gh.readFails = true;
+    show();
+    expect(await screen.findByText(/GitHub is busy/)).toBeInTheDocument();
+    gh.poll.mockResolvedValue([SHOP]);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(screen.queryByText(/GitHub is busy/)).toBeNull());
+    expect(screen.queryByText(foundLine('Shop'))).toBeNull();
+    expect(screen.getByRole('button', { name: W.send })).toBeInTheDocument();
+    expect(gh.poll).toHaveBeenCalledWith([], null);
   });
 });

@@ -104,7 +104,8 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   const [found, setFound] = useState<string | null>(null);
   const popup = useRef<Window | null>(null);
   // The products listed when GitHub opened: anything else that shows up is the one the admin just gave access to.
-  const before = useRef<string[]>([]);
+  // Null until GitHub opens (a read after "GitHub is busy" only fills the list).
+  const before = useRef<string[] | null>(null);
   const sendRef = useRef<HTMLButtonElement>(null);
   const formId = useId();
 
@@ -157,11 +158,12 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       const m = await import('../../../scripts/add-product');
       const now = await m.pollProductRepos(products, target?.installation?.id ?? null);
       go({ type: 'read' });
-      const fresh = newRepoIn(before.current, now);
+      const fresh = before.current ? newRepoIn(before.current, now) : null;
+      if (!fresh) setRepos((list) => (list && newRepoIn(list.map((r) => r.full), now) ? mergeRepos(list, now) : (list ?? now)));
       if (fresh) {
         if (popup.current && !popup.current.closed) popup.current.close();
         popup.current = null;
-        before.current = [...before.current, ...now.map((r) => r.full)];
+        before.current = [...(before.current ?? []), ...now.map((r) => r.full)];
         lastPending.current = false;
         setRepos((list) => mergeRepos(list ?? [], now));
         setRepo(fresh.full);
