@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bridge": {
+      "command": "npx",
+      "args": ["-y", "@bridge-ds/mcp"]
+    }
+  }
+}
