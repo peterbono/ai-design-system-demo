@@ -75,6 +75,16 @@ describe('Add a product: no code yet', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: A.fresh })));
   });
 
+  it('nothing read on GitHub yet: lives in the account of the team\'s products, never "Pick where it lives"', async () => {
+    gh.access = { repos: [], installation: null, account: null as unknown as string };
+    render(createElement(AddProduct, { products: [{ key: 'shop', name: 'Shop', repo: 'acme/shop' }], open: true, onOpenChange: vi.fn(), onSent: vi.fn() }));
+    await openForm();
+    fireEvent.change(screen.getByLabelText(W.name), { target: { value: 'Data pilot' } });
+    expect(screen.getByText(addressLine('acme', 'data-pilot'))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: W.create }));
+    await waitFor(() => expect(gh.start).toHaveBeenCalledWith(expect.objectContaining({ owner: 'acme', slug: 'data-pilot' })));
+  });
+
   it('offers Where when Bridge reaches more than one account', async () => {
     gh.access.repos = [SHOP, { full: 'studio/site', name: 'site', defaultBranch: 'main' }];
     show();

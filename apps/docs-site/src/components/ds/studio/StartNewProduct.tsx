@@ -48,8 +48,11 @@ export interface StartNewProductProps {
 type Phase = { kind: 'form' } | { kind: 'ready'; name: string; full: string };
 
 export default function StartNewProduct({ products, account, repos, busy, setBusy, onBack, onProposed, onStartedOnly, onDone }: StartNewProductProps) {
-  const owners = ownersFrom(account, repos);
-  const [owner, setOwner] = useState<string | null>(owners[0] ?? null);
+  // The accounts it can live in: the team's account, the ones Bridge reads products in, and the team's products' own
+  // accounts. Read on every render: the list often arrives after the form opens, and the first one is the default.
+  const owners = ownersFrom(account, [...repos, ...products.flatMap((p) => (p.repo ? [{ full: p.repo }] : []))]);
+  const [picked, setOwner] = useState<string | null>(null);
+  const owner = picked && owners.includes(picked) ? picked : (owners[0] ?? null);
   const [name, setName] = useState('');
   const [copyOn, setCopyOn] = useState(true);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
