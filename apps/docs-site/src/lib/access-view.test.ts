@@ -11,6 +11,8 @@ import {
   askAccessMessage,
   askInstallMessage,
   installUrl,
+  accessSettingsUrl,
+  installationToAdjust,
   manageAccessUrl,
   forgetsTeam,
   isRecentTeamName,
@@ -242,5 +244,24 @@ describe('busyBadge (GitHub busy before the access was read)', () => {
     expect(busyBadge('Admin')).toEqual({ label: 'Admin', tone: 'neutral' });
     expect(busyBadge(null)).toEqual({ label: 'Signed in', tone: 'neutral' });
     expect(busyBadge('  ').label).toBe('Signed in');
+  });
+});
+
+describe('access settings on GitHub', () => {
+  it("opens the existing installation's page, for a person or an organization, else the install page", () => {
+    expect(accessSettingsUrl({ id: 7, account: { login: 'peterbono', type: 'User' } })).toBe('https://github.com/settings/installations/7');
+    expect(accessSettingsUrl({ id: 8, account: { login: 'Acme Co', type: 'Organization' } })).toBe('https://github.com/organizations/Acme%20Co/settings/installations/8');
+    expect(accessSettingsUrl({ id: 9 })).toBe('https://github.com/settings/installations/9');
+    expect(accessSettingsUrl(null)).toBe(installUrl());
+    expect(accessSettingsUrl({ id: 0 }, 'bridge-dev')).toBe('https://github.com/apps/bridge-dev/installations/new');
+  });
+
+  it("adjusts the team's own installation, else the only one", () => {
+    const own = { id: 1, account: { login: 'Acme' } };
+    const other = { id: 2, account: { login: 'someone' } };
+    expect(installationToAdjust([other, own], 'acme')).toBe(own);
+    expect(installationToAdjust([other], 'acme')).toBe(other);
+    expect(installationToAdjust([other, { id: 3, account: { login: 'x' } }], 'acme')).toBeNull();
+    expect(installationToAdjust([], 'acme')).toBeNull();
   });
 });

@@ -1051,15 +1051,18 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
 // same open pull requests): anonymous visitors only have 60 reads an hour.
 const inflight = new Map<string, Promise<Fetched<unknown>>>();
 
-/** GET with cache fallback. `path` is relative to api.github.com, or an absolute URL. */
-export function ghGet<T>(path: string, opts: { accept?: string; raw?: boolean } = {}): Promise<Fetched<T>> {
+/**
+ * GET with cache fallback. `path` is relative to api.github.com, or an absolute URL. `fresh`: ask GitHub again instead
+ * of the browser's copy (a conditional read: an unchanged answer does not count against the hourly limit).
+ */
+export function ghGet<T>(path: string, opts: { accept?: string; raw?: boolean; fresh?: boolean } = {}): Promise<Fetched<T>> {
   // An email member stands in for a login with their email (contribute-session asMine): GitHub has no such user, so
   // answer the 404 here instead of a failed request in the console.
   const user = /^\/users\/([^/?]+)/.exec(path);
   if (user && !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:%5Bbot%5D|\[bot\])?$/.test(user[1]!)) return Promise.reject(new GitHubError(404, `GitHub answered 404 for ${path}`));
   const url = path.startsWith('http') ? path : `${API}${path}`;
   // A read after a write never joins one started before it (the write is part of the key).
-  const key = `${url}|${opts.accept ?? ''}|${opts.raw ? 'raw' : ''}|${hasWorkingToken() ? 'auth' : 'anon'}|${wroteAt ?? 0}`;
+  const key = `${url}|${opts.accept ?? ''}|${opts.raw ? 'raw' : ''}|${hasWorkingToken() ? 'auth' : 'anon'}|${wroteAt ?? 0}|${opts.fresh ? 'fresh' : ''}`;
   const pending = inflight.get(key);
   if (pending) return pending as Promise<Fetched<T>>;
   const p = ghGetOnce<T>(url, path, `${url}|${opts.accept ?? ''}`, opts).finally(() => inflight.delete(key));
@@ -1091,7 +1094,7 @@ export async function rawFileUrl(url: string): Promise<{ url: string; accept?: s
   return { url: `${API}/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(decodeURIComponent(ref))}`, accept: 'application/vnd.github.raw' };
 }
 
-async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { accept?: string; raw?: boolean }): Promise<Fetched<T>> {
+async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { accept?: string; raw?: boolean; fresh?: boolean }): Promise<Fetched<T>> {
   // Only a raw file address waits for the visibility check: every other read starts at once.
   const routed = RAW_FILE.test(url0) ? await rawFileUrl(url0) : { url: url0 };
   const url = routed.url;
@@ -1103,7 +1106,7 @@ async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { ac
     if (isApi && mustRenew()) await freshToken();
     const h = headers(opts.accept ? { Accept: opts.accept } : {});
     // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
-    const cache = freshRead();
+    const cache = opts.fresh ? 'no-cache' : freshRead();
     let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '', pageProductRepos())) ?? fetch(url, { headers: h, cache })) : isApi ? await ghFetch(url, { headers: h, cache }) : await fetch(url, { cache });
     // GitHub refused the token: renew the sign-in and read again with it. Only a sign-in that is really refused
     // (marked, the account block says "Sign in again") reads anonymously (public repos keep working).

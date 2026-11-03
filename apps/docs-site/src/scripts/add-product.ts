@@ -2,48 +2,69 @@
 // product's Vercel statuses say about its previews. Words and rules: lib/add-product.ts. The pull request:
 // scripts/roles.ts proposeNewProduct.
 import type { PreviewCheckRun, ProductConfig } from '@bridge-ds/core';
-import { previewsFromCheckRuns, previewsFromStatuses, type ProductRepoChoice, type StatusLike } from '../lib/add-product';
-import { ghGet, readRepo, sessionMode } from './github-session';
+import { installationToAdjust, type AppInstallation } from '../lib/access-view';
+import { pickableRepos, previewsFromCheckRuns, previewsFromStatuses, type ProductRepoChoice, type RepoLike, type StatusLike } from '../lib/add-product';
+import { ghGet, RateLimitError, readRepo, sessionMode, type Fetched } from './github-session';
 
-interface RepoLike {
-  full_name: string;
-  name: string;
-  default_branch?: string;
-  archived?: boolean;
-  fork?: boolean;
+/** What the dialog reads when it opens: the products it can pick, and the installation an admin adjusts on GitHub. */
+export interface ProductAccess {
+  repos: ProductRepoChoice[];
+  /** The Bridge app's installation to open on GitHub ("Give Bridge access"), null when there is none to adjust. */
+  installation: AppInstallation | null;
+  /** The GitHub account that installation is on (else the team's), for "the owners of <account>". */
+  account: string;
+}
+
+const ds = () => `${readRepo().owner}/${readRepo().repo}`;
+
+/** A read GitHub answered from this browser's copy because it refused it: busy, never "nothing new". */
+function live<T>(r: Fetched<T>): T {
+  if (r.stale) throw new RateLimitError(r.resetAt ?? null);
+  return r.data;
 }
 
 /**
  * The products Bridge can see: the repositories of the GitHub App's installations (signed in with the app), else the
  * viewer's own and their organizations'. Never the design system itself, a copy of a product already listed, an
- * archived one or a product Bridge already lists.
+ * archived one or a product Bridge already lists. `fresh`: ask GitHub again, not the browser's copy.
  */
-export async function listProductRepos(listed: readonly ProductConfig[]): Promise<ProductRepoChoice[]> {
+export async function readProductAccess(listed: readonly ProductConfig[], opts: { fresh?: boolean } = {}): Promise<ProductAccess> {
+  // A fresh read never takes the browser's copy for an answer; the first read of the dialog may.
+  const take = <T,>(r: Fetched<T>): T => (opts.fresh ? live(r) : r.data);
   const repos: RepoLike[] = [];
+  let installation: AppInstallation | null = null;
   if (sessionMode() === 'app') {
-    const { data } = await ghGet<{ installations?: { id: number }[] }>('/user/installations?per_page=100');
+    const data = take(await ghGet<{ installations?: AppInstallation[] }>('/user/installations?per_page=100', opts));
+    const list = data.installations ?? [];
+    installation = installationToAdjust(list, readRepo().owner);
     const lists = await Promise.all(
-      (data.installations ?? []).slice(0, 10).map((i) =>
-        ghGet<{ repositories?: RepoLike[] }>(`/user/installations/${i.id}/repositories?per_page=100`).then((r) => r.data.repositories ?? [], () => [] as RepoLike[]),
+      list.slice(0, 10).map((i) =>
+        ghGet<{ repositories?: RepoLike[] }>(`/user/installations/${i.id}/repositories?per_page=100`, opts).then((r) => take(r).repositories ?? [], (err: unknown) => {
+          if (err instanceof RateLimitError) throw err;
+          return [] as RepoLike[];
+        }),
       ),
     );
     repos.push(...lists.flat());
   } else {
-    const { data } = await ghGet<RepoLike[]>('/user/repos?per_page=100&sort=updated&affiliation=owner,organization_member');
-    repos.push(...data);
+    repos.push(...take(await ghGet<RepoLike[]>('/user/repos?per_page=100&sort=updated&affiliation=owner,organization_member', opts)));
   }
-  const ds = `${readRepo().owner}/${readRepo().repo}`.toLowerCase();
-  const taken = new Set(listed.flatMap((p) => [p.repo, p.design?.repo]).filter((r): r is string => Boolean(r)).map((r) => r.toLowerCase()));
-  const seen = new Set<string>();
-  return repos
-    .filter((r) => {
-      const full = r.full_name.toLowerCase();
-      if (seen.has(full) || full === ds || taken.has(full) || r.archived) return false;
-      seen.add(full);
-      return true;
-    })
-    .map((r) => ({ full: r.full_name, name: r.name, defaultBranch: r.default_branch ?? 'main' }))
-    .sort((a, b) => a.full.localeCompare(b.full));
+  return { repos: pickableRepos(repos, listed, ds()), installation, account: installation?.account?.login || readRepo().owner };
+}
+
+/** The pick list only (kept for callers that do not open GitHub). */
+export const listProductRepos = async (listed: readonly ProductConfig[]): Promise<ProductRepoChoice[]> => (await readProductAccess(listed)).repos;
+
+/**
+ * One light read while the dialog waits on GitHub: the products of the installation the admin is adjusting (one
+ * request, asked again, not the browser's copy), else the whole list. Throws RateLimitError when GitHub is busy.
+ */
+export async function pollProductRepos(listed: readonly ProductConfig[], installationId: number | null): Promise<ProductRepoChoice[]> {
+  if (installationId && sessionMode() === 'app') {
+    const data = live(await ghGet<{ repositories?: RepoLike[] }>(`/user/installations/${installationId}/repositories?per_page=100`, { fresh: true }));
+    return pickableRepos(data.repositories ?? [], listed, ds());
+  }
+  return (await readProductAccess(listed, { fresh: true })).repos;
 }
 
 /**

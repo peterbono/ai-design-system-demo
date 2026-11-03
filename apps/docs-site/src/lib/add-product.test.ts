@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { productProblems, type ProductConfig } from '@bridge-ds/core';
-import { addProductProblem, addProductProposal, ADD_PRODUCT_WORDS, copyRepoFor, nameFromRepo, newProductEntry, previewsFromCheckRuns, previewsFromStatuses, productKeyFor, withNewProduct } from './add-product';
+import {
+  ACCESS_MAX_MS,
+  ACCESS_MESSAGE,
+  accessStep,
+  addProductProblem,
+  addProductProposal,
+  ADD_PRODUCT_WORDS,
+  copyRepoFor,
+  foundLine,
+  isAccessMessage,
+  mergeRepos,
+  nameFromRepo,
+  newProductEntry,
+  newRepoIn,
+  nothingNewLine,
+  pickableRepos,
+  popupFeatures,
+  previewsFromCheckRuns,
+  previewsFromStatuses,
+  productKeyFor,
+  waitedTooLong,
+  withNewProduct,
+  type AccessStep,
+} from './add-product';
 
 const SHOP: ProductConfig = { key: 'admin-app', name: 'Art print shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' }, framework: 'react' };
 
@@ -98,5 +121,75 @@ describe('add a product', () => {
 
   it('never says repository, fork or config to designers', () => {
     for (const w of Object.values(ADD_PRODUCT_WORDS)) expect(w).not.toMatch(/repositor|fork|config|branch/i);
+  });
+});
+
+describe('giving Bridge access from the dialog', () => {
+  const r = (full: string) => ({ full, name: full.split('/')[1]!, defaultBranch: 'main' });
+
+  it('lists what can be picked: never the design system, a listed product or its copy, an archived one, twice', () => {
+    const repos = [
+      { full_name: 'acme/ds', name: 'ds' },
+      { full_name: 'acme/shop', name: 'shop' },
+      { full_name: 'acme/shop-design', name: 'shop-design' },
+      { full_name: 'acme/old', name: 'old', archived: true },
+      { full_name: 'acme/zeta', name: 'zeta', default_branch: 'trunk' },
+      { full_name: 'acme/back', name: 'back' },
+      { full_name: 'ACME/back', name: 'back' },
+    ];
+    expect(pickableRepos(repos, [SHOP], 'Acme/DS')).toEqual([
+      { full: 'acme/back', name: 'back', defaultBranch: 'main' },
+      { full: 'acme/zeta', name: 'zeta', defaultBranch: 'trunk' },
+    ]);
+  });
+
+  it('finds the product that was not there when GitHub opened', () => {
+    expect(newRepoIn([], [])).toBeNull();
+    expect(newRepoIn(['acme/shop'], [r('acme/shop')])).toBeNull();
+    expect(newRepoIn(['ACME/Shop'], [r('acme/shop'), r('acme/print')])).toEqual(r('acme/print'));
+    expect(mergeRepos([r('acme/zeta')], [r('acme/zeta'), r('acme/back')]).map((x) => x.full)).toEqual(['acme/back', 'acme/zeta']);
+  });
+
+  it('waits, then goes back to the form, says nothing new, or is busy', () => {
+    const list: AccessStep = { kind: 'list' };
+    const waiting = accessStep(list, { type: 'open', at: 1000 });
+    expect(waiting).toEqual({ kind: 'waiting', since: 1000 });
+    expect(accessStep(waiting, { type: 'cancel' })).toEqual(list);
+    expect(accessStep(waiting, { type: 'found' })).toEqual(list);
+    expect(accessStep(waiting, { type: 'closed' })).toEqual({ kind: 'nothing-new' });
+    expect(accessStep(waiting, { type: 'timeout' })).toEqual({ kind: 'nothing-new' });
+    // Closing only means "nothing new" while waiting.
+    expect(accessStep(list, { type: 'closed' })).toBe(list);
+    expect(accessStep({ kind: 'nothing-new' }, { type: 'found' })).toEqual(list);
+    const busy = accessStep(waiting, { type: 'busy', resetsAt: null, source: 'github' });
+    expect(busy).toEqual({ kind: 'busy', resetsAt: null, source: 'github' });
+    expect(accessStep(busy, { type: 'read' })).toEqual(list);
+    expect(accessStep(waiting, { type: 'read' })).toBe(waiting);
+    expect(waitedTooLong(waiting, 1000 + ACCESS_MAX_MS - 1)).toBe(false);
+    expect(waitedTooLong(waiting, 1000 + ACCESS_MAX_MS)).toBe(true);
+    expect(waitedTooLong(list, Number.MAX_SAFE_INTEGER)).toBe(false);
+  });
+
+  it("trusts only this site's return message", () => {
+    const origin = 'https://bridge.example.com';
+    expect(isAccessMessage({ origin, data: { type: ACCESS_MESSAGE } }, origin)).toBe(true);
+    expect(isAccessMessage({ origin: 'https://evil.example', data: { type: ACCESS_MESSAGE } }, origin)).toBe(false);
+    expect(isAccessMessage({ origin, data: { type: 'other' } }, origin)).toBe(false);
+    expect(isAccessMessage({ origin, data: ACCESS_MESSAGE }, origin)).toBe(false);
+    expect(isAccessMessage({ origin, data: null }, origin)).toBe(false);
+  });
+
+  it('centers the GitHub window on the window it opens from', () => {
+    expect(popupFeatures({ screenX: 100, screenY: 50, outerWidth: 1440, outerHeight: 900 })).toBe('popup=yes,width=1020,height=760,left=310,top=120');
+    expect(popupFeatures({ screenX: 0, screenY: 0, outerWidth: 390, outerHeight: 844 })).toBe('popup=yes,width=1020,height=760,left=0,top=42');
+  });
+
+  it('says what arrived and who decides, in designer words', () => {
+    expect(foundLine('Art print shop')).toBe("Art print shop is here. Add it when you're ready.");
+    expect(nothingNewLine('acme')).toBe('Nothing new yet. If GitHub asked you to request access, the owners of acme get it; this list updates when they approve.');
+    expect(nothingNewLine(null)).toContain('the owners of that account');
+    for (const w of [foundLine('x'), nothingNewLine('acme'), ...Object.values(ADD_PRODUCT_WORDS)]) {
+      expect(w).not.toMatch(/repositor|installation|fork|config|—/i);
+    }
   });
 });

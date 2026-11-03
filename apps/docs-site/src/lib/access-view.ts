@@ -15,6 +15,31 @@ export const BRIDGE_APP_SLUG = 'bridge-ds';
 /** Where an admin installs Bridge on a repository (GitHub asks which repositories). */
 export const installUrl = (slug = BRIDGE_APP_SLUG) => `https://github.com/apps/${slug}/installations/new`;
 
+/** One installation of the Bridge app, as GET /user/installations lists it (account type: "User" or "Organization"). */
+export interface AppInstallation {
+  id: number;
+  account?: { login?: string; type?: string } | null;
+}
+
+/**
+ * Where an admin picks which of an account's products Bridge sees: the existing installation's page (its repository
+ * list and Save), under the person's settings or the organization's. No installation: the app's install page.
+ */
+export function accessSettingsUrl(inst: AppInstallation | null | undefined, slug = BRIDGE_APP_SLUG): string {
+  const id = inst && Number.isSafeInteger(inst.id) && inst.id > 0 ? inst.id : null;
+  if (!id) return installUrl(slug);
+  const login = inst?.account?.login;
+  if (inst?.account?.type === 'Organization' && login) return `https://github.com/organizations/${encodeURIComponent(login)}/settings/installations/${id}`;
+  return `https://github.com/settings/installations/${id}`;
+}
+
+/** The installation an admin adjusts: the one on `owner` (the team's account), else the only one, else none. */
+export function installationToAdjust<T extends AppInstallation>(list: readonly T[], owner: string): T | null {
+  const own = list.find((i) => i.account?.login?.toLowerCase() === owner.toLowerCase());
+  if (own) return own;
+  return list.length === 1 ? list[0]! : null;
+}
+
 const gh = (owner: string, repo: string) => `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 
 /** Where someone the lead invited accepts the invitation. */
