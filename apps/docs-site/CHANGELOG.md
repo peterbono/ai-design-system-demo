@@ -1,5 +1,14 @@
 # @bridge-ds/docs-site
 
+## 0.27.2
+
+### Patch Changes
+
+- 133451a: Add a product: when a product is not in the list, "Give Bridge access" opens GitHub in a small window on the page where the admin ticks which products Bridge sees. The dialog waits, finds the new product on its own and comes back with it picked and named. The list is never a dead end, and a new return page (/studio/auth/access/) lets GitHub hand back at once.
+- de71095: Studio Components: "Used in" lists only the team's products from bridge.config.json, by their Bridge names, each from its latest audit. Runs before the move to the design system, audits of apps that are not a listed product and the Library itself never show; with no audit of a product the column is left out. The team drawer says where the component is used.
+- Updated dependencies [de71095]
+  - @bridge-ds/core@0.28.0
+
 ## 0.27.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @bridge-ds/toolbar
 
+## 0.8.1
+
+### Patch Changes
+
+- Updated dependencies [de71095]
+  - @bridge-ds/core@0.28.0
+
 ## 0.8.0
 
 ### Minor Changes
