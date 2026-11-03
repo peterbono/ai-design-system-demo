@@ -148,7 +148,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
     setBusy(true);
     setError(null);
     try {
-      const repo = target ?? source.config.repo ?? { owner: 'peterbono', name: 'ai-design-system-demo', defaultBranch: 'main' };
+      const repo = target ?? source.config.repo ?? { owner: 'the-bridge-company', name: 'ai-design-system-demo', defaultBranch: 'main' };
       const pr = await proposeBrand(draft, repo, source.config.tokens.root, parseJiraKey(jira), mode);
       setDone(pr);
       saveDraft(null, draftScope);

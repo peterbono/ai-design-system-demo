@@ -33,7 +33,7 @@ test('previewLinks keeps configured apps in a stable order', () => {
 });
 
 test('snapshot and tarball URLs', () => {
-  assert.equal(snapshotUrl('peterbono', 'ai-design-system-demo', '@bridge-ds/react', SHA), `https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/react@${SHA}`);
+  assert.equal(snapshotUrl('the-bridge-company', 'ai-design-system-demo', '@bridge-ds/react', SHA), `https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/react@${SHA}`);
   assert.equal(snapshotUrl('o', 'r', '@bridge-ds/tokens', 12), 'https://pkg.pr.new/o/r/@bridge-ds/tokens@12');
   assert.equal(tarballAssetName('@bridge-ds/react', SHA), 'bridge-ds-react-0123456.tgz');
   assert.equal(tarballUrl('o', 'r', 7, '@bridge-ds/core', SHA), 'https://github.com/o/r/releases/download/preview-pr-7/bridge-ds-core-0123456.tgz');

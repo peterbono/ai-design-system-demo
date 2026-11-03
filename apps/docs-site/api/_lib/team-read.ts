@@ -101,8 +101,12 @@ import { GITHUB_DOWN, HttpError, SECURITY_HEADERS, clientIp, envInt, json, sha25
 import type { Redis } from './redis.js';
 import { canonicalEmail } from './canonical-email.js';
 
-/** The public demo teams: anyone may read them through Bridge (lower case). Same list as src/lib/demo.ts DEMO_REPOS. */
-export const PUBLIC_TEAMS: readonly string[] = ['peterbono/bridge-demo-ds', 'peterbono/ai-design-system-demo'];
+/**
+ * The public demo teams: anyone may read them through Bridge (lower case). Same list as src/lib/demo.ts DEMO_REPOS.
+ * 'peterbono/ai-design-system-demo' is the old key of Bridge's own repository, kept while it moves to
+ * the-bridge-company so the switch has no gap: remove it once nothing reads the old name.
+ */
+export const PUBLIC_TEAMS: readonly string[] = ['peterbono/bridge-demo-ds', 'the-bridge-company/ai-design-system-demo', 'peterbono/ai-design-system-demo'];
 
 /** Read permissions asked for the read token; without some of them on the installation, READ_BASE. */
 export const READ_PERMISSIONS = { contents: 'read', pull_requests: 'read', issues: 'read', statuses: 'read', checks: 'read' } as const;

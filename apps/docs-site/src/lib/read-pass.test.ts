@@ -6,16 +6,16 @@ import { originAllowed, originTemplatesOf } from '../../api/_lib/team-read';
 
 const SECRET = 's'.repeat(40);
 const T0 = Date.parse('2026-11-03T10:00:00Z');
-const input = { team: 'Peterbono/AI-Design-System-Demo', repos: ['art-print-shop-co/art-print-shop-design', 'Art-Print-Shop-Co/Art-Print-Shop', 'peterbono/ai-design-system-demo'], member: 'a'.repeat(24) };
+const input = { team: 'The-Bridge-Company/AI-Design-System-Demo', repos: ['the-bridge-company/art-print-shop-design', 'The-Bridge-Company/Art-Print-Shop', 'the-bridge-company/ai-design-system-demo'], member: 'a'.repeat(24) };
 
 describe('read pass', () => {
   it('mints for the product repositories only, lower case, open READ_PASS_TTL_MS', () => {
     const m = mintReadPass(input, SECRET, T0)!;
     expect(m.exp).toBe(T0 + READ_PASS_TTL_MS);
     const c = verifyReadPass(m.pass, SECRET, T0 + 1000)!;
-    expect(c.t).toBe('peterbono/ai-design-system-demo');
-    expect(c.r).toEqual(['art-print-shop-co/art-print-shop-design', 'art-print-shop-co/art-print-shop']);
-    expect(passOpens(c, 'peterbono/ai-design-system-demo', 'art-print-shop-co/art-print-shop-design')).toBe(true);
+    expect(c.t).toBe('the-bridge-company/ai-design-system-demo');
+    expect(c.r).toEqual(['the-bridge-company/art-print-shop-design', 'the-bridge-company/art-print-shop']);
+    expect(passOpens(c, 'the-bridge-company/ai-design-system-demo', 'the-bridge-company/art-print-shop-design')).toBe(true);
   });
 
   it('never mints longer than 12 hours, nor for no product', () => {
@@ -31,10 +31,10 @@ describe('read pass', () => {
 
   it('opens only its team and the repositories it names', () => {
     const c = verifyReadPass(mintReadPass(input, SECRET, T0)!.pass, SECRET, T0);
-    expect(passOpens(c, 'acme/acme-flow', 'art-print-shop-co/art-print-shop-design')).toBe(false);
-    expect(passOpens(c, 'peterbono/ai-design-system-demo', 'art-print-shop-co/other')).toBe(false);
-    expect(passOpens(c, 'peterbono/ai-design-system-demo', 'peterbono/ai-design-system-demo')).toBe(false);
-    expect(passOpens(null, 'peterbono/ai-design-system-demo', 'art-print-shop-co/art-print-shop')).toBe(false);
+    expect(passOpens(c, 'acme/acme-flow', 'the-bridge-company/art-print-shop-design')).toBe(false);
+    expect(passOpens(c, 'the-bridge-company/ai-design-system-demo', 'the-bridge-company/other')).toBe(false);
+    expect(passOpens(c, 'the-bridge-company/ai-design-system-demo', 'the-bridge-company/ai-design-system-demo')).toBe(false);
+    expect(passOpens(null, 'the-bridge-company/ai-design-system-demo', 'the-bridge-company/art-print-shop')).toBe(false);
   });
 
   it('refuses a tampered pass, another secret, another purpose, or claims open too long', () => {

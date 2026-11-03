@@ -171,13 +171,13 @@ describe('the pull request', () => {
       product: 'Art print shop',
       version: '1.8.4',
       packages: [{ name: '@bridge-ds/react', from: '1.8.3', to: '1.8.4', rangeFrom: '^1.8.2', rangeTo: '^1.8.2' }],
-      changelog: 'https://bridge.floriangouloubi.com/library/peterbono/ai-design-system-demo/changelog/',
+      changelog: 'https://bridge.floriangouloubi.com/library/the-bridge-company/ai-design-system-demo/changelog/',
       lockfile: 'patched',
       requestedBy: 'Florian',
     });
     expect(body).toContain(UPDATE_MARKER);
     expect(updateVersionOf(body)).toBe('1.8.4');
-    expect(body).toContain('| `@bridge-ds/react` | 1.8.3 | 1.8.4 | [What changed](https://bridge.floriangouloubi.com/library/peterbono/ai-design-system-demo/changelog/) |');
+    expect(body).toContain('| `@bridge-ds/react` | 1.8.3 | 1.8.4 | [What changed](https://bridge.floriangouloubi.com/library/the-bridge-company/ai-design-system-demo/changelog/) |');
     expect(body).toContain('Bridge never merges this pull request.');
     expect(body).toContain('Requested by Florian through Bridge.');
     expect(body).not.toMatch(/\u2014/);

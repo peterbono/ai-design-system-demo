@@ -13,11 +13,11 @@ const CLEAN_APP = join(REPO, 'packages/core/test/fixtures/audit/clean-app');
 
 describe('bridge snapshot audits name their product', () => {
   it('a product checkout next to the repo is named by its git origin; other folders name none', async () => {
-    // This repository's config: Art print shop (key admin-app) lives in art-print-shop-co/art-print-shop.
+    // This repository's config: Art print shop (key admin-app) lives in the-bridge-company/art-print-shop.
     const shop = mkdtempSync(join(tmpdir(), 'bridge-test-shop-'));
     cpSync(CLEAN_APP, shop, { recursive: true });
     execFileSync('git', ['init', '-q'], { cwd: shop });
-    execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/art-print-shop-co/art-print-shop.git'], { cwd: shop });
+    execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/the-bridge-company/art-print-shop.git'], { cwd: shop });
     // A carried report of an app of this repository that is no listed product (the admin demo).
     const reports = mkdtempSync(join(tmpdir(), 'bridge-test-reports-'));
     const report = JSON.parse(readFileSync(join(REPO, 'apps/docs-site/src/data/audits/admin-after.json'), 'utf8')) as Record<string, unknown>;
@@ -38,7 +38,7 @@ describe('bridge snapshot audits name their product', () => {
     try {
       cpSync(CLEAN_APP, shop, { recursive: true });
       execFileSync('git', ['init', '-q'], { cwd: shop });
-      execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/art-print-shop-co/art-print-shop'], { cwd: shop });
+      execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/the-bridge-company/art-print-shop'], { cwd: shop });
       const out = mkdtempSync(join(tmpdir(), 'bridge-test-snapshot-'));
       await writeSnapshot({ root: REPO, out, version: '9.9.9', generatedAt: '2026-11-03T10:00:00.000Z', audit: [`${relative(REPO, shop)}=Art print shop, main`] });
       const snap = JSON.parse(readFileSync(join(out, 'snapshot.json'), 'utf8')) as RepoSnapshot;

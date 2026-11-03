@@ -73,11 +73,11 @@ describe('Start a new product: rules and words', () => {
 describe('newProductOwner', () => {
   it("goes where the team's products live, never the viewer's own account", () => {
     const products = [
-      { name: 'Library', repo: 'peterbono/ai-design-system-demo' },
-      { name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop' },
+      { name: 'Library', repo: 'the-bridge-company/ai-design-system-demo' },
+      { name: 'Art print shop', repo: 'the-bridge-company/art-print-shop' },
       { name: 'Site', repo: 'studio/site' },
     ];
-    expect(newProductOwner(products, 'peterbono/ai-design-system-demo', 'peterbono')).toBe('art-print-shop-co');
+    expect(newProductOwner(products, 'the-bridge-company/ai-design-system-demo', 'peterbono')).toBe('the-bridge-company');
     expect(newProductOwner([{ repo: 'Acme/shop' }], 'acme/ds')).toBe('Acme');
     // A product without code yet is skipped.
     expect(newProductOwner([{ repo: undefined }, { repo: 'studio/site' }], 'acme/ds')).toBe('studio');

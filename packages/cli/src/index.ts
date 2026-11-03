@@ -265,7 +265,7 @@ async function init(a: Args, root: string) {
     const files = await src.list('');
     const repo = await originRepo(root);
     config = await detectConfig(files, (p) => src.read(p), repo ? { repo } : {});
-    await writeFile(cfgPath, `${JSON.stringify(toConfigJson(config, 'https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/bridge.config.schema.json'), null, 2)}\n`);
+    await writeFile(cfgPath, `${JSON.stringify(toConfigJson(config, 'https://raw.githubusercontent.com/the-bridge-company/ai-design-system-demo/main/packages/core/bridge.config.schema.json'), null, 2)}\n`);
     print(`Wrote ${CONFIG_FILE}: tokens in ${config.tokens.root}, ${config.tokens.layers.length} layers, modes ${Object.keys(config.axes).join(', ') || 'none'}.`);
     print('Check the layers order (lowest first) and the tiers; detection is a starting point.');
   }

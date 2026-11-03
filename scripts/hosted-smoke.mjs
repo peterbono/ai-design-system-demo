@@ -16,8 +16,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const DEMO = '/studio/peterbono/ai-design-system-demo';
-const LIB = '/library/peterbono/ai-design-system-demo';
+const DEMO = '/studio/the-bridge-company/ai-design-system-demo';
+const LIB = '/library/the-bridge-company/ai-design-system-demo';
 
 /** The team Libraries search engines may index (lower case "owner/repo"). */
 export const PUBLIC_LIBRARIES = new Set(JSON.parse(readFileSync(new URL('../apps/docs-site/hosted/public-libraries.json', import.meta.url), 'utf8')).libraries.map((l) => l.toLowerCase()));

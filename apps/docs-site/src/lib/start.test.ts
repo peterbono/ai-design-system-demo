@@ -43,7 +43,7 @@ describe('who sees the start screen', () => {
   });
 
   it('never counts the demo teams as a workspace', () => {
-    const f = facts({ recent: ['peterbono/bridge-demo-ds', 'Peterbono/AI-Design-System-Demo'] });
+    const f = facts({ recent: ['peterbono/bridge-demo-ds', 'The-Bridge-Company/AI-Design-System-Demo'] });
     expect(ownTeams(f.recent)).toEqual([]);
     expect(showsStartScreen(f)).toBe(true);
   });
@@ -183,14 +183,14 @@ describe('the home of a team made in Bridge', () => {
 });
 
 describe('the demo banner never leads back to the page it is on', () => {
-  const here = { pathname: '/studio/peterbono/ai-design-system-demo/', repo: 'peterbono/ai-design-system-demo' };
+  const here = { pathname: '/studio/the-bridge-company/ai-design-system-demo/', repo: 'the-bridge-company/ai-design-system-demo' };
   it('the current team, in any spelling, or the hosted root showing it, goes to the workspace instead', () => {
-    for (const href of ['/studio/peterbono/ai-design-system-demo/', '/studio/~/peterbono/ai-design-system-demo', '/studio/Peterbono/AI-design-system-demo/?x=1#y', '/studio/']) {
+    for (const href of ['/studio/the-bridge-company/ai-design-system-demo/', '/studio/~/the-bridge-company/ai-design-system-demo', '/studio/The-Bridge-Company/AI-design-system-demo/?x=1#y', '/studio/']) {
       expect(awayFrom({ href, connect: false }, here)).toEqual({ href: WORKSPACE_HOME, connect: false });
     }
   });
   it("the account's team made in Bridge when it has one", () => {
-    expect(awayFrom({ href: '/studio/peterbono/ai-design-system-demo/', connect: false }, here, [{ repo: 'acme/ds' }, { repo: '_team/c0ffee0000000017' }])).toEqual({
+    expect(awayFrom({ href: '/studio/the-bridge-company/ai-design-system-demo/', connect: false }, here, [{ repo: 'acme/ds' }, { repo: '_team/c0ffee0000000017' }])).toEqual({
       href: `${WORKSPACE_HOME}?team=c0ffee0000000017`,
       connect: false,
     });

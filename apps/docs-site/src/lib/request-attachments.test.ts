@@ -36,8 +36,8 @@ describe('image', () => {
   });
 
   it('builds the public URL and reads base64', () => {
-    expect(requestImageUrl('peterbono', 'ai-design-system-demo', '.bridge/requests/button-1.png')).toBe(
-      'https://github.com/peterbono/ai-design-system-demo/blob/bridge-requests/.bridge/requests/button-1.png?raw=true',
+    expect(requestImageUrl('the-bridge-company', 'ai-design-system-demo', '.bridge/requests/button-1.png')).toBe(
+      'https://github.com/the-bridge-company/ai-design-system-demo/blob/bridge-requests/.bridge/requests/button-1.png?raw=true',
     );
     expect(base64Of('data:image/png;base64,QUJD')).toBe('QUJD');
     expect(base64Of('data:text/plain,abc')).toBeNull();

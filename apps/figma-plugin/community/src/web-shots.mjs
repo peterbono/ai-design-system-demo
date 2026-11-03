@@ -17,7 +17,7 @@ const shots = [
   // fresh browser, so it is hidden for the shot (only when empty: a real draft would stay visible).
   { name: 'web-tokens', url: `${bridge}/studio/tokens/`, hideEmptyDraftTray: true },
   { name: 'web-review', url: `${bridge}/studio/changes/?pr=4` },
-  { name: 'web-github-pr', url: 'https://github.com/peterbono/ai-design-system-demo/pull/4' },
+  { name: 'web-github-pr', url: 'https://github.com/the-bridge-company/ai-design-system-demo/pull/4' },
 ].filter((s) => !only || only.includes(s.name));
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 810 }, deviceScaleFactor: 2, colorScheme: 'light' });

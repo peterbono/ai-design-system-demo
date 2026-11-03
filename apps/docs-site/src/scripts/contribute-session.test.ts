@@ -189,8 +189,8 @@ describe("an email member on their team's Library", () => {
 
 describe("an email contributor on Bridge's own team", () => {
   it('is a member there, not a demo visitor; the sample team stays sample only', () => {
-    history.replaceState(null, '', '/studio/peterbono/ai-design-system-demo/');
-    localStorage.setItem('bridge.contribute.member:peterbono/ai-design-system-demo', JSON.stringify({ email: 'leo@acme.design', name: 'Leo', role: 'edit' }));
+    history.replaceState(null, '', '/studio/the-bridge-company/ai-design-system-demo/');
+    localStorage.setItem('bridge.contribute.member:the-bridge-company/ai-design-system-demo', JSON.stringify({ email: 'leo@acme.design', name: 'Leo', role: 'edit' }));
     expect(currentContributor()?.email).toBe('leo@acme.design');
     expect(getToken()).toBe(CONTRIB_TOKEN);
   });

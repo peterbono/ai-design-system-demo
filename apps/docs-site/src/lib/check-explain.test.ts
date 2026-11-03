@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { approvalHelp, checkStory, classifyCheck, developerOnlyFailures, failingSentence, jobIdFromUrl, reviewAskMessage, shipWhen, type DesignFacts } from './check-explain';
 
 // The three failing checks of change #101 (color.bg.default from neutral.0 to neutral.50), as GitHub reported them.
-const run = (id: number) => `https://github.com/peterbono/ai-design-system-demo/actions/runs/39133143413/job/${id}`;
+const run = (id: number) => `https://github.com/the-bridge-company/ai-design-system-demo/actions/runs/39133143413/job/${id}`;
 const PR101 = [
   { name: 'Figma plugin (DS Bridge)', url: run(117692229504), step: 'Test plugin (codec round trip, resolver, diff, WCAG, validators)', failures: [{ path: '.github', title: '', message: 'Process completed with exit code 1.' }] },
   {

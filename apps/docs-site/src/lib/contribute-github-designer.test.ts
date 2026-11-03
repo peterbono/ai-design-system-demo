@@ -310,20 +310,20 @@ describe("everyone on the team reads the products through Bridge's app (private 
 });
 
 describe('which way a product read goes (lib/write-route productReadRoute)', () => {
-  const products = ['art-print-shop-co/art-print-shop', 'art-print-shop-co/art-print-shop-design'];
+  const products = ['the-bridge-company/art-print-shop', 'the-bridge-company/art-print-shop-design'];
   const api = 'https://api.github.com';
   const table: [string, Parameters<typeof productReadRoute>[0], 'github' | 'bridge'][] = [
-    ['a GitHub sign-in reads the design copy', { session: 'github', method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop-design`, products }, 'bridge'],
-    ['its explorations', { session: 'github', method: undefined, url: `${api}/repos/Art-Print-Shop-Co/Art-Print-Shop-Design/pulls?state=open`, products }, 'bridge'],
-    ['the tasks in the code repository', { session: 'github', method: 'get', url: `${api}/repos/art-print-shop-co/art-print-shop/issues?labels=from-design`, products }, 'bridge'],
-    ['check runs for a preview', { session: 'github', method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop/commits/${'a'.repeat(40)}/check-runs`, products }, 'bridge'],
-    ['an email member', { session: 'email', method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop/pulls`, products }, 'bridge'],
-    ['a write keeps its own route', { session: 'github', method: 'POST', url: `${api}/repos/art-print-shop-co/art-print-shop-design/git/refs`, products }, 'github'],
-    ['the library stays on GitHub', { session: 'github', method: 'GET', url: `${api}/repos/peterbono/ai-design-system-demo/pulls`, products }, 'github'],
-    ['a repository with the same prefix is not a product', { session: 'github', method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop-designs`, products }, 'github'],
-    ['another host', { session: 'github', method: 'GET', url: 'https://raw.githubusercontent.com/art-print-shop-co/art-print-shop/main/a.json', products }, 'github'],
+    ['a GitHub sign-in reads the design copy', { session: 'github', method: 'GET', url: `${api}/repos/the-bridge-company/art-print-shop-design`, products }, 'bridge'],
+    ['its explorations', { session: 'github', method: undefined, url: `${api}/repos/The-Bridge-Company/Art-Print-Shop-Design/pulls?state=open`, products }, 'bridge'],
+    ['the tasks in the code repository', { session: 'github', method: 'get', url: `${api}/repos/the-bridge-company/art-print-shop/issues?labels=from-design`, products }, 'bridge'],
+    ['check runs for a preview', { session: 'github', method: 'GET', url: `${api}/repos/the-bridge-company/art-print-shop/commits/${'a'.repeat(40)}/check-runs`, products }, 'bridge'],
+    ['an email member', { session: 'email', method: 'GET', url: `${api}/repos/the-bridge-company/art-print-shop/pulls`, products }, 'bridge'],
+    ['a write keeps its own route', { session: 'github', method: 'POST', url: `${api}/repos/the-bridge-company/art-print-shop-design/git/refs`, products }, 'github'],
+    ['the library stays on GitHub', { session: 'github', method: 'GET', url: `${api}/repos/the-bridge-company/ai-design-system-demo/pulls`, products }, 'github'],
+    ['a repository with the same prefix is not a product', { session: 'github', method: 'GET', url: `${api}/repos/the-bridge-company/art-print-shop-designs`, products }, 'github'],
+    ['another host', { session: 'github', method: 'GET', url: 'https://raw.githubusercontent.com/the-bridge-company/art-print-shop/main/a.json', products }, 'github'],
     ['the account itself', { session: 'github', method: 'GET', url: `${api}/user`, products }, 'github'],
-    ['a guest has its own path', { session: null, method: 'GET', url: `${api}/repos/art-print-shop-co/art-print-shop/pulls`, products }, 'github'],
+    ['a guest has its own path', { session: null, method: 'GET', url: `${api}/repos/the-bridge-company/art-print-shop/pulls`, products }, 'github'],
   ];
   for (const [name, x, want] of table) it(name, () => expect(productReadRoute(x)).toBe(want));
 });

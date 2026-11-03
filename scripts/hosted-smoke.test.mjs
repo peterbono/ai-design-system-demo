@@ -13,7 +13,7 @@ describe('hosted smoke', () => {
   });
 
   it('passes the right answer and names what is wrong otherwise', () => {
-    const team = CASES.find((c) => c.path === '/studio/peterbono/ai-design-system-demo/tokens/');
+    const team = CASES.find((c) => c.path === '/studio/the-bridge-company/ai-design-system-demo/tokens/');
     expect(judge(team, { status: 200, body: page(' data-hosted data-shell="tokens"'), robots: 'noindex', type: 'text/html' })).toEqual([]);
     expect(judge(team, { status: 200, body: page(' data-theme="light"'), robots: null, type: 'text/html' })).toEqual(['served by studio, expected tokens', 'no X-Robots-Tag: noindex']);
     expect(judge(team, { status: 404, body: '' })).toEqual(['status 404, expected 200']);
@@ -23,16 +23,16 @@ describe('hosted smoke', () => {
 
   it('covers both slash forms, the escape form, a collision and the existing pages', () => {
     const paths = CASES.map((c) => c.path);
-    expect(paths).toEqual(expect.arrayContaining(['/studio/', '/studio/brands/new/', '/studio/~/brands/new/', '/studio/peterbono/ai-design-system-demo', '/studio/peterbono/ai-design-system-demo/']));
+    expect(paths).toEqual(expect.arrayContaining(['/studio/', '/studio/brands/new/', '/studio/~/brands/new/', '/studio/the-bridge-company/ai-design-system-demo', '/studio/the-bridge-company/ai-design-system-demo/']));
   });
 
   it('tells a team Library shell apart, and refuses a static noindex there (library.public decides)', () => {
     expect(servedBy(page(' data-library-shell="tokens" data-theme="light"'))).toBe('library:tokens');
-    const lib = { ...CASES.find((c) => c.path === '/library/peterbono/ai-design-system-demo/tokens'), noindex: false };
+    const lib = { ...CASES.find((c) => c.path === '/library/the-bridge-company/ai-design-system-demo/tokens'), noindex: false };
     expect(judge(lib, { status: 200, body: page(' data-library-shell="tokens"'), robots: null, type: 'text/html' })).toEqual([]);
     expect(judge(lib, { status: 200, body: '<html data-library-shell="tokens"><head><meta name="robots" content="noindex"></head>', robots: null })).toEqual(['a static noindex tag: the page decides (library.public)']);
     expect(judge(lib, { status: 200, body: page(' data-theme="light"'), robots: null })).toEqual(['served by studio, expected library:tokens']);
-    expect(CASES.map((c) => c.path)).toEqual(expect.arrayContaining(['/library/', '/library/peterbono/ai-design-system-demo', '/library/peterbono/ai-design-system-demo/', '/library/-bad/ds/']));
+    expect(CASES.map((c) => c.path)).toEqual(expect.arrayContaining(['/library/', '/library/the-bridge-company/ai-design-system-demo', '/library/the-bridge-company/ai-design-system-demo/', '/library/-bad/ds/']));
   });
 
   it('wants X-Robots-Tag: noindex on a team Library unless it is in the allow-list', () => {

@@ -341,7 +341,7 @@ export function busyBadge(lastRole: string | null | undefined): { label: string;
 }
 
 /** The design system the self-hosted site shows to everyone: Bridge's own. */
-export const DEMO_TEAM = 'peterbono/ai-design-system-demo';
+export const DEMO_TEAM = 'the-bridge-company/ai-design-system-demo';
 
 /**
  * A demo design system (lib/demo.ts DEMO_REPOS): the self-hosted site's own repository, or the demo team on the

@@ -792,7 +792,7 @@ describe('email contributors in Members', () => {
   });
 
   it("the email names the team, not its repository: Bridge's own design system reads Bridge DS", () => {
-    const own = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: 'peterbono/ai-design-system-demo', role: 'edit', link: 'https://x/#t=1' });
+    const own = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: 'the-bridge-company/ai-design-system-demo', role: 'edit', link: 'https://x/#t=1' });
     expect(own.subject).toBe('Dana invited you to Bridge DS on Bridge');
     expect(`${own.text}${own.html}`).not.toContain('peterbono/');
     // Never "Bridge on Bridge": the suffix drops when a team is named Bridge itself.

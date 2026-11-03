@@ -31,7 +31,7 @@ import {
   type ChangePullLike,
 } from './continue-change';
 
-const REPO = 'peterbono/ai-design-system-demo';
+const REPO = 'the-bridge-company/ai-design-system-demo';
 
 const pull = (over: Partial<ChangePullLike> & { number: number }): ChangePullLike => ({
   title: 'tokens: Darker default background',

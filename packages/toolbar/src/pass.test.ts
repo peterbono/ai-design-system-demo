@@ -51,8 +51,8 @@ describe('read pass', () => {
       calls.push({ url: String(input), init });
       return Response.json({ number: 4, title: 'Exploration: add a toast alert' });
     }) as typeof fetch;
-    const reads = githubReads({ team: 'peterbono/ai-design-system-demo', proxy: 'https://bridge.example.com', pass: PASS, fetch: f });
-    await reads.api('/repos/art-print-shop-co/art-print-shop-design/pulls/4');
+    const reads = githubReads({ team: 'the-bridge-company/ai-design-system-demo', proxy: 'https://bridge.example.com', pass: PASS, fetch: f });
+    await reads.api('/repos/the-bridge-company/art-print-shop-design/pulls/4');
     const u = new URL(calls[0]!.url);
     expect(u.searchParams.get('pass')).toBe(PASS);
     expect(calls[0]!.init).toEqual({ headers: { Accept: 'application/vnd.github+json' }, credentials: 'omit' });

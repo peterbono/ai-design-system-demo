@@ -74,7 +74,7 @@ export function App() {
 row.innerHTML = badgeHtml('Ready', { tone: 'success' }) + codeBlockHtml('npx @bridge-ds/cli check', { label: 'Check tokens' });
 bindTooltips();
 bindCodeBlocks();`,
-    clone: ['git clone https://github.com/peterbono/ai-design-system-demo', 'cd ai-design-system-demo', 'npm install', 'npm run pack:packages'].join('\n'),
+    clone: ['git clone https://github.com/the-bridge-company/ai-design-system-demo', 'cd ai-design-system-demo', 'npm install', 'npm run pack:packages'].join('\n'),
     add: `npm install ${[tokens, react].map((p) => `/abs/path/ai-design-system-demo/.packs/${tgz(p.name, p.version)}`).join(' \\\n  ')}`,
   };
 }

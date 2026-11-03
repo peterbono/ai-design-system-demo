@@ -199,9 +199,9 @@ describe('the explorations of the Studio home', () => {
 });
 
 describe("a designer's exploration opened by Bridge's app (designers write through Bridge)", () => {
-  const shop: ProductConfig[] = [...products, { key: 'admin-app', name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop' }];
+  const shop: ProductConfig[] = [...products, { key: 'admin-app', name: 'Art print shop', repo: 'the-bridge-company/art-print-shop' }];
   const app = { login: 'bridge-design-studio[bot]', type: 'Bot' };
-  // art-print-shop-co/art-print-shop-design#4, as GitHub lists it: opened by the app for an email member, handed off.
+  // the-bridge-company/art-print-shop-design#4, as GitHub lists it: opened by the app for an email member, handed off.
   const dino = pull(4, {
     product: 'admin-app',
     draft: true,
@@ -209,7 +209,7 @@ describe("a designer's exploration opened by Bridge's app (designers write throu
     user: app,
     labels: [{ name: 'exploration' }, { name: 'product: admin-app' }],
     head: { ref: 'explore/add-a-toast-alert' },
-    body: `<!-- bridge-exploration ${JSON.stringify({ name: 'add a toast alert', slug: 'add-a-toast-alert', author: 'dinosolo@yopmail.com', doneAt: '2026-11-02T01:40:45.516Z', task: 'https://github.com/art-print-shop-co/art-print-shop/issues/12' })} -->\n\nRequested by Dino through Bridge.`,
+    body: `<!-- bridge-exploration ${JSON.stringify({ name: 'add a toast alert', slug: 'add-a-toast-alert', author: 'dinosolo@yopmail.com', doneAt: '2026-11-02T01:40:45.516Z', task: 'https://github.com/the-bridge-company/art-print-shop/issues/12' })} -->\n\nRequested by Dino through Bridge.`,
   });
   // A GitHub designer's, opened by the app with their login on the line.
   const ann = pull(5, { product: 'admin-app', draft: true, user: app, labels: [{ name: 'exploration' }], head: { ref: 'explore/badges' }, body: `${block('Badges')}\n\nRequested by Ann Leroy (@ann) through Bridge.` });
@@ -226,7 +226,7 @@ describe("a designer's exploration opened by Bridge's app (designers write throu
     expect(explorationsFor(cards, true).cards.map((c) => c.number)).toEqual([4]);
     expect(quietSentence(ownOpenWork(cards))).toBe('Nothing needs you. 1 of your explorations waits for a developer to pick it up.');
     // The product card counts the team's: Dino's handed-off one is no longer left out.
-    const team = homeExplorations([dino, ann, bot, pull(1, { product: 'admin-app', draft: true, labels: [{ name: 'exploration' }], head: { ref: 'explore/dashboard' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'Dashboard', slug: 'dashboard', doneAt: '2026-10-31T10:00:00Z', task: 'https://github.com/art-print-shop-co/art-print-shop/issues/7' })} -->\n\nRequested by Florian.` })], { products: shop, author: who, taskStage: (p) => (p.number === 4 || p.number === 1 ? 'waiting-for-code' : null) });
+    const team = homeExplorations([dino, ann, bot, pull(1, { product: 'admin-app', draft: true, labels: [{ name: 'exploration' }], head: { ref: 'explore/dashboard' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'Dashboard', slug: 'dashboard', doneAt: '2026-10-31T10:00:00Z', task: 'https://github.com/the-bridge-company/art-print-shop/issues/7' })} -->\n\nRequested by Florian.` })], { products: shop, author: who, taskStage: (p) => (p.number === 4 || p.number === 1 ? 'waiting-for-code' : null) });
     expect(team.map((c) => c.number).sort()).toEqual([1, 4, 5]);
     expect(folderLine(team)).toBe('1 exploring · 2 waiting to be picked up');
     // The GitHub designer finds theirs by login.
@@ -236,8 +236,8 @@ describe("a designer's exploration opened by Bridge's app (designers write throu
 
   it("keeps a member's exploration theirs when Bridge opened it with the lead's account", () => {
     // As art-print-shop-design#4 reads live: opened by peterbono, asked for by Dino (an email member), task shipped.
-    const asLead = pull(4, { ...dino, user: { login: 'peterbono' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'add a toast alert', slug: 'add-a-toast-alert', doneAt: '2026-11-02T01:40:45.516Z', task: 'https://github.com/art-print-shop-co/art-print-shop/issues/12', member: '254dfac3665d4d07', memberName: 'Dino' })} -->\n\nRequested by Dino through Bridge.` });
-    const florians = pull(1, { product: 'admin-app', draft: true, user: { login: 'peterbono' }, labels: [{ name: 'ready-for-devs' }, { name: 'product: admin-app' }], head: { ref: 'explore/dashboard' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'Dashboard', slug: 'dashboard', doneAt: '2026-10-31T10:00:00Z', task: 'https://github.com/art-print-shop-co/art-print-shop/issues/7' })} -->` });
+    const asLead = pull(4, { ...dino, user: { login: 'peterbono' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'add a toast alert', slug: 'add-a-toast-alert', doneAt: '2026-11-02T01:40:45.516Z', task: 'https://github.com/the-bridge-company/art-print-shop/issues/12', member: '254dfac3665d4d07', memberName: 'Dino' })} -->\n\nRequested by Dino through Bridge.` });
+    const florians = pull(1, { product: 'admin-app', draft: true, user: { login: 'peterbono' }, labels: [{ name: 'ready-for-devs' }, { name: 'product: admin-app' }], head: { ref: 'explore/dashboard' }, body: `<!-- bridge-exploration ${JSON.stringify({ name: 'Dashboard', slug: 'dashboard', doneAt: '2026-10-31T10:00:00Z', task: 'https://github.com/the-bridge-company/art-print-shop/issues/7' })} -->` });
     expect(isOwnExploration(asLead, 'peterbono')).toBe(false);
     expect(isOwnExploration(asLead, null, '254dfac3665d4d07')).toBe(true);
     expect(isOwnExploration(florians, 'peterbono')).toBe(true);

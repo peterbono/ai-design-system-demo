@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { changelogPath, movedHistory, tokenChangesHref } from './history-moved';
 
-const own = { owner: 'peterbono', repo: 'ai-design-system-demo' };
+const own = { owner: 'the-bridge-company', repo: 'ai-design-system-demo' };
 const team = { owner: 'acme', repo: 'ds' };
 
 describe('changelogPath', () => {
   it("is the site's own changelog without a team or for the repository this site documents", () => {
     expect(changelogPath(null, own)).toBe('/changelog/');
-    expect(changelogPath({ owner: 'PeterBono', repo: 'AI-Design-System-Demo' }, own)).toBe('/changelog/');
+    expect(changelogPath({ owner: 'The-Bridge-Company', repo: 'AI-Design-System-Demo' }, own)).toBe('/changelog/');
   });
   it("is the team's Library changelog for any other team", () => {
     expect(changelogPath(team, own)).toBe('/library/acme/ds/changelog/');

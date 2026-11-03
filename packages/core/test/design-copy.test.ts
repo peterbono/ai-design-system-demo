@@ -75,8 +75,8 @@ test('the design field is checked like the rest of a product', () => {
 test("this repository's own config explores Art print shop in the design team's copy", () => {
   const shop = realConfig().products.find((p) => p.key === 'admin-app')!;
   assert.equal(shop.name, 'Art print shop');
-  assert.equal(productCodeRepoOf(shop, 'peterbono/ai-design-system-demo'), 'art-print-shop-co/art-print-shop');
-  assert.equal(productRepoOf(shop, 'peterbono/ai-design-system-demo'), 'art-print-shop-co/art-print-shop-design');
+  assert.equal(productCodeRepoOf(shop, 'the-bridge-company/ai-design-system-demo'), 'the-bridge-company/art-print-shop');
+  assert.equal(productRepoOf(shop, 'the-bridge-company/ai-design-system-demo'), 'the-bridge-company/art-print-shop-design');
 });
 
 test('where the copy stands: missing, up to date, or behind the product', async () => {

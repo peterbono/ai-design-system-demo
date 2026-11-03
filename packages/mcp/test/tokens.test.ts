@@ -28,7 +28,7 @@ describe('real repo tokens', () => {
     expect(Object.keys(c.tokensPerTier)).toEqual(['primitive', 'brand', 'base', 'semantic', 'density', 'component']);
     expect(c.modeCombinations).toBe(8);
     expect(c.write).toMatch(/local bridge\/\* branches, never pushed/);
-    expect(c.repo).toBe('peterbono/ai-design-system-demo');
+    expect(c.repo).toBe('the-bridge-company/ai-design-system-demo');
   });
 
   it('resolves every value exactly like dist/resolved.json (brand x theme)', async () => {

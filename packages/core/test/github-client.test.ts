@@ -26,7 +26,7 @@ function stub(routes: Record<string, { status?: number; body: unknown }>) {
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
 
 test('parseRepo validates owner/name', () => {
-  assert.deepEqual(parseRepo('peterbono/ai-design-system-demo'), { owner: 'peterbono', name: 'ai-design-system-demo' });
+  assert.deepEqual(parseRepo('the-bridge-company/ai-design-system-demo'), { owner: 'the-bridge-company', name: 'ai-design-system-demo' });
   assert.throws(() => parseRepo('https://github.com/x'), /owner\/name/);
 });
 

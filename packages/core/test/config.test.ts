@@ -7,7 +7,7 @@ import { realConfig, realFiles } from './helpers';
 
 test('the repo config loads and describes the real token layout', () => {
   const c = realConfig();
-  assert.equal(`${c.repo!.owner}/${c.repo!.name}`, 'peterbono/ai-design-system-demo');
+  assert.equal(`${c.repo!.owner}/${c.repo!.name}`, 'the-bridge-company/ai-design-system-demo');
   assert.equal(c.tokens.root, 'packages/tokens/src');
   assert.deepEqual(c.modes.defaults, { brand: 'bridge', theme: 'light', density: 'comfortable' });
   const set = buildTokenSet(realFiles(), layoutOptions(c));

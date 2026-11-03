@@ -5,7 +5,7 @@ import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/a
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { sha256 } from '../../api/_lib/http';
-import { clearReadMemory, countKey, memberBudgetId, FRESH_MS, immutable, KEEP_S, MAX_BATCH, MAX_CHANGES, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
+import { clearReadMemory, countKey, memberBudgetId, FRESH_MS, immutable, KEEP_S, MAX_BATCH, MAX_CHANGES, PUBLIC_TEAMS, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
 import { restoreMissing } from './contribute';
 import { type ContribDeps, cookieName, type FetchLike, handleContribute, signSession } from '../../api/contribute/index';
 
@@ -202,6 +202,12 @@ describe('team reads: a missing file', () => {
 });
 
 describe('team reads: the allow-list', () => {
+  it("keeps Bridge's own repository public under its old and new owner while it moves", () => {
+    expect(PUBLIC_TEAMS).toContain('the-bridge-company/ai-design-system-demo');
+    expect(PUBLIC_TEAMS).toContain('peterbono/ai-design-system-demo');
+    expect(PUBLIC_TEAMS).toContain('peterbono/bridge-demo-ds');
+  });
+
   it('allows what Studio reads and refuses the rest without calling GitHub', async () => {
     const s = setup();
     const cookie = await s.member();

@@ -28,7 +28,7 @@ export interface RuleModule {
   create(context: RuleContext): Record<string, (node: Node) => void>;
 }
 
-const DOCS = 'https://github.com/peterbono/ai-design-system-demo/tree/main/packages/eslint-plugin#';
+const DOCS = 'https://github.com/the-bridge-company/ai-design-system-demo/tree/main/packages/eslint-plugin#';
 const RANK: Record<Confidence, number> = { exact: 3, high: 2, medium: 1, low: 0 };
 
 /** The design system for this lint run: option, then settings.bridge.designSystem, then BRIDGE_DS, then the nearest bridge.config.json. */

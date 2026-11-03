@@ -27,7 +27,7 @@ const manifest = (shots: VisualShot[]): VisualManifest => ({
 
 describe('visual impact in Reviews', () => {
   it('reads the manifest from the bridge-visual branch folder of the PR head', () => {
-    expect(visualBase('peterbono', 'ai-design-system-demo', 12, 'abc')).toBe('https://raw.githubusercontent.com/peterbono/ai-design-system-demo/bridge-visual/pr-12/abc');
+    expect(visualBase('the-bridge-company', 'ai-design-system-demo', 12, 'abc')).toBe('https://raw.githubusercontent.com/the-bridge-company/ai-design-system-demo/bridge-visual/pr-12/abc');
   });
 
   it('shows the section only for PRs the workflow covers', () => {

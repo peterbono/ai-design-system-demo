@@ -16,10 +16,13 @@ const publicLibraries = (JSON.parse(readFileSync(new URL('../../hosted/public-li
 // The repository this site documents (bridge.config.json): its Library is the site's own, for every visitor.
 const siteConfig = JSON.parse(readFileSync(new URL('../../../../bridge.config.json', import.meta.url), 'utf8')) as { repo: { owner: string; name: string } };
 const own = { owner: siteConfig.repo.owner, repo: siteConfig.repo.name };
+// The repository's address before it moved to the-bridge-company: its links keep their redirects while it moves.
+// Remove these rules (and this line) once nothing links the old address.
+const formerOwn = { owner: 'peterbono', repo: 'ai-design-system-demo' };
 
 describe('vercel.json', () => {
   it('sends the team address of the site\'s own repository to the site\'s own Library, ahead of the rewrites', () => {
-    expect(vercel.redirects).toEqual([...ownLibraryRedirects(own), ...libraryRedirects()]);
+    expect(vercel.redirects).toEqual([...ownLibraryRedirects(own), ...ownLibraryRedirects(formerOwn), ...libraryRedirects()]);
   });
 
   it('sends a component link from before component pages had their own address to that address', () => {
@@ -76,8 +79,8 @@ describe('public Library allow-list', () => {
   });
 
   it('leaves out exactly the listed pairs, on every route and slash form', () => {
-    const list = ['acme/ds', 'peterbono/ai-design-system-demo'];
-    for (const p of ['/library/acme/ds/', '/library/acme/ds', '/library/acme/ds/tokens/', '/library/acme/ds/components?c=x', '/library/peterbono/ai-design-system-demo/foundations/']) expect(noindexed(p.replace(/\?.*$/, ''), list), p).toBe(false);
+    const list = ['acme/ds', 'the-bridge-company/ai-design-system-demo'];
+    for (const p of ['/library/acme/ds/', '/library/acme/ds', '/library/acme/ds/tokens/', '/library/acme/ds/components?c=x', '/library/the-bridge-company/ai-design-system-demo/foundations/']) expect(noindexed(p.replace(/\?.*$/, ''), list), p).toBe(false);
     for (const p of ['/library/acme/ds2/', '/library/acme/dsx/tokens', '/library/acme/d/', '/library/acme-x/ds/', '/library/other/ds/', '/library-shell/']) expect(noindexed(p, list), p).toBe(true);
   });
 
@@ -179,7 +182,7 @@ describe('the site\'s own Library', () => {
   const doc = (attr?: string) => ({ documentElement: { dataset: attr ? { ownLibrary: attr } : {} } }) as unknown as Document;
 
   it('reads the repository from <html data-own-library>', () => {
-    expect(ownLibrary(doc('peterbono/ai-design-system-demo'))).toEqual({ owner: 'peterbono', repo: 'ai-design-system-demo' });
+    expect(ownLibrary(doc('the-bridge-company/ai-design-system-demo'))).toEqual({ owner: 'the-bridge-company', repo: 'ai-design-system-demo' });
     expect(ownLibrary(doc())).toBeNull();
   });
 

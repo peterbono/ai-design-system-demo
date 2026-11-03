@@ -8,7 +8,7 @@ import { runBranch, runDocsSave, runStudioRead } from '../src/branch.js';
 import type { RequestIO } from '../src/request.js';
 import { addCodeTo, fakeGitHub, pinStart, readTree, REAL_PATHS, REPO, tempGitRepo, withoutSoloOwner } from '../../mcp/test/helpers.js';
 
-const OWNER = 'peterbono';
+const OWNER = 'the-bridge-company';
 const NAME = 'ai-design-system-demo';
 const edit = { op: 'set' as const, path: 'color.text.muted', value: '{palette.neutral.700}', mode: { theme: 'light' } };
 

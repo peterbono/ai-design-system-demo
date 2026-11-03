@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokenFingerprint } from '../lib/token-session';
 
 const API = 'https://api.github.com';
-const REPO = 'peterbono/ai-design-system-demo';
+const REPO = 'the-bridge-company/ai-design-system-demo';
 const TOKEN = 'ghu_peterbono_suggest_token_aaaa';
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
@@ -58,7 +58,7 @@ beforeEach(() => {
     if (url.startsWith('/api/account')) return json({ available: true, account: { email: 'florian@bridge.dev', name: 'Florian', github: { login: 'peterbono', id: 8754 }, teams: [] } });
     if (url.startsWith('/api/entry?linked=')) return json({ role: linked });
     if (url === `${API}/user`) return json({ login: 'peterbono', id: 8754, name: 'Florian' });
-    if (url.startsWith(`${API}/user/installations`)) return json({ total_count: 1, installations: [{ id: 7, account: { login: 'peterbono', type: 'User' }, repository_selection: 'all', app_slug: 'bridge-ds' }] });
+    if (url.startsWith(`${API}/user/installations`)) return json({ total_count: 1, installations: [{ id: 7, account: { login: 'the-bridge-company', type: 'Organization' }, repository_selection: 'all', app_slug: 'bridge-ds' }] });
     if (url === `${API}/repos/${REPO}`) return json({ full_name: REPO, private: false, default_branch: 'main', ...(auth ? { permissions: own } : {}) });
     return json({ message: 'Not Found' }, 404);
   });

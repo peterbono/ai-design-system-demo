@@ -134,7 +134,7 @@ describe('Studio Components list cells and drawer, in words', () => {
 describe('Studio Components "Used in": the team products only', () => {
   // Acme Flow: one product with its own repository, and the Library (the design system itself).
   const ACME: ProductConfig[] = [
-    { key: 'admin-app', name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop' },
+    { key: 'admin-app', name: 'Art print shop', repo: 'the-bridge-company/art-print-shop' },
     { key: 'library', name: 'Library', path: 'packages', default: true },
   ];
   const run = (id: string, generatedAt: string, extra: { label?: string; product?: string; target?: { path: string } } = {}) => ({ id, generatedAt, components: { Button: new Date(generatedAt).getUTCDate() }, ...extra });

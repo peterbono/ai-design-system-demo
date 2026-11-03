@@ -5,14 +5,14 @@
   "description": "Stylelint rule bridge/use-tokens: no raw colors, lengths, radii, shadows, durations or z-index in product CSS where a design token exists. Autofixes exact matches. Reads the tokens through @bridge-ds/core and bridge.config.json.",
   "license": "MIT",
   "author": "Florian Gouloubi",
-  "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/stylelint-plugin#readme",
+  "homepage": "https://github.com/the-bridge-company/ai-design-system-demo/tree/main/packages/stylelint-plugin#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "url": "git+https://github.com/the-bridge-company/ai-design-system-demo.git",
     "directory": "packages/stylelint-plugin"
   },
   "bugs": {
-    "url": "https://github.com/peterbono/ai-design-system-demo/issues"
+    "url": "https://github.com/the-bridge-company/ai-design-system-demo/issues"
   },
   "keywords": [
     "stylelint",

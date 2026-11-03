@@ -113,7 +113,7 @@ test('a repo without specs: figma is null and the model has no coverage', async 
 
 test('this repo: the snapshot is under 1 MB and serves the same model as the checkout', async () => {
   const root = join(__dirname, '../../..');
-  const rec = recordingSource(fsSource(root, { owner: 'peterbono', repo: 'ai-design-system-demo', sha: 'local' }));
+  const rec = recordingSource(fsSource(root, { owner: 'the-bridge-company', repo: 'ai-design-system-demo', sha: 'local' }));
   const live = await loadRepoModel(rec.source);
   const snapshot = buildSnapshot({ model: live, paths: rec.paths, files: rec.files, version: 'test' });
   const text = JSON.stringify(snapshot);

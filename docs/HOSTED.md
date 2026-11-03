@@ -547,7 +547,7 @@ instead of one request per file.
   `Authorization: Bearer <their token>`, checked with that token, GET `/user` and the team's repository, for an
   explicit role there or read on a private one, kept 5 minutes in `bridge:read:who:<token hash>:<team>`), else anyone
   on a public demo team
-  (`peterbono/bridge-demo-ds`, `peterbono/ai-design-system-demo`) while GitHub says the repository is public. Anyone
+  (`peterbono/bridge-demo-ds`, `the-bridge-company/ai-design-system-demo`) while GitHub says the repository is public. Anyone
   else: 401 `signin`. A member reads only the team of the request, and the path must be under `/repos/<that team>`.
 - **Read only**: `GET` only (every other verb is the email contributor policy above, which needs a member and the CSRF
   header); the installation token is narrowed to read permissions (Contents, Pull requests, Issues, and Commit

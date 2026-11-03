@@ -6,12 +6,12 @@ import { canShare, EXPLAIN, mailtoHref, shareDescription, showShare, packageDir,
 const PACKAGES = ['@bridge-ds/tokens', '@bridge-ds/core', '@bridge-ds/react'];
 const SHA = 'f9121d72dcdacb8fb4897c9d61c4da1cbfe3a7b2';
 const TOKEN_FILE = ['packages/tokens/src/semantic/light.tokens.json'];
-const RELEASE_URLS = PACKAGES.map((p) => `https://github.com/peterbono/ai-design-system-demo/releases/download/preview-pr-101/${p.slice(1).replace('/', '-')}-f9121d7.tgz`);
+const RELEASE_URLS = PACKAGES.map((p) => `https://github.com/the-bridge-company/ai-design-system-demo/releases/download/preview-pr-101/${p.slice(1).replace('/', '-')}-f9121d7.tgz`);
 
 // The sticky comment exactly as the workflow builds it (same builder), with the prerelease fallback this repository uses.
 const releaseComment = (sha = SHA) =>
   previewComment({
-    owner: 'peterbono',
+    owner: 'the-bridge-company',
     repo: 'ai-design-system-demo',
     pr: 101,
     branch: 'tokens/color-bg-default-20261018-1348',
@@ -21,12 +21,12 @@ const releaseComment = (sha = SHA) =>
     apps: {},
   });
 const pkgPrNewComment = previewComment({
-  owner: 'peterbono',
+  owner: 'the-bridge-company',
   repo: 'ai-design-system-demo',
   pr: 101,
   branch: 'b',
   sha: SHA,
-  packages: [{ name: '@bridge-ds/react', url: `https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/react@${SHA.slice(0, 7)}` }],
+  packages: [{ name: '@bridge-ds/react', url: `https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/react@${SHA.slice(0, 7)}` }],
   source: 'pkg.pr.new',
   apps: {},
 });
@@ -102,7 +102,7 @@ describe('stateSentence', () => {
 });
 
 describe('shareMessage', () => {
-  const url = 'https://github.com/peterbono/ai-design-system-demo/pull/101';
+  const url = 'https://github.com/the-bridge-company/ai-design-system-demo/pull/101';
   it('builds the message for a developer: title, command, try link, how long it lasts, how to go back', () => {
     const state = shareState({ ...base, lifecycle: 'open', comment: releaseComment() });
     const m = shareMessage({ title: 'Darker default background', state, packages: PACKAGES, tryUrl: 'https://admin.example/?bridge=101', url })!;

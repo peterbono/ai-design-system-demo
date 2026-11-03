@@ -61,8 +61,8 @@ describe('the preview of an exploration started for a product of the design syst
 });
 
 describe("an exploration in the design team's copy opens with the copy named (bridge-repo)", () => {
-  const COPY = 'art-print-shop-co/art-print-shop-design';
-  const shop = { key: 'admin-app', name: 'Art print shop', repo: 'art-print-shop-co/art-print-shop', design: { repo: COPY } } as ProductConfig;
+  const COPY = 'the-bridge-company/art-print-shop-design';
+  const shop = { key: 'admin-app', name: 'Art print shop', repo: 'the-bridge-company/art-print-shop', design: { repo: COPY } } as ProductConfig;
   const preview = 'https://art-print-shop-design-git-explore-da-6e68e5-peterbonos-projects.vercel.app/';
 
   it("adds the copy, so the toolbar reads change #1 there and not in the developers' repository", () => {
@@ -73,7 +73,7 @@ describe("an exploration in the design team's copy opens with the copy named (br
   });
 
   it("names no repository for the developers' own repository or the design system's", () => {
-    repos = [{ product: { ...shop, design: undefined } as ProductConfig, repo: 'art-print-shop-co/art-print-shop' }];
+    repos = [{ product: { ...shop, design: undefined } as ProductConfig, repo: 'the-bridge-company/art-print-shop' }];
     expect(withToolbar({ ...r, number: 1, product: 'admin-app' } as ExplorationRow)(preview)).toBe(`${preview}?bridge=1`);
     repos = [];
     expect(withToolbar(r)(preview)).toBe(`${preview}?bridge=9`);

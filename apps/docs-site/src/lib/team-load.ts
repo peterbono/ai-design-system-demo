@@ -19,9 +19,9 @@ export interface TeamFailure {
 }
 
 /** The workflow a team copies to publish its snapshot (docs/HOSTED.md). */
-export const SNAPSHOT_TEMPLATE_URL = 'https://github.com/peterbono/ai-design-system-demo/blob/main/templates/bridge-data.yml';
+export const SNAPSHOT_TEMPLATE_URL = 'https://github.com/the-bridge-company/ai-design-system-demo/blob/main/templates/bridge-data.yml';
 /** The docs page on hosted Bridge and the snapshot. */
-export const HOSTED_DOCS_URL = 'https://github.com/peterbono/ai-design-system-demo/blob/main/docs/HOSTED.md';
+export const HOSTED_DOCS_URL = 'https://github.com/the-bridge-company/ai-design-system-demo/blob/main/docs/HOSTED.md';
 
 const statusOf = (err: unknown): number | undefined => {
   const s = (err as { status?: unknown } | null)?.status;

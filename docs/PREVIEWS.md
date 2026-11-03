@@ -32,7 +32,7 @@ You do these once. None of it is automated, because each step grants access to y
 ### 1. Install the pkg.pr.new GitHub App (snapshots)
 
 1. Open <https://github.com/apps/pkg-pr-new> and click **Install** (or **Configure** if it is installed elsewhere).
-2. Choose the `peterbono` account, then **Only select repositories** > `ai-design-system-demo` > **Install**.
+2. Choose the `the-bridge-company` organization, then **Only select repositories** > `ai-design-system-demo` > **Install**.
 
 That is all: no token, no secret. pkg.pr.new is free for open source repositories. The next push to a pull request
 publishes snapshots. Until the app is installed, the workflow falls back to `npm pack` tarballs attached to a
@@ -40,7 +40,7 @@ publishes snapshots. Until the app is installed, the workflow falls back to `npm
 
 ### 2. Create three Vercel projects (preview deploys)
 
-At <https://vercel.com/new>, import `peterbono/ai-design-system-demo` three times:
+At <https://vercel.com/new>, import `the-bridge-company/ai-design-system-demo` three times:
 
 | Project name | Root Directory | Framework preset |
 | --- | --- | --- |
@@ -125,12 +125,12 @@ One comment per PR, edited on every push (it starts with `<!-- bridge-branch-pre
 Snapshot of `1a2b3c4` on `agent/badge-subtle`. Install it in a product branch that deploys to staging; production keeps the released version.
 
 ```sh
-npm i https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/tokens@1a2b3c4... https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/core@1a2b3c4... https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/react@1a2b3c4...
+npm i https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/tokens@1a2b3c4... https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/core@1a2b3c4... https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/react@1a2b3c4...
 ```
 
 | Package | Install this package only |
 | --- | --- |
-| `@bridge-ds/tokens` | `npm i https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/tokens@1a2b3c4...` |
+| `@bridge-ds/tokens` | `npm i https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/tokens@1a2b3c4...` |
 | ... | ... |
 
 ### Previews
@@ -155,8 +155,8 @@ Fork PRs get no comment: the workflow token is read-only there.
 
 ```sh
 git switch -c try/ds-badge-subtle
-npm i https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/tokens@<sha> \
-      https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/react@<sha>
+npm i https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/tokens@<sha> \
+      https://pkg.pr.new/the-bridge-company/ai-design-system-demo/@bridge-ds/react@<sha>
 git commit -am "chore: try DS PR #42 on staging" && git push   # your staging deploy picks it up
 ```
 
