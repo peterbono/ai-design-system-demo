@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FOUNDATIONS } from './nav';
+import { renamedStudioRedirects } from './team-path';
 import { checkLibraryHeaders, checkLibraryShells, LIBRARY_FOUNDATION_PAGES, LIBRARY_SHELL_ROUTES, LIBRARY_TEAM_NAV, libraryTeamPages, libraryFromPath, libraryHref, libraryNoindexSources, libraryRedirects, libraryRewrites, libraryShellMarker, ownLibrary, ownLibraryPath, ownLibraryRedirects, publicLibraryProblems, routeOfShell } from './library-shells';
 
 const vercel = JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8')) as {
@@ -22,7 +23,8 @@ const formerOwn = { owner: 'peterbono', repo: 'ai-design-system-demo' };
 
 describe('vercel.json', () => {
   it('sends the team address of the site\'s own repository to the site\'s own Library, ahead of the rewrites', () => {
-    expect(vercel.redirects).toEqual([...ownLibraryRedirects(own), ...ownLibraryRedirects(formerOwn), ...libraryRedirects()]);
+    // After the old team addresses of Studio (team-path.ts renamedStudioRedirects, team-shells.test.ts checks them).
+    expect(vercel.redirects).toEqual([...renamedStudioRedirects(), ...ownLibraryRedirects(own), ...ownLibraryRedirects(formerOwn), ...libraryRedirects()]);
   });
 
   it('sends a component link from before component pages had their own address to that address', () => {

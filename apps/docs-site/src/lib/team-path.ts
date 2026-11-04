@@ -1,4 +1,5 @@
-// Studio addresses in both modes (multi-team plan, section 4.1). Pure and browser-safe: no Node API, no import.
+// Studio addresses in both modes (multi-team plan, section 4.1), and the old names of renamed repositories
+// (canonicalRepo). Pure and browser-safe: no Node API, no import.
 //
 // - Self-hosted (today's site, and every page at build time): Studio lives at /studio/, so studioHref('changes/')
 //   is '/studio/changes/', byte for byte the literal it replaces.
@@ -47,9 +48,62 @@ export function teamKeyOfPage(): string | null {
   return /^[a-f0-9]{16}$/.test(id) ? teamKeyOf(id) : null;
 }
 
+// --- Renamed repositories --------------------------------------------------------------------------------------------
+
+// The one place that knows old names. GitHub redirects a renamed or transferred repository, but Bridge keys teams by
+// "owner/repo", and old names live on where Bridge cannot rewrite them: links in pull request and issue bodies, task
+// links stored in explorations, toolbars built before the move, bookmarks. Every key is read through canonicalRepo
+// first, so an old name finds the team under its new one and GitHub is called by the new name (no 301 per read).
+// Keys are lower case. A repository rename goes in RENAMED_REPOS, an organization rename in RENAMED_OWNERS.
+export const RENAMED_REPOS: Readonly<Record<string, string>> = {
+  'peterbono/ai-design-system-demo': 'the-bridge-company/ai-design-system-demo',
+};
+export const RENAMED_OWNERS: Readonly<Record<string, string>> = {
+  'art-print-shop-co': 'the-bridge-company',
+};
+
+/** An owner under its current name (any case in, the new name as written in the map, or the owner unchanged). */
+export const canonicalOwner = (owner: string): string => RENAMED_OWNERS[owner.trim().toLowerCase()] ?? owner.trim();
+
+/**
+ * "owner/repo" under its current name: an old repository or owner name becomes the new one, anything else comes back
+ * trimmed, its case kept. Compare two names with sameRepo, not ===.
+ */
+export function canonicalRepo(full: string): string {
+  const t = full.trim();
+  const renamed = RENAMED_REPOS[t.toLowerCase()];
+  if (renamed) return renamed;
+  const slash = t.indexOf('/');
+  if (slash <= 0) return t;
+  return `${canonicalOwner(t.slice(0, slash))}${t.slice(slash)}`;
+}
+
+/** True when two "owner/repo" names are the same repository: any case, old or new name. */
+export const sameRepo = (a: string | null | undefined, b: string | null | undefined): boolean =>
+  Boolean(a?.trim() && b?.trim()) && canonicalRepo(a!).toLowerCase() === canonicalRepo(b!).toLowerCase();
+
 /** The same rules as Vercel path-to-regexp groups, for the rewrites in vercel.json (team-shells.ts checks them). */
 export const OWNER_PATTERN = '[A-Za-z0-9][A-Za-z0-9-]{0,38}';
 export const REPO_PATTERN = '[A-Za-z0-9._-]{1,100}';
+
+/**
+ * The permanent redirects vercel.json carries first, ahead of every rewrite: an old team address (plain or escape
+ * form) goes to the team's current one, so a bookmark lands on the new URL and every read of the page uses the new key.
+ * Two rules per address, the trailing slash one first, as for the rewrites (`:path*` does not match it).
+ */
+export function renamedStudioRedirects(): { source: string; destination: string; permanent: true }[] {
+  const pair = (from: string, to: string) => [
+    { source: `${from}/:path*/`, destination: `${to}/:path*/`, permanent: true as const },
+    { source: `${from}/:path*`, destination: `${to}/:path*`, permanent: true as const },
+  ];
+  return [
+    ...Object.entries(RENAMED_REPOS).flatMap(([from, to]) => [...pair(`${STUDIO_ROOT}${from}`, `${STUDIO_ROOT}${to}`), ...pair(`${STUDIO_ROOT}~/${from}`, `${STUDIO_ROOT}${to}`)]),
+    ...Object.entries(RENAMED_OWNERS).flatMap(([from, to]) => [
+      ...pair(`${STUDIO_ROOT}${from}/:repo(${REPO_PATTERN})`, `${STUDIO_ROOT}${to}/:repo`),
+      ...pair(`${STUDIO_ROOT}~/${from}/:repo(${REPO_PATTERN})`, `${STUDIO_ROOT}${to}/:repo`),
+    ]),
+  ];
+}
 
 /** A team address split into its parts; `escaped` for the /studio/~/ form. Null for any other path. */
 function teamAddress(pathname: string): { owner: string; repo: string; escaped: boolean } | null {
@@ -67,7 +121,10 @@ function teamAddress(pathname: string): { owner: string; repo: string; escaped: 
     return null;
   }
   if (!OWNER.test(o) || !REPO.test(r) || r === '.' || r === '..') return null;
-  return { owner: o, repo: r, escaped };
+  // An old address (a bookmark from before a rename): the team under its current name. vercel.json redirects the
+  // known ones; this keeps every read of the page on the new key if one still gets here.
+  const [co, cr] = canonicalRepo(`${o}/${r}`).split('/') as [string, string];
+  return { owner: co, repo: cr, escaped };
 }
 
 /**

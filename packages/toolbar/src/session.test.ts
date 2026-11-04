@@ -29,6 +29,7 @@ import {
   shouldRender,
   stepDock,
   studioChangeUrl,
+  unreadFlipLine,
   whereAmI,
   type ManifestShot,
   type StorageLike,
@@ -337,5 +338,19 @@ describe("the design copy a change lives in (bridge-repo)", () => {
     const back = new URL(sameScreenOn(u.origin, { search: live.search, hash: live.hash }, { change: 1 }));
     expect(back.searchParams.get('bridge-repo')).toBe(copy);
     expect(back.hash).toBe('#/orders');
+  });
+});
+
+describe('unreadFlipLine', () => {
+  it('says what helps for each reason a change could not be read, with no tech words and no em dash', () => {
+    for (const status of [401, 404]) expect(unreadFlipLine(status)).toContain('Open it from Studio');
+    for (const status of [403, 429]) expect(unreadFlipLine(status)).toContain('Open this change from Studio');
+    expect(unreadFlipLine(null)).toContain('Check your connection, then reload the page.');
+    expect(unreadFlipLine(502)).toContain('reload the page');
+    for (const status of [401, 403, 404, 429, null, 500]) {
+      const line = unreadFlipLine(status);
+      expect(line).not.toMatch(/\u2014|\b(40\d|429|5\d\d|CORS|API|HTTP|token)\b/);
+      if (status !== null && status < 500) expect(line).not.toMatch(/reload/i);
+    }
   });
 });

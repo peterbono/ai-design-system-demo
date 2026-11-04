@@ -8,6 +8,7 @@
 // The reviews themselves (GET pulls/{n}/reviews) are read only for open, handed-off pull requests that are not drafts
 // (needsReviewRead): a few per page, never one per row. Pure: no DOM, no fetch. Tested in review-state.test.ts.
 import { DESIGN_TASK_BACK_COMMENT, explorationStatus, isArchivedExploration, isExplorationPull, parseExplorationBody, type ExplorationStatus } from '@bridge-ds/core';
+import { sameRepo } from './team-path.js';
 
 /** A review of the pull request as GitHub lists it (GET pulls/{n}/reviews). */
 export interface PullReviewLike {
@@ -383,17 +384,18 @@ export interface TimelineEventLike {
 
 /**
  * The developers' pull request that links a design task, from the task's timeline: the newest open pull request of
- * the developers' repository that mentions the task ("Closes #7" or its URL). Null when none is open.
+ * the developers' repository that mentions the task ("Closes #7" or its URL). Null when none is open. `devRepo` may be
+ * an old name of that repository (team-path.ts canonicalRepo).
  */
 export function devPullOfTimeline(events: readonly TimelineEventLike[], devRepo: string, opts: { merged?: boolean } = {}): DevPull | null {
-  const repo = devRepo.trim().toLowerCase();
   let found: DevPull | null = null;
   for (const e of events) {
     if (e.event !== 'cross-referenced') continue;
     const i = e.source?.issue;
     // `merged`: the one that shipped it instead (a shipped task's review, read once).
     if (!i?.pull_request || (opts.merged ? !i.pull_request.merged_at : i.state !== 'open' || i.pull_request.merged_at)) continue;
-    if ((i.repository?.full_name ?? '').toLowerCase() !== repo || !i.number || !i.html_url) continue;
+    // The same repository under an old or new name (a task link stored before a rename), any case.
+    if (!sameRepo(i.repository?.full_name, devRepo) || !i.number || !i.html_url) continue;
     found = { number: i.number, url: i.html_url, ...(i.draft !== undefined ? { draft: i.draft } : {}) };
   }
   return found;

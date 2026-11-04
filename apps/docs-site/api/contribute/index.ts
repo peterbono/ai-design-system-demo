@@ -169,8 +169,9 @@ import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/sessi
 import { teamInSet } from '../_lib/members.js';
 import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-update.js';
 import { validPackageName } from '../../src/lib/library-update.js';
+import { canonicalRepo } from '../../src/lib/team-path.js';
 import { mintReadPass, passOpens, verifyReadPass, type ReadPass } from '../_lib/read-pass.js';
-import { corsHeaders, isPublicRepo, memberBudgetId, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, profileNameOf, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
+import { corsHeaders, isPublicRepo, memberBudgetId, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, profileNameOf, parseChangeList, parseUserList, isPublicTeam, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
 
@@ -670,7 +671,9 @@ export function parseAnyTarget(raw: unknown): Target & { owner: string; repo: st
     decoded.push(d);
   }
   if (decoded.length < 3 || decoded[0] !== 'repos' || !/^[\w.-]+$/.test(decoded[1]!) || !/^[\w.-]+$/.test(decoded[2]!)) throw notAllowed();
-  return { owner: decoded[1]!, repo: decoded[2]!, rest: decoded.slice(3), rawRest: segs.slice(3), query };
+  // Under its current name, as parseRepo names the team: an old name is the same repository, read by its new name.
+  const [owner, repo] = canonicalRepo(`${decoded[1]}/${decoded[2]}`).split('/') as [string, string];
+  return { owner, repo, rest: decoded.slice(3), rawRest: segs.slice(3), query };
 }
 
 /** A branch name git accepts (git check-ref-format, the parts that matter here). */
@@ -1738,7 +1741,7 @@ async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx, pas
   // read only, that product only, the visitor's allow-list, the member's budget. Cookies still ignored.
   if (ctx.cross && pass) return { kind: 'member', pass: { budget: pass.m, repos: pass.r } };
   // A page of another origin reads as a visitor of a public demo team, whatever cookie the browser sent.
-  if (ctx.cross) return PUBLIC_TEAMS.includes(full.toLowerCase()) && (await isPublicRepo(rctx, ...(full.split('/') as [string, string]))) ? { kind: 'guest' } : null;
+  if (ctx.cross) return isPublicTeam(full) && (await isPublicRepo(rctx, ...(full.split('/') as [string, string]))) ? { kind: 'guest' } : null;
   // A member reads on their own budget (api/_lib/team-read.ts budgetOf), not their address's.
   const m = await sessionMember(ctx, req, full);
   if (m) return { kind: 'member', email: m.email };
@@ -1754,7 +1757,7 @@ async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx, pas
     if (await teamInSet(ctx.svc.redis, a.email, full)) return { kind: 'member', email: a.email };
     if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(full, a.email))) return { kind: 'member', email: a.email };
   }
-  if (PUBLIC_TEAMS.includes(full.toLowerCase())) {
+  if (isPublicTeam(full)) {
     const { owner, repo } = parseRepo(full);
     if (await isPublicRepo(rctx, owner, repo)) return { kind: 'guest' };
   }
@@ -1811,7 +1814,7 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
   const pass = given && passOpens(given, full, `${product!.owner}/${product!.repo}`) ? given : null;
   if (ctx.cross) {
     // Another origin: a public demo team or a member's read pass, and only from an origin its bridge.config.json names.
-    if (!PUBLIC_TEAMS.includes(full.toLowerCase()) && !pass) return json(401, { error: 'signin', message: SIGNIN });
+    if (!isPublicTeam(full) && !pass) return json(401, { error: 'signin', message: SIGNIN });
     if (!originAllowed(ctx.cross.origin, (await teamReadConfigOf(rctx, owner, repo)).origins)) throw new HttpError(403, 'origin', CROSS_ORIGIN);
     ctx.cross.ok = true;
   }
@@ -1926,7 +1929,10 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
   const origin = req.headers.get('origin');
   const cross = req.method.toUpperCase() === 'GET' && origin !== null && !sameOriginWhenPresent(req) ? { origin, ok: false } : null;
   const res = await contribute(req, env, deps, cross);
-  if (cross?.ok) for (const [k, v] of Object.entries(corsHeaders(cross.origin))) res.headers.set(k, v);
+  // A read the team's config allows, and every refusal: the toolbar must read why it was refused (a missing app, an
+  // origin the config does not name, a sign-in) to fall back to GitHub and say so, instead of a blocked answer the
+  // browser hides. A refusal carries no data, and these reads never send credentials.
+  if (cross && (cross.ok || res.status >= 400)) for (const [k, v] of Object.entries(corsHeaders(cross.origin))) res.headers.set(k, v);
   return res;
 }
 

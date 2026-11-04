@@ -2,7 +2,7 @@
 // studioHref (multi-team plan, section 4.1): self-hosted and build-time addresses stay byte for byte what they were;
 // a team shell keeps its team. The literal scan lives in no-studio-literals.test.ts.
 import { afterEach, describe, expect, it } from 'vitest';
-import { canonicalTeamPath, isReservedTeam, isTeamKey, isTeamName, pageTeamFromPath, parseTeamInput, reservedFromFiles, studioBase, studioHref, studioHrefAt, teamHref, teamKeyId, teamKeyOf, teamShareBase } from './team-path';
+import { canonicalOwner, canonicalRepo, canonicalTeamPath, repoFromPath, sameRepo, isReservedTeam, isTeamKey, isTeamName, pageTeamFromPath, parseTeamInput, reservedFromFiles, studioBase, studioHref, studioHrefAt, teamHref, teamKeyId, teamKeyOf, teamShareBase } from './team-path';
 
 describe('teamShareBase', () => {
   const reserved = reservedFromFiles([]);
@@ -164,4 +164,34 @@ describe('canonicalTeamPath', () => {
     expect(canonicalTeamPath('/studio/acme/ds/', reserved)).toBeNull();
     expect(canonicalTeamPath('/studio/changes/', reserved)).toBeNull();
   });
+});
+
+describe('renamed repositories (old names that live on in links, bookmarks and old toolbars)', () => {
+  it('reads an old repository or owner name as the current one, and leaves any other name as it is', () => {
+    expect(canonicalRepo('peterbono/ai-design-system-demo')).toBe('the-bridge-company/ai-design-system-demo');
+    expect(canonicalRepo(' PeterBono/AI-Design-System-Demo ')).toBe('the-bridge-company/ai-design-system-demo');
+    expect(canonicalRepo('art-print-shop-co/art-print-shop')).toBe('the-bridge-company/art-print-shop');
+    expect(canonicalRepo('Art-Print-Shop-Co/Shop')).toBe('the-bridge-company/Shop');
+    expect(canonicalRepo('peterbono/bridge-demo-ds')).toBe('peterbono/bridge-demo-ds');
+    expect(canonicalRepo('Acme/DS')).toBe('Acme/DS');
+    expect(canonicalRepo('_team/0123456789abcdef')).toBe('_team/0123456789abcdef');
+    expect(canonicalOwner('art-print-shop-co')).toBe('the-bridge-company');
+    expect(canonicalOwner('acme')).toBe('acme');
+  });
+
+  it('compares two names as the same repository: any case, old or new', () => {
+    expect(sameRepo('art-print-shop-co/art-print-shop', 'the-bridge-company/art-print-shop')).toBe(true);
+    expect(sameRepo('The-Bridge-Company/AI-Design-System-Demo', 'peterbono/ai-design-system-demo')).toBe(true);
+    expect(sameRepo('acme/shop', 'Acme/Shop')).toBe(true);
+    expect(sameRepo('the-bridge-company/other', 'art-print-shop-co/art-print-shop')).toBe(false);
+    expect(sameRepo('', '')).toBe(false);
+    expect(sameRepo(null, 'acme/shop')).toBe(false);
+  });
+
+  it('an old team address names the team under its current name', () => {
+    expect(repoFromPath('/studio/peterbono/ai-design-system-demo/changes/')).toEqual({ owner: 'the-bridge-company', repo: 'ai-design-system-demo' });
+    expect(repoFromPath('/studio/~/art-print-shop-co/shop/')).toEqual({ owner: 'the-bridge-company', repo: 'shop' });
+    expect(studioBase('/studio/peterbono/ai-design-system-demo/changes/', true)).toBe('/studio/the-bridge-company/ai-design-system-demo/');
+  });
+
 });

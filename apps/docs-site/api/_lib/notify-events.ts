@@ -14,6 +14,8 @@
 // Anything Bridge itself did for a member (the Bridge app's bot, a "(via Bridge)" comment) and anything another bot
 // did is never news: the designer did it, or nobody did.
 
+import { canonicalRepo } from '../../src/lib/team-path.js';
+
 export type NotifyKind = 'question' | 'look' | 'changes' | 'declined' | 'shipped' | 'suggestion-declined';
 
 /** The kinds that wait on the designer: sent right away by default. The others go in the daily summary. */
@@ -131,8 +133,9 @@ export function closedIssues(body: unknown, repo: string): number[] {
 export function linkedCopy(body: unknown, repo: string): { repo: string; number: number } | null {
   if (typeof body !== 'string') return null;
   for (const m of body.matchAll(/https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d{1,9})\b/g)) {
-    const r = m[1]!.toLowerCase();
-    if (r !== repo && REPO_FULL.test(r)) return { repo: r, number: Number(m[2]) };
+    // Under its current name: a link written before a rename is the same repository.
+    const r = canonicalRepo(m[1]!).toLowerCase();
+    if (r !== canonicalRepo(repo).toLowerCase() && REPO_FULL.test(r)) return { repo: r, number: Number(m[2]) };
   }
   return null;
 }

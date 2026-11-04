@@ -1,7 +1,9 @@
 // Shared pieces of the /api functions (invites, library-access, contribute). Vercel turns no file under api/_lib
-// into a function (underscore directory); each function bundles what it imports from here. Node built-ins only.
+// into a function (underscore directory); each function bundles what it imports from here. Node built-ins only, and
+// the pure src/lib/team-path.ts (the old names of renamed repositories).
 
 import { createHash } from 'node:crypto';
+import { canonicalRepo } from '../../src/lib/team-path.js';
 
 export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => Promise<Response>;
 
@@ -70,7 +72,9 @@ export function parseRepo(v: unknown): { owner: string; repo: string; full: stri
   if (typeof v !== 'string') throw new HttpError(400, 'bad_request', 'Say which design system, as owner/name.');
   const m = REPO.exec(v.trim());
   if (!m || m[2] === '.' || m[2] === '..') throw new HttpError(400, 'bad_request', 'Say which design system, as owner/name.');
-  return { owner: m[1]!, repo: m[2]!, full: `${m[1]}/${m[2]}`.toLowerCase() };
+  // An old name (a toolbar built before a rename, a link in a pull request body): the team under its current name.
+  const [owner, repo] = canonicalRepo(`${m[1]}/${m[2]}`).split('/') as [string, string];
+  return { owner, repo, full: `${owner}/${repo}`.toLowerCase() };
 }
 
 /** The JSON object of the body, at most `max` characters. */

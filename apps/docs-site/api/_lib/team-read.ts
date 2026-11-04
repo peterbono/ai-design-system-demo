@@ -38,7 +38,7 @@
 //     of a public demo team also needs the product repository to be public
 //   - who: a member of the team (the team's email session cookie, a Bridge account that is a member, or anyone on the
 //     team signed in with GitHub: api/contribute githubTeamReaderOf, checked with their own token), or anyone for
-//     the public demo teams (PUBLIC_TEAMS, and only while GitHub says the repository is public). `collaborators`
+//     the public demo teams (isPublicTeam, and only while GitHub says the repository is public). `collaborators`
 //     only for members.
 //   - the token never leaves the server; no request header of the browser is passed on (Accept is re-validated).
 //   - another origin (a product's page with the Bridge toolbar) may read gh= and blobs= of a public demo team and its
@@ -100,13 +100,13 @@
 import { GITHUB_DOWN, HttpError, SECURITY_HEADERS, clientIp, envInt, json, sha256, type FetchLike } from './http.js';
 import type { Redis } from './redis.js';
 import { canonicalEmail } from './canonical-email.js';
+import { isDemoRepo } from '../../src/lib/demo.js';
 
 /**
- * The public demo teams: anyone may read them through Bridge (lower case). Same list as src/lib/demo.ts DEMO_REPOS.
- * 'peterbono/ai-design-system-demo' is the old key of Bridge's own repository, kept while it moves to
- * the-bridge-company so the switch has no gap: remove it once nothing reads the old name.
+ * The public demo teams: anyone may read them through Bridge. The one list is src/lib/demo.ts DEMO_REPOS; isDemoRepo
+ * reads an old name (src/lib/team-path.ts canonicalRepo) as the team's current one.
  */
-export const PUBLIC_TEAMS: readonly string[] = ['peterbono/bridge-demo-ds', 'the-bridge-company/ai-design-system-demo', 'peterbono/ai-design-system-demo'];
+export const isPublicTeam = (full: string): boolean => isDemoRepo(full);
 
 /** Read permissions asked for the read token; without some of them on the installation, READ_BASE. */
 export const READ_PERMISSIONS = { contents: 'read', pull_requests: 'read', issues: 'read', statuses: 'read', checks: 'read' } as const;

@@ -6,14 +6,24 @@ import { describe, expect, it } from 'vitest';
 import { checkTeamShells, noindexSources, shellMarker, studioPathOfShell, TEAM_SHELL_ROUTES, vercelRewrites } from './team-shells';
 import { studioNav } from './nav';
 import { libraryRewrites } from './library-shells';
+import { REPO_PATTERN, renamedStudioRedirects } from './team-path';
 
 const vercel = JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8')) as {
   rewrites?: { source: string; destination: string }[];
   headers: { source: string; headers: { key: string; value: string }[] }[];
   trailingSlash?: boolean;
+  redirects: { source: string; destination: string; permanent?: boolean }[];
 };
 
 describe('vercel.json', () => {
+  it('sends every old team address (a renamed repository or owner) to its current one first, permanently', () => {
+    const rules = renamedStudioRedirects();
+    expect(vercel.redirects.slice(0, rules.length)).toEqual(rules);
+    expect(rules).toContainEqual({ source: '/studio/peterbono/ai-design-system-demo/:path*/', destination: '/studio/the-bridge-company/ai-design-system-demo/:path*/', permanent: true });
+    expect(rules).toContainEqual({ source: '/studio/~/peterbono/ai-design-system-demo/:path*', destination: '/studio/the-bridge-company/ai-design-system-demo/:path*', permanent: true });
+    expect(rules).toContainEqual({ source: `/studio/art-print-shop-co/:repo(${REPO_PATTERN})/:path*`, destination: '/studio/the-bridge-company/:repo/:path*', permanent: true });
+  });
+
   it('rewrites team addresses to the shells: two rules per form, the trailing slash first', () => {
     // Studio's rules, then the team Library's (lib/library-shells.ts): no address matches both.
     // Then GitHub's webhook (api/_lib/github-webhook.ts, served by api/contribute) and the Bridge connector's addresses
