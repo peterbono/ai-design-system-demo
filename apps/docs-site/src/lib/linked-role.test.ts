@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { linkedAccessState, linkedMember, reconnectScreen, RECONNECT_WORDS, strongerAccess } from './linked-role';
 import { memberRole, roleBadge } from './access-view';
 import { exploresDemo } from './demo';
-import { linkedRole, onLinkedRole, readLinkedRole, resetLinkedRole } from '../scripts/linked-role';
+import { linkedRole, linkedRoleRead, onLinkedRole, readLinkedRole, resetLinkedRole } from '../scripts/linked-role';
 
 describe('linked GitHub role', () => {
   it('reads as the role GitHub gives, never Can view for an admin', () => {
@@ -81,5 +81,20 @@ describe('the role shown: the stronger of the GitHub sign-in and the linked GitH
     expect(strongerAccess('writer', 'writer')).toBe('writer');
     expect(strongerAccess('reader', null)).toBe('reader');
     expect(strongerAccess(null, null)).toBeNull();
+  });
+});
+
+describe('whether the role was read yet', () => {
+  afterEach(() => resetLinkedRole());
+
+  it('is unknown until the read answers, then known for that team only, whatever it said', async () => {
+    let answer: ((r: 'admin' | null) => void) | null = null;
+    const run = readLinkedRole('the-bridge-company/ai-design-system-demo', { account: async () => ({ github: { id: 1 } }), role: () => new Promise((r) => (answer = r)), refresh: async () => null });
+    await vi.waitFor(() => expect(answer).not.toBeNull());
+    expect(linkedRoleRead('the-bridge-company/ai-design-system-demo')).toBe(false);
+    answer!(null);
+    await run;
+    expect(linkedRoleRead('The-Bridge-Company/ai-design-system-demo')).toBe(true);
+    expect(linkedRoleRead('acme/ds')).toBe(false);
   });
 });

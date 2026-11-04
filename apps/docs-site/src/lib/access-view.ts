@@ -303,7 +303,8 @@ export type ChipTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
  * never a word here: the account block at the bottom of the nav says it. A visitor without an account is a guest.
  */
 export function accessBadge(state: RepoAccessState | null, signedIn: boolean): { label: string; tone: ChipTone } {
-  if (!state) return signedIn ? { label: 'Checking', tone: 'neutral' } : { label: 'Guest', tone: 'neutral' };
+  // Signed in, a signed-out read (the team's public state) is not their role: still checking, never "Guest".
+  if (!state || (signedIn && (state === 'anonymous-public' || state === 'anonymous-unknown'))) return signedIn ? { label: 'Checking', tone: 'neutral' } : { label: 'Guest', tone: 'neutral' };
   switch (state) {
     case 'admin':
       return { label: 'Admin', tone: 'success' };

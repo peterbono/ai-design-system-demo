@@ -45,6 +45,8 @@ export interface MembersData {
   ownersKnown?: boolean;
   /** The viewer administers the team signed in by email: they manage email members, never GitHub people's roles. */
   emailAdmin?: boolean;
+  /** Nobody is signed in: who is on the team is for its members only, so no list (MEMBERS_WORDS.membersOnly). */
+  signedOut?: boolean;
 }
 
 interface Collaborator {
@@ -179,6 +181,8 @@ export async function loadMembers(settled = true): Promise<MembersData> {
   // Signed in, but who they are or what they may do is not read yet: never paint the settings' reviewers as the team
   // meanwhile (a list of one that turns into the real team a moment later). useMembers reads again, the list waits.
   if (!settled && membersPending({ token: Boolean(getToken()), viewer: Boolean(viewer), access: Boolean(access) })) throw new MembersPendingError();
+  // A visitor (no sign-in at all): the team's people are for its members, never listed to anyone who opens the page.
+  if (!viewer && !currentViewer() && !getToken()) return { ...empty, signedOut: true };
   const owners = team0.owners;
   const canManage = Boolean(viewer && access?.admin);
   const names = knownNames();

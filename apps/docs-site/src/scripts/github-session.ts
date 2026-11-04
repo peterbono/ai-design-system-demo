@@ -7,7 +7,7 @@
 
 import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
-import { ACCESS_READ, accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, lastKnownAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
+import { ACCESS_READ, accessFromCheck, anonymousAccess, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, lastKnownAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
 import { busyRetryDelay, githubBusy, type GitHubBusy } from '../lib/github-busy';
 import { repoContext, siteConfig } from './repo-context';
 import { productRouteFor, teamReadRoute } from '../lib/write-route';
@@ -62,7 +62,7 @@ import {
 import { isTeamKey, studioHref } from '../lib/team-path';
 import { isSampleTeam } from '../lib/demo';
 import { linkedMember, RECONNECT_WORDS, type LinkedRole } from '../lib/linked-role';
-import { linkedRole, onLinkedRole, readLinkedRole } from './linked-role';
+import { linkedRole, linkedRoleRead, onLinkedRole, readLinkedRole } from './linked-role';
 import { clearGuestReads, guestFetch } from './guest-activity';
 import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, isContribAuth, productReposOfConfig, type ContributeMember } from '../lib/contribute';
 import { ROLE_WORDS } from '../lib/invites';
@@ -233,6 +233,14 @@ function linkedWorthReading(): boolean {
   if (!githubToken()) return true;
   const a = currentAccess();
   return Boolean(a && !a.write);
+}
+
+/**
+ * Whether this page knows the linked GitHub role it would show: true when there is none worth reading, or once it was
+ * read. While false, the page is not sure yet whether the person is on the team: no read-only banner, no "Guest".
+ */
+export function linkedRoleKnown(): boolean {
+  return !linkedWorthReading() || linkedRoleRead(pageRepo());
 }
 
 /**
@@ -954,6 +962,23 @@ export const currentViewer = () => viewer;
 
 let wired = false;
 let checked = false;
+/**
+ * The first check of this page's GitHub sign-in has answered (or there is none to check). Until then a read of who may
+ * do what waits for it (resolveAccess): a page opened right after sign-in never reads the team as a signed-out
+ * visitor, which painted "Guest", the read-only banner and a members list of one until a reload.
+ */
+let settle: (() => void) | null = null;
+const settled = new Promise<void>((resolve) => (settle = resolve));
+/** True once the session started checking a saved sign-in on this page (initGitHubConnect wired the dialog). */
+let checking = false;
+const markSettled = () => {
+  settle?.();
+  settle = null;
+};
+/** Waits for the first check of the saved GitHub sign-in, when one is under way on this page. */
+export function sessionSettled(): Promise<void> {
+  return checking && !checked && githubToken() ? settled : Promise.resolve();
+}
 /** The link from a sign-in email on this page: being checked, or expired (the email form says so). */
 let contributeLink: 'checking' | 'expired' | null = null;
 export const contributeLinkState = () => contributeLink;
@@ -976,7 +1001,9 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     login: () => viewer?.login ?? currentContributor()?.email ?? (linkedMember(linkedGitHubRole()) ? 'linked' : null),
     write: () => (currentContributor() ? currentContributor()!.role !== 'view' : linkedMember(linkedGitHubRole()) ? true : (currentAccess()?.write ?? null)),
     signIn: prefersSignIn,
-    known: () => checked || !githubToken(),
+    // Not known while the saved sign-in or the account's linked GitHub role is still being read: an admin who just
+    // signed in never sees the read-only banner meanwhile.
+    known: () => (checked || !githubToken()) && linkedRoleKnown(),
     subscribe: (fn) => {
       listeners.push(() => fn());
       onAccess(() => fn());
@@ -1023,6 +1050,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   const tokenView = dialog?.querySelector<HTMLElement>('[data-gh-view="token"]') ?? null;
   if (!dialog || (!signInView && (!input || !save))) return;
   wired = true;
+  checking = true;
   const saveLabel = () => (tokenRejected() || viewer ? 'Check and replace' : 'Check and connect');
 
   const showView = () => {
@@ -1247,6 +1275,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     viewer = null;
     forgetAccess();
     checked = true;
+    markSettled();
     paint();
     paintAccess();
     notify(null);
@@ -1270,6 +1299,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   listeners.push(() => void readAccess().then(paintAccess));
   const done = () => {
     checked = true;
+    markSettled();
     paint();
     notify(viewer);
     schedule();
@@ -1417,6 +1447,8 @@ export function onAccess(fn: (a: RepoAccess | null) => void) {
  * another repository (the "Create a new team" dialog): it leaves this page's remembered check and caches alone.
  */
 export async function resolveAccess(repo: { owner: string; repo: string } = readRepo(), opts: { anonymous?: boolean; probe?: boolean } = {}): Promise<RepoAccess | null> {
+  // A saved sign-in still being checked: wait for it, so a signed-in person is never read as a signed-out visitor.
+  if (!opts.probe) await sessionSettled();
   const token = getToken();
   const signedIn = Boolean(viewer && token && !tokenRejected());
   if (!signedIn && !opts.anonymous) return null;
@@ -1432,7 +1464,8 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
     return a;
   }
   const held = accessByRepo.get(name);
-  if (held) return held;
+  // A signed-out read never answers for someone signed in (it would say "Guest" to an admin): read again with the sign-in.
+  if (held && !(signedIn && anonymousAccess(held))) return held;
   const app = signedIn && sessionMode() === 'app';
   const storageKey = signedIn && viewer ? accessStorageKey(pageSlot() ?? '', viewer.login, name) : `bridge.github.access:anonymous:${name}`;
   try {
@@ -1451,6 +1484,8 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
     // Signed in or out meanwhile (an email session confirmed while GitHub answered a guest): this read is stale, and
     // must not replace what the new session says.
     if (epoch !== accessEpoch) return accessByRepo.get(name) ?? null;
+    // Read as a signed-out visitor while the sign-in was being checked, and someone is signed in now: read again as them.
+    if (!signedIn && viewer && getToken() && !tokenRejected()) return resolveAccess(repo, opts);
     // The token may have been refused while reading (studioFetch marks it): nothing to keep then.
     if (signedIn && tokenRejected()) return null;
     accessBusyByRepo.delete(name);

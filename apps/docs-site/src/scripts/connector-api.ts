@@ -24,7 +24,23 @@ export function setConnectorFetch(f: Fetch | null) {
   fetchImpl = f ?? ((input, init) => fetch(input, init));
 }
 
+/** Nobody is signed in on this page: no GitHub sign-in, no email member, no Bridge account. */
+async function signedOut(): Promise<boolean> {
+  if (signedInWithGitHub() || currentContributor()) return false;
+  try {
+    const { getAccount } = await import('./account-session');
+    return !(await getAccount()).account;
+  } catch {
+    return true;
+  }
+}
+
+/** The answer every view gives a visitor who is not signed in, without asking the server (it would refuse). */
+const signInFirst = () => Object.assign(new Error('Sign in to see this.'), { status: 401 });
+
 async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown): Promise<T> {
+  // Every view needs someone signed in: a visitor's page asks nothing (no refused call on each page they open).
+  if (await signedOut()) throw signInFirst();
   const token = signedInWithGitHub() ? getToken() : null;
   const headers: Record<string, string> = { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : { [CONTRIBUTE_HEADER]: '1' }) };
   if (body !== undefined) headers['Content-Type'] = 'application/json';

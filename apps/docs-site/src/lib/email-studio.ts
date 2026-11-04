@@ -79,3 +79,33 @@ export function emailStudioLink(href: string, team: TeamPair, reserved: Reserved
   if (route === null) return null;
   return teamHref(team.owner, team.repo, reserved) + route + (m?.[2] ?? '');
 }
+
+export interface MemberEntry {
+  pathname: string;
+  search?: string;
+  hash?: string;
+  /** The hosted site (<html data-hosted-site>): its /studio/ is Bridge's showcase, each team has its own address. */
+  hostedSite: boolean;
+  /** The page is a team address already, or reads no repository (start, workspace). */
+  teamPage: boolean;
+  /** The repository the showcase shows ("owner/repo"). */
+  pageRepo: string | null;
+  /** The person is on that team: GitHub says they can change it, or their Bridge account lists it. */
+  member: boolean;
+  reserved?: ReservedPaths | null;
+}
+
+/**
+ * Where /studio/<route> of the hosted site sends someone on the team it shows (Bridge's own design system): the same
+ * page of the team's address, with the query and the anchor. The team's address is the one place its people work, so
+ * the role, the greeting and what waits on them read the same as on every other team page. Null keeps the page (a
+ * self-hosted Studio, where /studio/ is the team's own; a visitor; a team address; a shared page).
+ */
+export function memberStudioRedirect(e: MemberEntry): string | null {
+  if (!e.hostedSite || e.teamPage || !e.member || !e.pageRepo) return null;
+  const route = teamStudioRoute(e.pathname);
+  if (route === null) return null;
+  const team = pairOf(e.pageRepo);
+  if (!team) return null;
+  return teamHref(team.owner, team.repo, e.reserved ?? null) + route + (e.search ?? '') + (e.hash ?? '');
+}

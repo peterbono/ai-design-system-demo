@@ -37,6 +37,7 @@ vi.mock('../../../scripts/github-session', () => ({
   onAccess: (fn: (a: { state: RepoAccessState } | null) => void) => void page.listeners.push(fn),
   resolveAccess: async () => null,
   linkedGitHubRole: () => page.linked,
+  linkedRoleKnown: () => true,
 }));
 
 const stored = () => JSON.parse(localStorage.getItem(RECENT_TEAMS_KEY) ?? '[]') as string[];

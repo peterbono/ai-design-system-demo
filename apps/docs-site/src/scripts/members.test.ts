@@ -94,3 +94,16 @@ describe('loadMembers for a member who cannot list the team on GitHub', () => {
     expect(d.complete).toBe(true);
   });
 });
+
+describe('a visitor with no sign-in', () => {
+  it('lists nobody: who is on the team is for its members only', async () => {
+    s.viewer = null;
+    s.token = null;
+    s.access = { state: 'anonymous-public', write: false, admin: false };
+    const d = await loadMembers();
+    expect(d.signedOut).toBe(true);
+    expect(d.members).toEqual([]);
+    expect(d.canManage).toBe(false);
+    expect(s.team).not.toHaveBeenCalled();
+  });
+});

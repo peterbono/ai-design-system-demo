@@ -211,6 +211,20 @@ export default function MembersSection() {
   const data = load.data;
   if (data.context === 'none') return <EmptyState icon={Link2Off} title={MEMBERS_WORDS.noRepo} description={MEMBERS_WORDS.noRepoText} align="start" size="sm" headingLevel={3} />;
 
+  if (data.signedOut)
+    return (
+      <div className="mem">
+        <div className="mem-head">
+          <div className="mem-head-text">
+            <h2 id="set-members" className="mem-title">
+              {MEMBERS_WORDS.membersTitle}
+            </h2>
+            <p className="mem-intro">{MEMBERS_WORDS.membersOnly}</p>
+          </div>
+        </div>
+      </div>
+    );
+
   const act = memberActions(data, update);
   const members = sortMembers(data.members);
   const admins = adminCount(data.members);
