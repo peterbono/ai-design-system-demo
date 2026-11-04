@@ -117,6 +117,48 @@ describe('Start an exploration', () => {
     }
   });
 
+  it('a product added from its address: an optional start page, only of its own site, said on the field', async () => {
+    const remove = embedProducts([
+      { key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', address: 'https://posterstudio.com' },
+      { key: 'library', name: 'Library', default: true },
+    ]);
+    try {
+      const user = userEvent.setup();
+      render(createElement(StartExploration, { components, product: 'poster' }));
+      await user.click(await screen.findByRole('button', { name: 'Start an exploration' }));
+      const field = await screen.findByRole('textbox', { name: 'Start from a page' });
+      expect(field).toHaveAccessibleDescription('Optional. A page of posterstudio.com. Claude rebuilds it with your library, then you explore from there.');
+      await user.type(field, 'otherstudio.com/checkout');
+      await user.type(screen.getByRole('textbox', { name: 'Describe it in a sentence' }), 'Checkout with a gift option');
+      await user.click(screen.getByRole('button', { name: 'Start with Claude AI' }));
+      expect(field).toHaveAttribute('aria-invalid', 'true');
+      expect(field).toHaveAccessibleDescription(expect.stringContaining('Use a page of posterstudio.com, such as posterstudio.com/checkout.'));
+      expect(document.activeElement).toBe(field);
+      await expectNoAxeViolations(document.body);
+      // Typing clears it; a page of the site is fine.
+      await user.clear(field);
+      expect(field).not.toHaveAttribute('aria-invalid', 'true');
+      await user.type(field, 'posterstudio.com/checkout');
+      await user.tab();
+      expect(field).not.toHaveAttribute('aria-invalid', 'true');
+    } finally {
+      remove();
+    }
+  });
+
+  it('a product with its code on GitHub: no start page field', async () => {
+    const remove = embedProducts();
+    try {
+      const user = userEvent.setup();
+      render(createElement(StartExploration, { components, product: 'admin-app' }));
+      await user.click(await screen.findByRole('button', { name: 'Start an exploration' }));
+      await screen.findByRole('dialog');
+      expect(screen.queryByRole('textbox', { name: 'Start from a page' })).toBeNull();
+    } finally {
+      remove();
+    }
+  });
+
   it('shows a designer of the team only the products: no library, no Where with one product, nothing on the library page', async () => {
     viewer.access = { state: 'writer', write: true, admin: false, contributor: true };
     const done = embedProducts();

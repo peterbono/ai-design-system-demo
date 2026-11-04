@@ -3,7 +3,7 @@
 // target is the library). It starts the way the CLI and MCP server start one: an exploration with the product's label
 // (productMarks from @bridge-ds/core, none for the library), handed to Claude with one line that sets it up and hands
 // control back. Pure: the dialog and its tests share it.
-import { defaultProduct, findProduct, parseJiraKey, productRepoOf, type ProductConfig } from '@bridge-ds/core';
+import { addressDomain, defaultProduct, findProduct, pageOfAddress, parseJiraKey, productRepoOf, startPageBrief, type ProductConfig } from '@bridge-ds/core';
 import { studioHref } from './team-path';
 
 /** The products a feature can be built in: every product but the default one (the library itself). */
@@ -112,21 +112,46 @@ export function featureProblems(f: FeatureForm, targets: readonly StartTarget[])
  * then hands control back. No task and no gap report up front: the designer drives the exploration in the terminal,
  * and bridge_missing_pieces lists what the library lacks when they finish.
  */
-export function claudePrompt(x: { sentence: string; product: ProductConfig; number: number; library?: boolean; copy?: { repo: string; branch: string } | null }): string {
+export function claudePrompt(x: StartRef): string {
   if (x.library) return `Open Bridge exploration #${x.number} "${featureName(x.sentence)}" in the Bridge library. I'll tell you what to explore.`;
   // In the design team's copy (products[].design): the copy and the branch, never the developers' repository.
-  if (x.copy) return `Open Bridge exploration ${x.product.key}#${x.number} "${featureName(x.sentence)}" in the design team's copy of ${x.product.name} (${x.copy.repo}, branch ${x.copy.branch}) and use the Bridge library. I'll tell you what to explore.`;
+  if (x.copy) return `Open Bridge exploration ${x.product.key}#${x.number} "${featureName(x.sentence)}" in the design team's copy of ${x.product.name} (${x.copy.repo}, branch ${x.copy.branch}) and use the Bridge library. ${nextStep(x)}`;
   const where = x.product.path ? ` (${x.product.path})` : x.product.repo ? ` (${x.product.repo})` : '';
-  return `Open Bridge exploration #${x.number} "${featureName(x.sentence)}" in ${x.product.name}${where} and use the Bridge library. I'll tell you what to explore.`;
+  return `Open Bridge exploration #${x.number} "${featureName(x.sentence)}" in ${x.product.name}${where} and use the Bridge library. ${nextStep(x)}`;
 }
+
+/** What the start line hands Claude: the exploration, and for a product added from its address, the page it starts from. */
+export interface StartRef {
+  sentence: string;
+  product: ProductConfig;
+  number: number;
+  library?: boolean;
+  copy?: { repo: string; branch: string } | null;
+  /** A page of the product's address (pageOfAddress): Claude rebuilds it with the library first (startPageBrief). */
+  startPage?: string | null;
+}
+
+/** The end of the start line: the start page brief when there is one, else the designer drives. */
+const nextStep = (x: StartRef) => (x.startPage ? startPageBrief(x.startPage, x.product.name, x.sentence) : "I'll tell you what to explore.");
 
 /**
  * The line for the Claude app, through the Bridge connector: the connector finds the exploration from its ref alone
  * (product#n), so no repository or branch reaches the designer. The terminal and Copilot keep claudePrompt.
  */
-export function connectorPrompt(x: { sentence: string; product: ProductConfig; number: number; library?: boolean; copy?: { repo: string; branch: string } | null }): string {
+export function connectorPrompt(x: StartRef): string {
   if (!x.copy) return claudePrompt(x);
-  return `Open Bridge exploration ${x.product.key}#${x.number} "${featureName(x.sentence)}" and use the Bridge library. I'll tell you what to explore.`;
+  return `Open Bridge exploration ${x.product.key}#${x.number} "${featureName(x.sentence)}" and use the Bridge library. ${nextStep(x)}`;
+}
+
+/**
+ * The start page as typed, checked against the product's own address (core pageOfAddress): the clean link, or the
+ * sentence that says how to fix it. Empty: no start page (it is optional).
+ */
+export function startPageProblem(input: string, address: string): { page: string | null; problem: string | null } {
+  if (!input.trim()) return { page: null, problem: null };
+  const page = pageOfAddress(input, address);
+  const domain = addressDomain(address);
+  return page ? { page, problem: null } : { page: null, problem: `Use a page of ${domain}, such as ${domain}/checkout.` };
 }
 
 /** Where the person lands once the exploration started: its page in Changes, with the product that holds it when it lives in a product's own repository. */

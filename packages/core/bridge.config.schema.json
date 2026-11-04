@@ -824,6 +824,11 @@
             "pattern": "^https?://[^{}\\s]+$",
             "description": "The product in production, without placeholders, such as https://shop.example.com: Live product in the Bridge toolbar (Before of a code change) and See the product today. A product of this repository may use previews.production.<key> instead."
           },
+          "address": {
+            "type": "string",
+            "pattern": "^https://[a-z0-9.-]+$",
+            "description": "The live product's https address, without a path, such as https://posterstudio.com, for a product whose code the team cannot reach (Add a product, Only its address). Needs repo: the design team's own code, started by Bridge from the product starter with the library. Explorations can start from a page of this address (Claude rebuilds it with the library), and Done exploring sends the developers a task with the preview, the page and what changes, never code."
+          },
           "framework": {
             "type": "string",
             "description": "The framework the product is built with: react, vue, angular, svelte, astro or other.",

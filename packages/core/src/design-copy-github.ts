@@ -150,5 +150,49 @@ export function designTaskBody(t: {
   return lines.join('\n');
 }
 
+/**
+ * The developers' task Done exploring opens for a product added from its address (ProductConfig.address): the team
+ * cannot reach that product's code, so the prototype is a picture to build from, never code to take. What it is, its
+ * preview, the live page it started from, what changes (the designer's words), the library pieces it needed. Markdown.
+ */
+export function addressTaskBody(t: {
+  name: string;
+  product: string;
+  /** The product's live address ("https://posterstudio.com"). */
+  address: string;
+  /** The live page the exploration started from, when it started from one. */
+  startPage?: string | null | undefined;
+  purpose?: string | null | undefined;
+  previewUrl?: string | null | undefined;
+  pieces: readonly { title: string; url: string }[];
+  pr: { number: number; url: string };
+  doneBy?: string | null | undefined;
+  doneByName?: string | null | undefined;
+}): string {
+  const login = githubLoginOf(t.doneBy);
+  const by = login ? ` From @${login}.` : t.doneByName?.trim() ? ` From ${t.doneByName.trim()}, through Bridge.` : '';
+  const what = t.purpose?.trim() || t.name.trim();
+  return [
+    `The design team explored a change to ${t.product} (${t.address}) in Bridge and sends it to you to build in ${t.product}'s own code.${by}`,
+    '',
+    `**Preview.** ${t.previewUrl ?? `In the preview comment of the prototype: ${t.pr.url}`}`,
+    '',
+    `**The page today.** ${t.startPage ?? t.address}`,
+    '',
+    '### What changes',
+    '',
+    `- ${what}`,
+    '- Compare the preview with the page today: the prototype rebuilds that page with the library, then makes the change.',
+    '',
+    '### Library pieces it needed',
+    '',
+    ...(t.pieces.length ? t.pieces.map((p) => `- [${p.title}](${p.url}): asked from the design system team`) : ['- None: everything it uses is in the library.']),
+    '',
+    '### No code to take',
+    '',
+    `The prototype was rebuilt from the live page with the library, without ${t.product}'s code: use it as the picture of the change, not as code to merge (${t.pr.url}).`,
+  ].join('\n');
+}
+
 /** The task title: the exploration's name. */
 export const designTaskTitle = (name: string): string => `Design: ${name.trim()}`;

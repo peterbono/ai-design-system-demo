@@ -44,7 +44,7 @@ export interface LinkedStart {
  */
 export async function startLinkedExploration(
   cfg: ExplorationsConfig,
-  e: { name: string; purpose: string; useCase?: ExplorationUseCase; author?: string; jira?: string },
+  e: { name: string; purpose: string; useCase?: ExplorationUseCase; author?: string; jira?: string; startPage?: string },
   request?: { number: number; title: string } | null,
   /** More labels for it: the product ones (productMarks from @bridge-ds/core), as the CLI and MCP server write. */
   labels: string[] = [],
@@ -56,7 +56,7 @@ export async function startLinkedExploration(
   const gh = explorationClient(cfg);
   const started = await startExplorationOnGitHub(
     gh,
-    { name: e.name, purpose: e.purpose, source: 'studio', ...(e.useCase ? { useCase: e.useCase } : {}), ...(e.author ? { author: e.author } : {}), ...(e.jira ? { jira: e.jira } : {}) },
+    { name: e.name, purpose: e.purpose, source: 'studio', ...(e.useCase ? { useCase: e.useCase } : {}), ...(e.author ? { author: e.author } : {}), ...(e.jira ? { jira: e.jira } : {}), ...(e.startPage ? { startPage: e.startPage } : {}) },
     { base: cfg.defaultBranch, packages: cfg.packages, apps: cfg.apps, ...(request ? { requests: [request] } : {}), ...(labels.length ? { labels } : {}), ...(inProduct ? { inProduct } : {}) },
   );
   if (!request) return { started };
@@ -83,7 +83,7 @@ export interface ProductRepoBlocked {
  */
 export async function startInProductRepo(
   repo: string,
-  e: { name: string; purpose: string; useCase?: ExplorationUseCase; author?: string; jira?: string },
+  e: { name: string; purpose: string; useCase?: ExplorationUseCase; author?: string; jira?: string; startPage?: string },
   labels: string[],
   inProduct: NonNullable<ExplorationSettings['inProduct']>,
 ): Promise<LinkedStart | ProductRepoBlocked> {

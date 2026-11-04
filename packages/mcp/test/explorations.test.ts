@@ -268,6 +268,22 @@ describe('continue an exploration', () => {
     expect(then.whereItStands).not.toMatch(/commit|pull request|—/);
   });
 
+  it('continue an exploration started from a page of a live product: the brief rebuilds that page with the library first', async () => {
+    const gh = fakeGitHub('acme', 'ds', files());
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    await explorations.startExploration(ctx, { name: 'Gift option' });
+    const client = (await ctx.github())!;
+    const pr = await client.getPullRequest(1);
+    await client.withBranchPrefix('explore/').updatePullRequest(1, { body: pr.body.replace('"slug":', '"startPage":"https://posterstudio.com/checkout","slug":') });
+    const r = (await explorations.continueExploration(ctx, { ref: '#1' })) as any;
+    expect(r.stage).toBe('not-started');
+    expect(r.startFrom).toBe('https://posterstudio.com/checkout');
+    expect(r.next).toMatch(/^Start from https:\/\/posterstudio\.com\/checkout/);
+    expect(r.next).toMatch(/Claude in Chrome/);
+    expect(r.next).toMatch(/ONLY the library's components and tokens/);
+    expect(r.next).toMatch(/Never copy the site's CSS/);
+  });
+
   it('lists only the ones the person started with mine', async () => {
     const gh = fakeGitHub('acme', 'ds', files());
     const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });

@@ -195,6 +195,47 @@ describe('add a product: what may be added', () => {
     ]) expect(validProductEntry({ ...ENTRY, preview, production }, TEAM)).toMatchObject({ preview, production });
   });
 
+  // A product added from its address (Add a product, "Only its address"): the design team's own code beside it, and the
+  // live product's https origin exactly as Studio keeps it.
+  const ADDRESS: ProductEntry = { key: 'checkout', name: 'Checkout', repo: 'acme/checkout', design: { repo: 'acme/checkout-design' }, address: 'https://posterstudio.com', framework: 'react' };
+  it('accepts a product added from its address, its address kept as is', () => {
+    expect(validProductEntry(ADDRESS, TEAM)).toEqual(ADDRESS);
+    expect(validProductEntry({ key: 'poster', name: 'Poster', repo: 'acme/poster', address: 'https://shop.poster-studio.co.uk' }, TEAM)).toMatchObject({ address: 'https://shop.poster-studio.co.uk' });
+  });
+
+  const badAddress: [string, unknown][] = [
+    ['a bare domain', 'posterstudio.com'],
+    ['plain http', 'http://posterstudio.com'],
+    ['a path', 'https://posterstudio.com/checkout'],
+    ['a trailing slash', 'https://posterstudio.com/'],
+    ['a port', 'https://posterstudio.com:8443'],
+    ['a sign-in', 'https://me:pw@posterstudio.com'],
+    ['a query', 'https://posterstudio.com?x=1'],
+    ['capitals', 'https://PosterStudio.com'],
+    ['an IP address', 'https://127.0.0.1'],
+    ['localhost', 'https://localhost'],
+    ['another protocol', 'javascript:alert(1)'],
+    ['not a string', { href: 'https://posterstudio.com' }],
+    ['an empty one', ''],
+    ['a long one', `https://${'a'.repeat(200)}.com`],
+  ];
+  it.each(badAddress)('refuses an address with %s', (_, address) => {
+    expect(validProductEntry({ ...ADDRESS, address }, TEAM)).toBeNull();
+  });
+
+  it('writes a product added from its address with its address, in the file order', async () => {
+    const w = world(configWith(GOV));
+    const r = await ask(w, ADMIN, ADDRESS);
+    expect(r.status).toBe(200);
+    const added = JSON.parse(w.text).products.find((p: { key: string }) => p.key === 'checkout');
+    expect(added).toEqual(ADDRESS);
+    expect(Object.keys(added)).toEqual(['key', 'name', 'repo', 'design', 'address', 'framework']);
+    const bad = world(configWith(GOV));
+    const refused = await ask(bad, ADMIN, { ...ADDRESS, address: 'http://posterstudio.com' });
+    expect(refused.status).toBe(400);
+    expect(writes(bad)).toEqual([]);
+  });
+
   it('an invalid entry answers 400 and writes nothing', async () => {
     const w = world(configWith(GOV));
     const r = await ask(w, ADMIN, { ...ENTRY, default: true });

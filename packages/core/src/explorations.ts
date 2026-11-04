@@ -88,6 +88,11 @@ export interface Exploration {
   agent?: string | undefined;
   /** A Jira ticket key ("DS-42"), first in the pull request title so Jira's GitHub integration links it. */
   jira?: string | undefined;
+  /**
+   * For a product added from its address (ProductConfig.address): the live page the exploration starts from. Claude
+   * rebuilds it with the library first (startPageBrief), and the developers' task names it.
+   */
+  startPage?: string | undefined;
   /** ISO date someone said "Done exploring". */
   doneAt?: string | undefined;
   /** GitHub login of who said it, when known (Being built names them). */
@@ -271,6 +276,7 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
     `> Not mergeable as is. This draft pull request is a living prototype on \`${branch}\`: say "Done exploring" when the idea is ready for developers. Keep it open, so its preview link keeps working.`,
     '',
     ...(e.purpose?.trim() ? [`**Purpose.** ${e.purpose.trim()}`, ''] : []),
+    ...(startPageOf(e) ? [`**Starts from.** ${startPageOf(e)}, rebuilt with the library.`, ''] : []),
     ...(uc ? [`**Use case.** ${uc}`, ''] : []),
     '### What is experimental',
     '',
@@ -325,6 +331,13 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
   return lines.join('\n');
 }
 
+/** The start page as the body may hold it: an https link of 500 characters at most, else null. */
+export function startPageOf(e: Pick<Exploration, 'startPage'> | null | undefined): string | null {
+  const v = e?.startPage;
+  if (typeof v !== 'string' || v.length > 500 || !/^https:\/\/[^\s<>()[\]`"]+$/.test(v)) return null;
+  return v;
+}
+
 /** A member reference as Bridge's server writes it (16 hex characters), else null. */
 const memberRefOf = (v: string | undefined): string | null => (typeof v === 'string' && /^[0-9a-f]{16}$/.test(v) ? v : null);
 
@@ -345,6 +358,7 @@ function explorationBlock(e: Exploration): string {
     ...(e.startedAt ? { startedAt: e.startedAt } : {}),
     ...(e.source ? { source: e.source } : {}),
     ...(e.agent ? { agent: e.agent } : {}),
+    ...(startPageOf(e) ? { startPage: startPageOf(e) } : {}),
     ...(e.doneAt ? { doneAt: e.doneAt } : {}),
     ...(doneBy ? { doneBy } : {}),
     ...(e.doneSha ? { doneSha: e.doneSha } : {}),

@@ -12,8 +12,8 @@ import { cleanProductName, PRODUCT_NAME_MAX } from './product-name';
 export const TEMPLATE_REPO = 'peterbono/bridge-product-starter';
 
 export const NEW_PRODUCT_WORDS = {
-  // Add a product opens on this form when Bridge found nothing on GitHub, or from "Start a new product".
-  title: 'Add a product',
+  // B, "It's a new product" on Add a product's first question.
+  title: "It's a new product",
   lead: 'Bridge sets it up with your library, ready for explorations.',
   name: 'Name',
   nameHelp: 'What your team calls it.',
@@ -21,6 +21,28 @@ export const NEW_PRODUCT_WORDS = {
   // While GitHub makes it (a few seconds), then while Bridge adds it to the team.
   creating: (name: string) => `Starting ${name} on GitHub…`,
 } as const;
+
+/**
+ * D2, "Only its address" on Add a product's first question: a product whose code the team cannot reach. Bridge starts
+ * the design team's own code for it, like a new product, and keeps its address (ProductConfig.address).
+ */
+export const ADDRESS_PRODUCT_WORDS = {
+  title: 'Start from its address',
+  lead: 'For a product whose code your designers cannot reach. Claude rebuilds its pages with your library.',
+  address: 'Its address',
+  addressHelp: 'Where it lives online. Designers start from its pages.',
+  addressPlaceholder: 'posterstudio.com',
+  addressMissing: 'Type its address, such as posterstudio.com.',
+  addressInvalid: 'Use the address people visit, such as posterstudio.com or https://posterstudio.com.',
+  add: 'Add product',
+  creating: (name: string) => `Setting up ${name} with your library…`,
+} as const;
+
+/** What is wrong with the address, said on its field; null when Bridge can keep it (core productAddressOf). */
+export function addressProblem(input: string, parsed: string | null): string | null {
+  if (!input.trim()) return ADDRESS_PRODUCT_WORDS.addressMissing;
+  return parsed ? null : ADDRESS_PRODUCT_WORDS.addressInvalid;
+}
 
 /** A GitHub name from the product's name: "Art print shop" -> "art-print-shop". Empty when nothing usable is left. */
 export function slugFor(name: string): string {

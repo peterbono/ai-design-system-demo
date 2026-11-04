@@ -15,17 +15,23 @@ export const ADD_PRODUCT_WORDS = {
   title: 'Add a product',
   // The onboarding Products step's line while the team has none yet (the dialog itself asks `question`).
   lead: 'A product your team designs for. Its explorations happen in a copy of it, so the developers keep their code.',
-  // The dialog opens on what Bridge found on GitHub (one row each, with Add), else straight on a new product.
+  // D1: the dialog opens on one question and three equal cards; the details come after a choice, each with Back.
+  question: 'Where does it start from?',
+  github: 'Its code is on GitHub',
+  githubHelp: 'Designers explore the real product. What the team keeps goes back to your developers.',
+  address: 'Only its address',
+  addressHelp: 'No access to its code. Claude rebuilds its pages with your library.',
+  fresh: "It's a new product",
+  freshHelp: 'Bridge starts it with your library, ready to explore.',
+  recommended: 'Recommended',
+  back: 'Back',
+  // "Its code is on GitHub" (A): what Bridge found on GitHub (one row each, with Add), else the way to show Bridge.
   codeLoading: 'Looking for your products on GitHub…',
+  noneFound: 'Bridge does not see it on GitHub yet. Show Bridge where it is, then come back here.',
   foundLead: "Bridge found these on GitHub. Your team doesn't have them yet.",
   add: 'Add',
   addLabel: (name: string) => `Add ${name}`,
   adding: (name: string) => `Adding ${name}…`,
-  startNew: 'Start a new product',
-  // A new product: its name, then Create product (lib/new-product.ts NEW_PRODUCT_WORDS).
-  newLead: 'Bridge sets it up with your library, ready for explorations.',
-  codeOnGitHub: 'Its code is already on GitHub?',
-  findThere: 'Find it there',
   // Under the list, always: the way to a product Bridge cannot see yet (GitHub opens in a small window).
   notListed: 'Not in the list?',
   findOnGitHub: 'Find it on GitHub',
@@ -385,6 +391,8 @@ export function newProductEntry(x: {
   repo: string;
   copy: boolean;
   previews?: { preview: string; production: string } | null;
+  /** Added from its address ("Only its address"): the live product's https origin (core productAddressOf). */
+  address?: string | null;
   framework?: string;
 }): ProductConfig {
   const entry: ProductConfig = { key: x.key, name: cleanProductName(x.name), repo: x.repo };
@@ -393,6 +401,7 @@ export function newProductEntry(x: {
     entry.preview = x.previews.preview;
     entry.production = x.previews.production;
   }
+  if (x.address) entry.address = x.address;
   entry.framework = x.framework ?? 'react';
   return entry;
 }
@@ -438,6 +447,7 @@ export function addProductProposal(entry: ProductConfig, opts: { date: Date; pre
     `Adds \`products[key=${entry.key}]\` to \`bridge.config.json\`: ${JSON.stringify(entry.name)}, code in \`${entry.repo}\`.`,
     '',
     ...(entry.design ? [`- Designers explore in their own copy, \`${entry.design.repo}\`, made by Bridge when the first exploration starts.`] : []),
+    ...(entry.address ? [`- Added from its address, ${entry.address}: designers start from its pages, rebuilt with the library. What they keep becomes a task for the developers.`] : []),
     entry.preview ? `- Previews: \`${entry.preview}\`, production: ${entry.production}.` : '- Previews: found after the first change.',
     '- Studio and the Library list it once this merges.',
     '',

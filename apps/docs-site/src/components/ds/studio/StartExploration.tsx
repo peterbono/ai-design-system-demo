@@ -28,7 +28,7 @@
 import { VOCAB } from '../../../lib/vocabulary';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, ExternalLink, Plus } from 'lucide-react';
-import { defaultProduct, parseJiraKey, productMarks, productsOf, type ProductConfig } from '@bridge-ds/core';
+import { addressDomain, defaultProduct, liveAddressOf, parseJiraKey, productMarks, productsOf, type ProductConfig } from '@bridge-ds/core';
 import { Alert, Button, Combobox, Dialog, DialogContent, DialogTrigger, Icon, Input, Select, Spinner } from '@bridge-ds/react';
 import AddProduct, { useCanAddProduct } from './AddProduct';
 import { ADD_PRODUCT_WORDS } from '../../../lib/add-product';
@@ -48,6 +48,7 @@ import {
   libraryLead,
   productParam,
   productRepoBlockedLine,
+  startPageProblem,
   startTargets,
 } from '../../../lib/create-branch';
 import { installUrl } from '../../../lib/access-view';
@@ -136,6 +137,10 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const [sentence, setSentence] = useState('');
   const [jira, setJira] = useState('');
   const [jiraOpen, setJiraOpen] = useState(false);
+  // A product added from its address: the live page the exploration starts from (optional), and why it is refused.
+  const [page, setPage] = useState('');
+  const [pageError, setPageError] = useState<string | null>(null);
+  const pageRef = useRef<HTMLInputElement>(null);
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +159,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
   useEffect(() => {
     setCopyAccess(null);
     setCopyNote(null);
+    setPageError(null);
   }, [target]);
   const { copied, said, copy } = useCopy(3000);
   const [done, setDone] = useState<{ prompt: string; app: string; href: string; name: string; where: string; setup: ToolSetup } | null>(null);
@@ -185,6 +191,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const picked = targets.find((t) => t.value === target) ?? null;
+  // A product added from its address (products[].address): the exploration may start from one of its live pages.
+  const liveAddress = picked && !picked.library ? liveAddressOf(picked.product) : null;
 
   // Where the page asked to start, and whether the person picked since: the lead's library comes a moment after open.
   const asked = useRef<string | null>(null);
@@ -198,6 +206,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
     setSentence('');
     setJira('');
     setJiraOpen(false);
+    setPage('');
+    setPageError(null);
     setTried(false);
     setBusy(false);
     setError(null);
@@ -229,6 +239,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
             setTarget(v.target);
           }
           if (typeof v.sentence === 'string') setSentence(v.sentence);
+          if (typeof v.page === 'string') setPage(v.page);
           if (typeof v.jira === 'string' && v.jira) {
             setJira(v.jira);
             setJiraOpen(true);
@@ -318,11 +329,16 @@ export default function StartExploration({ components, appearance = 'menu', prod
     setError(null);
     setResumeNote(null);
     setCopyNote(null);
-    if (Object.keys(problems).length) {
-      if (problems.sentence) sentenceRef.current?.focus();
+    // Only a page of the product's own address (pageOfAddress); empty is fine, the field is optional.
+    const from = liveAddress ? startPageProblem(page, liveAddress) : { page: null, problem: null };
+    setPageError(from.problem);
+    if (Object.keys(problems).length || from.problem) {
+      if (from.problem) pageRef.current?.focus();
+      else if (problems.sentence) sentenceRef.current?.focus();
       else if (problems.jira) jiraRef.current?.focus();
       return;
     }
+    const startPage = from.page;
     const t = picked!;
     const session = await import('../../../scripts/github-session');
     if (!session.hasWorkingToken()) {
@@ -333,14 +349,14 @@ export default function StartExploration({ components, appearance = 'menu', prod
     setBusy(true);
     // Kept if the person has to sign in again first: the start reopens with the same words (scripts/pending-action).
     const kept = await import('../../../scripts/pending-action');
-    kept.armPendingAction('start-exploration', { sentence, target, jira });
+    kept.armPendingAction('start-exploration', { sentence, target, jira, ...(startPage ? { page: startPage } : {}) });
     try {
       const { explorationsConfig, startInProductRepo, startLinkedExploration } = await import('../../../scripts/exploration-start');
       const key = parseJiraKey(jira);
       const author = session.currentViewer()?.login;
       const name = featureName(sentence);
       const cfg = explorationsConfig();
-      const e = { name, purpose: featurePurpose(sentence), useCase: 'terminal' as const, ...(author ? { author } : {}), ...(key ? { jira: key } : {}) };
+      const e = { name, purpose: featurePurpose(sentence), useCase: 'terminal' as const, ...(author ? { author } : {}), ...(key ? { jira: key } : {}), ...(startPage && !inLibrary ? { startPage } : {}) };
       const labels = productMarks(products, t.product).labels;
       const repo = inLibrary || t.library ? null : featureRepo(t.product, `${cfg.owner}/${cfg.repo}`);
       // In the design team's copy (products[].design): the copy's previews, and the developers' repository never written.
@@ -386,7 +402,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
       kept.disarmPendingAction();
       const { started } = r;
       const ds = `${cfg.owner}/${cfg.repo}`;
-      const ref = { sentence, product: t.product, number: started.pr, library: t.library, copy: at ? { repo: at.copy, branch: started.branch } : null };
+      const ref = { sentence, product: t.product, number: started.pr, library: t.library, copy: at ? { repo: at.copy, branch: started.branch } : null, startPage: inLibrary ? null : startPage };
       const prompt = claudePrompt(ref);
       setDone({
         prompt,
@@ -493,6 +509,28 @@ export default function StartExploration({ components, appearance = 'menu', prod
               setBlocked(null);
             }}
             error={shown.product}
+          />
+        )}
+        {/* A product added from its address: an optional live page to start from. Only pages of its own site. */}
+        {liveAddress && (
+          <Input
+            ref={pageRef}
+            label="Start from a page"
+            hint={`Optional. A page of ${addressDomain(liveAddress)}. Claude rebuilds it with your library, then you explore from there.`}
+            placeholder={`${addressDomain(liveAddress)}/`}
+            size="lg"
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            value={page}
+            onValueChange={(v) => {
+              setPage(v);
+              setPageError(null);
+            }}
+            onBlur={() => setPageError(startPageProblem(page, liveAddress).problem)}
+            error={pageError ?? undefined}
+            data-start-page=""
           />
         )}
         <Input
