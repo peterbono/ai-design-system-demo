@@ -141,3 +141,21 @@ export const READY_MAX_MS = 30_000;
 
 /** The link from the new product to the team's library, written in it once it exists (`bridge connect` writes the same). */
 export const productPointer = (designSystem: string, key: string) => `${JSON.stringify({ version: 1, designSystem, product: key }, null, 2)}\n`;
+
+/**
+ * "One step before the first preview": the previews step that closed the Add a product dialog, now on the product's
+ * page for an admin while the product has no previews (components/ds/studio/ProductPreviewsStep.tsx,
+ * lib/product-previews.ts). `host` is what people read ("Cloudflare").
+ */
+export const PREVIEWS_STEP_WORDS = {
+  title: 'One step before the first preview',
+  line: (x: { name: string; host: string; source: 'products' | 'library' | 'default' }) =>
+    x.source === 'products'
+      ? `Your other products show their previews on ${x.host}. Connect ${x.name} there too and every exploration gets its own preview.`
+      : x.source === 'library'
+        ? `Your library shows its previews on ${x.host}. Connect ${x.name} there too and every exploration gets its own preview.`
+        : `Connect ${x.name} on ${x.host} and every exploration gets its own preview.`,
+  connect: (host: string) => `Connect on ${host}`,
+  other: (host: string) => `Use ${host} instead`,
+  note: 'Only admins see this. Bridge finds the previews on its own after that.',
+} as const;

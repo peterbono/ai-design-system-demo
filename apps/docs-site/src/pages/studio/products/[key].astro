@@ -11,6 +11,7 @@ import ProductPage from '../../../components/ds/studio/ProductPage';
 import { productsOf } from '@bridge-ds/core';
 import { siteRepo } from '../../../lib/config';
 import { loadComponents } from '../../../lib/components';
+import { PREVIEW_APPS, PRODUCTION_APPS } from '../../../lib/repo';
 
 export function getStaticPaths() {
   return productsOf(siteRepo()).map((p) => ({ params: { key: p.key.toLowerCase() }, props: { name: p.name } }));
@@ -24,5 +25,5 @@ const components = loadComponents()
 ---
 
 <Layout title={name} description={`The explorations made in ${name}, grouped by where they stand, and a way to start one.`} wide>
-  <ProductPage client:only="react" productKey={key} components={components} />
+  <ProductPage client:only="react" productKey={key} components={components} previews={{ apps: PREVIEW_APPS, production: PRODUCTION_APPS }} />
 </Layout>
