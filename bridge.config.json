@@ -81,7 +81,7 @@
     }
   },
   "products": [
-    { "key": "admin-app", "name": "Art print shop", "repo": "the-bridge-company/art-print-shop", "design": { "repo": "the-bridge-company/art-print-shop-design", "preview": "https://{branch}.art-print-shop-design.pages.dev" }, "preview": "https://{branch}.art-print-shop.pages.dev", "production": "https://art-print-shop.pages.dev", "framework": "react" },
+    { "key": "admin-app", "name": "Art print shoppy", "repo": "the-bridge-company/art-print-shop", "design": { "repo": "the-bridge-company/art-print-shop-design", "preview": "https://{branch}.art-print-shop-design.pages.dev" }, "preview": "https://{branch}.art-print-shop.pages.dev", "production": "https://art-print-shop.pages.dev", "framework": "react" },
     { "key": "library", "name": "Library", "path": "packages", "framework": "react", "default": true }
   ],
   "tooling": {
