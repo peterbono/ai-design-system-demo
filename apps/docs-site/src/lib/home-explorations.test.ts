@@ -130,7 +130,8 @@ describe('the explorations of the Studio home', () => {
     expect(cardTag('with-devs', 'Being built')).toEqual({ tone: 'info', dot: true });
     expect(cardTag('kept', 'Shipped')).toEqual({ tone: 'success', dot: false });
     expect(cardTag('kept', 'Kept in the library')).toEqual({ tone: 'success', dot: false });
-    expect(cardTag('in-review', 'In review')).toEqual({ tone: 'info', dot: false });
+    // In review is amber on every page (lib/review-state LIFECYCLE_TONE), as on Changes and Being built.
+    expect(cardTag('in-review', 'In review')).toEqual({ tone: 'warning', dot: false });
   });
 
   it('lists the ones still being tried first, newest first inside', () => {

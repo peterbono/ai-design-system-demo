@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { humanTitle } from './pr-title';
+import { explorationTitle, humanTitle } from './pr-title';
 
 describe('humanTitle', () => {
   it('drops the conventional-commit prefix and capitalizes', () => {
@@ -20,5 +20,16 @@ describe('humanTitle', () => {
 describe("humanTitle with a Jira key", () => {
   it("drops the leading key too", () => {
     expect(humanTitle("DS-42 tokens: darker primary")).toBe("Darker primary");
+  });
+});
+
+describe('explorationTitle', () => {
+  it('reads the name the designer typed, never the pull request title that turned its colon into a comma', () => {
+    const body = '## Exploration\n\n<!-- bridge-exploration {"name":"Dashboard: orders waiting to ship"} -->';
+    expect(explorationTitle({ title: 'Exploration: Dashboard, orders waiting to ship', body })).toBe('Dashboard: orders waiting to ship');
+  });
+
+  it('falls back to the pull request title for people', () => {
+    expect(explorationTitle({ title: 'Exploration: billing screen', body: null })).toBe('Billing screen');
   });
 });

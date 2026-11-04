@@ -111,8 +111,10 @@ describe('waiting time', () => {
   it('the asker defaults to the actor then the author', () => {
     expect(waitingSince([{ event: 'review_requested', created_at: daysAgo(1), actor: { login: 'dana-k' } }], pull, null).asker).toBe('dana-k');
   });
-  it('counts whole days', () => {
-    expect(daysSince(daysAgo(0, 23), NOW)).toBe(0);
+  it('counts calendar days, like every other date line', () => {
+    expect(daysSince(daysAgo(0, 3), NOW)).toBe(0);
+    // 23 hours before 09:30 is yesterday on the calendar: "yesterday" on every screen, never "today" on one of them.
+    expect(daysSince(daysAgo(0, 23), NOW)).toBe(1);
     expect(daysSince(daysAgo(4, 2), NOW)).toBe(4);
     expect(waitingLabel(daysAgo(0, 3), NOW)).toBe('New today');
     expect(waitingLabel(daysAgo(1), NOW)).toBe('Waiting 1 day');
@@ -261,7 +263,7 @@ describe('your branches', () => {
   it('ages', () => {
     expect(ago(new Date(NOW - 30000).toISOString(), NOW)).toBe('just now');
     expect(ago(new Date(NOW - 5 * 60000).toISOString(), NOW)).toBe('5 min ago');
-    expect(ago(daysAgo(1), NOW)).toBe('1 day ago');
+    expect(ago(daysAgo(1), NOW)).toBe('yesterday');
     expect(ago(daysAgo(3), NOW)).toBe('3 days ago');
   });
   it('filters and orders', () => {

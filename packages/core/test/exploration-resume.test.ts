@@ -11,6 +11,8 @@ import {
   lastActivity,
   listThings,
   parseContinueLine,
+  agoInSentence,
+  calendarDays,
   shortAgo,
   startedWhen,
   subjectWords,
@@ -147,6 +149,22 @@ describe('time in words', () => {
   it('says when it started', () => {
     expect(startedWhen('2026-10-30T08:00:00', new Date('2026-10-30T14:00:00'))).toBe('today');
     expect(startedWhen('2026-10-29T08:00:00', new Date('2026-10-30T14:00:00'))).toBe('yesterday');
+  });
+  it('counts calendar days the same way in every phrase, so one moment reads the same on every screen', () => {
+    // Local times: 23:00 the day before, read at 09:00, is 10 hours ago but yesterday on the calendar.
+    const late = '2026-10-29T23:00:00';
+    const morning = new Date('2026-10-30T09:00:00');
+    expect(calendarDays(late, morning)).toBe(1);
+    expect(shortAgo(late, morning)).toBe('Yesterday');
+    expect(agoInSentence(late, morning)).toBe('yesterday');
+    expect(startedWhen(late, morning)).toBe('yesterday');
+    // 47 hours across two midnights is two days, never rounded down to one.
+    expect(calendarDays('2026-10-28T10:00:00', new Date('2026-10-30T09:00:00'))).toBe(2);
+    expect(shortAgo('2026-10-28T10:00:00', new Date('2026-10-30T09:00:00'))).toBe('2 days ago');
+    // Earlier today counts hours; a date that does not parse or lies ahead is today.
+    expect(shortAgo('2026-10-30T06:00:00', morning)).toBe('3 h ago');
+    expect(calendarDays('not a date', morning)).toBe(0);
+    expect(calendarDays('2026-10-31T09:00:00', morning)).toBe(0);
   });
 });
 

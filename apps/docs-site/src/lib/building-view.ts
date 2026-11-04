@@ -33,7 +33,7 @@ import { authorFor } from './author';
 import { isProductBranch } from './product-branch';
 import { explorationHref } from './explorations-view';
 import { explorationState } from './exploration-state';
-import { devReviewLine, LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, taskStage, type DesignTaskRead, type LifecycleStage, type PullReviewLike } from './review-state';
+import { devReviewLine, LIFECYCLE_LABEL, LIFECYCLE_TONE, pullLifecycle, reviewLine, reviewStateOf, taskStage, type DesignTaskRead, type LifecycleStage, type PullReviewLike } from './review-state';
 
 /** The fields of a GitHub issue the page reads (GET /repos/{o}/{r}/issues). */
 export interface RestIssue {
@@ -204,12 +204,17 @@ export function matchesBuildTab(v: Pick<BuildRequestView, 'status' | 'shippedAt'
   return matchesBuildFilter(v, tab, now);
 }
 
-/** The one tag of a row. Only a stale request is highlighted; shipped is the only green, In the next release waits. */
+/** The stage each build status stands for, for its tag's colour (lib/review-state LIFECYCLE_TONE). */
+const BUILD_STAGE: Record<BuildStatus, LifecycleStage> = { requested: 'waiting-for-code', 'picked-up': 'being-built', 'in-progress': 'being-built', 'in-review': 'in-review', shipped: 'shipped', 'not-planned': 'not-planned' };
+
+/**
+ * The one tag of a row, in the colour its stage wears on every page (LIFECYCLE_TONE): Waiting to be picked up is amber
+ * here as on Changes and the exploration page. A stale request says how long it waits in the tag itself.
+ */
 export function statusTag(v: Pick<BuildRequestView, 'status' | 'label' | 'stale'> & LifecycleExtra): { label: string; tone: PillTone | 'info' } {
-  if (v.nextRelease) return { label: LIFECYCLE_LABEL['next-release'], tone: 'info' };
-  const tone: Record<BuildStatus, PillTone | 'info'> = { requested: 'neutral', 'picked-up': 'info', 'in-progress': 'info', 'in-review': 'warning', shipped: 'success', 'not-planned': 'neutral' };
-  if (v.approved) return { label: LIFECYCLE_LABEL.approved, tone: 'info' };
-  return { label: v.status === 'in-review' ? LIFECYCLE_LABEL['in-review'] : v.label, tone: v.stale ? 'warning' : tone[v.status] };
+  if (v.nextRelease) return { label: LIFECYCLE_LABEL['next-release'], tone: LIFECYCLE_TONE['next-release'] };
+  if (v.approved) return { label: LIFECYCLE_LABEL.approved, tone: LIFECYCLE_TONE.approved };
+  return { label: v.status === 'in-review' ? LIFECYCLE_LABEL['in-review'] : v.label, tone: LIFECYCLE_TONE[BUILD_STAGE[v.status]] };
 }
 
 /** "Today", "1 day", "9 days": how long a request has existed. */
@@ -375,13 +380,13 @@ export const BUILD_CACHE_MS = 5 * 60 * 1000;
 /** Line 2 of a row: when it was sent, then who builds it ("Sent 4 days ago · Ana is on it"). */
 export function rowLine(v: Pick<BuildRequestView, 'status' | 'createdAt' | 'stale' | 'sentence' | 'shippedAt' | 'builders'> & LifecycleExtra, now: number, nameOf: (login: string) => string = (l) => l): string {
   const d = daysSince(v.createdAt, now);
-  const sent = d === 0 ? 'Sent today' : `Sent ${d} ${d === 1 ? 'day' : 'days'} ago`;
+  const sent = d === 0 ? 'Sent today' : d === 1 ? 'Sent yesterday' : `Sent ${d} days ago`;
   if (v.status === 'requested') return v.stale ? 'Nobody has picked it up yet' : sent;
   if (v.status === 'shipped' && v.nextRelease) return 'In the next release';
   if (v.status === 'in-review' && v.reviewLine) return `${sent} · ${v.reviewLine}`;
   if (v.status === 'shipped') {
     const s = v.shippedAt ? daysSince(v.shippedAt, now) : null;
-    return s === null ? 'In the library' : s === 0 ? 'Shipped today' : `Shipped ${s} ${s === 1 ? 'day' : 'days'} ago`;
+    return s === null ? 'In the library' : s === 0 ? 'Shipped today' : s === 1 ? 'Shipped yesterday' : `Shipped ${s} days ago`;
   }
   if (v.status === 'in-review') return `${sent} · ${v.builders.length ? `Built by ${v.builders.map(nameOf).join(' and ')}` : 'Built'}, in code review`;
   return `${sent} · ${v.sentence.replace(/\.$/, '')}`;

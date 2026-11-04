@@ -70,6 +70,24 @@ describe('qualityPillars', () => {
     expect(qualityPillars({ ...base, adoptionBefore: null })[1]!.delta).toBeNull();
   });
 
+  it('says the headline counts every component, so it is not the mean of the product rows', () => {
+    // The live numbers of Nov 4, 2026: two copies of the same back office and a big docs site.
+    const apps = [
+      { name: 'Art print shop', ds: 239, ui: 262 },
+      { name: 'Bridge admin', ds: 239, ui: 262 },
+      { name: 'Bridge docs site', ds: 1950, ui: 1950 },
+    ];
+    const adoption = apps.map((a) => ({ now: { dsComponentInstances: a.ds, uiComponentInstances: a.ui } }));
+    const figures = healthFigures({ contrast: { total: 1, fail: 0, brands: 1 }, adoption, guidance: { total: 0, reviewed: 0, drafted: 0, missing: 0 } });
+    const products = apps.map((a) => ({ name: a.name, pct: Math.round((a.ds / a.ui) * 1000) / 10, uses: a.ui }));
+    const p = qualityPillars({ figures, contrast: { total: 1, fail: 0 }, adoption: (2428 / 2474) * 100, products, guidance: { total: 0, reviewed: 0 } })[1]!;
+    expect(p.value).toBe('98.1%');
+    expect(p.label).toBe('of all 2,474 components in 3 products come from the design system');
+    expect(p.viz).toEqual({ kind: 'products', items: products.map(({ name, pct }) => ({ name, pct })) });
+    // One product, or rows without counts: the plain label.
+    expect(qualityPillars({ figures, contrast: { total: 1, fail: 0 }, adoption: 91.2, products: products.slice(0, 1), guidance: { total: 0, reviewed: 0 } })[1]!.label).toBe('of components come from the design system');
+  });
+
   it('marks a failing contrast pillar and leaves the meter out when there is nothing to count', () => {
     const figures = healthFigures({ contrast: { total: 10, fail: 2, brands: 1 }, adoption: [], guidance: { total: 0, reviewed: 0, drafted: 0, missing: 0 } });
     const p = qualityPillars({ figures, contrast: { total: 10, fail: 2 }, adoption: null, guidance: { total: 0, reviewed: 0 } });

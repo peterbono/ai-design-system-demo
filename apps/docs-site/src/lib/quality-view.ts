@@ -102,8 +102,11 @@ export interface PillarInput {
   adoptionBefore?: number | null | undefined;
   /** What the earlier value was, as the adoption sentence says it: "before Bridge" (default) or "at the first audit". */
   adoptionSince?: string | undefined;
-  /** Each product's latest component adoption, for the adoption card's rows. */
-  products?: { name: string; pct: number | null }[] | undefined;
+  /**
+   * Each product's latest component adoption, for the adoption card's rows, with how many components it uses (`uses`):
+   * the headline weighs each product by it, so the card says how many it counts.
+   */
+  products?: { name: string; pct: number | null; uses?: number }[] | undefined;
   /** The contrast checks per brand and theme, for the accessibility card's tiles. */
   combos?: { label: string; pass: number; total: number }[] | undefined;
   guidance: { total: number; reviewed: number; drafted?: number | undefined };
@@ -120,7 +123,10 @@ export function qualityPillars(input: PillarInput): Pillar[] {
   const pass = c.total - c.fail;
   const g = input.guidance;
   const combos = checks && input.combos?.length ? input.combos : null;
-  const products = (input.products ?? []).filter((p): p is { name: string; pct: number } => p.pct !== null);
+  const products = (input.products ?? []).filter((p): p is { name: string; pct: number; uses?: number } => p.pct !== null);
+  // The headline counts every component in every product (lib/library-health combinedAdoption), so a big product weighs
+  // more than a small one and the number is not the mean of the rows: the label says what it counts.
+  const uses = products.length > 1 && products.every((p) => typeof p.uses === 'number') ? products.reduce((n, p) => n + (p.uses ?? 0), 0) : null;
   const before = input.adoption !== null && input.adoptionBefore != null ? input.adoption - input.adoptionBefore : null;
   return [
     {
@@ -139,12 +145,12 @@ export function qualityPillars(input: PillarInput): Pillar[] {
       id: 'adoption',
       name: 'Adoption',
       value: input.adoption === null ? (adoptionFig?.value ?? 'No audit yet') : (adoptionFig?.value ?? ''),
-      label: input.adoption === null ? 'adoption in products' : 'of components come from the design system',
+      label: input.adoption === null ? 'adoption in products' : uses ? `of all ${uses.toLocaleString('en-US')} components in ${products.length} products come from the design system` : 'of components come from the design system',
       meter: input.adoption,
       sentence: adoptionFig?.detail ?? 'No adoption audit has been published yet.',
       tone: null,
       next: { label: input.adoption === null ? 'How adoption is measured' : 'See each product', href: `#${HEALTH_SECTION.adoption}` },
-      viz: input.adoption !== null && products.length ? { kind: 'products', items: products } : null,
+      viz: input.adoption !== null && products.length ? { kind: 'products', items: products.map((p) => ({ name: p.name, pct: p.pct })) } : null,
       delta: before !== null && Math.abs(before) >= 0.1 ? `${before > 0 ? '+' : '−'}${Math.round(Math.abs(before) * 10) / 10} pts ${input.adoptionSince === 'at the first audit' ? 'since the first audit' : 'since Bridge'}` : null,
     },
     {

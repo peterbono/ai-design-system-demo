@@ -60,7 +60,7 @@ import { loadVisualImpact, visualWorkflowPresent } from './reviews/visual-impact
 import { ciFor, loadStatuses, ON_ITS_WAY, rowWho, teamPeople, type PullStatus } from './pr-status';
 import { approvedSuggestionOf } from './suggestions';
 import { mdTitleText } from '../lib/markdown';
-import { humanTitle } from '../lib/pr-title';
+import { explorationTitle, humanTitle } from '../lib/pr-title';
 import { shownJiraKey, VOCAB, withoutJiraKey } from '../lib/vocabulary';
 import { touchesVisuals } from '../lib/visual-impact';
 import { componentOfDocsPath, isDocsFile } from '../lib/pr-docs';
@@ -84,7 +84,7 @@ import { ACTION_LABEL } from '../lib/change-status';
 import { ownedBy, PRODUCTS } from '../lib/branches-page';
 import { waitsOnMe } from '../lib/waiting-on';
 import { waitsOnLead } from '../lib/demo-home';
-import { LIFECYCLE_LABEL, needsReviewRead, pullLifecycle, reviewLine, taskStage, waitsOnViewer, type DesignTaskRead, type LifecyclePull, type LifecycleStage, type PullReviewLike } from '../lib/review-state';
+import { LIFECYCLE_LABEL, LIFECYCLE_TONE, needsReviewRead, pullLifecycle, reviewLine, taskStage, waitsOnViewer, type DesignTaskRead, type LifecyclePull, type LifecycleStage, type PullReviewLike } from '../lib/review-state';
 import { explorationState } from '../lib/exploration-state';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
 import { readReviews } from './review-reads';
@@ -349,32 +349,18 @@ function pillOf(r: Row, lifecycle: Lifecycle | 'exploration'): ListRow['pill'] {
   // One lifecycle, the same words on every page (lib/review-state): a running exploration keeps Not started or
   // Exploring, the later stages their lifecycle words.
   if (lifecycle === 'exploration') {
-    if (r.stage && r.stage !== 'exploring') return { label: LIFECYCLE_LABEL[r.stage], tone: STAGE_TONE[r.stage] };
+    if (r.stage && r.stage !== 'exploring') return { label: LIFECYCLE_LABEL[r.stage], tone: LIFECYCLE_TONE[r.stage] };
     return r.explorationLabel ? { label: r.explorationLabel, tone: r.explorationLabel === 'Exploring' ? 'info' : 'neutral' } : null;
   }
   // A branch opened from Figma before Claude drafted the code waits on a developer (decision RT-1): Waiting for code.
-  if (lifecycle === 'draft' && claudeStage(r.labels) === 'waiting') return { label: LIFECYCLE_LABEL['waiting-for-code'], tone: lifecycleTone(lifecycle) };
+  if (lifecycle === 'draft' && claudeStage(r.labels) === 'waiting') return { label: LIFECYCLE_LABEL['waiting-for-code'], tone: LIFECYCLE_TONE['waiting-for-code'] };
   // A draft is work in progress before anyone is asked to review it: Being built.
-  if (lifecycle === 'draft') return { label: LIFECYCLE_LABEL['being-built'], tone: lifecycleTone(lifecycle) };
+  if (lifecycle === 'draft') return { label: LIFECYCLE_LABEL['being-built'], tone: LIFECYCLE_TONE['being-built'] };
   if (lifecycle !== 'ready') return { label: LIFECYCLE[lifecycle].short, tone: lifecycleTone(lifecycle) };
   if (r.skipped) return { label: 'Status unknown', tone: 'neutral' };
   if (!r.kind) return { label: 'Checking', tone: 'neutral' };
   return statusPill(r.kind, rowWho(r.kind, facts(r)));
 }
-
-/** The tones of the lifecycle's tags, as the exploration page shows them (lib/exploration-page explorationTag). */
-const STAGE_TONE: Record<LifecycleStage, NonNullable<ListRow['pill']>['tone']> = {
-  exploring: 'info',
-  'waiting-for-code': 'warning',
-  'being-built': 'info',
-  'in-review': 'warning',
-  approved: 'info',
-  'next-release': 'info',
-  shipped: 'success',
-  archived: 'neutral',
-  closed: 'neutral',
-  'not-planned': 'neutral',
-};
 
 /** The library changes the open release pull request lists (lib/release-view libraryRelease): In the next release. */
 let releaseIds: Set<string> = new Set();
@@ -436,7 +422,8 @@ function listRow(r: Row): ListRow {
           )));
   return {
     number: r.number,
-    title: humanTitle(mdTitleText(withoutJiraKey(r.title))),
+    // An exploration reads its typed name, as on Home and its product page (lib/pr-title explorationTitle).
+    title: parseExplorationBody(r.body ?? null)?.name?.trim() ? explorationTitle({ title: r.title, body: r.body }) : humanTitle(mdTitleText(withoutJiraKey(r.title))),
     rawTitle: r.title,
     jira: shownJiraKey(r.title),
     author: r.user.login,
@@ -1282,7 +1269,8 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   };
   const peopleMap = peopleNow();
 
-  const title = humanTitle(mdTitleText(withoutJiraKey(pull.title)));
+  // An exploration's page heads with its typed name, as its card does (lib/pr-title explorationTitle).
+  const title = parseExplorationBody(pull.body)?.name?.trim() ? explorationTitle(pull) : humanTitle(mdTitleText(withoutJiraKey(pull.title)));
   const asked = status.yourTurn && !isAuthor && canApprove;
   // Who asked, as Bridge recorded it ("Requested by Priya Shah ... through Bridge."), before the account that opened it
   // (the Bridge app for an email member, an agent or a lead acting for someone): the same person as on the home row.

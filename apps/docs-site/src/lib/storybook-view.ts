@@ -1,7 +1,7 @@
 // Storybook quick start (plan section 5): the words and rules of the Storybook components page
 // (components/ds/studio/StorybookComponents.tsx) and of onboarding step 2. Pure, covered by storybook-view.test.ts.
 // Everything shown comes from the Storybook's own index: titles, story names, docs pages, tags. Nothing is guessed.
-import type { StorybookComponent, StorybookErrorCode, StorybookIndex } from '@bridge-ds/core';
+import { calendarDays, type StorybookComponent, type StorybookErrorCode, type StorybookIndex } from '@bridge-ds/core';
 import { studioHref } from './team-path';
 
 /** Whether the Storybook lets Bridge show a story in a frame: read by /api/storybook, unknown on a direct read. */
@@ -100,7 +100,8 @@ export function checkedAgo(iso: string, now: number): string {
   if (s < 60) return 'Checked just now';
   const m = Math.round(s / 60);
   if (m < 60) return `Checked ${plural(m, 'minute')} ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `Checked ${plural(h, 'hour')} ago`;
-  return `Checked ${plural(Math.round(h / 24), 'day')} ago`;
+  // Before today: days as every screen counts them (core calendarDays).
+  const d = calendarDays(iso, new Date(now));
+  if (d === 0) return `Checked ${plural(Math.max(1, Math.round(m / 60)), 'hour')} ago`;
+  return d === 1 ? 'Checked yesterday' : `Checked ${plural(d, 'day')} ago`;
 }

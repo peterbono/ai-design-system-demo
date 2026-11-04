@@ -73,7 +73,7 @@ import {
   type ProductWorkView,
 } from '../../../lib/review-page';
 import type { VisualShot } from '../../../lib/visual-impact';
-import { VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
+import { agoInSentence, VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
 import type { ShownValue } from '../../../lib/token-review';
 import type { Lifecycle, LifecycleTone } from '../../../lib/change-status';
 import { demoApproved } from '../../../lib/demo';
@@ -570,17 +570,8 @@ function CommentLine({ c, people, onReply, here }: { c: ConvEntry; people: Recor
   );
 }
 
-function relative(iso: string): string {
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (!Number.isFinite(s)) return '';
-  if (s < 60) return 'just now';
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
-  const d = Math.round(h / 24);
-  return d < 30 ? `${d} ${d === 1 ? 'day' : 'days'} ago` : new Date(iso).toLocaleDateString();
-}
+/** The same words and day count as every screen (core shortAgo). */
+const relative = (iso: string): string => agoInSentence(iso);
 
 // ---------------------------------------------------------------------------------------------------------------
 // The busy branch: outline and changes

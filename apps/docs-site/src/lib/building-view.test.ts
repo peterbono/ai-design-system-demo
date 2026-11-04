@@ -44,7 +44,7 @@ describe('Being built', () => {
     const stale = views[0]!;
     expect(statusTag(stale)).toEqual({ label: 'Requested 10 days ago', tone: 'warning' });
     expect(rowLine(stale, NOW)).toBe('Nobody has picked it up yet');
-    expect(rowLine(views[1]!, NOW)).toBe('Sent 1 day ago');
+    expect(rowLine(views[1]!, NOW)).toBe('Sent yesterday');
     expect(rowLine(views[2]!, NOW)).toBe('Sent 4 days ago · Malik is on it');
     expect(rowLine(views[5]!, NOW)).toBe('Shipped 2 days ago');
     expect(statusTag(views[5]!)).toEqual({ label: 'Shipped', tone: 'success' });

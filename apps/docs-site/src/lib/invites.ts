@@ -21,7 +21,7 @@
 // A repository owned by a personal account has no admin collaborators on GitHub (everyone added can write, only the
 // account itself is admin), so the picker offers Admin only on an organization's repository (roleChoices) and says why.
 
-import type { Owners } from '@bridge-ds/core';
+import { startedWhen, type Owners } from '@bridge-ds/core';
 import { isSampleTeam } from './demo';
 import { loginKey, nameFace } from './people';
 
@@ -131,16 +131,20 @@ export function roleOf(c: CollaboratorLike, owners: Owners): { role: MemberRole;
 export const choiceOf = (m: { role: MemberRole; reviews: ReviewAs[] }): RoleChoice =>
   m.role === 'reviewer' ? { role: 'reviewer', reviewAs: m.reviews.includes('design') ? 'design' : 'tech' } : { role: m.role };
 
-/** The muted line under a member's name (boards I1, I3): what they do, in a few words. */
+/**
+ * The muted line under a member's name (boards I1, I3): what they do, in a few words, never their role said again in
+ * other words. A Reviewer's role already names what they review ("Reviewer: design and code", roleText), so their line
+ * says what the role does; an admin who also reviews gets the reviews, which "Admin" does not say.
+ */
 export function memberLine(m: { role: MemberRole; reviews: ReviewAs[] }): string {
+  // Same words as the role picker (ROLE_TEXT.edit); their library changes still go through review.
+  if (m.role === 'reviewer') return 'Changes the library and approves changes';
   const d = m.reviews.includes('design');
   const t = m.reviews.includes('tech');
   if (d && t) return 'Reviews design and code';
   if (d) return 'Reviews design';
   if (t) return 'Reviews code';
   if (m.role === 'admin') return 'Invites people and changes settings';
-  // Same words as the role picker (ROLE_TEXT.edit); their library changes still go through review.
-  if (m.role === 'reviewer') return 'Changes the library and approves changes';
   if (m.role === 'edit') return 'Explores and changes the library';
   return 'Sees everything in Studio and the library';
 }
@@ -244,8 +248,8 @@ export function memberActions(m: Pick<Member, 'role' | 'you'> & Partial<Pick<Mem
 /** "Invited 2 days ago, not joined yet" (boards I1, I3). */
 export function pendingLine(sentAt: string, now: number): string {
   const s = Math.max(0, (now - new Date(sentAt).getTime()) / 1000);
-  const d = Math.floor(s / 86400);
-  const when = s < 3600 ? 'just now' : d < 1 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
+  // Days as every screen counts them (core calendarDays).
+  const when = s < 3600 ? 'just now' : startedWhen(sentAt, new Date(now));
   return `Invited ${when}, not joined yet`;
 }
 

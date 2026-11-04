@@ -12,6 +12,7 @@
 //            (POST create-team): its creator is its admin, colleagues on the work domain can find it, and the next
 //            sign-in lands on it. Until a repository is linked it goes by its key `_team/<id>` (lib/team-path.ts), whose
 //            home is the workspace page (teamHome below).
+import { agoInSentence } from '@bridge-ds/core';
 import { ROLE_WORDS, roleLabel, type MemberRole } from './invites';
 import { teamHref } from './team-path';
 import { WORKSPACE_HOME } from './start';
@@ -462,10 +463,8 @@ export const ENTRY_WORDS = {
 export function askedAgo(iso: string, now: number): string {
   const ms = now - Date.parse(iso);
   if (!Number.isFinite(ms) || ms < 60 * 60 * 1000) return 'just now';
-  const h = Math.floor(ms / 3_600_000);
-  if (h < 24) return `${h} h ago`;
-  const d = Math.floor(h / 24);
-  return `${d} ${d === 1 ? 'day' : 'days'} ago`;
+  // Days as every screen counts them (core calendarDays): "yesterday", never "1 day ago" next to a "Yesterday".
+  return agoInSentence(iso, new Date(now));
 }
 
 /** A join request, as the admin side reads it (GET ?requests=). */

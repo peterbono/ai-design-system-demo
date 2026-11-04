@@ -64,7 +64,7 @@ import { Drawing } from './Drawing';
 import type { IllustrationName } from '../../../brand/illustrations';
 import StartExploration from './StartExploration';
 import { ExplorationCardItem } from './ExplorationCards';
-import { LIBRARY_ASKS, archivedHref, archivedLine, emptyProductLine, productFacts, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
+import { LIBRARY_ASKS, archivedHref, archivedLine, emptyProductLine, productFacts, signedOutProductLine, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
 import { studioHref } from '../../../lib/team-path';
 import { PRODUCT_NAME_MAX, PRODUCT_NAME_WORDS, productNameProblem } from '../../../lib/product-name';
 import { REMOVE_PRODUCT_WORDS, removeConfirmMatches } from '../../../lib/remove-product';
@@ -101,6 +101,8 @@ export interface ProductPageViewProps {
   onRetry?: () => void;
   /** Signed in: GitHub's wait is "for your account". */
   signedIn?: boolean;
+  /** Nobody is signed in: a product Bridge cannot read for them says to sign in, never that nothing was explored. */
+  visitor?: boolean;
   /** The library line (lib/library-update libraryLine): how far behind the product is, and the update to send. */
   library?: LibraryUpdate | null;
 }
@@ -553,6 +555,7 @@ export function ProductPageView({
   lead = true,
   onRetry = () => location.reload(),
   signedIn = true,
+  visitor = false,
   library: libraryUpdate = null,
 }: ProductPageViewProps) {
   const product = data?.product ?? null;
@@ -614,7 +617,10 @@ export function ProductPageView({
   const archived = data?.archived ?? [];
   // No copy of the product yet (products[].design): the card to make one stands for the list and the start action.
   const noCopy = !loading && data?.copy?.kind === 'missing';
-  const empty = !loading && !data?.failed && !busy && !noCopy && cards.length === 0;
+  // A visitor on a product Bridge cannot read for them (a private repository): never "Nothing explored here yet" nor a
+  // start action they cannot use, only what they can do about it (sign in).
+  const closed = !loading && visitor && data?.reached === false && cards.length === 0;
+  const empty = !loading && !data?.failed && !busy && !noCopy && !closed && cards.length === 0;
   // GitHub busy with nothing kept: the calm moment stands for the list.
   const busyAlone = Boolean(busy) && !loading && !noCopy && cards.length === 0;
   const library = Boolean(product?.default);
@@ -631,7 +637,7 @@ export function ProductPageView({
     own && !head.editing ? (
       <ProductMenu name={name} rename={head.canRename} remove={canRemove} onRename={head.start} onRemove={() => setRemoving(true)} trigger={menuButton} />
     ) : null;
-  const startAction = product && !empty && !noCopy ? start('menu') : null;
+  const startAction = product && !empty && !noCopy && !closed ? start('menu') : null;
   const titleAfter =
     head.after || removeWaiting ? (
       <>
@@ -644,13 +650,14 @@ export function ProductPageView({
       <StudioHead
         title={head.title}
         titleAfter={titleAfter}
-        summary={loading && !cards.length ? '' : data?.failed || busyAlone ? '' : asks && product ? emptyProductLine(product, true, false) : productSummary(cards)}
+        summary={loading && !cards.length ? '' : data?.failed || busyAlone ? '' : closed ? signedOutProductLine(name) : asks && product ? emptyProductLine(product, true, false) : productSummary(cards)}
         // One primary action: on the title's line, or in the empty moment when there is nothing yet.
         actions={startAction}
         // More actions acts on the product: last on the title's line, on a phone too.
         more={menu}
       >
-        {product && data && <Facts product={product} data={data} copy={copy ?? null} library={libraryUpdate} />}
+        {/* A visitor is not told whether Bridge reaches the product: a developer fact they cannot act on. */}
+        {product && data && <Facts product={product} data={closed ? { ...data, reached: null } : data} copy={copy ?? null} library={libraryUpdate} />}
         <p className="t-ui t-muted pp-rename-note" role="status">
           {[head.note, removeNote].filter(Boolean).join(' ')}
         </p>
@@ -758,6 +765,8 @@ export default function ProductPage({ productKey, components = [] }: { productKe
   /** May change the library, as the start action reads it (StartExploration): a designer of the team may not. */
   const [lead, setLead] = useState(true);
   const [signedIn, setSignedIn] = useState(true);
+  /** Nobody signed in at all (no GitHub sign-in, no email member): a visitor. */
+  const [visitor, setVisitor] = useState(false);
   /** A real team (never the sample one): the library line reads the product's own repository. */
   const [realTeam, setRealTeam] = useState(false);
   /** A lead or an admin: may send the library update to the developers. */
@@ -846,9 +855,18 @@ export default function ProductPage({ productKey, components = [] }: { productKe
       const { siteConfig } = await import('../../../scripts/repo-context');
       if (live) setListedKeys(((siteConfig() as { products?: ProductConfig[] }).products ?? []).map((p) => p.key.toLowerCase()));
       const { loadProductPage } = await import('../../../scripts/product-page');
+      const { currentContributor, currentViewer, sessionSettled } = await import('../../../scripts/github-session');
+      // Who reads is known before the page paints what it read: a visitor never sees the member's empty moment first.
+      await sessionSettled();
+      if (live) {
+        setSignedIn(Boolean(currentViewer()));
+        setVisitor(!currentViewer() && !currentContributor());
+      }
       await loadProductPage(key, (d) => live && setData(d), { teamBusy });
-      const { currentContributor, currentViewer } = await import('../../../scripts/github-session');
-      if (live) setSignedIn(Boolean(currentViewer()));
+      if (live) {
+        setSignedIn(Boolean(currentViewer()));
+        setVisitor(!currentViewer() && !currentContributor());
+      }
       // Making the copy forks on GitHub: never through an email member's session (getting the latest is, canLatest).
       if (live) setCanMake(!currentContributor());
     })();
@@ -967,5 +985,5 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           : {}),
       }
     : null;
-  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} remove={remove} copy={copy} lead={lead} onRetry={() => setReload((n) => n + 1)} signedIn={signedIn} library={library} />;
+  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} remove={remove} copy={copy} lead={lead} onRetry={() => setReload((n) => n + 1)} signedIn={signedIn} visitor={visitor} library={library} />;
 }

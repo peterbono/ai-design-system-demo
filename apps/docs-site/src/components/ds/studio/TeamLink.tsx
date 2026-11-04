@@ -11,6 +11,29 @@ import { accessBadge, accessSummary, chipIdentity, manageAccessUrl, NO_ACCESS_LI
 import { isHostedSite, teamShareBase } from '../../../lib/team-path';
 import { isSampleTeam } from '../../../lib/demo';
 
+/**
+ * The places a long address may wrap: after "//", each "/" and each ".", so a phone breaks
+ * https://bridge.example.com/ | library/ and never mid-word. Pure, unit tested in url-text.test.ts.
+ */
+export function urlBreaks(url: string): string[] {
+  return url.split(/(?<=\/\/|[^/]\/(?!\/)|\.)/).filter(Boolean);
+}
+
+/** A copyable address in Plex Mono that wraps only at its own separators (urlBreaks). */
+export function UrlText({ url, className = '' }: { url: string; className?: string }) {
+  const parts = urlBreaks(url);
+  return (
+    <span className={`mono url-text ${className}`.trim()}>
+      {parts.map((p, i) => (
+        <span key={i}>
+          {p}
+          {i < parts.length - 1 && <wbr />}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** Copies text, then says so for 2 s. `said` is the line for a screen reader (or how to copy by hand). */
 export function useCopy(ms = 2000) {
   const [copied, setCopied] = useState(false);

@@ -6,7 +6,7 @@
 // this site's own /api/github/token), and is never part of the build.
 
 import { attrUrl, escapeHtml } from '../lib/html';
-import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
+import { agoInSentence, classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
 import { ACCESS_READ, accessFromCheck, anonymousAccess, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, lastKnownAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
 import { busyRetryDelay, githubBusy, type GitHubBusy } from '../lib/github-busy';
 import { repoContext, siteConfig } from './repo-context';
@@ -932,15 +932,8 @@ export async function ghWrite<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', pa
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
-export function relativeTime(iso: string): string {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return rtf.format(-Math.round(diff / 60), 'minute');
-  if (diff < 86400) return rtf.format(-Math.round(diff / 3600), 'hour');
-  if (diff < 86400 * 30) return rtf.format(-Math.round(diff / 86400), 'day');
-  return new Date(iso).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
-}
+/** "2 h ago", "yesterday", "3 days ago": the same words and day count as every screen (core shortAgo). */
+export const relativeTime = (iso: string): string => agoInSentence(iso);
 
 /** HTML escape for text and quoted attributes (& < > " '). Same helper as lib/html.ts. */
 export const esc = (s: string) => escapeHtml(s);

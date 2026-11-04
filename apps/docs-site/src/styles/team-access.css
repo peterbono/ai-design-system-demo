@@ -394,6 +394,25 @@
   color: var(--color-text-muted);
 }
 
+/* A band's title and its one sentence, the action on the whole band on the same line (Members' .mem-head). */
+.ts-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-4);
+}
+
+.ts-head-text {
+  display: grid;
+  flex: 1 1 var(--size-80);
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ts-head .ts-intro {
+  margin-block-end: 0;
+}
+
 /* A sign-in card on the page: the side nav's own Connect GitHub would be a second call to action. */
 :root[data-signin-card] [data-gh-acct][data-state='readonly'] {
   display: none;

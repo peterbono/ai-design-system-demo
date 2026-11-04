@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
-import { Tab, Tabs, TabsList, TabsPanel } from './Tabs';
+import { Tab, Tabs, TabsList, TabsPanel, watchOverflowEdges } from './Tabs';
 
 function Example({ activateOnFocus = false, onValueChange }: { activateOnFocus?: boolean; onValueChange?: (v: unknown) => void }) {
   return (
@@ -61,5 +61,35 @@ describe('Tabs', () => {
     await userEvent.keyboard('{ArrowRight}');
     expect(screen.getByRole('tab', { name: 'Components' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel')).toHaveTextContent('Component list');
+  });
+});
+
+describe('watchOverflowEdges', () => {
+  const list = (scrollWidth: number, clientWidth: number) => {
+    const el = document.createElement('div');
+    Object.defineProperty(el, 'scrollWidth', { configurable: true, value: scrollWidth });
+    Object.defineProperty(el, 'clientWidth', { configurable: true, value: clientWidth });
+    return el;
+  };
+
+  it('marks the end of a row that scrolls, then both edges, then the start once at the end', () => {
+    const el = list(600, 390);
+    const stop = watchOverflowEdges(el);
+    expect(el.hasAttribute('data-overflow-end')).toBe(true);
+    expect(el.hasAttribute('data-overflow-start')).toBe(false);
+    el.scrollLeft = 100;
+    el.dispatchEvent(new Event('scroll'));
+    expect(el.hasAttribute('data-overflow-start')).toBe(true);
+    expect(el.hasAttribute('data-overflow-end')).toBe(true);
+    el.scrollLeft = 210;
+    el.dispatchEvent(new Event('scroll'));
+    expect(el.hasAttribute('data-overflow-end')).toBe(false);
+    stop();
+  });
+
+  it('marks nothing when every tab fits', () => {
+    const el = list(300, 390);
+    watchOverflowEdges(el)();
+    expect(el.hasAttribute('data-overflow-start') || el.hasAttribute('data-overflow-end')).toBe(false);
   });
 });

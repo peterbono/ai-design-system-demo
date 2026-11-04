@@ -10,8 +10,7 @@
 // explores it and where it stands in designer words: "Exploring", "2 new pieces found", "In review", "Kept in the
 // library". Pure: no DOM, no fetch. Unit tested in home-explorations.test.ts.
 import { defaultProduct, EXPLORATION_ARCHIVED_LABEL, explorationStateLabel, explorationStatus, findProduct, isArchivedExploration, isExplorationPull, isHandedOff, parseExplorationBody, parsePiecesRecord, PRODUCT_LABEL_PREFIX, requesterOf, type ProductConfig } from '@bridge-ds/core';
-import { oneLineTitle } from './markdown';
-import { humanTitle } from './pr-title';
+import { explorationTitle } from './pr-title';
 import { studioHref } from './team-path';
 import type { Person } from './home-model';
 import type { ThumbSpec } from './branch-thumb';
@@ -176,12 +175,8 @@ export function explorationStage(
   return cardOfLifecycle(p, explorationState({ pull: { ...p, state: p.state ?? 'open', labels } }), files);
 }
 
-/** Its name: the exploration block's ("Profile page"), else the pull request title for people. */
-export function explorationTitle(p: Pick<ExplorationPull, 'title' | 'body'>): string {
-  const name = parseExplorationBody(p.body)?.name?.trim();
-  if (name) return name.charAt(0).toUpperCase() + name.slice(1);
-  return oneLineTitle(humanTitle(p.title));
-}
+/** Its name: the exploration block's ("Profile page"), else the pull request title for people (lib/pr-title). */
+export { explorationTitle };
 
 /** Where its card opens: the exploration (or product branch) page while it is one, the change page once kept or a plain change. */
 export function explorationHref(p: ExplorationPull): string {

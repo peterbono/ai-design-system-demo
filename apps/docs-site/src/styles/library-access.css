@@ -4,10 +4,6 @@
 
 /* --- Settings ------------------------------------------------------------------------------------------------- */
 
-.lac-link {
-  overflow-wrap: anywhere;
-}
-
 .lac-edit {
   display: grid;
   gap: var(--space-4);

@@ -203,7 +203,7 @@ export const isLoginLike = (by: string) => /^[a-z0-9][a-z0-9-]{0,38}$/i.test(by.
 
 const ago = (verb: string, iso: string, now: number) => {
   const d = daysSince(iso, now);
-  return d === 0 ? `${verb} today` : `${verb} ${d} ${d === 1 ? 'day' : 'days'} ago`;
+  return d === 0 ? `${verb} today` : d === 1 ? `${verb} yesterday` : `${verb} ${d} days ago`;
 };
 
 type PullState = Pick<RestPull, 'number' | 'state' | 'merged_at' | 'updated_at'>;
