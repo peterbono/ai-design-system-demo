@@ -5,6 +5,7 @@
 import { DEV_VERSION_READY, LIFECYCLE_LABEL, LIFECYCLE_TONE, questionLine, type LifecycleStage } from './review-state';
 import { changedThings, continueLines, explorationActivity, humanAuthorOf, parseExplorationBody, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
 import { emailMemberFace, isEmailAddress, nameFace } from './people';
+import { DEV_MESSAGE_WORDS } from './developers-message';
 import { isNameAuthor, nameOfAuthor } from './author';
 
 /** A person or Claude on the page: the login (for the face), the name to show, and whether it is Claude. */
@@ -282,11 +283,17 @@ export function handoffSteps(input: {
   question?: { answered: boolean; by?: { name: string } | null; role?: string | null } | null;
   /** The developers closed their task without building it. */
   declined?: boolean;
+  /**
+   * A product added from its address: its developers work elsewhere and never see the task, so while nobody picked it
+   * up the step says to send them the message (lib/developers-message).
+   */
+  elsewhere?: boolean;
   now?: Date;
 }): HandoffStep[] {
   const when = dayOf(input.doneAt, input.now);
   // Say where the work went: Done exploring put it in the developers' task list.
-  const sentTo = `Sent to the ${input.library ? 'library' : input.product} developers.`;
+  // A product added from its address: kept in Bridge for its developers, who get it through the message.
+  const sentTo = input.elsewhere ? `Kept for the ${input.product} developers.` : `Sent to the ${input.library ? 'library' : input.product} developers.`;
   const doneWho = [input.doneBy?.name, when].filter(Boolean).join(', ');
   const done: HandoffStep = { status: 'done', title: 'Done exploring', detail: doneWho ? `${doneWho}. ${sentTo}` : sentTo };
   const who = input.builders.length ? names(input.builders) : null;
@@ -326,7 +333,7 @@ export function handoffSteps(input: {
   const build: HandoffStep = asks
     ? { status: 'warning', title: 'Developers build it', detail: questionLine(input.question!.by, input.question!.role), current: true }
     : stage === 'ready'
-      ? { status: 'waiting', title: 'Developers build it', detail: who ? `Waiting for ${who}` : 'In their task list. You see here when one picks it up.', current: true }
+      ? { status: 'waiting', title: 'Developers build it', detail: who ? `Waiting for ${who}` : input.elsewhere ? DEV_MESSAGE_WORDS.elsewhere : 'In their task list. You see here when one picks it up.', current: true }
       : stage === 'building'
         ? { status: 'waiting', title: 'Developers build it', detail: who ? `${who} ${input.builders.length === 1 ? 'is' : 'are'} building it` : 'Being built', current: true }
         : { status: 'done', title: 'Built', detail: who ? `By ${who}` : 'By your developers' };

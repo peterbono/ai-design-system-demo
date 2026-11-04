@@ -9,7 +9,7 @@
 // Explorations handed to developers (Done exploring) are rows of the same list too, read from the pull requests read
 // here (no read per row) and, for products with their own repository, from the one read of their open pull requests
 // that Changes and the home make too (scripts/product-repos.ts). They stay out of `views` as well.
-import { assembleBuildRequests, BUILD_REQUEST_LABEL, DEFAULT_PRODUCTS, parseExplorationBody, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient } from '@bridge-ds/core';
+import { assembleBuildRequests, BUILD_REQUEST_LABEL, DEFAULT_PRODUCTS, liveAddressOf, parseExplorationBody, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient } from '@bridge-ds/core';
 import { fixRows, isLoginLike, missingFixPulls, parseSession, type FixRow, type Session } from '../lib/claude-connector';
 import { isSampleTeam } from '../lib/demo';
 import { BUILD_CACHE_MS, buildCacheKey, explorationBuildRows, slimIssue, slimPull, toBuildIssue, toBuildPull, withLifecycle, type ExplorationBuildRow, type LifecycleExtra, type RestIssue, type RestPull } from '../lib/building-view';
@@ -21,7 +21,9 @@ import { readReviews } from './review-reads';
 import { siteApprovers } from './teams';
 import { sampleBuildData, SAMPLE_BUILDERS } from '../lib/building-sample';
 import { personName } from '../lib/people';
-import { currentViewer, ghGet, readRepo } from './github-session';
+import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo } from './github-session';
+import { teamMember } from '../lib/developers-message';
+import { previewShotOf } from './preview-shots';
 import { knownNames, lookUpNames } from './people';
 import { siteConfig } from './repo-context';
 
@@ -177,6 +179,21 @@ async function read(): Promise<BuildData> {
     readFixPulls(R, missingFixPulls(sessions, pulls.data)),
   ]);
   const nameOf = (l: string) => personName(l, names);
+  // Products added from their address: team members copy their developers a message, with the preview's screenshot
+  // when Bridge kept one (one raw file for every exploration, no GitHub API call).
+  const products = (await productRepos)?.configuredProducts() ?? DEFAULT_PRODUCTS;
+  const member = teamMember({ emailMember: Boolean(currentContributor()), signedIn: Boolean(hasWorkingToken() && currentViewer()), access: currentAccess()?.state ?? null });
+  const shots = new Map<string, string>();
+  if (member) {
+    const elsewhere = explored.filter((p) => p.product && p.state === 'open' && liveAddressOf(products.find((x) => x.key === p.product)));
+    await Promise.all(
+      elsewhere.map((p) =>
+        previewShotOf({ number: Number(p.number), product: p.product })
+          .then((s) => s && shots.set(`${p.product}#${p.number}`, s.src))
+          .catch(() => undefined),
+      ),
+    );
+  }
   const fixPulls = [...pulls.data, ...olderFixPulls];
   const releaseBody = pulls.data.find((p) => p.state === 'open' && /^changeset-release\//.test(p.head?.ref ?? ''))?.body ?? null;
   const ids = releaseBody ? libraryRelease(parseReleaseBody(releaseBody), libraryScope()).ids : new Set<string>();
@@ -193,7 +210,7 @@ async function read(): Promise<BuildData> {
     jiraBase: jiraBase(),
     fixes: fixRows(sessions, fixPulls, now, nameOf),
     pulls: fixPulls,
-    explorations: explorationBuildRows(explored, { products: (await productRepos)?.configuredProducts() ?? DEFAULT_PRODUCTS, now, approvers: approversNow(), ...lifecycle, task }),
+    explorations: explorationBuildRows(explored, { products, now, approvers: approversNow(), ...lifecycle, task, member, shot: (k) => shots.get(k) ?? null }),
   };
 }
 

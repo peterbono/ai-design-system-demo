@@ -51,6 +51,7 @@ import {
   TokenValue,
   Tooltip,
   useToast,
+  VisuallyHidden,
 } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { Drawing } from './Drawing';
@@ -64,6 +65,8 @@ import { plateDrawing } from '../../../lib/branch-thumb';
 import { capturedLine } from '../../../lib/preview-shots';
 import { CONNECT_FIRST, connectFirst, TERMINAL_SETUP_LINE } from '../../../lib/claude-connector';
 import type { AiTool } from '../../../lib/ai-tools';
+import { DEV_MESSAGE_WORDS } from '../../../lib/developers-message';
+import { useCopy } from './TeamLink';
 import { ClaudeGlyph, claudeNewUrl, ConnectClaudeButton, ConnectFirst, ToolAction, ToolPanel, useAiTools, useClaudeRecheck, type ToolLines, type ToolSetup } from './AiToolPanel';
 
 export { claudeNewUrl };
@@ -100,6 +103,11 @@ export interface HandoffView {
   } | null;
   /** The developers closed it without building it: their last word, when they left one. */
   declined?: { note: { text: string; by: PageFace; when: string } | null } | null;
+  /**
+   * A product added from its address, for a team member: its developers work elsewhere, so "Copy for your developers"
+   * sits on the "Developers build it" step with the plain message to paste where they work (lib/developers-message).
+   */
+  forDevelopers?: { message: string } | null;
 }
 
 export interface ExplorationPageProps {
@@ -592,6 +600,9 @@ const reviewsVersion = (h: HandoffView | null): boolean =>
 function HandoffCard({ h, p, say, onBack }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void; onBack?: (() => void) | null }) {
   const version = h.steps.find((s) => s.link)?.link ?? null;
   const asks = waitsOnAnswer(h);
+  // The message for developers who work elsewhere: copied from the step it acts on, which then says so.
+  const { copied, said, copy } = useCopy(3000);
+  const send = h.forDevelopers && !h.declined && h.status !== 'shipped' ? h.forDevelopers : null;
   return (
     <section className="xp-next zone" aria-labelledby="xp-next-h">
       <h2 className="xp-h2" id="xp-next-h">
@@ -600,17 +611,35 @@ function HandoffCard({ h, p, say, onBack }: { h: HandoffView; p: ExplorationPage
       {/* The question waiting on the viewer leads the zone (on a phone too): what needs them first, the steps after. */}
       {asks && <DevQuestion q={h.question!} say={say} />}
       <Checklist label="From exploration to product" className="xp-steps">
-        {h.steps.map((s) => (
-          <ChecklistRow
-            key={s.title}
-            status={s.status}
-            title={s.title}
-            detail={s.detail}
-            statusLabel={s.status === 'done' ? 'Done' : s.current ? 'Now' : 'Next'}
-            aria-current={s.current ? 'step' : undefined}
-          />
-        ))}
+        {h.steps.map((s) => {
+          // The step it acts on says why (their developers work elsewhere) and holds the quiet copy on the same line; a
+          // row action would squeeze the details of this narrow zone to one word a line.
+          const sends = send && s.title === 'Developers build it' && s.current;
+          const line = sends && (copied || (said && said !== DEV_MESSAGE_WORDS.said)) ? said : s.detail;
+          return (
+            <ChecklistRow
+              key={s.title}
+              status={s.status}
+              title={s.title}
+              detail={
+                sends ? (
+                  <span className="xp-send">
+                    <span>{line}</span>
+                    <Button variant="link" size="sm" onClick={() => void copy(send.message, DEV_MESSAGE_WORDS.said)}>
+                      {DEV_MESSAGE_WORDS.copy}
+                    </Button>
+                  </span>
+                ) : (
+                  s.detail
+                )
+              }
+              statusLabel={s.status === 'done' ? 'Done' : s.current ? 'Now' : 'Next'}
+              aria-current={s.current ? 'step' : undefined}
+            />
+          );
+        })}
       </Checklist>
+      {send && <VisuallyHidden role="status">{said}</VisuallyHidden>}
       {/* The developers' version opens under the steps, not inside a row: a row action squeezed every detail to a word. */}
       {version && reviewsVersion(h) ? (
         // Their version is what the viewer has to look at before answering: the view's one primary action.

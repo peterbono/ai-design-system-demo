@@ -7,6 +7,9 @@
 import {
   BUILD_FILTER_LABEL,
   BUILD_STALE_DAYS,
+  branchPreviewUrl,
+  liveAddressOf,
+  startPageOf,
   isArchivedExploration,
   isExplorationPull,
   parseExplorationBody,
@@ -28,6 +31,7 @@ import {
 import type { ThumbSpec } from './branch-thumb';
 import { daysSince, type PillTone } from './home-model';
 import { safeUrl } from './html';
+import { DEV_MESSAGE_WORDS, developersMessage, offersDevelopersMessage } from './developers-message';
 import { JIRA_IN_BRIDGE } from './studio-flags';
 import { authorFor } from './author';
 import { isProductBranch } from './product-branch';
@@ -423,6 +427,11 @@ export interface ExplorationBuildRow extends BuildRequestView {
     line: string;
     /** The product's name, when it was explored for one. */
     product: string | null;
+    /**
+     * A product added from its address, for a team member: the plain message for its developers, who work elsewhere
+     * (lib/developers-message). The row says so and offers "Copy for your developers".
+     */
+    forDevelopers?: { message: string } | null;
   };
 }
 
@@ -446,6 +455,10 @@ export interface ExplorationRowsContext {
   viewer?: string | null;
   /** The developers' task of a design copy exploration (its URL in the Bridge block), when it was read. */
   task?: (url: string) => DesignTaskRead | null | undefined;
+  /** The viewer belongs to the team (lib/developers-message teamMember): only they get the developers' message. */
+  member?: boolean;
+  /** The captured screenshot of an exploration's preview ("product#number" or "number"), when Bridge kept one. */
+  shot?: (key: string) => string | null | undefined;
 }
 
 /**
@@ -482,7 +495,24 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
     const block = parseExplorationBody(p.body);
     const raw = block?.name?.trim() || (p.title ?? '').replace(/^Exploration:\s*/i, '').trim() || `Exploration #${p.number}`;
     const name = raw.charAt(0).toUpperCase() + raw.slice(1);
-    const product = (p.product ? ctx.products.find((x) => x.key === p.product) : isProductBranch(p.labels, ctx.products))?.name ?? null;
+    const productConfig = (p.product ? ctx.products.find((x) => x.key === p.product) : isProductBranch(p.labels, ctx.products)) ?? null;
+    const product = productConfig?.name ?? null;
+    // A product added from its address: its developers work elsewhere, the row hands them the message.
+    const address = liveAddressOf(productConfig);
+    const forDevelopers =
+      address && productConfig && offersDevelopersMessage({ address, status, member: Boolean(ctx.member) })
+        ? {
+            message: developersMessage({
+              name,
+              product: productConfig.name,
+              address,
+              startPage: startPageOf(block),
+              purpose: block?.purpose ?? null,
+              previewUrl: p.head?.ref ? branchPreviewUrl(productConfig.preview, p.head.ref) : null,
+              shotUrl: ctx.shot?.(key) ?? null,
+            }),
+          }
+        : null;
     const doneAt = block?.doneAt ?? null;
     const doneBy = block?.doneBy ?? null;
     const createdAt = doneAt ?? p.created_at ?? p.updated_at ?? new Date(ctx.now).toISOString();
@@ -500,7 +530,8 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
       shipped: nextRelease ? LIFECYCLE_LABEL['next-release'] : s === 0 ? 'Shipped today' : `Shipped ${s} ${s === 1 ? 'day' : 'days'} ago`,
       'not-planned': 'Developers closed it without building it',
     };
-    const line = [product, status === 'shipped' ? null : done, where[status]].filter(Boolean).join(' · ');
+    // Waiting for developers who work elsewhere: what to do comes before who said done (the line is cut on one line).
+    const line = (forDevelopers && !where[status] ? [product, DEV_MESSAGE_WORDS.elsewhere] : [product, status === 'shipped' ? null : done, where[status]]).filter(Boolean).join(' · ');
     const sentence: Record<BuildStatus, string> = {
       requested: 'Waiting for a developer.',
       'picked-up': 'Developers are building it.',
@@ -538,7 +569,7 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
         jira: null,
         figmaUrl: null,
         timeline,
-        exploration: { href: `changes/${explorationHref({ number: Number(p.number), product: p.product })}`, line, product },
+        exploration: { href: `changes/${explorationHref({ number: Number(p.number), product: p.product })}`, line, product, ...(forDevelopers ? { forDevelopers } : {}) },
         ...(reviewWords ? { reviewLine: reviewWords } : {}),
         ...(nextRelease ? { nextRelease: true } : {}),
         ...(stage === 'approved' ? { approved: true } : {}),
