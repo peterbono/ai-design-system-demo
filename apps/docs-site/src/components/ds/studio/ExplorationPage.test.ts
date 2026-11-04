@@ -546,6 +546,41 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
     handed({ status: 'building', stage: 'approved' });
     expect(screen.getByText('Approved, waiting to ship', { selector: '[class*="badge"]' })).toBeTruthy();
   });
+
+  describe('a product added from its address: its developers work elsewhere', () => {
+    const elsewhere = [steps[0]!, { ...steps[1]!, detail: 'Their developers work elsewhere: send them the message.' }, steps[2]!, steps[3]!];
+    const message = 'A change to Poster Studio is ready to build.\n\nWhat changes: Bigger frame picker';
+
+    it('"Copy for your developers" on the step it acts on, then says where to paste it', async () => {
+      const user = userEvent.setup();
+      const writeText = vi.fn(async () => undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      const { container } = handed({ steps: elsewhere, forDevelopers: { message } });
+      const step = screen.getByText('Developers build it').closest('li')!;
+      expect(step.textContent).toContain('Their developers work elsewhere: send them the message.');
+      // Proximity: the action sits on the row of the status it acts on, right under its words, and it is quiet (a link).
+      const button = within(step).getByRole('button', { name: 'Copy for your developers' });
+      expect(button.className).toMatch(/link/);
+      expect(button.closest('.xp-send')).toBeTruthy();
+      expect(screen.getAllByRole('button', { name: 'Copy for your developers' })).toHaveLength(1);
+      await user.click(button);
+      expect(writeText).toHaveBeenCalledWith(message);
+      expect(step.textContent).toContain('Message copied. Paste it where your developers work.');
+      expect([...document.querySelectorAll('[role="status"]')].some((n) => n.textContent === 'Message copied. Paste it where your developers work.')).toBe(true);
+      await expectNoAxeViolations(container);
+    });
+
+    it('not for a visitor (no message passed), nor once shipped or declined', () => {
+      handed({ steps: elsewhere });
+      expect(screen.queryByRole('button', { name: 'Copy for your developers' })).toBeNull();
+      cleanup();
+      handed({ status: 'shipped', steps: elsewhere, forDevelopers: { message } });
+      expect(screen.queryByRole('button', { name: 'Copy for your developers' })).toBeNull();
+      cleanup();
+      handed({ steps: elsewhere, forDevelopers: { message }, declined: { note: null } });
+      expect(screen.queryByRole('button', { name: 'Copy for your developers' })).toBeNull();
+    });
+  });
 });
 
 describe('the "..." menu: Rename, Back to exploring, Archive', () => {

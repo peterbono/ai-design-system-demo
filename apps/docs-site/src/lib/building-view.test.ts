@@ -239,6 +239,34 @@ describe('Being built: explorations handed to developers', () => {
     expect(listedRows([declined], NOW)).toHaveLength(1);
   });
 
+  it('a product added from its address: the row says its developers work elsewhere and carries their message, for team members only', () => {
+    const withAddress: ProductConfig[] = [...products, { key: 'poster', name: 'Poster Studio', repo: 'acme/poster-design', address: 'https://posterstudio.com', preview: 'https://poster-{branch}.pages.dev' } as ProductConfig];
+    const explored = (n: number, x: Partial<RestPull> = {}) => ({
+      ...pull(n, { name: 'Bigger frame picker', head: { ref: 'explore/frames', sha: 'h1' }, body: block({ name: 'Bigger frame picker', purpose: 'Larger swatches', author: 'ann', startPage: 'https://posterstudio.com/frames', doneAt: iso(2), doneSha: 'h1', doneBy: 'ann' }), ...x }),
+      product: 'poster',
+    });
+    const [row] = explorationBuildRows([explored(40)], { products: withAddress, now: NOW, nameOf, member: true, shot: (k) => (k === 'poster#40' ? 'https://raw.githubusercontent.com/acme/ds/bridge-shots/acme/poster-design/40.webp' : null) });
+    expect(row!.exploration.line).toBe('Poster Studio · Their developers work elsewhere: send them the message.');
+    const m = row!.exploration.forDevelopers!.message;
+    expect(m).toContain('A change to Poster Studio is ready to build: Bigger frame picker.');
+    expect(m).toContain('What changes: Larger swatches');
+    expect(m).toContain('The page today: https://posterstudio.com/frames');
+    expect(m).toContain('The preview: https://poster-explore-frames.pages.dev');
+    expect(m).toContain('A screenshot: https://raw.githubusercontent.com/acme/ds/bridge-shots/acme/poster-design/40.webp');
+    // A visitor: the plain row, no message.
+    const [visitor] = explorationBuildRows([explored(40)], { products: withAddress, now: NOW, nameOf });
+    expect(visitor!.exploration.forDevelopers).toBeUndefined();
+    expect(visitor!.exploration.line).not.toMatch(/elsewhere/);
+    // Being built by someone: the row says so, the message stays on hand. Shipped: nothing to send.
+    const [building] = explorationBuildRows([explored(41, { assignees: [{ login: 'theo' }], head: { ref: 'explore/frames', sha: 'h2' } })], { products: withAddress, now: NOW, nameOf, member: true });
+    expect(building!.exploration.line).toMatch(/Developers are building it$/);
+    expect(building!.exploration.forDevelopers).toBeTruthy();
+    const [shipped] = explorationBuildRows([explored(42, { state: 'closed', merged_at: iso(1) })], { products: withAddress, now: NOW, nameOf, member: true });
+    expect(shipped!.exploration.forDevelopers).toBeUndefined();
+    // Another product: no message.
+    expect(rows([pull(43, {})])[0]!.exploration.forDevelopers).toBeUndefined();
+  });
+
   it('drops a task Bridge closed on Back to exploring: the exploration runs again, it is not Not planned', () => {
     const task = 'https://github.com/acme/shop/issues/35';
     const back = { ...pull(35, { name: 'Screen 35', labels: ['exploration'], body: block({ name: 'Screen 35', author: 'ann', task, reopenedAt: iso(0) }) }), product: 'shop' };

@@ -590,6 +590,13 @@
   padding: var(--space-6);
 }
 
+/* A product added from its address: the "Developers build it" step says why, the quiet copy right under its words. */
+.xp-send {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+
 /* The developers' version, under the steps (a row action squeezed every detail to one word a line). */
 .xp-version {
   margin: 0;

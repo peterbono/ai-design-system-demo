@@ -9,7 +9,7 @@
 // reviews once the developers started), and the library part. A product exploration never checked against the
 // library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
 // viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { archiveExplorationOnGitHub, branchPreviewUrl, explorationStage, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { archiveExplorationOnGitHub, branchPreviewUrl, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
   canRunCheck,
@@ -80,6 +80,7 @@ import { explorationState } from '../lib/exploration-state';
 import { askerRole, declineNoteOf, devQuestionOf, taskDeclined, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
 import { answerDevPull, forgetQuestion, readDesignTask, readDevPull, replyOnTask, taskRef } from './design-task';
 import { installReadPass } from './read-pass';
+import { developersMessage, offersDevelopersMessage, teamMember } from '../lib/developers-message';
 import { OLD_TOOLBAR_NOTE, toolbarTakesPass } from '../lib/read-pass-link';
 
 const CFG = explorationsConfig();
@@ -495,7 +496,15 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // Who asked, by name, and their part on the team when its settings say (a lead): never "the developers" by default.
   const askedBy = question?.login ? faceOf(question.login, false, allNames) : null;
   const questionOn = question ? { ...question, by: askedBy, role: askerRole(question.login, siteApprovers()) } : null;
-  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease, question: questionOn, declined });
+  // A product added from its address: its developers work elsewhere and never see the task Bridge keeps. Team members
+  // copy them one plain message from the "Developers build it" step (lib/developers-message).
+  const address = isLibrary ? null : liveAddressOf(product);
+  const onTeam = teamMember({ emailMember: Boolean(member), signedIn: connected(), access: currentAccess()?.state ?? null, sample: sampleVisitor() });
+  const forDevelopers =
+    address && offersDevelopersMessage({ address, status, declined, archived: Boolean(r.archived), member: onTeam })
+      ? { message: developersMessage({ name: r.name, product: product.name, address, startPage: startPageOf(block), purpose: block?.purpose ?? r.purpose, previewUrl: (v.state === 'branch' ? v.url : null) ?? branchPreviewUrl(product.preview, r.branch), shotUrl: shot?.src ?? null }) }
+      : null;
+  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease, question: questionOn, declined, elsewhere: Boolean(address) });
   const taskUrl = block?.task ?? null;
   const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
   // Who may run the check: someone who can write it, in a team that writes branches. Bridge's server runs it for them:
@@ -564,6 +573,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
                 : null,
           }
         : null,
+      forDevelopers,
       declined: declined ? { note: declineNote ? { text: declineNote.text, by: faceOf(declineNote.login, false, allNames), when: declineNote.at ? startedWhen(declineNote.at) : '' } : null } : null,
     },
   });

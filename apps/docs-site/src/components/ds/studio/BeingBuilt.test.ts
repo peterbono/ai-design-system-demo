@@ -4,7 +4,7 @@
 import '../../../../../../packages/react/src/test/setup';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { assembleBuildRequests, composeBuildRequestIssue } from '@bridge-ds/core';
@@ -217,6 +217,29 @@ describe('Being built', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Shipped this week/ }));
     expect(screen.getByText('Wishlist')).toBeTruthy();
     expect(container.querySelectorAll('.sh-row-item button')).toHaveLength(0);
+    await expectNoAxeViolations(container);
+  });
+
+  it('a product added from its address: the row says its developers work elsewhere, and copies them the message', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const at = new Date(NOW - 86_400_000).toISOString();
+    const nameOf = (l: string) => (l === 'peterbono' ? 'Florian' : l);
+    const products = [...DEFAULT_PRODUCTS, { key: 'poster', name: 'Poster Studio', repo: 'acme/poster-design', address: 'https://posterstudio.com' }];
+    const ready = { number: 4, title: 'Exploration: Bigger frame picker', html_url: 'https://github.com/acme/poster-design/pull/4', state: 'open', draft: true, created_at: at, updated_at: at, labels: ['ready-for-devs'], head: { ref: 'explore/frames', sha: 'h1' }, product: 'poster', body: `<!-- bridge-exploration ${JSON.stringify({ name: 'Bigger frame picker', purpose: 'Larger swatches', doneAt: at, doneSha: 'h1', doneBy: 'peterbono' })} -->` } as RestPull;
+    const explorations = explorationBuildRows([ready], { products, now: NOW, nameOf, member: true });
+    data = { views: [], bodies: new Map(), sample: false, stale: false, nameOf, jiraBase: null, explorations };
+    const { container } = render(createElement(BeingBuilt));
+    const row = (await screen.findByText('Bigger frame picker')).closest('li')!;
+    expect(row.textContent).toContain('Their developers work elsewhere: send them the message.');
+    const button = within(row).getByRole('button', { name: 'Copy for your developers' });
+    await user.click(button);
+    expect(writeText).toHaveBeenCalledWith(explorations[0]!.exploration.forDevelopers!.message);
+    expect(row.textContent).toContain('Message copied. Paste it where your developers work.');
+    expect(within(row).getByRole('button', { name: 'Message copied' })).toBeTruthy();
+    // The row still opens the exploration.
+    expect(row.querySelector('a')!.getAttribute('href')).toBe('/studio/changes/?exploration=4&product=poster');
     await expectNoAxeViolations(container);
   });
 

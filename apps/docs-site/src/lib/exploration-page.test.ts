@@ -212,6 +212,14 @@ describe('after Done exploring (Waiting to be picked up, Being built, Shipped)',
     expect(JSON.stringify([waiting, shipped])).not.toMatch(/merge|pull request|branch|commit|\u2014/i);
   });
 
+  it('a product added from its address: kept for its developers, who work elsewhere and get the message', () => {
+    const elsewhere = handoffSteps({ status: 'ready', doneBy: florian, doneAt: '2026-10-30T12:20:00Z', builders: [], product: 'Poster Studio', elsewhere: true, now: NOW });
+    expect(elsewhere[0]!.detail).toBe('Florian, today. Kept for the Poster Studio developers.');
+    expect(elsewhere[1]).toMatchObject({ title: 'Developers build it', detail: 'Their developers work elsewhere: send them the message.', current: true });
+    // Someone picked it up in the design team's own code: named, as for every product.
+    expect(handoffSteps({ status: 'ready', doneBy: florian, doneAt: null, builders: [sam], product: 'Poster Studio', elsewhere: true, now: NOW })[1]!.detail).toBe('Waiting for Sam');
+  });
+
   describe('the review step', () => {
     const dana = faceOf('dana', false, { dana: 'Dana' });
     const lee = faceOf('lee', false, { lee: 'Lee' });

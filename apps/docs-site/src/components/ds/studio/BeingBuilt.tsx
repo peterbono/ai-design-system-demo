@@ -24,6 +24,7 @@ import {
   useMemo,
   useState,
   type MouseEvent,
+  type ReactNode,
 } from "react";
 import {
   Accordion,
@@ -38,13 +39,16 @@ import {
   Tab,
   Tabs,
   TabsList,
+  VisuallyHidden,
 } from "@bridge-ds/react";
-import { Check, Hammer } from "lucide-react";
+import { Check, Copy, Hammer } from "lucide-react";
 import {
   BUILD_IMAGE_LABEL,
   type BuildRequestView,
 } from "@bridge-ds/core";
 import { BranchRow } from "./BranchRow";
+import { useCopy } from "./TeamLink";
+import { DEV_MESSAGE_WORDS } from "../../../lib/developers-message";
 import { BusyNotice } from "./BusyNotice";
 import { githubBusy, type GitHubBusy } from "../../../lib/github-busy";
 import { Drawing } from "./Drawing";
@@ -162,6 +166,8 @@ function Rows({
           );
         // An exploration handed to developers: the row opens the exploration. No kind tag: every change starts as an
         // exploration, its line ("Done exploring on Oct 31") already says where it comes from.
+        if (isExploration(v) && v.exploration.forDevelopers)
+          return <SendRow key={v.id} v={v} message={v.exploration.forDevelopers.message} who={<Builders v={v} data={data} />} />;
         if (isExploration(v))
           return (
             <BranchRow
@@ -197,6 +203,35 @@ function Rows({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * An exploration of a product added from its address: its developers work elsewhere. The row says so and copies them
+ * the message (lib/developers-message), on the same line; once copied, the line says where to paste it.
+ */
+function SendRow({ v, message, who }: { v: ExplorationBuildRow & LifecycleExtra; message: string; who: ReactNode }) {
+  const { copied, said, copy } = useCopy(3000);
+  const failed = Boolean(said) && said !== DEV_MESSAGE_WORDS.said;
+  return (
+    <BranchRow
+      thumb={{ kind: "screen", src: null, product: v.exploration.product, seed: v.id }}
+      who={who}
+      title={v.title}
+      hint={v.title}
+      href={studioHref(v.exploration.href)}
+      line={copied || failed ? said : v.exploration.line}
+      pill={statusTag(v)}
+      className={v.stale ? "bb-stale bb-send-row" : "bb-send-row"}
+      end={
+        <span className="bb-send">
+          <Button variant="secondary" size="md" iconStart={copied ? Check : Copy} onClick={() => void copy(message, DEV_MESSAGE_WORDS.said)}>
+            {copied ? DEV_MESSAGE_WORDS.copied : DEV_MESSAGE_WORDS.copy}
+          </Button>
+          <VisuallyHidden role="status">{said}</VisuallyHidden>
+        </span>
+      }
+    />
   );
 }
 
