@@ -53,6 +53,51 @@ export function withReadPass(href: string, grant: ReadPassGrant | null, now: num
   return url.href;
 }
 
+/** Whether `href` opens a product page with the Bridge toolbar (`?bridge=`): a link a member's pass may go on. */
+export function isToolbarLink(href: string): boolean {
+  try {
+    const url = new URL(href);
+    return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password && url.searchParams.has('bridge');
+  } catch {
+    return false;
+  }
+}
+
+/** The first @bridge-ds/toolbar that takes the pass out of the address (0.8.0). An older one leaves it in the hash. */
+export const PASS_TOOLBAR = [0, 8, 0] as const;
+
+/**
+ * Whether the build of a branch with this package.json takes a read pass: false when its @bridge-ds/toolbar range
+ * starts below PASS_TOOLBAR (^0.7.0 never installs 0.8). An older toolbar leaves `#bridge-pass=...` in the address,
+ * and the product's hash router reads it as a screen that does not exist: an empty page under the toolbar. Null when
+ * it cannot say (no package.json, no toolbar dependency, a workspace or tag range): the pass goes on as before.
+ */
+export function toolbarTakesPass(packageJson: string | null | undefined): boolean | null {
+  if (!packageJson) return null;
+  let range: unknown;
+  try {
+    const p = JSON.parse(packageJson) as Record<string, Record<string, unknown> | undefined>;
+    range = p.dependencies?.['@bridge-ds/toolbar'] ?? p.devDependencies?.['@bridge-ds/toolbar'];
+  } catch {
+    return null;
+  }
+  if (typeof range !== 'string') return null;
+  // The lowest version the range allows ("^0.7.0", "~0.7.2", "0.7.0", ">=0.6.0 <0.8.0"; a union counts its lowest).
+  const lowest = range
+    .split('||')
+    .map((part) => /^\s*(?:\^|~|>=|=|v)?\s*(\d+)\.(\d+)\.(\d+)/.exec(part))
+    .filter((m): m is RegExpExecArray => Boolean(m))
+    .map((m) => [Number(m[1]), Number(m[2]), Number(m[3])] as const)
+    .sort((p, q) => p[0] - q[0] || p[1] - q[1] || p[2] - q[2])[0];
+  if (!lowest) return null;
+  const [a, b, c] = lowest;
+  const [x, y, z] = PASS_TOOLBAR;
+  return a !== x ? a > x : b !== y ? b > y : c >= z;
+}
+
+/** Under "Open the preview" when the branch's toolbar is older than the pass (toolbarTakesPass false). */
+export const OLD_TOOLBAR_NOTE = "This preview has an older Bridge toolbar, so it opens without this change's details. Bring in the latest product, then open it again.";
+
 /** A grant the server sent, checked: null when it is not one. */
 export function parseGrant(v: unknown): ReadPassGrant | null {
   const g = v as Partial<ReadPassGrant> | null;

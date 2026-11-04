@@ -80,6 +80,7 @@ import { explorationState } from '../lib/exploration-state';
 import { askerRole, declineNoteOf, devQuestionOf, taskDeclined, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
 import { answerDevPull, forgetQuestion, readDesignTask, readDevPull, replyOnTask, taskRef } from './design-task';
 import { installReadPass } from './read-pass';
+import { OLD_TOOLBAR_NOTE, toolbarTakesPass } from '../lib/read-pass-link';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -385,6 +386,18 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     previewBuilding,
     ...(inCopy ? { claudeCodeUrl: codeUrl(v.state === 'branch' ? v.url : null) } : {}),
   });
+  // A branch started before its product moved to a toolbar that takes the read pass: that toolbar would leave the
+  // pass in the address, and the product's hash router would show an empty page. The link opens without it, and says
+  // how to get the change's details (Bring it in). One read of package.json at the branch, kept by Bridge's cache.
+  if (tryUrl && own) {
+    void gh
+      .getFileText('package.json', r.branch)
+      .then((text) => {
+        if (toolbarTakesPass(text) !== false || current?.key !== key) return;
+        repaint(d, key, { tryWithoutPass: true, previewNote: OLD_TOOLBAR_NOTE });
+      })
+      .catch(() => undefined);
+  }
   // The screen the capture found its change on comes first (the real one), else a changed screen, else the product.
   const plate = { product: isLibrary ? 'Library' : product.name, screen: shot?.screen ?? changedScreenOf(files, { library: isLibrary }), seed: key };
   const shotProps = shot ? { thumb: shot.src, thumbCapturedAt: shot.capturedAt } : {};

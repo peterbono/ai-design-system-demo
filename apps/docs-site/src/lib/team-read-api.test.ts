@@ -812,6 +812,27 @@ describe('team reads with a read pass (the toolbar in a private product preview)
     expect(await s.redis.cmd('GET', countKey('ip', sha256('read-ip:203.0.113.9').slice(0, 24), T0))).toBeNull();
   });
 
+  it("on a public demo team: the toolbar's reads of a change in the private design copy (pull and files) open with the pass only", async () => {
+    // Production: the-bridge-company/ai-design-system-demo is a public demo team; its product's design copy is private.
+    // Without a pass the preview reads as a visitor and Bridge refuses the private copy (the owner's 403 not-allowed).
+    const s = setup(world(DEMO));
+    const reads = [`/repos/${COPY}/pulls/1`, `/repos/${COPY}/pulls/1/files?per_page=100`];
+    for (const path of reads) {
+      const r = await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(DEMO)}&gh=${encodeURIComponent(path)}`, { headers: { host: HOST, 'x-real-ip': '203.0.113.9', ...from(PREVIEW_HOST) } }), ENV, s.deps);
+      expect(r.status, path).toBe(403);
+      expect((await r.json()).error, path).toBe('not-allowed');
+    }
+    const { pass } = (await (await mint(s, await s.member('mia@acme.design', DEMO), DEMO)).json()) as { pass: string };
+    for (const path of reads) {
+      const r = await readWith(s, path, pass, DEMO);
+      expect(r.status, path).toBe(200);
+      expect(r.headers.get('access-control-allow-origin')).toBe(PREVIEW_HOST);
+    }
+    expect(s.w.calls.some((c) => c.path.startsWith(`/repos/${COPY}/pulls/1/files`))).toBe(true);
+    // Still read only and never members-only resources.
+    expect((await readWith(s, `/repos/${COPY}/collaborators`, pass, DEMO)).status).toBe(403);
+  });
+
   it('never opens more: the team repository, members-only resources, blobs, another origin, writes', async () => {
     const s = setup(world(TEAM));
     const { pass } = (await (await mint(s, await s.member())).json()) as { pass: string };
