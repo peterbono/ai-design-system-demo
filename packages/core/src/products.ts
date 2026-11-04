@@ -24,6 +24,13 @@ export interface ProductConfig {
    * "See the product today". A product of this repository may use previews.production.<key> instead.
    */
   production?: string;
+  /**
+   * The live product this one stands for, when the team cannot reach its code ("https://posterstudio.com", an https
+   * origin): a product added from "Only its address". Its `repo` is then the design team's own, started by Bridge from
+   * the product starter with the library: explorations rebuild the live pages with the library, and "Done exploring"
+   * sends the developers a task (the preview, the page it started from, what changes), never code.
+   */
+  address?: string;
   /** react, vue, angular, svelte, astro, other. */
   framework?: string;
   /** The product a branch belongs to when nothing else matches: the library. */
@@ -203,7 +210,7 @@ export function productOfDesignCopy(products: readonly ProductConfig[], repo: st
 
 const KEY = /^[a-z0-9][a-z0-9-]*$/;
 const REPO = /^[\w.-]+\/[\w.-]+$/;
-const FIELDS = ['key', 'name', 'repo', 'design', 'path','preview', 'production', 'framework', 'default'];
+const FIELDS = ['key', 'name', 'repo', 'design', 'path', 'preview', 'production', 'address', 'framework', 'default'];
 
 /** What is wrong with a `products` value, each problem saying how to fix it. Empty: valid (or absent). */
 export function productProblems(raw: unknown): string[] {
@@ -243,12 +250,87 @@ export function productProblems(raw: unknown): string[] {
     }
     if (o.preview !== undefined && (typeof o.preview !== 'string' || !/^https?:\/\//.test(o.preview))) problems.push(`${at}.preview" must be an http(s) URL template, such as "https://app-git-{branch}.vercel.app"`);
     if (o.production !== undefined && (typeof o.production !== 'string' || !/^https?:\/\/[^{}\s]+$/.test(o.production))) problems.push(`${at}.production" must be the product's production URL, without placeholders, such as "https://shop.example.com"`);
+    if (o.address !== undefined) {
+      if (typeof o.address !== 'string' || productAddressOf(o.address) !== o.address) problems.push(`${at}.address" must be the live product's https address, without a path, such as "https://shop.example.com"`);
+      else if (typeof o.repo !== 'string') problems.push(`${at}.address" needs "repo" too: the design team's own code, where its pages are rebuilt with the library`);
+      else if (o.design !== undefined) problems.push(`${at}.address" goes without "design": a product added from its address has no developers' code, its "repo" is already the design team's own`);
+    }
     if (o.framework !== undefined && (typeof o.framework !== 'string' || !o.framework.trim())) problems.push(`${at}.framework" must be a name such as "react", "vue" or "other"`);
     if (o.default !== undefined && typeof o.default !== 'boolean') problems.push(`${at}.default" must be true or false`);
     if (o.default === true) defaults++;
   });
   if (defaults > 1) problems.push('"products" marks more than one product as default: keep "default": true on the library only');
   return problems;
+}
+
+// Products added from their address ("Only its address"): the team has no access to the live product's code. Bridge
+// starts the design team's own code for it from the product starter, and explorations rebuild the live product's pages
+// with the library.
+
+/** A host name with at least one dot and a letter top-level domain: never an IP address, never "localhost". */
+const HOST = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
+
+/** The https URL a person typed ("posterstudio.com/checkout" or "https://..."), or null. Never another protocol. */
+function httpsUrl(input: string | null | undefined): URL | null {
+  const t = (input ?? '').trim();
+  if (!t || t.length > 500 || /\s/.test(t)) return null;
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(t) && !/^[^/:]+:\d/.test(t) ? t : `https://${t.replace(/^\/\//, '')}`;
+  let u: URL;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
+  return HOST.test(u.hostname.toLowerCase()) ? u : null;
+}
+
+/**
+ * The address Bridge keeps for a product added from its address: its https origin ("https://posterstudio.com"), from a
+ * bare domain or a full https link (the path is left out). Null when it is not one: another protocol, an IP address,
+ * a port, a sign-in in the link.
+ */
+export function productAddressOf(input: string | null | undefined): string | null {
+  const u = httpsUrl(input);
+  return u ? `https://${u.hostname.toLowerCase()}` : null;
+}
+
+/** The product's address when it was added from it (`address`), else null. */
+export const liveAddressOf = (p: Pick<ProductConfig, 'address'> | null | undefined): string | null => (p?.address ? productAddressOf(p.address) : null);
+
+/** "posterstudio.com": the address as people read it. */
+export const addressDomain = (address: string): string => address.replace(/^https:\/\//, '').replace(/\/$/, '');
+
+/**
+ * A page of the product's own address, as a clean https link (no fragment), or null: another site, another protocol,
+ * or not a link. "www." counts as the same site, and so do its subdomains (shop.posterstudio.com).
+ */
+export function pageOfAddress(input: string | null | undefined, address: string | null | undefined): string | null {
+  const base = productAddressOf(address);
+  const u = httpsUrl(input);
+  if (!base || !u) return null;
+  const strip = (h: string) => h.toLowerCase().replace(/^www\./, '');
+  const site = strip(addressDomain(base));
+  const host = strip(u.hostname);
+  if (host !== site && !host.endsWith(`.${site}`)) return null;
+  u.hash = '';
+  return u.href;
+}
+
+/**
+ * What Claude is told when an exploration starts from a page of the live product: open it in the browser (a plain
+ * fetch misses what JavaScript draws), rebuild it with the library alone, then explore the change. Never the site's
+ * own styles or files. Shared by Studio's start lines and the MCP server's brief.
+ */
+export function startPageBrief(page: string, productName: string, change?: string | null): string {
+  const what = (change ?? '').trim().replace(/\s+/g, ' ').replace(/[.!?]+$/, '');
+  return [
+    `Start from ${page}, a page of ${productName} as it is live today.`,
+    'Open it in the browser (Claude in Chrome when you have it: a plain fetch misses what JavaScript draws) and look at its layout, content and states.',
+    "Rebuild that page in this exploration using ONLY the library's components and tokens: list them with the Bridge tools (bridge_list_components, bridge_search_tokens) before you build.",
+    "Never copy the site's CSS, fonts, images or other files.",
+    what ? `Then explore this change from that rebuilt page: ${what}.` : 'Then explore the change the designer describes, from that rebuilt page.',
+  ].join(' ');
 }
 
 /** Whether two product lists say the same thing (toConfigJson leaves the default list out). */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { productProblems, type ProductConfig } from '@bridge-ds/core';
+import { ADDRESS_PRODUCT_WORDS } from './new-product';
 import {
   ACCESS_MAX_MS,
   ACCESS_MESSAGE,
@@ -106,6 +107,16 @@ describe('add a product', () => {
     expect(Object.keys(e)).toEqual(['key', 'name', 'repo', 'design', 'preview', 'production', 'framework']);
     expect(newProductEntry({ key: 'k', name: 'K', repo: 'a/k', copy: false })).toEqual({ key: 'k', name: 'K', repo: 'a/k', framework: 'react' });
     expect(copyRepoFor('acme/bo')).toBe('acme/bo-design');
+  });
+
+  it('a product added from its address keeps it, never a designers\' copy even when asked, valid for the settings', () => {
+    const e = newProductEntry({ key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', copy: true, address: 'https://posterstudio.com' });
+    expect(e).toEqual({ key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', address: 'https://posterstudio.com', framework: 'react' });
+    expect(Object.keys(e)).toEqual(['key', 'name', 'repo', 'address', 'framework']);
+    expect(productProblems([{ ...e, design: { repo: 'acme/poster-studio-design' } }])[0]).toMatch(/address" goes without "design"/);
+    expect(productProblems([e, { key: 'library', name: 'Library', default: true }])).toEqual([]);
+    expect(addProductProposal(e, { date: new Date('2026-11-04T10:00:00Z'), tierLabel: 'Tier 1' }).body).toContain('Added from its address, https://posterstudio.com');
+    expect(newProductEntry({ key: 'k', name: 'K', repo: 'a/k', copy: false, address: null })).not.toHaveProperty('address');
   });
 
   it('adds the product before the default one, one line like the others, the rest byte for byte', () => {
@@ -292,7 +303,8 @@ describe("the team's account, for the GitHub step", () => {
 describe('the words of the dialog', () => {
   it('never says a technical word, never an em dash', () => {
     const W = ADD_PRODUCT_WORDS;
-    for (const line of [W.unreadLine, W.unreadAction, W.foundLead, W.newLead, W.codeOnGitHub, W.findThere, W.startNew, W.sent, W.reviewLine('Checkout'), W.refused, W.addLabel('Checkout')]) {
+    const D = ADDRESS_PRODUCT_WORDS;
+    for (const line of [W.unreadLine, W.unreadAction, W.foundLead, W.question, W.github, W.githubHelp, W.address, W.addressHelp, W.fresh, W.freshHelp, W.noneFound, W.sent, W.reviewLine('Checkout'), W.refused, W.addLabel('Checkout'), D.title, D.lead, D.address, D.addressHelp, D.addressMissing, D.addressInvalid, D.creating('Poster studio')]) {
       expect(line).not.toMatch(/\u2014|repositor|installation|permission|token|API|config|pull request|merge/i);
     }
   });

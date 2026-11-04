@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, productMarks, productOfBranch, type ProductConfig } from '@bridge-ds/core';
 import { adminBlockedFix, askAdmin, blockIsAdmins, claudePrompt,
   connectorPrompt, featureHref, featureName, featurePurpose, featureProblems, featureProducts, featureRepo, initialTarget, LIBRARY_TARGET,
-  libraryLead, productParam, productRepoBlockedLine, startTargets } from './create-branch';
+  libraryLead, productParam, productRepoBlockedLine, startPageProblem, startTargets } from './create-branch';
 
 const THREE: ProductConfig[] = [
   { key: 'admin', name: 'Admin demo', path: 'apps/admin' },
@@ -110,6 +110,31 @@ describe('start an exploration, in a product or the library', () => {
     expect(line).not.toMatch(/acme|branch|explore\//);
     // Without a design copy it is the same line as before.
     expect(connectorPrompt({ sentence: 'Cart', product: THREE[1]!, number: 3 })).toBe(claudePrompt({ sentence: 'Cart', product: THREE[1]!, number: 3 }));
+  });
+
+  it('a start page of a product added from its address: the line tells Claude to rebuild it with the library, then explore', () => {
+    const poster: ProductConfig = { key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', address: 'https://posterstudio.com' };
+    const ref = { sentence: 'Checkout with a gift option', product: poster, number: 5, startPage: 'https://posterstudio.com/checkout' };
+    for (const line of [connectorPrompt(ref), claudePrompt(ref)]) {
+      expect(line).toContain('Start from https://posterstudio.com/checkout, a page of Poster studio as it is live today.');
+      expect(line).toContain('Open it in the browser (Claude in Chrome when you have it: a plain fetch misses what JavaScript draws)');
+      expect(line).toContain("using ONLY the library's components and tokens");
+      expect(line).toContain('bridge_list_components');
+      expect(line).toContain("Never copy the site's CSS, fonts, images or other files.");
+      expect(line).toMatch(/Then explore this change from that rebuilt page: Checkout with a gift option\.$/);
+      expect(line).not.toContain("I'll tell you what to explore.");
+      expect(line).not.toMatch(/—/);
+    }
+    expect(connectorPrompt(ref)).toBe(claudePrompt(ref));
+    // No start page: the usual line.
+    expect(connectorPrompt({ ...ref, startPage: null })).toMatch(/I'll tell you what to explore\.$/);
+  });
+
+  it('startPageProblem: empty is fine, a page of the product site is cleaned, another site says how to fix it', () => {
+    expect(startPageProblem('', 'https://posterstudio.com')).toEqual({ page: null, problem: null });
+    expect(startPageProblem(' posterstudio.com/checkout#top ', 'https://posterstudio.com')).toEqual({ page: 'https://posterstudio.com/checkout', problem: null });
+    expect(startPageProblem('otherstudio.com/checkout', 'https://posterstudio.com')).toEqual({ page: null, problem: 'Use a page of posterstudio.com, such as posterstudio.com/checkout.' });
+    expect(startPageProblem('http://posterstudio.com/checkout', 'https://posterstudio.com').problem).not.toBeNull();
   });
 
   it('labels a feature so the Branches page groups it under its product (core rule)', () => {

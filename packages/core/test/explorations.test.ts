@@ -294,6 +294,29 @@ describe('done exploring and archive on GitHub', () => {
     expect(isUnlabeledExploration({ state: 'open', draft: true, labels: ['ready-for-devs'], headRef: 'explore/pill-buttons', body: gh.pulls[0].body })).toBe(true);
   });
 
+  it('a product added from its address: started from a page, Done exploring sends the developers a task, never code', async () => {
+    const gh = fakeGitHub();
+    const c = gh.client();
+    const poster = { key: 'poster', name: 'Poster studio', repo: 'acme/ds', address: 'https://posterstudio.com', preview: 'https://poster-git-{branch}-acme.vercel.app' };
+    await startExplorationOnGitHub(c, { name: 'Gift option', purpose: 'Checkout with a gift option.', startPage: 'https://posterstudio.com/checkout' }, settings);
+    expect(gh.pulls[0].body).toContain('**Starts from.** https://posterstudio.com/checkout, rebuilt with the library.');
+    expect(parseExplorationBody(gh.pulls[0].body)!.startPage).toBe('https://posterstudio.com/checkout');
+    const r = await doneExploringOnGitHub(c, 1, { products: [poster, { key: 'library', name: 'Library', default: true }], openedBy: 'dana' });
+    expect(r.task).toEqual({ number: 100, url: 'https://github.com/acme/ds/issues/100', repo: 'acme/ds' });
+    const task = gh.issues[0];
+    expect(task.title).toBe('Design: Gift option');
+    expect(task.labels.map((l: any) => l.name)).toEqual(['from-design']);
+    expect(task.body).toContain('**Preview.** https://poster-git-explore-gift-option-acme.vercel.app');
+    expect(task.body).toContain('**The page today.** https://posterstudio.com/checkout');
+    expect(task.body).toContain('- Checkout with a gift option.');
+    expect(task.body).toContain('No code to take');
+    expect(task.body).not.toContain('git fetch');
+    expect(parseExplorationBody(gh.pulls[0].body)!.task).toBe('https://github.com/acme/ds/issues/100');
+    expect(explorationStatus({ state: 'open', labels: ['ready-for-devs'], body: gh.pulls[0].body })).toBe('ready');
+    // A start page that is not an https link never reaches the body.
+    expect(parseExplorationBody(explorationPrBody({ name: 'X', purpose: '', startPage: 'javascript:alert(1)' }, { owner: 'acme', repo: 'ds', packages: [], apps: {} }))!.startPage).toBeUndefined();
+  });
+
   it('rename: the title keeps its format and Jira key, the body block and heading get the name, the branch stays', async () => {
     const gh = fakeGitHub();
     const c = gh.client();

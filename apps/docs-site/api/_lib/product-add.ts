@@ -51,10 +51,24 @@ export interface ProductEntry {
   design?: { repo: string };
   preview?: string;
   production?: string;
+  /** A product added from its address: the live product's https origin ("https://posterstudio.com"). */
+  address?: string;
   framework?: 'react';
 }
 
-const ALLOWED = new Set(['key', 'name', 'repo', 'design', 'preview', 'production', 'framework']);
+const ALLOWED = new Set(['key', 'name', 'repo', 'design', 'preview', 'production', 'address', 'framework']);
+/** A host name with a dot and a letter top-level domain: never an IP address, never "localhost". */
+const HOST = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
+
+/**
+ * The live product's address exactly as Studio keeps it (core productAddressOf): "https://" and a lower case host
+ * name, nothing else (no path, port, sign-in, query or fragment). Else null.
+ */
+export function liveAddress(v: unknown): string | null {
+  if (typeof v !== 'string' || !v || v.length > URL_MAX) return null;
+  const m = /^https:\/\/([a-z0-9.-]+)$/.exec(v);
+  return m && HOST.test(m[1]!) ? v : null;
+}
 const KEY = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const REPO = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
 const HOSTS = ['.vercel.app', '.netlify.app', '.pages.dev'];
@@ -84,7 +98,7 @@ function previewUrl(v: unknown, placeholders: boolean): string | null {
 export function validProductEntry(v: unknown, team: string): ProductEntry | null {
   if (!isPlain(v)) return null;
   if (Object.keys(v).some((k) => !ALLOWED.has(k))) return null;
-  const { key, name, repo, design, preview, production, framework } = v;
+  const { key, name, repo, design, preview, production, address, framework } = v;
   if (typeof key !== 'string' || !KEY.test(key) || key === 'library') return null;
   if (typeof name !== 'string' || /[\u0000-\u001f\u007f]/.test(name)) return null;
   const clean = cleanName(name);
@@ -104,6 +118,12 @@ export function validProductEntry(v: unknown, team: string): ProductEntry | null
     if (!p || !q) return null;
     out.preview = p;
     out.production = q;
+  }
+  if (address !== undefined) {
+    const a = liveAddress(address);
+    // An address product has no developers' code: its repository is the design team's own, never copied.
+    if (!a || design !== undefined) return null;
+    out.address = a;
   }
   if (framework !== undefined) {
     if (framework !== 'react') return null;
@@ -226,7 +246,7 @@ function inline(v: unknown): string {
   return JSON.stringify(v);
 }
 
-const ORDER: (keyof ProductEntry)[] = ['key', 'name', 'repo', 'design', 'preview', 'production', 'framework'];
+const ORDER: (keyof ProductEntry)[] = ['key', 'name', 'repo', 'design', 'preview', 'production', 'address', 'framework'];
 const ordered = (e: ProductEntry) => Object.fromEntries(ORDER.filter((k) => e[k] !== undefined).map((k) => [k, e[k]]));
 
 function sameJson(a: unknown, b: unknown): boolean {

@@ -16,6 +16,7 @@ import {
   explorationStatus,
   isGuardedExploration,
   parseExplorationBody,
+  startPageOf,
   withDoneExploring,
   withoutDoneExploring,
   type DoneExploringPlan,
@@ -26,8 +27,8 @@ import { findExplorationOnGitHub } from './explorations-github';
 import { GitHubError, type GitHubClient } from './github-client';
 import { proposePiecesOnGitHub, type ProposedPieces } from './prod-branch-github';
 import { branchPreviewUrl } from './previews';
-import { productCodeRepoOf, productOfDesignCopy, type ProductConfig } from './products';
-import { designTaskBody, designTaskTitle, githubLoginOf, FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION } from './design-copy-github';
+import { liveAddressOf, productCodeRepoOf, productOfDesignCopy, type ProductConfig } from './products';
+import { addressTaskBody, designTaskBody, designTaskTitle, githubLoginOf, FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION } from './design-copy-github';
 import type { RequestSource } from './requests';
 
 export interface DoneExploringInput {
@@ -89,7 +90,10 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   const fresh = status === 'active';
   // In the design team's copy of a product: the developers get a task in their own repository, never a branch.
   const copyOf = productOfDesignCopy(input.products ?? [], gh.fullName);
-  const codeRepo = copyOf ? productCodeRepoOf(copyOf, null) : null;
+  // A product added from its address (no developers' code Bridge can reach): what the team keeps becomes a task in the
+  // design team's own code, from its copy or from that code itself. Never a branch to take.
+  const addressOf = addressProductOf(input.products ?? [], copyOf, gh.fullName);
+  const codeRepo = copyOf ? productCodeRepoOf(copyOf, null) : addressOf ? gh.fullName : null;
   const files = fresh ? await gh.listPullRequestFiles(p.number) : [];
   const plan = fresh
     ? doneExploringPlan({ body: p.body, branch: p.headRef, files: files.map((f) => ({ path: f.filename, status: f.status })), date: input.date, doneBy: doneByOfInput(input), ...(codeRepo ? { copy: gh.fullName } : {}) })
@@ -116,7 +120,20 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
     await dev.ensureLabel(FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION).catch(() => undefined);
     const e = parseExplorationBody(p.body);
     const name = e?.name ?? p.title.replace(/^Exploration:\s*/i, '');
-    const taskBody = designTaskBody({
+    const taskBody = addressOf
+      ? addressTaskBody({
+          name,
+          product: addressOf.name,
+          address: liveAddressOf(addressOf)!,
+          startPage: startPageOf(e),
+          purpose: e?.purpose,
+          previewUrl: input.previewUrl ?? branchPreviewUrl(copyOf ? copyOf.design?.preview : addressOf.preview, p.headRef),
+          pieces: out.pieces.proposed.map((x) => ({ title: x.title, url: x.url })),
+          pr: { number: p.number, url: p.url },
+          doneBy: input.openedBy,
+          doneByName: input.openedByName,
+        })
+      : designTaskBody({
         name,
         purpose: e?.purpose,
         // The copy's own preview of this branch when Studio did not pass one: a real link, not a pointer to a comment.
@@ -210,6 +227,16 @@ export function designTaskRef(url: string | null | undefined, repo: string | nul
   if (!m) return null;
   if (repo && m[1]!.toLowerCase() !== repo.toLowerCase()) return null;
   return { repo: m[1]!, number: Number(m[2]), url: url!.trim() };
+}
+
+/**
+ * The product added from its address (ProductConfig.address) whose explorations live in `repo`: through its designers'
+ * copy (`copyOf`), or in the design team's own code itself (its `repo`). Null for every other product.
+ */
+export function addressProductOf(products: readonly ProductConfig[], copyOf: ProductConfig | null | undefined, repo: string): ProductConfig | null {
+  if (copyOf) return liveAddressOf(copyOf) ? copyOf : null;
+  const r = repo.trim().toLowerCase();
+  return products.find((p) => liveAddressOf(p) && productCodeRepoOf(p, null)?.toLowerCase() === r) ?? null;
 }
 
 /**

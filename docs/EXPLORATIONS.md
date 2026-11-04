@@ -84,6 +84,31 @@ Explorations started in the developers' repository before the copy existed are n
 `design.repo` is set: move them to the copy (push the branch there, open the draft again) and close them in the
 developers' repository.
 
+**A product added from its address.** Add a product opens on one question, "Where does it start from?": its code
+is on GitHub (the recommended path above), only its address, or a new product. "Only its address" is for a product
+whose code the design team cannot reach. Bridge starts the design team's own code for it from the product starter
+with the library (the same path as a new product) and keeps the live product's address in `products[].address`, an
+https origin without a path. It never has `design`: its `repo` is already the design team's own, so there is no
+copy to make (the dialog does not offer one, and the settings check and the server refuse one):
+
+```json
+{ "key": "poster-studio", "name": "Poster studio", "repo": "acme/poster-studio",
+  "address": "https://posterstudio.com", "framework": "react" }
+```
+
+- **Start from a page.** Start an exploration shows an optional "Start from a page" field for such a product. Only
+  pages of its own site are accepted (`www.` and subdomains count). The page goes into the exploration
+  (`startPage` in its hidden block, "**Starts from.**" in its body) and into the line handed to Claude: open the page
+  in the browser (Claude in Chrome when available, since a plain fetch misses what JavaScript draws), rebuild it with
+  only the library's components and tokens (listed with the Bridge tools), never the site's CSS, fonts or images,
+  then explore the change. `bridge_continue_exploration` returns `startFrom` and the same brief while nothing is
+  built yet.
+- **Done exploring.** There is no developers' code to hand a branch to: the developers get a task, an issue labeled
+  `from-design` in `repo`, with the preview link, the page as it is today and what changes, and the note that the
+  prototype is a picture of the change, not code to take. Being built follows that task like any other.
+- **Checked strictly.** Studio adds the entry straight to the settings like any product (`POST /api/ship`
+  `add-product`); the server accepts `address` only as `https://` and a lower case host name, nothing else.
+
 From a terminal:
 
 ```sh

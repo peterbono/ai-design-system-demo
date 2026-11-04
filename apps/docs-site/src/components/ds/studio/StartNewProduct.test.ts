@@ -1,17 +1,19 @@
 // @vitest-environment jsdom
 // A new product in Add a product (AddProduct.tsx, StartNewProduct.tsx, lib/new-product.ts; validated board "Add a
-// product v3", B): the dialog opens straight on it when Bridge found nothing, or from "Start a new product". Its name
-// only (it goes where the team's products live), the designers' copy on, "Its code is already on GitHub? Find it
-// there", Cancel and Create product. Bridge starts the code, adds it to the team and opens its page (no previews step
-// here). Refusals in designer words, with the ask-an-owner message when an owner decides. Started but not added: it
-// waits in the list with the reason on its row.
+// product v3"), after the first question:
+//   - B, "It's a new product": its name only (it goes where the team's products live), the designers' copy on, Back
+//     and Create product. Bridge starts the code, adds it to the team and opens its page (no previews step here).
+//   - D2, "Only its address": its name and its address (kept as its https origin), Back and Add product. Bridge starts
+//     the design team's own code the same way and keeps the address in the entry.
+// Refusals in designer words, with the ask-an-owner message when an owner decides. Started but not added: it waits in
+// the list with the reason on its row (and its address).
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { ADD_PRODUCT_WORDS as A, type ProductRepoChoice } from '../../../lib/add-product';
-import { NEW_PRODUCT_WORDS as W, askOwnerMessage } from '../../../lib/new-product';
+import { ADDRESS_PRODUCT_WORDS as D, NEW_PRODUCT_WORDS as W, askOwnerMessage } from '../../../lib/new-product';
 import AddProduct, { setOpenPage } from './AddProduct';
 
 const gh = vi.hoisted(() => ({
@@ -39,6 +41,7 @@ vi.mock('../../../scripts/new-product', () => ({
 
 const SHOP: ProductRepoChoice = { full: 'acme/shop', name: 'shop', defaultBranch: 'main' };
 const NEW: ProductRepoChoice = { full: 'acme/art-print-shop', name: 'art-print-shop', defaultBranch: 'main' };
+const POSTER: ProductRepoChoice = { full: 'acme/poster-studio', name: 'poster-studio', defaultBranch: 'main' };
 
 beforeEach(() => {
   gh.access = { repos: [], installation: null, account: 'acme', accountId: null, seen: 0 };
@@ -52,8 +55,9 @@ beforeEach(() => {
 const show = (onSent = vi.fn(), onOpenChange = vi.fn(), products: { key: string; name: string; repo?: string }[] = []) =>
   render(createElement(AddProduct, { products, open: true, onOpenChange, onSent }));
 
-/** Nothing found: the dialog opens straight on the new product, the name focused. */
-const openForm = async () => {
+/** The first question, then a card: the form opens with the name focused. */
+const openForm = async (card: string = A.fresh) => {
+  fireEvent.click(await screen.findByRole('button', { name: card }));
   expect(await screen.findByLabelText(W.name)).toBeInTheDocument();
   await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(W.name)));
 };
@@ -63,30 +67,30 @@ const create = (name: string) => {
   fireEvent.click(screen.getByRole('button', { name: W.create }));
 };
 
-describe('Add a product: a new product', () => {
-  it('opens straight on the name when Bridge found nothing: the copy on, Find it there, Cancel and Create product', async () => {
+describe('Add a product: a new product (B)', () => {
+  it("It's a new product: the name, the copy on, Back and Create product, nothing else", async () => {
     const { baseElement } = show();
     await openForm();
     expect(screen.getByRole('heading', { name: W.title })).toBeInTheDocument();
     expect(screen.getByText(W.lead)).toBeInTheDocument();
     expect(screen.getByText(W.nameHelp)).toBeInTheDocument();
     expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByLabelText(D.address)).toBeNull();
     expect(screen.getByRole('checkbox', { name: A.copy })).toBeChecked();
-    expect(screen.getByText(A.codeOnGitHub)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: A.findThere })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: A.cancel })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: A.back })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: W.create })).toBeInTheDocument();
-    for (const old of ["It's a new product", "It's already built", 'Back', 'Show its previews']) expect(screen.queryByText(old)).toBeNull();
+    for (const old of ["It's already built", 'Its code is already on GitHub?', 'Find it there', 'Show its previews']) expect(screen.queryByText(old)).toBeNull();
     await expectNoAxeViolations(baseElement);
   });
 
-  it('"Start a new product" from the found products opens it, and Find it there goes back to them', async () => {
+  it('Back returns to the first question, its card focused', async () => {
     gh.access.repos = [SHOP];
     show();
-    fireEvent.click(await screen.findByRole('button', { name: A.startNew }));
     await openForm();
-    fireEvent.click(screen.getByRole('button', { name: A.findThere }));
-    expect(await screen.findByRole('button', { name: A.addLabel('Shop') })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: A.back }));
+    const card = await screen.findByRole('button', { name: A.fresh });
+    await waitFor(() => expect(document.activeElement).toBe(card));
+    expect(screen.getByText(A.question)).toBeInTheDocument();
   });
 
   it("goes where the team's products live, even when Bridge reaches other accounts", async () => {
@@ -166,5 +170,65 @@ describe('Add a product: a new product', () => {
     expect(gh.opened).toEqual([]);
     fireEvent.click(add);
     await waitFor(() => expect(gh.add).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Art print shop', repo: 'acme/art-print-shop' })));
+  });
+});
+
+describe('Add a product: only its address (D2)', () => {
+  const fill = (name: string, address: string) => {
+    fireEvent.change(screen.getByLabelText(W.name), { target: { value: name } });
+    fireEvent.change(screen.getByLabelText(D.address), { target: { value: address } });
+    fireEvent.click(screen.getByRole('button', { name: D.add }));
+  };
+
+  it('the name and its address, Back and Add product: no designers\' copy (its only code is the design team\'s own)', async () => {
+    const { baseElement } = show();
+    await openForm(A.address);
+    expect(screen.getByRole('heading', { name: D.title })).toBeInTheDocument();
+    expect(screen.getByText(D.lead)).toBeInTheDocument();
+    expect(screen.getByLabelText(D.address)).toHaveAccessibleDescription(expect.stringContaining(D.addressHelp));
+    expect(screen.queryByRole('checkbox', { name: A.copy })).toBeNull();
+    expect(screen.queryByText(A.copyHelp)).toBeNull();
+    expect(screen.getByRole('button', { name: A.back })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: D.add })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: W.create })).toBeNull();
+    await expectNoAxeViolations(baseElement);
+  });
+
+  it('starts the design team code, adds it with its https address and never a copy, then opens its page', async () => {
+    gh.start.mockResolvedValue(POSTER);
+    show();
+    await openForm(A.address);
+    fill('Poster studio', 'posterstudio.com/checkout');
+    await waitFor(() => expect(gh.opened).toEqual(['/studio/products/poster-studio/']));
+    expect(gh.start).toHaveBeenCalledWith({ owner: 'acme', slug: 'poster-studio', name: 'Poster studio' });
+    expect(gh.link).toHaveBeenCalledWith(POSTER, 'poster-studio');
+    expect(gh.add).toHaveBeenCalledWith({ key: 'poster-studio', name: 'Poster studio', repo: 'acme/poster-studio', address: 'https://posterstudio.com', framework: 'react' });
+  });
+
+  it('an address Bridge cannot read: said on its field, which takes the focus, nothing started', async () => {
+    const { baseElement } = show();
+    await openForm(A.address);
+    fill('Poster studio', 'http://posterstudio.com');
+    const field = screen.getByLabelText(D.address);
+    await waitFor(() => expect(field).toHaveAttribute('aria-invalid', 'true'));
+    expect(field).toHaveAccessibleDescription(expect.stringContaining(D.addressInvalid));
+    expect(document.activeElement).toBe(field);
+    expect(gh.start).not.toHaveBeenCalled();
+    await expectNoAxeViolations(baseElement);
+    fireEvent.change(field, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: D.add }));
+    await waitFor(() => expect(field).toHaveAccessibleDescription(expect.stringContaining(D.addressMissing)));
+    expect(gh.start).not.toHaveBeenCalled();
+  });
+
+  it('started but not added: it waits in the list, and Add sends it again with its address', async () => {
+    gh.start.mockResolvedValue(POSTER);
+    gh.add.mockResolvedValueOnce({ kind: 'failed' });
+    show();
+    await openForm(A.address);
+    fill('Poster studio', 'https://posterstudio.com');
+    expect(await screen.findByRole('alert')).toHaveTextContent(A.refused);
+    fireEvent.click(screen.getByRole('button', { name: A.addLabel('Poster studio') }));
+    await waitFor(() => expect(gh.add).toHaveBeenLastCalledWith(expect.objectContaining({ repo: 'acme/poster-studio', address: 'https://posterstudio.com' })));
   });
 });

@@ -140,6 +140,145 @@
   line-height: var(--typography-body-line-height);
 }
 
+/* D1, the first question: three equal cards side by side, each a real button. A grey plate holds the Field Guide
+   drawing above the title and its one line; the plate's corners follow the card's (its radius minus the card's padding).
+   The recommended card carries its badge in the corner and a stronger outline. On a phone the cards stack and the plate
+   moves beside the text. */
+.addp-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.addp-choice {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-2) var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  /* The dialog's own surface, so the grey plate stays visible in dark mode too. */
+  background-color: transparent;
+  color: var(--color-text-default);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition-property: background-color, border-color;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+/* The stronger outline takes its extra width from the padding, so the three cards keep one size. */
+.addp-choice[data-recommended] {
+  padding: calc(var(--space-2) - var(--border-width-strong) + var(--border-width-default)) calc(var(--space-2) - var(--border-width-strong) + var(--border-width-default)) calc(var(--space-4) - var(--border-width-strong) + var(--border-width-default));
+  border: var(--border-width-strong) solid var(--color-action-primary-bg);
+}
+
+@media (hover: hover) {
+  .addp-choice:hover {
+    border-color: var(--color-border-hover);
+    background-color: var(--color-surface-hover);
+  }
+
+  .addp-choice[data-recommended]:hover {
+    border-color: var(--color-action-primary-bg-hover);
+  }
+}
+
+.addp-choice:active {
+  background-color: var(--color-surface-hover);
+}
+
+.addp-choice:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.addp-choice-art {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1-5);
+  border-radius: calc(var(--radius-container) - var(--space-2));
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-default);
+}
+
+.addp-choice-badge {
+  position: absolute;
+  inset-block-start: var(--space-3);
+  inset-inline-end: var(--space-3);
+}
+
+.addp-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding-inline: var(--space-2);
+}
+
+.addp-choice-title {
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.addp-choice-help {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  text-wrap: pretty;
+}
+
+@media (max-width: 639px) {
+  .addp-choices {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .addp-choice {
+    flex-direction: row;
+    align-items: center;
+    padding: var(--space-2);
+  }
+
+  .addp-choice-art {
+    padding: var(--space-1);
+  }
+
+  .addp-choice-art > svg {
+    width: var(--size-16);
+    height: var(--size-16);
+  }
+
+  .addp-choice[data-recommended] {
+    padding: calc(var(--space-2) - var(--border-width-strong) + var(--border-width-default));
+  }
+
+  .addp-choice-text {
+    padding-inline: 0 var(--space-2);
+  }
+
+  /* On a phone the badge leads the text instead of covering it. */
+  .addp-choice-badge {
+    position: static;
+    align-self: flex-start;
+  }
+}
+
+/* "Its code is on GitHub" when Bridge sees nothing new yet: the drawing beside one sentence. */
+.addp-none {
+  padding-block: 0;
+}
+
 /* "Add a product" at the foot of Start an exploration's Where list (StartExploration.tsx), after its separator: set
    apart as an action, not a place. The plus leads the label, both in the link color. The list is portaled to the body,
    so the option is found by its mark. */

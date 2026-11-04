@@ -43,6 +43,8 @@ import {
   parseRequestIssue,
   protectedBranchesOf,
   startExplorationOnGitHub,
+  startPageBrief,
+  startPageOf,
   type BridgeConfig,
   type Exploration,
   type ExplorationSource,
@@ -469,6 +471,7 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
   const stage = explorationStage({ status, archived, files });
   const e = parseExplorationBody(p.body);
   const name = e?.name ?? p.title.replace(/^Exploration:\s*/i, '');
+  const startPage = startPageOf(e);
   const products = productsOf(config);
   const product = at.product ?? productOfBranch(products, { labels: p.labels, files: null });
   const repo = at.repo ?? gh.fullName;
@@ -502,7 +505,10 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
     ...(record ? { missingPieces: record.pieces.map((x) => ({ id: x.id, title: x.title })) } : {}),
     checkout,
     continueLines: continueLines({ number: p.number, name, productName: product.name, product: at.product?.key, repo: at.repo }),
+    // Started from a page of a product added from its address: Claude rebuilds that page with the library first.
+    ...(startPage && stage !== 'handed' ? { startFrom: startPage } : {}),
     next: [
+      ...(startPage && stage === 'not-started' ? [startPageBrief(startPage, product.name, e?.purpose || name)] : []),
       'Start by telling the designer where it stands, in one or two sentences from whereItStands and activity, without technical words, then ask what they want to do next.',
       stage === 'handed' ? 'It is no longer being explored: say so, and only change it if they ask.' : `${keepWorking} Never open a pull request to main from it.`,
     ].join(' '),

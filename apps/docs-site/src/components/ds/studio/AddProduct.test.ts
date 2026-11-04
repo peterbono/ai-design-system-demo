@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// "Add a product" (AddProduct.tsx, lib/add-product.ts; validated board "Add a product v3", A): the products Bridge
-// found on GitHub, one row each with Add, "Not in the list? Find it on GitHub", the designers' copy, Cancel and "Start
-// a new product". Add adds it to the team at once (scripts/add-product.ts addToTeam), closes and opens its page; a
+// "Add a product" (AddProduct.tsx, lib/add-product.ts; validated board "Add a product v3", D1 then A): one question
+// and three cards first (Back comes back to it), then "Its code is on GitHub": the products Bridge found, one row each
+// with Add, "Not in the list? Find it on GitHub", the designers' copy and Back; none found, one line and Find it on
+// GitHub as the primary. Add adds it to the team at once (scripts/add-product.ts addToTeam), closes and opens its page; a
 // library where Bridge may not add it directly sends it for review and says so; a refusal reads on its row. GitHub
 // opens in a centered window on the team's account, the dialog waits and reads again, then shows the new product
 // announced with its Add focused. GitHub closed with nothing new says the owners decide. Messages from another site
@@ -13,7 +14,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { ACCESS_MESSAGE, ACCESS_TICK_MS, ADD_PRODUCT_WORDS as W, foundLine, nothingYetLine, ownersOnlyLine, pendingKey, requestSentLine, type ProductRepoChoice } from '../../../lib/add-product';
-import { NEW_PRODUCT_WORDS as N } from '../../../lib/new-product';
+import { ADDRESS_PRODUCT_WORDS as D, NEW_PRODUCT_WORDS as N } from '../../../lib/new-product';
 import { copySetupFresh, copySetupKey } from '../../../lib/design-copy';
 import AddProduct, { setOpenPage } from './AddProduct';
 
@@ -95,29 +96,85 @@ afterEach(() => {
 
 const show = (onSent = vi.fn(), onOpenChange = vi.fn()) => render(createElement(AddProduct, { products: [], open: true, onOpenChange, onSent }));
 
-/** The way to GitHub: under the found products, or under the new product's form when Bridge found none. */
-const findButton = () => screen.findByRole('button', { name: new RegExp(`^(${W.findOnGitHub}|${W.findThere})$`) });
+/** The first question, then "Its code is on GitHub" (A). */
+const githubCard = () => screen.findByRole('button', { name: new RegExp(`^${W.github}`) });
+const showGitHub = async (onSent = vi.fn(), onOpenChange = vi.fn()) => {
+  const r = show(onSent, onOpenChange);
+  fireEvent.click(await githubCard());
+  return r;
+};
+
+/** The way to GitHub: under the found products, or the footer's primary when Bridge found none. */
+const findButton = () => screen.findByRole('button', { name: W.findOnGitHub });
 const startWaiting = async () => {
   fireEvent.click(await findButton());
   expect(await screen.findByText(W.waiting)).toBeInTheDocument();
 };
 
-describe('Add a product: the products Bridge found', () => {
-  it('one row each with its own Add, Not in the list, the copy, Cancel and Start a new product', async () => {
-    gh.access.repos = [SHOP, PRINT];
+describe('Add a product: the first question (D1)', () => {
+  it('one question and three equal cards, Its code is on GitHub recommended, Cancel only, nothing else yet', async () => {
+    gh.access.repos = [SHOP];
     const { baseElement } = show();
+    expect(await screen.findByRole('heading', { name: W.title })).toBeInTheDocument();
+    expect(screen.getByText(W.question)).toBeInTheDocument();
+    const github = await githubCard();
+    expect(github).toHaveAccessibleName(`${W.github} ${W.recommended}`);
+    expect(github).toHaveAccessibleDescription(W.githubHelp);
+    expect(screen.getByRole('button', { name: W.address })).toHaveAccessibleDescription(W.addressHelp);
+    expect(screen.getByRole('button', { name: W.fresh })).toHaveAccessibleDescription(W.freshHelp);
+    expect(baseElement.querySelectorAll('.addp-choice')).toHaveLength(3);
+    expect(baseElement.querySelectorAll('.addp-choice svg.ill')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: W.cancel })).toBeInTheDocument();
+    // Details only after a choice.
+    for (const later of [W.back, W.notListed, W.copy, W.foundLead]) expect(screen.queryByText(later)).toBeNull();
+    expect(screen.queryByRole('button', { name: W.addLabel('Shop') })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(github));
+    await expectNoAxeViolations(baseElement);
+  });
+
+  it('each card opens its step, and Back comes back with that card focused', async () => {
+    gh.access.repos = [SHOP];
+    show();
+    fireEvent.click(await githubCard());
+    expect(await screen.findByRole('heading', { name: W.github })).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: W.addLabel('Shop') })));
+    fireEvent.click(screen.getByRole('button', { name: W.back }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: new RegExp(`^${W.github}`) })));
+    fireEvent.click(screen.getByRole('button', { name: W.address }));
+    expect(await screen.findByRole('heading', { name: D.title })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: W.back }));
+    fireEvent.click(await screen.findByRole('button', { name: W.fresh }));
+    expect(await screen.findByRole('heading', { name: N.title })).toBeInTheDocument();
+    expect(screen.queryByLabelText(D.address)).toBeNull();
+  });
+
+  it('closing and opening again starts from the question', async () => {
+    gh.access.repos = [SHOP];
+    const view = show();
+    fireEvent.click(await githubCard());
+    await screen.findByRole('button', { name: W.addLabel('Shop') });
+    view.rerender(createElement(AddProduct, { products: [], open: false, onOpenChange: vi.fn(), onSent: vi.fn() }));
+    view.rerender(createElement(AddProduct, { products: [], open: true, onOpenChange: vi.fn(), onSent: vi.fn() }));
+    expect(await screen.findByText(W.question)).toBeInTheDocument();
+  });
+});
+
+describe('Add a product: the products Bridge found', () => {
+  it('one row each with its own Add, Not in the list, the copy, and Back', async () => {
+    gh.access.repos = [SHOP, PRINT];
+    const { baseElement } = await showGitHub();
     expect(await screen.findByRole('button', { name: W.addLabel('Shop') })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: W.title })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: W.github })).toBeInTheDocument();
     expect(screen.getByText(W.foundLead)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: W.addLabel('Art print shop') })).toHaveTextContent(W.add);
     expect(screen.getByText('acme/art-print-shop')).toBeInTheDocument();
     expect(screen.getByText(W.notListed)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: W.findOnGitHub })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: W.copy })).toBeChecked();
-    expect(screen.getByRole('button', { name: W.cancel })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: W.startNew })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: W.back })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: W.cancel })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Start a new product' })).toBeNull();
     expect(screen.queryByRole('combobox')).toBeNull();
-    for (const old of ["It's already built", "It's a new product", 'Which product does your team design for?', 'Back']) expect(screen.queryByText(old)).toBeNull();
     await expectNoAxeViolations(baseElement);
   });
 
@@ -125,7 +182,7 @@ describe('Add a product: the products Bridge found', () => {
     gh.access.repos = [SHOP];
     const onSent = vi.fn();
     const onOpenChange = vi.fn();
-    show(onSent, onOpenChange);
+    await showGitHub(onSent, onOpenChange);
     fireEvent.click(await screen.findByRole('button', { name: W.addLabel('Shop') }));
     await waitFor(() => expect(gh.opened).toEqual(['/studio/products/shop/']));
     expect(gh.add).toHaveBeenCalledWith({ key: 'shop', name: 'Shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' }, framework: 'react' });
@@ -137,7 +194,7 @@ describe('Add a product: the products Bridge found', () => {
 
   it('without the copy: no designers\' copy in the entry, nothing to make on its page', async () => {
     gh.access.repos = [SHOP];
-    show();
+    await showGitHub();
     fireEvent.click(await screen.findByRole('checkbox', { name: W.copy }));
     fireEvent.click(screen.getByRole('button', { name: W.addLabel('Shop') }));
     await waitFor(() => expect(gh.add).toHaveBeenCalledWith({ key: 'shop', name: 'Shop', repo: 'acme/shop', framework: 'react' }));
@@ -149,7 +206,7 @@ describe('Add a product: the products Bridge found', () => {
     gh.access.repos = [SHOP];
     gh.add.mockResolvedValue({ kind: 'review' });
     const onOpenChange = vi.fn();
-    const { baseElement } = show(vi.fn(), onOpenChange);
+    const { baseElement } = await showGitHub(vi.fn(), onOpenChange);
     fireEvent.click(await screen.findByRole('button', { name: W.addLabel('Shop') }));
     expect(await screen.findByRole('heading', { name: W.reviewTitle })).toBeInTheDocument();
     expect(screen.getByText(W.reviewLine('Shop'))).toBeInTheDocument();
@@ -162,7 +219,7 @@ describe('Add a product: the products Bridge found', () => {
   it("refused by Bridge: the reason on that product's row, nothing opens", async () => {
     gh.access.repos = [SHOP, PRINT];
     gh.add.mockResolvedValue({ kind: 'refused', message: 'Only admins and leads of your team add products. Ask one of them.' });
-    show();
+    await showGitHub();
     fireEvent.click(await screen.findByRole('button', { name: W.addLabel('Shop') }));
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Only admins and leads of your team add products. Ask one of them.');
@@ -173,38 +230,38 @@ describe('Add a product: the products Bridge found', () => {
   it('not done: says to try again', async () => {
     gh.access.repos = [SHOP];
     gh.add.mockResolvedValue({ kind: 'failed' });
-    show();
+    await showGitHub();
     fireEvent.click(await screen.findByRole('button', { name: W.addLabel('Shop') }));
     expect(await screen.findByRole('alert')).toHaveTextContent(W.refused);
   });
 
-  it('Start a new product opens the name and Create product', async () => {
-    gh.access.repos = [SHOP];
-    show();
-    fireEvent.click(await screen.findByRole('button', { name: W.startNew }));
-    expect(await screen.findByLabelText(N.name)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: N.create })).toBeInTheDocument();
-  });
 });
 
 describe('Add a product: a product Bridge cannot see yet', () => {
-  it('nothing found: opens straight on a new product, with the way to code already on GitHub', async () => {
-    show();
-    expect(await screen.findByLabelText(N.name)).toBeInTheDocument();
-    expect(screen.getByText(W.codeOnGitHub)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: W.findThere })).toBeInTheDocument();
+  it('nothing found: one drawing, one line, and Find it on GitHub as the primary, with Back', async () => {
+    const { baseElement } = await showGitHub();
+    expect(await screen.findByText(W.noneFound)).toBeInTheDocument();
+    expect(baseElement.querySelector('.addp-none svg.ill')).not.toBeNull();
+    const find = screen.getByRole('button', { name: W.findOnGitHub });
+    expect(find.closest('[class*="footer"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: W.back })).toBeInTheDocument();
+    expect(screen.queryByText(W.notListed)).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: W.copy })).toBeNull();
+    expect(screen.queryByLabelText(N.name)).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(find));
+    await expectNoAxeViolations(baseElement);
   });
 
   it("no installation found: GitHub opens on the team's account, never on its account picker", async () => {
     gh.access.installation = null;
-    show();
+    await showGitHub();
     await startWaiting();
     expect(opened[0]![0]).toBe('https://github.com/apps/bridge-design-studio/installations/new/permissions?target_id=77');
   });
 
   it("GitHub did not answer: one line with Try again, and GitHub still opens on the team's account", async () => {
     gh.readBreaks = 1;
-    const { baseElement } = show();
+    const { baseElement } = await showGitHub();
     expect(await screen.findByText(new RegExp(W.unreadLine))).toBeInTheDocument();
     await expectNoAxeViolations(baseElement);
     gh.access.repos = [SHOP];
@@ -215,7 +272,7 @@ describe('Add a product: a product Bridge cannot see yet', () => {
 
   it("GitHub did not answer: Find it there opens the team's account", async () => {
     gh.readBreaks = 1;
-    show();
+    await showGitHub();
     await screen.findByText(new RegExp(W.unreadLine));
     await startWaiting();
     expect(opened[0]![0]).toBe('https://github.com/apps/bridge-design-studio/installations/new/permissions?target_id=77');
@@ -224,15 +281,15 @@ describe('Add a product: a product Bridge cannot see yet', () => {
   it("never shows the owners' line late: it arrives with the step", async () => {
     gh.owner = false;
     gh.ownerDelay = 50;
-    show();
-    expect(screen.queryByText(W.codeOnGitHub)).toBeNull();
-    expect(await screen.findByText(W.codeOnGitHub)).toBeInTheDocument();
+    await showGitHub();
+    expect(screen.queryByText(W.noneFound)).toBeNull();
+    expect(await screen.findByText(W.noneFound)).toBeInTheDocument();
     expect(screen.getByText(ownersOnlyLine('acme'))).toBeInTheDocument();
   });
 
   it("opens the installation's page in a centered window and waits, Cancel goes back", async () => {
     gh.access.repos = [SHOP];
-    show();
+    await showGitHub();
     await startWaiting();
     expect(opened[0]![0]).toBe('https://github.com/organizations/acme/settings/installations/42');
     expect(String(opened[0]![2])).toMatch(/^popup=yes,width=1020,height=760,left=\d+,top=\d+$/);
@@ -245,14 +302,14 @@ describe('Add a product: a product Bridge cannot see yet', () => {
       opened.push(a);
       return null;
     });
-    show();
+    await showGitHub();
     await startWaiting();
     expect(opened[1]).toEqual(['https://github.com/organizations/acme/settings/installations/42', '_blank']);
   });
 
   it('reads again while it waits; the new product comes back announced with its Add focused, GitHub closes', async () => {
     gh.access.repos = [SHOP];
-    show();
+    await showGitHub();
     await screen.findByText(W.notListed);
     vi.useFakeTimers({ shouldAdvanceTime: true });
     await startWaiting();
@@ -266,9 +323,9 @@ describe('Add a product: a product Bridge cannot see yet', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: W.addLabel('Art print shop') })));
   });
 
-  it('from a new product: the product found on GitHub shows in the list', async () => {
-    show();
-    await screen.findByLabelText(N.name);
+  it('nothing found: the product found on GitHub shows in the list', async () => {
+    await showGitHub();
+    await screen.findByText(W.noneFound);
     vi.useFakeTimers({ shouldAdvanceTime: true });
     await startWaiting();
     gh.poll.mockResolvedValue([PRINT]);
@@ -278,8 +335,8 @@ describe('Add a product: a product Bridge cannot see yet', () => {
   });
 
   it('GitHub closed with nothing new: one last read, then the owners decide, and Try again reads again', async () => {
-    show();
-    await screen.findByLabelText(N.name);
+    await showGitHub();
+    await screen.findByText(W.noneFound);
     vi.useFakeTimers({ shouldAdvanceTime: true });
     await startWaiting();
     gh.poll.mockResolvedValue([]);
@@ -295,7 +352,7 @@ describe('Add a product: a product Bridge cannot see yet', () => {
   });
 
   it("reads at once on this site's message, never on another site's", async () => {
-    show();
+    await showGitHub();
     await startWaiting();
     gh.poll.mockResolvedValue([]);
     act(() => {
@@ -310,8 +367,8 @@ describe('Add a product: a product Bridge cannot see yet', () => {
   });
 
   it('stops on GitHub busy and says when Bridge is back', async () => {
-    show();
-    await screen.findByLabelText(N.name);
+    await showGitHub();
+    await screen.findByText(W.noneFound);
     vi.useFakeTimers({ shouldAdvanceTime: true });
     await startWaiting();
     gh.poll.mockRejectedValue(Object.assign(new Error('GitHub rate limit reached'), { status: 429, resetAt: null }));
@@ -323,7 +380,7 @@ describe('Add a product: a product Bridge cannot see yet', () => {
 
   it('GitHub busy when the dialog opens: Try again fills the list, never calls a product new', async () => {
     gh.readFails = true;
-    show();
+    await showGitHub();
     expect(await screen.findByText(/GitHub is busy/)).toBeInTheDocument();
     gh.poll.mockResolvedValue([SHOP]);
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
@@ -338,9 +395,9 @@ describe('Add a product: someone who can only request access', () => {
 
   it('says before GitHub opens that the owners decide, and offers a message for them', async () => {
     gh.owner = false;
-    const { baseElement } = show();
+    const { baseElement } = await showGitHub();
     expect(await screen.findByText(ownersOnlyLine('acme'))).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: W.findThere })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: W.findOnGitHub })).toBeInTheDocument();
     const writeText = vi.fn(async () => undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     fireEvent.click(screen.getByRole('button', { name: W.copyForOwners }));
@@ -352,15 +409,15 @@ describe('Add a product: someone who can only request access', () => {
 
   it('an owner, or Bridge not knowing, keeps the usual words', async () => {
     gh.owner = true;
-    show();
-    expect(await screen.findByText(W.codeOnGitHub)).toBeInTheDocument();
+    await showGitHub();
+    expect(await screen.findByText(W.noneFound)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: W.copyForOwners })).toBeNull();
   });
 
   it('opens the organization on the install page, where Save becomes a request', async () => {
     gh.owner = false;
     gh.access.installation = { id: 42, account: { login: 'acme', type: 'Organization', id: 7 } };
-    show();
+    await showGitHub();
     await screen.findByText(ownersOnlyLine('acme'));
     await startWaiting();
     expect(opened[0]![0]).toBe('https://github.com/apps/bridge-design-studio/installations/new/permissions?target_id=7');
@@ -369,7 +426,7 @@ describe('Add a product: someone who can only request access', () => {
   it('GitHub closed with nothing new: the request is sent, remembered, and said again on reopening', async () => {
     gh.owner = false;
     gh.access.repos = [SHOP];
-    const view = show();
+    const view = await showGitHub();
     await screen.findByText(ownersOnlyLine('acme'));
     vi.useFakeTimers({ shouldAdvanceTime: true });
     await startWaiting();
@@ -384,8 +441,14 @@ describe('Add a product: someone who can only request access', () => {
     expect(await screen.findByText(requestSentLine('acme', null))).toBeInTheDocument();
     // Coming back to the window reads the list: the approved product is announced and the request forgotten.
     gh.poll.mockResolvedValue([SHOP, PRINT]);
-    fireEvent.focus(window);
-    expect(await screen.findByText(foundLine('Art print shop'))).toBeInTheDocument();
+    // The dialog reopens on the question, then on its GitHub step: focus again until the read has run (slow runners).
+    await waitFor(
+      () => {
+        fireEvent.focus(window);
+        expect(screen.getByText(foundLine('Art print shop'))).toBeInTheDocument();
+      },
+      { timeout: 5000, interval: 200 },
+    );
     expect(localStorage.getItem(KEY)).toBeNull();
     await act(() => new Promise((r) => setTimeout(r, 100)));
   });
