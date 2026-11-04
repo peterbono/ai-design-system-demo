@@ -54,6 +54,9 @@ export function pillState(a: Pick<RepoAccess, 'state' | 'admin' | 'contributor'>
   return a.state;
 }
 
+/** A read made without a sign-in (the team's public state): it says nothing about a signed-in person's role. */
+export const anonymousAccess = (a: Pick<RepoAccess, 'state'> | null | undefined): boolean => a?.state === 'anonymous-public' || a?.state === 'anonymous-unknown';
+
 /** May approve, request changes, merge or override: a GitHub account with write access, never an email contributor. */
 export const canReview = (a: Pick<RepoAccess, 'write' | 'contributor'> | null | undefined): boolean => Boolean(a?.write && !a.contributor);
 

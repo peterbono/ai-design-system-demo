@@ -15,6 +15,11 @@ export function linkedRole(repo: string): LinkedRole | null {
   return current && current.repo === repo.toLowerCase() ? current.role : null;
 }
 
+/** True once the role was read for `repo` on this page (whatever it said): until then the page does not know it yet. */
+export function linkedRoleRead(repo: string): boolean {
+  return current?.repo === repo.toLowerCase();
+}
+
 /** Calls `fn` each time the role is read; at once when it is known already. */
 export function onLinkedRole(fn: (role: LinkedRole | null) => void): void {
   subs.push(fn);

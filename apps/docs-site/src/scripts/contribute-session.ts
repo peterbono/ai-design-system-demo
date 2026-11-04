@@ -710,6 +710,11 @@ export async function publicTeamRead(repo: string, url: string, accept: string, 
   if (!isDemoRepo(repo) || publicReads.get(key(repo)) === 'down') return null;
   const target = proxyUrl(url, repo, products);
   if (!target) return null;
+  // A product repository Bridge said is private, for a visitor: GitHub would not show it either. Answer as GitHub
+  // would, without asking anyone again (no refusal, then no missing page, on every page a visitor opens).
+  const product = repoOfPath(url.slice(GITHUB_API.length));
+  const ownRead = !product || product === key(repo);
+  if (!ownRead && closedForVisitors(product)) return closedAnswer();
   let res: Response;
   try {
     res = restoreMissing(await fetchImpl(target, { headers: { Accept: accept || 'application/vnd.github+json', [MISSING_HEADER]: '1' }, credentials: 'same-origin' }));
@@ -733,7 +738,42 @@ export async function publicTeamRead(repo: string, url: string, accept: string, 
     const wait = typeof body?.retryAfter === 'number' ? body.retryAfter : null;
     throw new GitHubError(429, typeof body?.message === 'string' ? body.message : 'Bridge is busy, try again in a few minutes.', `${CONTRIB_REFUSAL}busy`, wait ? { resetsAt: new Date(Date.now() + wait * 1000) } : {});
   }
+  // A product repository that is not public: a visitor cannot read it on GitHub either, so no second try there.
+  if (code === 'not-allowed' && !ownRead) {
+    noteClosedForVisitors(product);
+    return closedAnswer();
+  }
   // The app missing on one product repository leaves that product out, never the team's other reads.
   if (code !== 'not-allowed' && code !== 'product_missing') publicReads.set(key(repo), 'down');
   return null;
 }
+
+/** How long this browser remembers that a demo's product repository is closed to visitors. */
+export const CLOSED_PRODUCT_MS = 24 * 60 * 60 * 1000;
+const CLOSED_KEY = 'bridge.guest.closed-products';
+
+function closedProducts(): Record<string, number> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? '{}') as unknown;
+    return raw && typeof raw === 'object' ? (raw as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** A demo's product repository Bridge said visitors cannot read, in the last day. */
+export function closedForVisitors(repo: string, now = Date.now()): boolean {
+  const at = closedProducts()[repo.toLowerCase()];
+  return typeof at === 'number' && now - at < CLOSED_PRODUCT_MS;
+}
+
+function noteClosedForVisitors(repo: string) {
+  try {
+    localStorage.setItem(CLOSED_KEY, JSON.stringify({ ...closedProducts(), [repo.toLowerCase()]: Date.now() }));
+  } catch {
+    /* storage blocked: this page asks again next time */
+  }
+}
+
+/** GitHub's own answer for a repository the reader cannot see. */
+const closedAnswer = () => new Response(JSON.stringify({ message: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Bridge-Source': 'closed' } });

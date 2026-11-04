@@ -113,6 +113,9 @@ describe('the team chip', () => {
     expect(accessBadge(null, true).label).toBe('Checking');
     expect(accessBadge(null, false).label).toBe('Guest');
     expect(accessBadge('anonymous-public', false).label).toBe('Guest');
+    // Signed in, a read made before the sign-in was checked is not their role: still checking, never "Guest".
+    expect(accessBadge('anonymous-public', true).label).toBe('Checking');
+    expect(accessBadge('anonymous-unknown', true).label).toBe('Checking');
   });
 
   it("shows Bridge's own design system as one to explore, never as signed out", () => {

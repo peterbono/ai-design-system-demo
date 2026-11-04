@@ -31,7 +31,8 @@ export function copyRepos(p: ProductConfig | null | undefined): { copy: string; 
  */
 export async function readCopyView(p: ProductConfig | null | undefined): Promise<CopyView | null> {
   const at = copyRepos(p);
-  if (!at) return { kind: 'none' };
+  // Signed out, nobody here could make or use a copy (and a private one reads as missing): no copy to speak of.
+  if (!at || !getToken()) return { kind: 'none' };
   try {
     const s = await designCopyStateOnGitHub(studioClient(at.copy), studioClient(at.code));
     return s.kind === 'missing' ? { kind: 'missing' } : { kind: 'ready', behind: s.behind };

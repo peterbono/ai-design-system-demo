@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emailMemberTeam, emailStudioLink, emailStudioRedirect, teamStudioRoute } from './email-studio';
+import { emailMemberTeam, emailStudioLink, emailStudioRedirect, memberStudioRedirect, teamStudioRoute } from './email-studio';
 
 const reserved = { firsts: [], pairs: [] };
 const base = { github: false, teamPage: false, emailTeams: ['the-bridge-company/ai-design-system-demo'], recent: [], reserved: null };
@@ -41,5 +41,22 @@ describe('email member Studio', () => {
     expect(emailStudioLink('/studio', team, reserved)).toBe('/studio/the-bridge-company/ai-design-system-demo/');
     expect(emailStudioLink('/studio/components/?c=button', team, reserved)).toBe('/studio/the-bridge-company/ai-design-system-demo/components/?c=button');
     expect(emailStudioLink('/studio/auth/', team, reserved)).toBeNull();
+  });
+});
+
+describe('the hosted showcase for its own team', () => {
+  const entry = { pathname: '/studio/', hostedSite: true, teamPage: false, pageRepo: 'the-bridge-company/ai-design-system-demo', member: true, reserved };
+
+  it('sends a member of the shown team to the same page of its team address', () => {
+    expect(memberStudioRedirect(entry)).toBe('/studio/the-bridge-company/ai-design-system-demo/');
+    expect(memberStudioRedirect({ ...entry, pathname: '/studio/settings/', search: '?x=1', hash: '#team' })).toBe('/studio/the-bridge-company/ai-design-system-demo/settings/?x=1#team');
+  });
+
+  it('leaves visitors, self-hosted Studios, team addresses and shared pages alone', () => {
+    expect(memberStudioRedirect({ ...entry, member: false })).toBeNull();
+    expect(memberStudioRedirect({ ...entry, hostedSite: false })).toBeNull();
+    expect(memberStudioRedirect({ ...entry, teamPage: true })).toBeNull();
+    expect(memberStudioRedirect({ ...entry, pathname: '/studio/invite/' })).toBeNull();
+    expect(memberStudioRedirect({ ...entry, pageRepo: null })).toBeNull();
   });
 });

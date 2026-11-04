@@ -110,6 +110,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   // No GitHub sign-in here, and the Bridge account's linked GitHub is on this team (the server read it with the app,
   // scripts/linked-role.ts): the chip and "Your teams" say the real role, never "Explore freely" or a stale "Can view".
   const [linked, setLinked] = useState<RepoAccessState | null>(null);
+  // That linked role is still being read: the chip says "Checking", never "Explore freely" to a member who just signed in.
+  const [linkedKnown, setLinkedKnown] = useState(true);
 
   // A team shell names its team from the address at once, before the session and its scripts load (a cold first visit
   // can take seconds): never "Your team" while the address already says which.
@@ -146,6 +148,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
       if (live) setFacts(startFacts());
       session.initGitHubConnect((v) => {
         setSessionKnown(true);
+        setLinkedKnown(session.linkedRoleKnown());
         setSignedIn(Boolean(v));
         setViewerName(v ? (shortName(v.name) ?? v.login) : null);
         if (!v) setAccess(r.hosted ? (session.currentAccess()?.state ?? null) : null);
@@ -167,9 +170,16 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         if (live) setReviewer(viewerRole() === 'reviewer');
       };
       document.addEventListener('bridge:team-model', () => void readReviewer());
-      void import('../../../scripts/linked-role').then(({ onLinkedRole }) => onLinkedRole(() => live && setLinked(linkedAccessState(session.linkedGitHubRole()))));
+      void import('../../../scripts/linked-role').then(({ onLinkedRole }) =>
+        onLinkedRole(() => {
+          if (!live) return;
+          setLinked(linkedAccessState(session.linkedGitHubRole()));
+          setLinkedKnown(session.linkedRoleKnown());
+        }),
+      );
       session.onAccess((a) => {
         setAccessBusy(!a && session.accessBusy() !== null);
+        setLinkedKnown(session.linkedRoleKnown());
         setAccess(pillState(a));
         void readReviewer();
         void contributeRole(a).then((role) => live && a && setAccess(pillState(a, role)));
@@ -219,7 +229,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     : // The settings' name, else the account's name for this team, else the one this browser knows (the server keeps
       // it), before and after the settings are read: settings without a `name` never flip it to the repository in words.
       chipIdentity(name, { demo: isDemoTeam(name, hosted), state: shownAccess, signedIn: roleSignedIn, name: cfg.name ?? (name ? (accountTeamName(name) ?? knownTeamName(name)) : null) });
-  const shownBadge = !sessionKnown && !account && chip.kind !== 'workspace' ? { label: 'Checking', tone: 'neutral' as const } : chip.kind === 'team' ? roleBadge(shownAccess, roleSignedIn, reviewer) : chip.badge;
+  const shownBadge = ((!sessionKnown && !account) || (account && !ghSignedIn && !linkedKnown)) && chip.kind !== 'workspace' ? { label: 'Checking', tone: 'neutral' as const } : chip.kind === 'team' ? roleBadge(shownAccess, roleSignedIn, reviewer) : chip.badge;
   const badge = accessBusy && sessionKnown && !access && shownBadge.label === 'Checking' ? busyBadge(name ? roles[name.toLowerCase()] : null) : shownBadge;
   const offerTeams = launcher || hosted;
   // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first
