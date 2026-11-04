@@ -6,21 +6,23 @@ import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import StartExploration, { startFromAddress, startLines } from './StartExploration';
+import * as session from '../../../scripts/github-session';
 import bridgeConfig from '../../../../../../bridge.config.json';
 
 // The viewer's access to the team: a lead (GitHub write) by default; a test sets a designer of the team.
 const viewer = vi.hoisted(() => ({ access: { state: 'writer', write: true, admin: false, contributor: false } as Record<string, unknown> | null }));
-vi.mock('../../../scripts/github-session', async (actual) => ({
-  ...(await actual<Record<string, unknown>>()),
-  onAccess: (fn: (a: unknown) => void) => viewer.access && fn(viewer.access),
-}));
-// The session module is large: load it once before the tests, so the access arrives right after a dialog opens.
-beforeAll(async () => {
-  await import('../../../scripts/github-session');
-}, 30_000);
+// A spied module, never a factory mock: Vitest hands a factory mock's later dynamic imports the real module when two of
+// them from one file overlap (a component still loading from the test before, the next test's own), and the real
+// onAccess never answers, so Where never came. A spied module is one object for every import.
+vi.mock('../../../scripts/github-session', { spy: true });
+beforeEach(() => {
+  vi.mocked(session.onAccess).mockImplementation((fn) => {
+    if (viewer.access) fn(viewer.access as unknown as session.RepoAccess);
+  });
+});
 
 const components = [
   { name: 'Button', slug: 'button', family: 'Actions' },
@@ -219,7 +221,7 @@ describe('Where: Add a product, for the people who may add one', () => {
   const openWhere = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(screen.getByRole('button', { name: 'Start an exploration' }));
     // The access (and with it the library and Add a product) arrives just after the dialog opens.
-    await user.click(await screen.findByRole('combobox', { name: 'Where' }, { timeout: 5000 }));
+    await user.click(await screen.findByRole('combobox', { name: 'Where' }));
   };
 
   it('an admin gets "Add a product" last, after a separator, and it opens the Add a product dialog', async () => {
@@ -227,8 +229,6 @@ describe('Where: Add a product, for the people who may add one', () => {
     const done = embed({ owner: 'acme', repo: 'ds' });
     try {
       const user = userEvent.setup();
-      // The previous test's late access reads settle first.
-      await new Promise((r) => setTimeout(r, 0));
       render(createElement(StartExploration, { components }));
       await openWhere(user);
       const add = await screen.findByRole('option', { name: 'Add a product' });
