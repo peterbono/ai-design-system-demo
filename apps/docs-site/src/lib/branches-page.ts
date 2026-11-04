@@ -348,9 +348,24 @@ export function groupByProduct<R extends { product: ProductKey }>(rows: R[], pro
 // Shipped: the history of the work, newest first, by month
 
 /** What was shipped: merged rows only (a branch closed without merging never reached anyone), newest first. */
-export function shippedRows<R extends { merged_at?: string | null }>(rows: readonly R[]): R[] {
-  const at = (r: R) => (r.merged_at ? new Date(r.merged_at).getTime() : NaN);
+export function shippedRows<R extends { merged_at?: string | null; shippedAt?: string | null }>(rows: readonly R[]): R[] {
+  const at = (r: R) => {
+    const iso = shippedAtOf(r);
+    return iso ? new Date(iso).getTime() : NaN;
+  };
   return rows.filter((r) => !Number.isNaN(at(r))).sort((a, b) => at(b) - at(a));
+}
+
+/** When a row shipped: the developers' task closed as done (lib/exploration-state), else its merge. */
+export const shippedAtOf = (r: { merged_at?: string | null; shippedAt?: string | null }): string | null => r.shippedAt ?? r.merged_at ?? null;
+
+/**
+ * Open rows whose one status is Shipped (lib/exploration-state: the developers' task closed as done while the design
+ * pull request stays open, its preview alive) leave All and the open counts for Shipped, like a merged one.
+ */
+export function shippedByTask<R extends { stage?: LifecycleStage | null }>(rows: readonly R[]): { open: R[]; shipped: R[] } {
+  const done = (r: R) => r.stage === 'shipped' || r.stage === 'next-release';
+  return { open: rows.filter((r) => !done(r)), shipped: rows.filter(done) };
 }
 
 /** "October 2026": the month heading of a shipped row, in the viewer's time zone (UTC when `utc`, for tests). */

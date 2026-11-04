@@ -9,7 +9,7 @@
 // Pure: no DOM, no fetch. Unit tested in product-page.test.ts.
 import { defaultProduct, type ProductConfig } from '@bridge-ds/core';
 import { STUDIO_ROOT, studioHref } from './team-path';
-import { LIFECYCLE_LABEL } from './review-state';
+import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
 import type { ExplorationCard } from './home-explorations';
 import type { ThumbSpec } from './branch-thumb';
 
@@ -37,56 +37,70 @@ export function productKeyFromPath(pathname: string): string | null {
 export const cardProductKey = (c: Pick<ExplorationCard, 'productKey'>, products: readonly ProductConfig[]): string => (c.productKey ?? defaultProduct(products).key).toLowerCase();
 
 /** Where an exploration stands on a product page, in the order the page lists them. */
-export type ProductStateKey = 'running' | 'review' | 'waiting' | 'building' | 'shipped';
+export type ProductStateKey = 'running' | 'review' | 'waiting' | 'building' | 'shipped' | 'not-planned';
 
 /**
  * The groups of a product page, in the lifecycle's order and words (lib/review-state LIFECYCLE_LABEL): Exploring,
- * Waiting for code, Being built, In review, Shipped. Archived ones are folded apart.
+ * Waiting to be picked up, Being built, In review, Shipped, Not planned. Archived ones are folded apart.
  */
-export const PRODUCT_STATES: { key: ProductStateKey; label: string; count: (n: number) => string }[] = [
-  { key: 'running', label: LIFECYCLE_LABEL.exploring, count: (n) => `${n} exploring` },
-  { key: 'waiting', label: LIFECYCLE_LABEL['waiting-for-code'], count: (n) => `${n} waiting to be picked up` },
-  { key: 'building', label: LIFECYCLE_LABEL['being-built'], count: (n) => `${n} being built` },
-  { key: 'review', label: LIFECYCLE_LABEL['in-review'], count: (n) => `${n} in review` },
-  { key: 'shipped', label: LIFECYCLE_LABEL.shipped, count: (n) => `${n} shipped` },
+export const PRODUCT_STATES: { key: ProductStateKey; label: string; count: (n: number) => string; open: boolean }[] = [
+  { key: 'running', label: LIFECYCLE_LABEL.exploring, count: (n) => `${n} exploring`, open: true },
+  { key: 'waiting', label: LIFECYCLE_LABEL['waiting-for-code'], count: (n) => `${n} waiting to be picked up`, open: true },
+  { key: 'building', label: LIFECYCLE_LABEL['being-built'], count: (n) => `${n} being built`, open: true },
+  { key: 'review', label: LIFECYCLE_LABEL['in-review'], count: (n) => `${n} in review`, open: true },
+  { key: 'shipped', label: LIFECYCLE_LABEL.shipped, count: (n) => `${n} shipped`, open: false },
+  { key: 'not-planned', label: LIFECYCLE_LABEL['not-planned'], count: (n) => `${n} not planned`, open: false },
 ];
 
-/** The group of a card, from its stage and its tag's words (lib/home-explorations explorationStage). */
-export function stateOfCard(c: Pick<ExplorationCard, 'stage' | 'state'>): ProductStateKey {
-  if (c.stage === 'exploring' || c.stage === 'found') return 'running';
-  if (c.stage === 'kept') return 'shipped';
-  if (c.stage === 'in-review') return 'review';
-  return c.state === 'Being built' ? 'building' : 'waiting';
-}
+/** The group of each status (lib/exploration-state): the one status decides, never the words on the card. */
+const GROUP_OF: Record<LifecycleStage, ProductStateKey | null> = {
+  exploring: 'running',
+  'waiting-for-code': 'waiting',
+  'being-built': 'building',
+  'in-review': 'review',
+  approved: 'review',
+  'next-release': 'shipped',
+  shipped: 'shipped',
+  'not-planned': 'not-planned',
+  // Archived cards are folded apart; closed ones are not listed.
+  archived: null,
+  closed: null,
+};
+
+/** The group of a card, from its one status; null for the ones a product page does not group (archived, closed). */
+export const stateOfCard = (c: Pick<ExplorationCard, 'lifecycle'>): ProductStateKey | null => GROUP_OF[c.lifecycle];
 
 /** The cards in their state groups, in PRODUCT_STATES order, card order kept inside; empty groups left out. */
-export function productGroups<C extends Pick<ExplorationCard, 'stage' | 'state'>>(cards: readonly C[]): { key: ProductStateKey; label: string; cards: C[] }[] {
+export function productGroups<C extends Pick<ExplorationCard, 'lifecycle'>>(cards: readonly C[]): { key: ProductStateKey; label: string; cards: C[] }[] {
   return PRODUCT_STATES.map((s) => ({ key: s.key, label: s.label, cards: cards.filter((c) => stateOfCard(c) === s.key) })).filter((g) => g.cards.length > 0);
 }
 
 /** How many cards stand in each state. */
-export function productCounts(cards: readonly Pick<ExplorationCard, 'stage' | 'state'>[]): Record<ProductStateKey, number> {
-  const out: Record<ProductStateKey, number> = { running: 0, review: 0, waiting: 0, building: 0, shipped: 0 };
-  for (const c of cards) out[stateOfCard(c)] += 1;
+export function productCounts(cards: readonly Pick<ExplorationCard, 'lifecycle'>[]): Record<ProductStateKey, number> {
+  const out: Record<ProductStateKey, number> = { running: 0, review: 0, waiting: 0, building: 0, shipped: 0, 'not-planned': 0 };
+  for (const c of cards) {
+    const k = stateOfCard(c);
+    if (k) out[k] += 1;
+  }
   return out;
 }
 
-/** The work in progress of a product, in words: ["2 exploring", "1 waiting for code"]. Shipped is not in progress. */
-function inProgress(cards: readonly Pick<ExplorationCard, 'stage' | 'state'>[]): string[] {
+/** The work in progress of a product, in words: ["2 exploring", "1 waiting to be picked up"]. Done work is not in progress. */
+function inProgress(cards: readonly Pick<ExplorationCard, 'lifecycle'>[]): string[] {
   const n = productCounts(cards);
-  return PRODUCT_STATES.filter((s) => s.key !== 'shipped' && n[s.key] > 0).map((s) => s.count(n[s.key]));
+  return PRODUCT_STATES.filter((s) => s.open && n[s.key] > 0).map((s) => s.count(n[s.key]));
 }
 
-/** A folder card's line: "2 exploring · 1 waiting for code", "3 shipped", or "Nothing in progress". */
-export function folderLine(cards: readonly Pick<ExplorationCard, 'stage' | 'state'>[], sep = ' · '): string {
+/** A folder card's line: "2 exploring · 1 waiting to be picked up", "3 shipped", or "Nothing in progress". */
+export function folderLine(cards: readonly Pick<ExplorationCard, 'lifecycle'>[], sep = ' · '): string {
   const parts = inProgress(cards);
   if (parts.length) return parts.join(sep);
   const shipped = productCounts(cards).shipped;
   return shipped ? `${shipped} shipped` : 'Nothing in progress';
 }
 
-/** The product page header's summary: "2 exploring, 1 waiting for code.", or why the page is quiet. */
-export function productSummary(cards: readonly Pick<ExplorationCard, 'stage' | 'state'>[]): string {
+/** The product page header's summary: "2 exploring, 1 waiting to be picked up.", or why the page is quiet. */
+export function productSummary(cards: readonly Pick<ExplorationCard, 'lifecycle'>[]): string {
   const parts = inProgress(cards);
   if (parts.length) return `${parts.join(', ').replace(/^./, (c) => c.toUpperCase())}.`;
   const shipped = productCounts(cards).shipped;

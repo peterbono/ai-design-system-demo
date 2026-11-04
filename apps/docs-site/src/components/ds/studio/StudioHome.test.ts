@@ -25,6 +25,7 @@ const exploration = (n: number, over: Partial<ExplorationCard> = {}): Exploratio
   product: 'Account',
   author: leo,
   stage: 'exploring',
+  lifecycle: 'exploring',
   state: 'Exploring',
   updated: '2026-10-21T10:00:00Z',
   preview: { kind: 'screen', src: `/sample/explorations/${n}.png` },
@@ -388,8 +389,8 @@ describe('StudioHome, products', () => {
     const cards = [
       exploration(1, { productKey: 'admin-app', product: 'Product admin' }),
       exploration(2, { productKey: 'admin-app', product: 'Product admin' }),
-      exploration(3, { productKey: 'admin-app', product: 'Product admin', stage: 'with-devs', state: 'Waiting to be picked up' }),
-      exploration(4, { productKey: 'library', product: null, stage: 'kept', state: 'Shipped' }),
+      exploration(3, { productKey: 'admin-app', product: 'Product admin', stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' }),
+      exploration(4, { productKey: 'library', product: null, stage: 'kept', state: 'Shipped', lifecycle: 'shipped' }),
     ];
     const { container } = render(createElement(StudioHome, props({ contributor: false, lead: true, explorations: cards, products })));
     expect(screen.getByRole('heading', { level: 2, name: 'Recent explorations' })).toBeTruthy();
@@ -430,7 +431,7 @@ describe('StudioHome, quiet team Home (recent)', () => {
 
   it('keeps Start an exploration on top, then Recent explorations and the product folders, and tells the truth in the greeting', async () => {
     localStorage.setItem('bridge.home.lead-tour', 'done');
-    const waiting = exploration(7, { title: 'Dashboard: orders waiting to ship', productKey: 'admin-app', product: 'Art print shop', stage: 'with-devs', state: 'Waiting to be picked up', preview: { kind: 'screen', src: null } });
+    const waiting = exploration(7, { title: 'Dashboard: orders waiting to ship', productKey: 'admin-app', product: 'Art print shop', stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code', preview: { kind: 'screen', src: null } });
     const { container } = render(createElement(StudioHome, quiet({ explorations: [waiting] })));
     expect(screen.getByRole('heading', { level: 1, name: 'What do you want to explore?' })).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Start an exploration' })).toHaveLength(1);

@@ -39,8 +39,9 @@ import {
   type PullRequestSummary,
 } from '@bridge-ds/core';
 import { tierLabel, type StatusTone } from './changes';
-import { authorFor } from './author';
+import { explorationAuthorFor } from './author';
 import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
+import { withDevTask } from './exploration-state';
 import type { Tier } from './review-rules';
 import { requestRows, type IssueLike, type PullLike as RequestPullLike, type RequestRow } from './requests-view';
 
@@ -183,7 +184,7 @@ export function toSummary(p: ExplorationPullLike): PullRequestSummary {
     title: p.title,
     state: p.merged_at ? 'merged' : p.state,
     draft: Boolean(p.draft),
-    author: authorFor(p.user?.login, p.body) ?? 'unknown',
+    author: explorationAuthorFor(p.user?.login, p.body) ?? 'unknown',
     headRef: p.head.ref,
     headSha: p.head.sha,
     baseRef: '',
@@ -485,9 +486,14 @@ export function unreadableExplorationLine(n: number, where: string, opts: { prod
  * archived or taken back rows stay as read.
  */
 export function withTaskRow<R extends Pick<ExplorationRow, 'status' | 'statusLabel' | 'archived'>>(r: R, stage: LifecycleStage | null | undefined): R {
-  if (!stage || r.archived || r.status === 'active' || r.status === 'closed') return r;
+  if (!stage || r.archived) return r;
+  // The row's own stage, then the one precedence of every screen (lib/exploration-state withDevTask).
+  const base: LifecycleStage | null = r.status === 'ready' ? 'waiting-for-code' : r.status === 'building' ? 'being-built' : null;
+  if (!base) return r;
+  const next = withDevTask(base, stage);
+  if (next === base && stage !== base) return r;
   // The developers closed it without building it while it is still handed off: it stays listed, and says so.
-  if (stage === 'not-planned') return r.status === 'ready' || r.status === 'building' ? { ...r, statusLabel: LIFECYCLE_LABEL['not-planned'] } : r;
-  const status: ExplorationStatus | null = stage === 'waiting-for-code' ? 'ready' : stage === 'being-built' || stage === 'in-review' || stage === 'approved' ? 'building' : stage === 'shipped' ? 'shipped' : null;
-  return status ? { ...r, status, statusLabel: LIFECYCLE_LABEL[stage] } : r;
+  if (next === 'not-planned') return { ...r, statusLabel: LIFECYCLE_LABEL['not-planned'] };
+  const status: ExplorationStatus | null = next === 'waiting-for-code' ? 'ready' : next === 'being-built' || next === 'in-review' || next === 'approved' ? 'building' : next === 'shipped' ? 'shipped' : null;
+  return status ? { ...r, status, statusLabel: LIFECYCLE_LABEL[next] } : r;
 }

@@ -18,6 +18,7 @@ const card = (n: number, over: Partial<ExplorationCard> = {}): ExplorationCard =
   productKey: 'admin-app',
   author: person('ann', 'Ann', null),
   stage: 'exploring',
+  lifecycle: 'exploring',
   state: 'Exploring',
   updated: `2026-10-${String(10 + n).padStart(2, '0')}T10:00:00Z`,
   preview: { kind: 'screen', src: null },
@@ -39,11 +40,11 @@ describe('product page address', () => {
 describe('grouping by where explorations stand', () => {
   it('groups Exploring, Waiting to be picked up, Being built, In review and Shipped (the lifecycle order), empty groups left out', () => {
     const cards = [
-      card(1, { stage: 'kept', state: 'Shipped' }),
+      card(1, { stage: 'kept', state: 'Shipped', lifecycle: 'shipped' }),
       card(2),
-      card(3, { stage: 'with-devs', state: 'Being built' }),
-      card(4, { stage: 'found', state: '2 new pieces found' }),
-      card(5, { stage: 'with-devs', state: 'Waiting to be picked up' }),
+      card(3, { stage: 'with-devs', state: 'Being built', lifecycle: 'being-built' }),
+      card(4, { stage: 'found', state: '2 new pieces found', lifecycle: 'exploring' }),
+      card(5, { stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' }),
     ];
     const groups = productGroups(cards);
     expect(groups.map((g) => [g.label, g.cards.map((c) => c.number)])).toEqual([
@@ -52,23 +53,23 @@ describe('grouping by where explorations stand', () => {
       ['Being built', [3]],
       ['Shipped', [1]],
     ]);
-    expect(stateOfCard({ stage: 'in-review', state: 'In review' })).toBe('review');
+    expect(stateOfCard({ lifecycle: 'in-review' })).toBe('review');
   });
 
   it('says what is in progress, in one sentence and on a folder line', () => {
-    const cards = [card(1), card(2), card(3, { stage: 'with-devs', state: 'Waiting to be picked up' }), card(4, { stage: 'kept', state: 'Shipped' })];
+    const cards = [card(1), card(2), card(3, { stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' }), card(4, { stage: 'kept', state: 'Shipped', lifecycle: 'shipped' })];
     expect(productSummary(cards)).toBe('2 exploring, 1 waiting to be picked up.');
     expect(folderLine(cards)).toBe('2 exploring · 1 waiting to be picked up');
-    expect(productSummary([card(4, { stage: 'kept', state: 'Shipped' })])).toBe('1 shipped, nothing in progress.');
+    expect(productSummary([card(4, { stage: 'kept', state: 'Shipped', lifecycle: 'shipped' })])).toBe('1 shipped, nothing in progress.');
     expect(folderLine([])).toBe('Nothing in progress');
     expect(productSummary([])).toBe('Nothing explored here yet.');
   });
 
   it('counts every open lifecycle state on a folder line: never "Nothing in progress" while one waits for code', () => {
-    expect(folderLine([card(1, { stage: 'with-devs', state: 'Waiting to be picked up' })])).toBe('1 waiting to be picked up');
-    expect(folderLine([card(1, { stage: 'with-devs', state: 'Being built' })])).toBe('1 being built');
-    expect(folderLine([card(1, { stage: 'in-review', state: 'In review' })])).toBe('1 in review');
-    expect(folderLine([card(1, { stage: 'found', state: '2 new pieces found' })])).toBe('1 exploring');
+    expect(folderLine([card(1, { stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' })])).toBe('1 waiting to be picked up');
+    expect(folderLine([card(1, { stage: 'with-devs', state: 'Being built', lifecycle: 'being-built' })])).toBe('1 being built');
+    expect(folderLine([card(1, { stage: 'in-review', state: 'In review', lifecycle: 'in-review' })])).toBe('1 in review');
+    expect(folderLine([card(1, { stage: 'found', state: '2 new pieces found', lifecycle: 'exploring' })])).toBe('1 exploring');
   });
 });
 
@@ -77,7 +78,7 @@ describe('product folders', () => {
     const cards = [
       card(1, { preview: { kind: 'screen', src: '/a.png' } }),
       card(2, { preview: { kind: 'screen', src: '/b.png' } }),
-      card(3, { productKey: 'library', product: null, stage: 'with-devs', state: 'Waiting to be picked up' }),
+      card(3, { productKey: 'library', product: null, stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' }),
       card(4, { preview: { kind: 'screen', src: '/d.png' } }),
       card(5, { preview: { kind: 'screen', src: '/e.png' } }),
     ];
