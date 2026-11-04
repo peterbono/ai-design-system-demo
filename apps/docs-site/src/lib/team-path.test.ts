@@ -2,7 +2,7 @@
 // studioHref (multi-team plan, section 4.1): self-hosted and build-time addresses stay byte for byte what they were;
 // a team shell keeps its team. The literal scan lives in no-studio-literals.test.ts.
 import { afterEach, describe, expect, it } from 'vitest';
-import { canonicalOwner, canonicalRepo, canonicalTeamPath, repoFromPath, sameRepo, isReservedTeam, isTeamKey, isTeamName, pageTeamFromPath, parseTeamInput, reservedFromFiles, studioBase, studioHref, studioHrefAt, teamHref, teamKeyId, teamKeyOf, teamShareBase } from './team-path';
+import { canonicalOwner, canonicalRepo, canonicalTeamPath, repoFromPath, repoNames, sameRepo, isReservedTeam, isTeamKey, isTeamName, pageTeamFromPath, parseTeamInput, reservedFromFiles, studioBase, studioHref, studioHrefAt, teamHref, teamKeyId, teamKeyOf, teamShareBase } from './team-path';
 
 describe('teamShareBase', () => {
   const reserved = reservedFromFiles([]);
@@ -186,6 +186,13 @@ describe('renamed repositories (old names that live on in links, bookmarks and o
     expect(sameRepo('the-bridge-company/other', 'art-print-shop-co/art-print-shop')).toBe(false);
     expect(sameRepo('', '')).toBe(false);
     expect(sameRepo(null, 'acme/shop')).toBe(false);
+  });
+
+  it('lists every name a repository went by: the current one first, then the old ones that lead to it', () => {
+    expect(repoNames('the-bridge-company/ai-design-system-demo')).toEqual(['the-bridge-company/ai-design-system-demo', 'peterbono/ai-design-system-demo', 'art-print-shop-co/ai-design-system-demo']);
+    expect(repoNames('PeterBono/AI-Design-System-Demo')[0]).toBe('the-bridge-company/ai-design-system-demo');
+    expect(repoNames('art-print-shop-co/art-print-shop-design')).toEqual(['the-bridge-company/art-print-shop-design', 'art-print-shop-co/art-print-shop-design']);
+    expect(repoNames('Acme/DS')).toEqual(['acme/ds']);
   });
 
   it('an old team address names the team under its current name', () => {

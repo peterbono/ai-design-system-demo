@@ -136,6 +136,12 @@ export function designCopyBlocked(ctx: BridgeContext, product: string, repo: str
   return `${product} explorations are created in the design team's copy of ${product} (${repo}), never in the developers' repository. ${why} Or, only if the person chooses it, start it in the design system repository for now (${say(ctx, 'where: "library"', '--in-library')}).`;
 }
 
+/** Whether Bridge writes for this person through its own app, as someone who can edit (the hosted connector says so). */
+async function writesThroughBridge(ctx: BridgeContext): Promise<boolean> {
+  const w = await ctx.opts.identity?.().catch(() => null);
+  return Boolean(w && w.writes === 'bridge' && (w.role === 'Can edit' || w.role === 'Admin'));
+}
+
 /**
  * bridge_start_exploration / `bridge explore start`. With a GitHub token: the branch on GitHub from the default branch
  * and a draft pull request labeled exploration. Without one, in a local git repo: a local branch with the note,
@@ -235,7 +241,11 @@ async function startInProductRepo(ctx: BridgeContext, x: { e: Exploration; produ
   const inProduct = { name: product.name, library: x.library, ...(template ? { preview: template } : {}), ...(copyOf ? { copyOf } : {}) };
   const [owner, name] = repo.split('/') as [string, string];
   const pgh = ctx.githubFor(repo, { protectedBranches: ['main', 'master'], branchPrefix: EXPLORATION_PREFIX });
-  const access = ctx.canWriteRemote ? await productRepoAccess(pgh) : null;
+  const read = ctx.canWriteRemote ? await productRepoAccess(pgh) : null;
+  // A member Bridge writes for (the hosted connector: an email member or a designer, Can edit or Admin): GitHub answers
+  // the read of the design team's copy with Bridge's read-only access, but Bridge starts and saves their explorations
+  // there, on explore/ branches only (the server checks the role and every write, as Studio's Start an exploration).
+  const access = read && !read.ok && read.reason === 'read-only' && copyOf && (await writesThroughBridge(ctx)) ? { ok: true as const, base: read.base } : read;
   const base = access?.ok ? access.base : 'main';
   const preview = {
     branch,

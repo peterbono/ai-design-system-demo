@@ -217,7 +217,8 @@ export async function grantIdentity(x: {
 }): Promise<WhoAmI> {
   const names = await getTeamNames(x.redis, [x.grant.repo]).catch(() => new Map<string, { name: string }>());
   const team = teamDisplayName(x.grant.repo, { name: names.get(x.grant.repo.toLowerCase())?.name });
-  if (x.emailMember) return { name: x.emailMember.name || 'Email member', email: maskEmail(x.emailMember.email), role: x.emailMember.role === 'admin' ? 'Admin' : x.emailMember.role === 'view' ? 'Reader' : 'Can edit', via: 'email', team, writes: 'bridge' };
+  // A Reader (Can view) saves nothing: the proxy refuses their writes, and the exploration tools read it here.
+  if (x.emailMember) return { name: x.emailMember.name || 'Email member', email: maskEmail(x.emailMember.email), role: x.emailMember.role === 'admin' ? 'Admin' : x.emailMember.role === 'view' ? 'Reader' : 'Can edit', via: 'email', team, writes: x.emailMember.role === 'view' ? 'none' : 'bridge' };
   const login = x.grant.login || undefined;
   if (x.designer) return { name: x.grant.name || x.grant.login, ...(login ? { login } : {}), role: 'Can edit', via: 'github', team, writes: x.routed ? 'bridge' : 'own' };
   const [owner, repo] = x.grant.repo.split('/');

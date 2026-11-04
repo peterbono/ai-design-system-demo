@@ -7,7 +7,7 @@ import { type Account, ACCOUNT_COOKIE, putAccount, signAccountSession } from '..
 import { isPublicDomain, workDomain } from '../../api/_lib/domains';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
-import { JOIN_REQUEST_TTL_MS, putRequest, putTeamClaudeDesign } from '../../api/_lib/teams';
+import { getTeamClaudeDesign, JOIN_REQUEST_TTL_MS, putRequest, putTeamClaudeDesign, teamClaudeDesignKey } from '../../api/_lib/teams';
 import { NOTIFY_TEAMS_KEY, watchWrites } from '../../api/_lib/notify';
 import { createGrant, getGrant } from '../../api/_lib/oauth';
 import { settingKey as librarySettingKey } from '../../api/library-access/index';
@@ -487,6 +487,22 @@ describe('the team’s Library in Claude Design (GET ?claude-design=)', () => {
     expect(await (await get(s, admin, `?claude-design=${REPO}`)).json()).toEqual({ design: { url: 'https://claude.ai/artifact/YZ1z4WxSWErcMHVDcbFmkW', version: '1.8.3', at: '2026-11-01T00:00:00.000Z' } });
     expect(await (await get(s, bob, `?claude-design=${REPO}`)).json()).toMatchObject({ error: 'forbidden', message: ADMIN_ONLY });
     expect((await get(s, null, `?claude-design=${REPO}`)).status).toBe(401);
+  });
+
+  it('reads a record saved under an old team name (a connection from before the rename), and saves under the current one', async () => {
+    const s = setup();
+    const now = 'the-bridge-company/ai-design-system-demo';
+    const record = { url: 'https://claude.ai/artifact/YZ1z4WxSWErcMHVDcbFmkW', version: '1.8.3', at: '2026-11-01T00:00:00.000Z' };
+    // Saved through a connection made before the move: under the old name, and nothing moves it.
+    await s.redis.cmd('SET', teamClaudeDesignKey('peterbono/ai-design-system-demo'), JSON.stringify(record));
+    for (const name of [now, 'peterbono/ai-design-system-demo', 'art-print-shop-co/ai-design-system-demo']) expect(await getTeamClaudeDesign(s.redis, name), name).toMatchObject({ url: record.url, version: '1.8.3' });
+    expect(await s.redis.cmd('GET', teamClaudeDesignKey(now))).toBeNull();
+    expect(await s.redis.cmd('GET', teamClaudeDesignKey('peterbono/ai-design-system-demo'))).not.toBeNull();
+    // A save through an old connection lands under the current name, which wins from then on.
+    await putTeamClaudeDesign(s.redis, 'art-print-shop-co/ai-design-system-demo', { ...record, version: '1.8.4' });
+    expect(JSON.parse(String(await s.redis.cmd('GET', teamClaudeDesignKey(now)))).version).toBe('1.8.4');
+    expect((await getTeamClaudeDesign(s.redis, 'peterbono/ai-design-system-demo'))?.version).toBe('1.8.4');
+    expect(await getTeamClaudeDesign(s.redis, 'acme/other')).toBeNull();
   });
 
   it('keeps only a Claude artifact address', async () => {

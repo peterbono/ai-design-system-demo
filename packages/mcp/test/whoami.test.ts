@@ -32,5 +32,7 @@ describe('bridge_whoami', () => {
     expect(maskEmail('dinosolo@yopmail.com')).toBe('d***@yopmail.com');
     expect(maskEmail('nope')).toBe('***');
     expect(whoamiLine({ name: 'Ana', writes: 'own' })).toBe('You write with your own GitHub access.');
+    // A Reader who joined with their email: plain words, no GitHub talk.
+    expect(whoamiLine({ name: 'Dino', writes: 'none', via: 'email' })).toBe('You can view this team. Ask an admin for Can edit to start or save explorations.');
   });
 });
