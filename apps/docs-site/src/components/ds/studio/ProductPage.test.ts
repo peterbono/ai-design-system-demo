@@ -14,6 +14,8 @@ import { person } from '../../../lib/home-model';
 import type { ExplorationCard } from '../../../lib/home-explorations';
 import type { ProductPageData } from '../../../scripts/product-page';
 import type { LibraryLine } from '../../../lib/library-update';
+import { CLOUDFLARE_IMPORT_URL, PREVIEWS_STEP_WORDS, vercelImportUrl } from '../../../lib/new-product';
+import { previewsStep } from '../../../lib/product-previews';
 
 // The viewer's access: a lead (GitHub write) by default, who may also start in the library.
 const viewer = vi.hoisted(() => ({ access: { state: 'writer', write: true, admin: false, contributor: false } as Record<string, unknown> | null }));
@@ -212,6 +214,45 @@ describe('ProductPageView', () => {
   it('says when the team lists no such product', () => {
     render(createElement(ProductPageView, { productKey: 'shop', components: [], data: data({ product: null }) }));
     expect(screen.getByRole('heading', { level: 1, name: 'Product not found' })).toBeTruthy();
+  });
+});
+
+describe('ProductPageView, one step before the first preview (admins)', () => {
+  const poster: ProductConfig = { key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio' };
+  const team = [{ key: 'shop', name: 'Art print shop', preview: 'https://{branch}.shop.pages.dev' }, poster, products[1]!];
+  const empty = () => data({ product: poster, products: team, ownRepo: 'acme/poster-studio' });
+
+  it('a new empty product: the way to start in the zone, then the step naming the host the other products use', async () => {
+    const step = previewsStep(poster, team, null, 'acme/library');
+    const { container } = render(createElement(ProductPageView, { productKey: 'poster', components: [], data: empty(), previews: step }));
+    expect(container.querySelector('[data-st-summary]')!.textContent).toBe('Nothing explored here yet.');
+    expect(container.querySelector('.pp-empty')!.textContent).toContain('Try a screen or a flow for Poster studio');
+    const card = screen.getByRole('region', { name: PREVIEWS_STEP_WORDS.title });
+    // After the zone, never inside it (one Harbor zone per screen).
+    expect(card.closest('.zone')).toBeNull();
+    expect(card.textContent).toContain('Your other products show their previews on Cloudflare. Connect Poster studio there too');
+    const connect = within(card).getByRole('link', { name: /Connect on Cloudflare/ });
+    expect(connect).toHaveAttribute('href', CLOUDFLARE_IMPORT_URL);
+    expect(connect).toHaveAttribute('target', '_blank');
+    expect(within(card).getByRole('link', { name: /Use Vercel instead/ })).toHaveAttribute('href', vercelImportUrl('acme/poster-studio'));
+    expect(card.textContent).toContain(PREVIEWS_STEP_WORDS.note);
+    await waitFor(() => expect(container.querySelector('.pp-empty')!.textContent).toContain('Start an exploration'));
+    await expectNoAxeViolations(container);
+  });
+
+  it('nothing for anyone else: the page reads the same without the step', () => {
+    const { container } = render(createElement(ProductPageView, { productKey: 'poster', components: [], data: empty() }));
+    expect(container.querySelector('[data-previews-step]')).toBeNull();
+    expect(container.textContent).not.toContain('Only admins');
+  });
+
+  it('never on the library, nor while the product is not read', () => {
+    const step = previewsStep(poster, team, null, null);
+    const lib = render(createElement(ProductPageView, { productKey: 'library', components: [], data: data({ product: products[1]!, ownRepo: null, reached: null }), previews: step }));
+    expect(lib.container.querySelector('[data-previews-step]')).toBeNull();
+    lib.unmount();
+    const loading = render(createElement(ProductPageView, { productKey: 'poster', components: [], data: data({ product: poster, products: team, loading: true }), previews: step }));
+    expect(loading.container.querySelector('[data-previews-step]')).toBeNull();
   });
 });
 

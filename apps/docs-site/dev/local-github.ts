@@ -38,13 +38,15 @@ export interface Fixture {
   writable?: boolean;
   /** Its bridge.config.json says `"changes": "suggest"`: members send suggestions (issues) instead of branches. */
   suggest?: boolean;
+  /** Its bridge.config.json lists these products instead of the source's (a team with a new product, S22). */
+  products?: Record<string, unknown>[];
 }
 
 export async function putFixture(redis: Redis, f: Fixture): Promise<void> {
   const repo = f.repo.trim().toLowerCase();
   await redis.pipe([
     ['SADD', FIXTURES_KEY, repo],
-    ['SET', fixtureKey(repo), JSON.stringify({ repo, name: f.name, ...(f.builds ? { builds: true } : {}), ...(f.writable ? { writable: true } : {}), ...(f.suggest ? { suggest: true } : {}) })],
+    ['SET', fixtureKey(repo), JSON.stringify({ repo, name: f.name, ...(f.builds ? { builds: true } : {}), ...(f.writable ? { writable: true } : {}), ...(f.suggest ? { suggest: true } : {}), ...(f.products ? { products: f.products } : {}) })],
   ]);
 }
 
@@ -131,6 +133,7 @@ function configFor(source: Buffer | null, f: Fixture): Buffer | null {
       c.governance = { ...g, owners: { design: ['dana'], tech: ['malik'] }, soloOwnerCanApproveBoth: false, override: { ...(g.override ?? {}), allowed: ['malik'] } };
     }
     if (f.suggest) c.changes = 'suggest';
+    if (Array.isArray(f.products)) c.products = f.products;
     return Buffer.from(`${JSON.stringify(c, null, 2)}\n`);
   } catch {
     return source;

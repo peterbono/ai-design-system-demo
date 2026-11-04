@@ -1,4 +1,4 @@
-// Audit scenarios S0 to S21 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
+// Audit scenarios S0 to S22 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
 // <name>` clears the local accounts, teams, codes and outbox, then writes one scenario with the same storage functions
 // the api/* functions use (accounts, members, invites, discovery, join requests) and, where a scenario needs it, the
 // account function itself (sign-in codes). It prints the emails to sign in with and what each one should see.
@@ -127,6 +127,8 @@ interface TeamDef {
   writable?: boolean;
   /** Its config sends changes as suggestions (`"changes": "suggest"`). */
   suggest?: boolean;
+  /** Its config lists these products instead of the source's. */
+  products?: Record<string, unknown>[];
 }
 
 const T = {
@@ -142,6 +144,18 @@ const T = {
   building: { repo: 'acme/acme-build', name: 'Acme Build', admin: P.sam, members: [P.priya], builds: true },
   flow: { repo: 'acme/acme-flow', name: 'Acme Flow', admin: P.sam, members: [P.priya, P.leo], writable: true },
   ideas: { repo: 'acme/acme-ideas', name: 'Acme Ideas', admin: P.sam, members: [P.priya, P.leo], writable: true, suggest: true },
+  posters: {
+    repo: 'acme/acme-posters',
+    name: 'Acme Posters',
+    admin: P.sam,
+    members: [P.priya],
+    // A product with previews on Cloudflare, a new one with none yet, and the library (its previews on Vercel).
+    products: [
+      { key: 'shop', name: 'Art print shop', path: 'apps/admin', preview: 'https://{branch}.art-print-shop.pages.dev', production: 'https://art-print-shop.pages.dev', framework: 'react' },
+      { key: 'poster-studio', name: 'Poster studio', path: 'apps/poster-studio', framework: 'react' },
+      { key: 'library', name: 'Library', path: 'packages', framework: 'react', default: true },
+    ],
+  },
 } satisfies Record<string, TeamDef>;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -187,7 +201,7 @@ export class Seed {
     // Its name kept with the team, as Bridge keeps it once it read bridge.config.json (api/entry, api/contribute), so
     // the account menu and the delete check say the same name as the team's pages.
     await putTeamName(this.ctx.redis, t.repo, t.name, this.ctx.now);
-    await putFixture(this.ctx.redis, { repo: t.repo, name: t.name, ...('builds' in t && t.builds ? { builds: true } : {}), ...('writable' in t && t.writable ? { writable: true } : {}), ...('suggest' in t && t.suggest ? { suggest: true } : {}) });
+    await putFixture(this.ctx.redis, { repo: t.repo, name: t.name, ...('builds' in t && t.builds ? { builds: true } : {}), ...('writable' in t && t.writable ? { writable: true } : {}), ...('suggest' in t && t.suggest ? { suggest: true } : {}), ...('products' in t && t.products ? { products: t.products } : {}) });
     await this.member(t.repo, t.admin, 'local-seed', 60 * DAY);
     await localAdminStore(this.ctx.redis).add(t.repo, t.admin.email);
     for (const [i, m] of t.members.entries()) await this.member(t.repo, m, t.admin.name, (20 - i) * DAY);
@@ -663,6 +677,27 @@ export const SCENARIOS: Scenario[] = [
           'Acme Ideas is writable locally (dev/local-repo.ts) and its config says "changes": "suggest": members send suggestions (issues).',
           'GitHub reviewers are the same personas as S20: dana (design owner) and malik (tech owner), token ghp_local_<login>.',
         ],
+      );
+    },
+  },
+  {
+    id: 'S22',
+    slug: 'new-product',
+    title: 'A new product with no previews yet (One step before the first preview)',
+    async run(ctx) {
+      const s = new Seed(ctx);
+      await s.team(T.posters);
+      return result(
+        [
+          {
+            ...P.sam,
+            kind: 'teams',
+            teams: teamsOf([T.posters, 'admin']),
+            expect: 'Poster studio: Nothing explored here yet, Start an exploration, then "One step before the first preview" with Connect on Cloudflare (Art print shop is on Cloudflare) and Use Vercel instead. Art print shop: no step.',
+          },
+          { ...P.priya, kind: 'teams', teams: teamsOf([T.posters, 'edit']), expect: 'Can edit: Poster studio shows the way to start only, never the step.' },
+        ],
+        ['Acme Posters lists Art print shop (previews on Cloudflare), Poster studio (no previews) and the library.'],
       );
     },
   },

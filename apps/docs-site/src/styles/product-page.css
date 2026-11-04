@@ -148,12 +148,78 @@
   margin: var(--space-8) 0 0;
 }
 
+/* "One step before the first preview", for an admin (ProductPreviewsStep.tsx): a quiet card under the way to start,
+   outside the Harbor zone (one zone per screen). The drawing, then what to do and why, the two ways on one line,
+   and who sees it. */
+.pp-previews {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  padding: var(--space-6) var(--space-7);
+}
+
+.pp-previews-text {
+  display: grid;
+  flex: 1;
+  justify-items: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.pp-previews-say {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.pp-previews-text p {
+  margin: 0;
+}
+
+.pp-previews-title {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.pp-previews-say > p {
+  max-width: 65ch;
+}
+
+.pp-previews-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.pp-previews-other {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--size-6);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+}
+
 /* The site's list rhythm (li + li) does not apply to the card grids. */
 .pp .sh-cards > li {
   margin: 0;
 }
 
 @media (max-width: 640px) {
+  /* The drawing above the words, the actions fill the width (a lone main action fills its bar). */
+  .pp-previews {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .pp-previews-actions > :first-child {
+    flex: 1 1 100%;
+  }
+
   .pp-copy {
     justify-content: center;
     text-align: center;

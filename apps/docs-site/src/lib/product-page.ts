@@ -182,7 +182,7 @@ export function emptyProductLine(product: ProductConfig, library: boolean, lead 
   if (library && !lead) return 'The library your products use. Leads change it, so ask them for what you need.';
   return library
     ? 'Try a token, a variant or a new component with Claude AI, in a safe copy of the library, before it goes to review.'
-    : `Try one of the screens of ${product.name} with Claude AI. Bridge spots what the library does not have, and what works goes to review.`;
+    : `Try a screen or a flow for ${product.name} with Claude AI, in a safe copy, before it goes to review.`;
 }
 
 /** A visitor on a product Bridge cannot read for them (its repository is private): the one thing they can do. */

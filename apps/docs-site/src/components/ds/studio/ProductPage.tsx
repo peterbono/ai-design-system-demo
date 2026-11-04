@@ -76,6 +76,8 @@ import type { LibraryView } from '../../../scripts/library-update';
 import type { GitHubBusy } from '../../../lib/github-busy';
 import type { HomeComponent } from './StudioHome';
 import { BusyNotice } from './BusyNotice';
+import { ProductPreviewsStep } from './ProductPreviewsStep';
+import { isTeamAdmin, previewsStep, showsPreviewsStep, type PreviewsLike, type PreviewsStep } from '../../../lib/product-previews';
 
 /** Renaming the product, for an admin: what can be done now, and how to send it. Absent: read only. */
 export interface ProductRename {
@@ -105,6 +107,11 @@ export interface ProductPageViewProps {
   visitor?: boolean;
   /** The library line (lib/library-update libraryLine): how far behind the product is, and the update to send. */
   library?: LibraryUpdate | null;
+  /**
+   * "One step before the first preview" (lib/product-previews.ts): set only for an admin, on a product with no
+   * previews yet. Absent: nothing, not even a hint.
+   */
+  previews?: PreviewsStep | null;
 }
 
 /** Removing the product from Bridge, for an admin: what can be done now, and how to send it. */
@@ -557,6 +564,7 @@ export function ProductPageView({
   signedIn = true,
   visitor = false,
   library: libraryUpdate = null,
+  previews = null,
 }: ProductPageViewProps) {
   const product = data?.product ?? null;
   // The library itself is never renamed nor removed: no More actions on its page.
@@ -733,6 +741,8 @@ export function ProductPageView({
           </section>
         ))
       )}
+      {/* The admin's one step before previews: after the way to start (or the list), never instead of it. */}
+      {previews && product && !product.default && !loading && !noCopy && !closed && !busyAlone && !data?.failed && <ProductPreviewsStep name={name} step={previews} />}
       {/* Archived ones are out of the lists: one quiet line, and the way to them on Changes' Archived tab. */}
       {archived.length > 0 && (
         <p className="t-ui t-muted pp-archived" data-archived-line="">
@@ -744,12 +754,25 @@ export function ProductPageView({
 }
 
 /** The island: reads the product (the team's settings first on a team shell) and repaints as data lands. */
-export default function ProductPage({ productKey, components = [] }: { productKey?: string; components?: HomeComponent[] }) {
+export default function ProductPage({
+  productKey,
+  components = [],
+  previews: builtPreviews = null,
+}: {
+  productKey?: string;
+  components?: HomeComponent[];
+  /** Self-hosted: the team's previews settings, read at build (a team shell reads its own once loaded). */
+  previews?: PreviewsLike | null;
+}) {
   const [key] = useState(() => productKey ?? (typeof location !== 'undefined' ? productKeyFromPath(location.pathname) : null) ?? '');
   const [data, setData] = useState<ProductPageData | null>(null);
   const [comps, setComps] = useState<HomeComponent[]>(components);
   /** An admin of the team's repository, in a real team (lib/product-name canRenameProduct): may rename a product its settings list. */
   const [canRename, setCanRename] = useState(false);
+  /** An admin of a real team: may connect the product to a host (the previews step), with the library's code. */
+  const [hosting, setHosting] = useState<{ library: string | null } | null>(null);
+  /** The team's previews settings (bridge.config.json `previews`): the library's host, and products' own previews. */
+  const [teamPreviews, setTeamPreviews] = useState<PreviewsLike | null>(builtPreviews);
   const [sent, setSent] = useState(false);
   const [removeSent, setRemoveSent] = useState(false);
   /** The keys the team's own bridge.config.json lists (not the defaults Bridge shows without a list). */
@@ -825,7 +848,10 @@ export default function ProductPage({ productKey, components = [] }: { productKe
       onAccess((a) => {
         if (!live) return;
         const r = repoContext();
-        setCanRename(canRenameProduct(a, isSampleTeam(`${r.owner}/${r.repo}`)));
+        const sample = isSampleTeam(`${r.owner}/${r.repo}`);
+        setCanRename(canRenameProduct(a, sample));
+        // The previews step is an admin's (connecting a host is theirs), on a real team only.
+        setHosting(!sample && isTeamAdmin(a) ? { library: r.owner && r.repo ? `${r.owner}/${r.repo}` : null } : null);
       });
     })();
     return () => {
@@ -846,6 +872,7 @@ export default function ProductPage({ productKey, components = [] }: { productKe
         try {
           const team = await loadTeamData();
           teamBusy = team.busy ?? null;
+          if (live) setTeamPreviews(team.model.config?.previews ?? null);
           if (live) setComps((team.model.components?.list ?? []).map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)));
         } catch (err) {
           // The products fall back to the defaults; the start flow still opens. GitHub busy: the page says so.
@@ -985,5 +1012,25 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           : {}),
       }
     : null;
-  return <ProductPageView productKey={key} data={data} components={comps} rename={rename} remove={remove} copy={copy} lead={lead} onRetry={() => setReload((n) => n + 1)} signedIn={signedIn} visitor={visitor} library={library} />;
+  // Only once the product is read: the step names the host its team's other products already use.
+  const previews =
+    hosting && data?.product && !data.loading && showsPreviewsStep({ admin: true, sample: false, product: data.product, previews: teamPreviews })
+      ? previewsStep(data.product, data.products, teamPreviews, hosting.library)
+      : null;
+  return (
+    <ProductPageView
+      productKey={key}
+      data={data}
+      components={comps}
+      rename={rename}
+      remove={remove}
+      copy={copy}
+      lead={lead}
+      onRetry={() => setReload((n) => n + 1)}
+      signedIn={signedIn}
+      visitor={visitor}
+      library={library}
+      previews={previews}
+    />
+  );
 }
