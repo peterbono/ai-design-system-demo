@@ -6,8 +6,19 @@ import { buildTokenSet, layoutOptions } from '../src/token-set';
 import type { LogicalToken } from '../src/types';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..');
-/** This repo's bridge.config.json: tests read the real token files through it. */
-export const realConfig = () => loadConfig(readFileSync(join(REPO_ROOT, 'bridge.config.json'), 'utf8'));
+/**
+ * The products this repository ships with. Admins and leads add others from Studio straight to bridge.config.json on
+ * main (Add a product, POST /api/ship add-product): that is the team's live data, so tests never pin it.
+ */
+export const SHIPPED_PRODUCTS = ['admin-app', 'library'];
+/** This repo's bridge.config.json, its shipped products only: tests read the real token files through it. */
+export const realConfig = () => {
+  const text = readFileSync(join(REPO_ROOT, 'bridge.config.json'), 'utf8');
+  const json = JSON.parse(text) as { products?: { key: string }[] };
+  const shipped = json.products?.filter((p) => SHIPPED_PRODUCTS.includes(p.key));
+  if (!json.products || !shipped || shipped.length === json.products.length) return loadConfig(text);
+  return loadConfig({ ...json, products: shipped });
+};
 export const TOKENS_DIR = join(REPO_ROOT, realConfig().tokens.root);
 
 /** Every *.tokens.json under the tokens root, keyed by path relative to it. */
