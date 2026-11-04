@@ -100,7 +100,7 @@ describe('All products', () => {
     expect(moreLabel(7)).toBe('Show 7 more');
     expect(moreLabel(20)).toBe('Show 8 more');
     expect(noMatchLine(' zzz ')).toBe('No product called "zzz". Check the name or clear the filter.');
-    for (const s of [allProductsLine(15), noMatchLine('x')]) expect(s).not.toMatch(/—/);
+    for (const s of [allProductsLine(15), noMatchLine('x')]) expect(s).not.toMatch(/\u2014/);
   });
 });
 
