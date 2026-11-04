@@ -11,15 +11,19 @@
 //     The latest is 1.8.4.") and "Send the update to the developers"; once sent, "Update sent to the developers." with
 //     "Open their update" for people signed in with GitHub (lib/library-update.ts, scripts/library-update.ts). Nobody
 //     else reads it, so nobody else reads the product's library either. Never on the sample team.
-//   - No copy of such a product yet: one calm card in place of the list, "Make my copy" its one action, the same
-//     choice card (and size) as "Start an exploration" in that slot.
+//   - The designers' copy is a one-time team setup the admin chose in Add a product: nobody ever sees "Make my copy".
+//     Right after the add, for the admin or lead who added it (this browser only), Bridge makes it in the background
+//     with their sign-in: one quiet line, "Getting a copy ready for your designers…", then nothing; if it fails, the
+//     line says so calmly with Try again; if only a tick on GitHub lets Bridge open it, the one more step
+//     (CopyAccessStep) under the way to start, for an admin only. A product without a copy otherwise reads like any
+//     other: "Start an exploration" makes the copy first (StartExploration.tsx).
 //   - Its explorations, grouped by where they stand (Exploring, Waiting for code, Being built, In review, Shipped: the lifecycle's words), each
 //     the exploration card of the home (ExplorationCards.tsx); archived ones only counted in one quiet line at the end
 //     ("1 archived. See archived"), which opens Changes' Archived tab for this product.
 //   - Nothing explored yet: a calm Field Guide drawing, shown at once, the reason in one sentence and the one action.
 //   - GitHub busy for the viewer (lib/github-busy): what was last read stays, with one calm line ("GitHub is busy for
 //     your account. Bridge is back at 13:52.") and Try again; nothing kept: the same sentence as a calm moment in place
-//     of the list. Never "Product not found", "Make my copy" or "Nothing explored here yet" while busy. The page reads
+//     of the list. Never "Product not found" or "Nothing explored here yet" while busy. The page reads
 //     again once on its own after the reset (BusyNotice).
 //   - More actions (admins of the team's repository, on a team shell or the team's own Studio, never the sample team,
 //     never the library): one "..." DS IconButton at the end of the title's line, a DS Menu with the rare actions
@@ -57,6 +61,7 @@ import {
   MenuSeparator,
   MenuTrigger,
   Skeleton,
+  Spinner,
 } from '@bridge-ds/react';
 import type { ProductConfig } from '@bridge-ds/core';
 import { StudioHead } from './StudioHead';
@@ -68,7 +73,7 @@ import { LIBRARY_ASKS, archivedHref, archivedLine, emptyProductLine, productFact
 import { studioHref } from '../../../lib/team-path';
 import { PRODUCT_NAME_MAX, PRODUCT_NAME_WORDS, productNameProblem } from '../../../lib/product-name';
 import { REMOVE_PRODUCT_WORDS, removeConfirmMatches } from '../../../lib/remove-product';
-import { COPY_WORDS, latestLine, madeLine, needsCopyAccess, showsBehind, type CopyAccess } from '../../../lib/design-copy';
+import { COPY_SETUP_WORDS, COPY_WORDS, latestLine, needsCopyAccess, setupLine, showsBehind, type CopyAccess, type CopyOutcome } from '../../../lib/design-copy';
 import { CopyAccessStep } from './CopyAccessStep';
 import type { ProductPageData } from '../../../scripts/product-page';
 import { LIBRARY_UPDATE_WORDS, libraryLine, type LibraryLine } from '../../../lib/library-update';
@@ -95,8 +100,13 @@ export interface ProductPageViewProps {
   rename?: ProductRename | null;
   /** Removing the product from Bridge, for an admin (never the library). Absent: no Remove. */
   remove?: ProductRemove | null;
-  /** Make the team's copy, get the latest: absent for a viewer who cannot (signed out), the card still says why. */
+  /** Get the latest into the team's copy: absent for a viewer who cannot. */
   copy?: CopyActions | null;
+  /**
+   * The designers' copy Bridge makes right after Add a product, for the admin or lead who added it. Absent for
+   * everyone else, and once the copy is there.
+   */
+  copySetup?: CopySetup | null;
   /** Whether the viewer may change the library (create-branch libraryLead): false for a designer of the team. */
   lead?: boolean;
   /** Reads the page again (GitHub busy: Try again, and once on its own after the reset). */
@@ -385,15 +395,36 @@ function ProductMenu({ name, rename, remove, onRename, onRemove, trigger }: { na
 }
 
 /**
- * The two copy actions of the island (scripts/design-copy.ts), each answering the sentence to show. Each is absent
- * when the viewer may not: making the copy needs a GitHub sign-in, getting the latest anyone who can edit the team.
+ * The copy action of the island (scripts/design-copy.ts), answering the sentence to show. Absent when the viewer may
+ * not: getting the latest is for anyone who can edit the team.
  */
 export interface CopyActions {
-  /** `access`: the copy is made but Bridge may not open it yet; the card shows the one more step (CopyAccessStep). */
-  make?: (() => Promise<{ line: string; ready: boolean; access?: CopyAccess }>) | null;
-  /** After the one more step: waits for the copy, then the sentence to show. */
-  finish?: (() => Promise<{ line: string; ready: boolean }>) | null;
   latest?: (() => Promise<string>) | null;
+}
+
+/**
+ * The designers' copy Bridge makes right after Add a product (the admin or lead who added it): being made (the quiet
+ * line), not made (the reason and Try again), or made but Bridge may not open it yet (the one more step, an admin's).
+ */
+export type CopySetup =
+  | { kind: 'making' }
+  | { kind: 'failed'; line: string; retry: () => void }
+  | { kind: 'access'; access: CopyAccess; onVisible: () => Promise<void> };
+
+/** The quiet line under the header while Bridge makes the copy, or why it could not, with Try again. */
+function CopySetupLine({ setup }: { setup: CopySetup }) {
+  if (setup.kind === 'access') return null;
+  return (
+    <p className="t-ui t-muted pp-facts pp-setup" data-copy-setup={setup.kind}>
+      {setup.kind === 'making' && <Spinner size="xs" />}
+      <span role="status">{setup.kind === 'making' ? COPY_SETUP_WORDS.making : setup.line}</span>
+      {setup.kind === 'failed' && (
+        <Button variant="link" size="sm" onClick={setup.retry}>
+          {COPY_SETUP_WORDS.tryAgain}
+        </Button>
+      )}
+    </p>
+  );
 }
 
 /**
@@ -446,7 +477,9 @@ function Facts({ product, data, copy, library }: { product: ProductConfig; data:
   // Only what a designer acts on: the live product, the connection only when Bridge cannot reach it, and "Get the
   // latest" only when the product moved on since the team's copy and the viewer can get it (never the sentence alone).
   // The repository and a healthy "Connected" are developer facts and noise here (Settings has them).
-  const off = f.connection && !f.connection.ok && !data.copy ? f.connection.text : null;
+  // A product explored in the designers' copy: the developers' repository is never where designers work, so whether
+  // Bridge reaches it is not theirs to read here (the copy is Bridge's to make, from the start flow).
+  const off = f.connection && !f.connection.ok && !data.copy && !product.design?.repo ? f.connection.text : null;
   const behind = showsBehind(data.copy) && !said && Boolean(copy?.latest);
   if (!f.production && !off && !behind && !said && !library) return null;
   const latest = async () => {
@@ -483,7 +516,7 @@ function Facts({ product, data, copy, library }: { product: ProductConfig; data:
 /**
  * The Home's way to start (StudioHome Start): a white card in the zone, the drawing, the title in Harbor and one line;
  * the whole card is the action, and the chevron says so on hover and focus. The one shape of the empty slot: Start an
- * exploration, a designer's asks on the library, and Make my copy all read the same, at the same size.
+ * exploration and a designer's asks on the library read the same, at the same size.
  */
 function choiceCard(drawing: IllustrationName, title: ReactNode, line: ReactNode) {
   return (
@@ -500,57 +533,6 @@ function choiceCard(drawing: IllustrationName, title: ReactNode, line: ReactNode
   );
 }
 
-/** No copy of the product yet: why the team gets one, in one sentence, and the one action. */
-function CopyCard({ product, copy }: { product: ProductConfig; copy?: CopyActions | null }) {
-  const [busy, setBusy] = useState(false);
-  const [said, setSaid] = useState<{ line: string; ready: boolean; access?: CopyAccess } | null>(null);
-  const make = async () => {
-    if (!copy?.make || busy) return;
-    setBusy(true);
-    setSaid(null);
-    try {
-      setSaid(await copy.make());
-    } finally {
-      setBusy(false);
-    }
-  };
-  // Made, but Bridge may not open it yet: the one more step on GitHub in the same zone, then on as before.
-  if (said?.access) {
-    const finish = copy?.finish;
-    return (
-      <section className="zone sh-zone pp-empty" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
-        <CopyAccessStep access={said.access} onVisible={async () => setSaid(finish ? await finish() : null)} />
-      </section>
-    );
-  }
-  // The viewer may make it: the same choice card as Start an exploration in this slot (one shape, one size). The
-  // card's line says how it goes once asked, read out as it changes.
-  if (copy?.make) {
-    return (
-      <section className="zone sh-zone pp-empty" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
-        {choiceCard(
-          'paint',
-          <Button variant="link" className="sh-choice-btn" data-card-primary="" loading={busy} onClick={() => void make()}>
-            <span className="sh-choice-title">{COPY_WORDS.make}</span>
-          </Button>,
-          <span className="t-ui t-muted" role="status">
-            {busy ? COPY_WORDS.making : (said?.line ?? COPY_WORDS.intro(product.name))}
-          </span>,
-        )}
-      </section>
-    );
-  }
-  // Nothing to do here for this viewer: the reason only, the drawing beside it.
-  return (
-    <section className="zone sh-zone pp-empty pp-copy" aria-label={`Your copy of ${product.name}`} data-copy-missing="">
-      <Drawing name="paint" width={160} />
-      <div className="pp-empty-text">
-        <p className="t-body">{COPY_WORDS.intro(product.name)}</p>
-      </div>
-    </section>
-  );
-}
-
 /** The page, painted from what is read so far. Pure render: tested in ProductPage.test.ts. */
 export function ProductPageView({
   productKey,
@@ -559,6 +541,7 @@ export function ProductPageView({
   rename,
   remove = null,
   copy,
+  copySetup = null,
   lead = true,
   onRetry = () => location.reload(),
   signedIn = true,
@@ -623,14 +606,12 @@ export function ProductPageView({
   const name = product?.name ?? '';
   const cards = data?.cards ?? [];
   const archived = data?.archived ?? [];
-  // No copy of the product yet (products[].design): the card to make one stands for the list and the start action.
-  const noCopy = !loading && data?.copy?.kind === 'missing';
   // A visitor on a product Bridge cannot read for them (a private repository): never "Nothing explored here yet" nor a
   // start action they cannot use, only what they can do about it (sign in).
   const closed = !loading && visitor && data?.reached === false && cards.length === 0;
-  const empty = !loading && !data?.failed && !busy && !noCopy && !closed && cards.length === 0;
+  const empty = !loading && !data?.failed && !busy && !closed && cards.length === 0;
   // GitHub busy with nothing kept: the calm moment stands for the list.
-  const busyAlone = Boolean(busy) && !loading && !noCopy && cards.length === 0;
+  const busyAlone = Boolean(busy) && !loading && cards.length === 0;
   const library = Boolean(product?.default);
   const start = (appearance: 'menu' | 'button') => (
     <span className="cg-create" data-greet="">
@@ -645,7 +626,7 @@ export function ProductPageView({
     own && !head.editing ? (
       <ProductMenu name={name} rename={head.canRename} remove={canRemove} onRename={head.start} onRemove={() => setRemoving(true)} trigger={menuButton} />
     ) : null;
-  const startAction = product && !empty && !noCopy && !closed ? start('menu') : null;
+  const startAction = product && !empty && !closed ? start('menu') : null;
   const titleAfter =
     head.after || removeWaiting ? (
       <>
@@ -666,6 +647,7 @@ export function ProductPageView({
       >
         {/* A visitor is not told whether Bridge reaches the product: a developer fact they cannot act on. */}
         {product && data && <Facts product={product} data={closed ? { ...data, reached: null } : data} copy={copy ?? null} library={libraryUpdate} />}
+        {product && copySetup && <CopySetupLine setup={copySetup} />}
         <p className="t-ui t-muted pp-rename-note" role="status">
           {[head.note, removeNote].filter(Boolean).join(' ')}
         </p>
@@ -695,8 +677,6 @@ export function ProductPageView({
             </li>
           ))}
         </ul>
-      ) : noCopy && product ? (
-        <CopyCard product={product} copy={copy ?? null} />
       ) : busyAlone && busy ? (
         <BusyNotice busy={busy} onRetry={onRetry} signedIn={signedIn} />
       ) : empty ? (
@@ -741,8 +721,14 @@ export function ProductPageView({
           </section>
         ))
       )}
+      {/* The designers' copy is made, but only a tick on GitHub lets Bridge open it: an admin's one more step. */}
+      {copySetup?.kind === 'access' && product && (
+        <section className="fg-card pp-copy-access" aria-label={`Your designers' copy of ${name}`} data-copy-setup="access">
+          <CopyAccessStep access={copySetup.access} onVisible={copySetup.onVisible} />
+        </section>
+      )}
       {/* The admin's one step before previews: after the way to start (or the list), never instead of it. */}
-      {previews && product && !product.default && !loading && !noCopy && !closed && !busyAlone && !data?.failed && <ProductPreviewsStep name={name} step={previews} />}
+      {previews && product && !product.default && !loading && !closed && !busyAlone && !data?.failed && <ProductPreviewsStep name={name} step={previews} />}
       {/* Archived ones are out of the lists: one quiet line, and the way to them on Changes' Archived tab. */}
       {archived.length > 0 && (
         <p className="t-ui t-muted pp-archived" data-archived-line="">
@@ -796,6 +782,51 @@ export default function ProductPage({
   const [canSend, setCanSend] = useState(false);
   const [libView, setLibView] = useState<LibraryView | null>(null);
   const [withGitHub, setWithGitHub] = useState(false);
+  /** An admin of the team: the only one who may tick a new copy on GitHub (the one more step). */
+  const adminRef = useRef(false);
+  /** The designers' copy this browser's Add a product asked for, being made in the background (lib/design-copy.ts). */
+  const [copySetup, setCopySetup] = useState<CopySetup | null>(null);
+  const setupStarted = useRef(false);
+  /** Makes the copy with this viewer's sign-in, then the page reads it again; never a step for designers. */
+  const runCopySetup = async (p: ProductConfig) => {
+    const m = await import('../../../scripts/design-copy');
+    const settle = (r: CopyOutcome) => {
+      if (r === 'ready') {
+        m.forgetCopySetup(p.key);
+        setCopySetup(null);
+        setReload((n) => n + 1);
+        return;
+      }
+      setCopySetup({ kind: 'failed', line: setupLine(p.name, r), retry: () => void runCopySetup(p) });
+    };
+    setCopySetup({ kind: 'making' });
+    const r = await m.makeCopy(p);
+    if (!needsCopyAccess(r)) return settle(r);
+    // Made, but only a tick on GitHub lets Bridge open it: an admin's step; anyone else reads who can.
+    if (!adminRef.current) return setCopySetup({ kind: 'failed', line: setupLine(p.name, 'ask'), retry: () => void runCopySetup(p) });
+    setCopySetup({
+      kind: 'access',
+      access: r,
+      onVisible: async () => {
+        setCopySetup({ kind: 'making' });
+        settle(await m.finishCopy(p));
+      },
+    });
+  };
+  useEffect(() => {
+    const p = data?.product;
+    if (!p || !data || data.loading || !canMake || setupStarted.current) return;
+    void import('../../../scripts/design-copy').then((m) => {
+      if (setupStarted.current || !m.copySetupPending(p.key)) return;
+      // The copy is already there (made by a teammate's first exploration): nothing to make.
+      if (data.copy?.kind !== 'missing') {
+        if (data.copy?.kind === 'ready') m.forgetCopySetup(p.key);
+        return;
+      }
+      setupStarted.current = true;
+      void runCopySetup(p);
+    });
+  }, [data, canMake]);
   useEffect(() => {
     const p = data?.product;
     // The library line is a lead's or an admin's (they send the update): nobody else reads the product's library.
@@ -852,6 +883,7 @@ export default function ProductPage({
         setCanRename(canRenameProduct(a, sample));
         // The previews step is an admin's (connecting a host is theirs), on a real team only.
         setHosting(!sample && isTeamAdmin(a) ? { library: r.owner && r.repo ? `${r.owner}/${r.repo}` : null } : null);
+        adminRef.current = isTeamAdmin(a);
       });
     })();
     return () => {
@@ -902,39 +934,8 @@ export default function ProductPage({
     };
   }, [key, reload]);
   const copy: CopyActions | null =
-    (canMake || canLatest) && data?.product && data.copy
+    canLatest && data?.product && data.copy
       ? {
-          make: canMake
-            ? async () => {
-                const session = await import('../../../scripts/github-session');
-                if (!session.hasWorkingToken()) {
-                  const { ghAction } = await import('../../../lib/gh-wording');
-                  return { line: `${ghAction('make your copy', session.prefersSignIn())}.`, ready: false };
-                }
-                const { makeCopy } = await import('../../../scripts/design-copy');
-                // Kept if the person has to sign in again first: back on this page, it says to do it again.
-                const keep = await import('../../../scripts/pending-action');
-                keep.armPendingAction('retry', { label: 'make your copy' });
-                const r = await makeCopy(data.product!);
-                keep.disarmPendingAction();
-                if (needsCopyAccess(r)) return { line: '', ready: false, access: r };
-                // Made: the page reads the copy again, and shows the explorations and the start action.
-                if (r === 'ready') setReload((n) => n + 1);
-                return { line: madeLine(data.product!.name, r), ready: r === 'ready' };
-              }
-            : null,
-          finish: canMake
-            ? async () => {
-                const { finishCopy } = await import('../../../scripts/design-copy');
-                // Kept if the person has to sign in again first: back on this page, it says to do it again.
-                const keep = await import('../../../scripts/pending-action');
-                keep.armPendingAction('retry', { label: 'finish your copy' });
-                const r = await finishCopy(data.product!);
-                keep.disarmPendingAction();
-                if (r === 'ready') setReload((n) => n + 1);
-                return { line: madeLine(data.product!.name, r), ready: r === 'ready' };
-              }
-            : null,
           latest: canLatest
             ? async () => {
                 const session = await import('../../../scripts/github-session');
@@ -1025,6 +1026,7 @@ export default function ProductPage({
       rename={rename}
       remove={remove}
       copy={copy}
+      copySetup={copySetup}
       lead={lead}
       onRetry={() => setReload((n) => n + 1)}
       signedIn={signedIn}

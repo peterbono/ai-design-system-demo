@@ -130,7 +130,7 @@ export function designCopyBlocked(ctx: BridgeContext, product: string, repo: str
       ? `You can read ${repo} but not create branches there: ask an admin of ${repo.split('/')[0]} for write access.`
       : reason === 'no-token'
         ? `Starting it in ${repo} needs a GitHub token that reaches it (${addToken(ctx)}).`
-        : `The copy does not exist yet, or this token does not reach it: make it with "Make my copy" on ${product}'s page in Bridge Studio.`;
+        : `The copy does not exist yet, or this token does not reach it: Bridge Studio makes it when someone starts the first exploration of ${product} there (Start an exploration).`;
   return `${product} explorations are created in the design team's copy of ${product} (${repo}), never in the developers' repository. ${why} Or, only if the person chooses it, start it in the design system repository for now (${say(ctx, 'where: "library"', '--in-library')}).`;
 }
 

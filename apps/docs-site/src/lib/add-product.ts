@@ -437,7 +437,7 @@ export function addProductProposal(entry: ProductConfig, opts: { date: Date; pre
     '',
     `Adds \`products[key=${entry.key}]\` to \`bridge.config.json\`: ${JSON.stringify(entry.name)}, code in \`${entry.repo}\`.`,
     '',
-    ...(entry.design ? [`- Designers explore in their own copy, \`${entry.design.repo}\`, made from the product page.`] : []),
+    ...(entry.design ? [`- Designers explore in their own copy, \`${entry.design.repo}\`, made by Bridge when the first exploration starts.`] : []),
     entry.preview ? `- Previews: \`${entry.preview}\`, production: ${entry.production}.` : '- Previews: found after the first change.',
     '- Studio and the Library list it once this merges.',
     '',

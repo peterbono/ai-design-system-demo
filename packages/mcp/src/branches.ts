@@ -433,7 +433,7 @@ export async function listProducts(ctx: BridgeContext) {
             ...(own.get(p.key) === 'not-connected'
               ? {
                   connect: copies.has(p.key)
-                    ? `The design team's copy ${copies.get(p.key)} is not made yet, or this token does not reach it: "Make my copy" on ${p.name}'s page in Bridge Studio makes it. Until then its explorations are left out of the lists.`
+                    ? `The design team's copy ${copies.get(p.key)} is not made yet, or this token does not reach it: Bridge Studio makes it when someone starts the first exploration of ${p.name} there. Until then its explorations are left out of the lists.`
                     : `Install the Bridge GitHub App on ${p.repo} (or give the token access to it): until then its explorations are left out of the lists.`,
                 }
               : {}),

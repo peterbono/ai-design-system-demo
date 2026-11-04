@@ -365,7 +365,7 @@ export function productConnectionRow(
     };
   if (x.state === 'unavailable') return { label, badge: { text: 'Not checked', tone: 'neutral' }, value: `GitHub did not answer for ${x.repo}. Try again in a few minutes.`, ask: null };
   if (x.state === 'no-copy')
-    return { label, badge: { text: 'No copy yet', tone: 'neutral' }, value: `Explorations for ${x.product} start in the design team's copy, ${x.repo}. Make it with "Make my copy" on the ${x.product} page.`, ask: null };
+    return { label, badge: { text: 'No copy yet', tone: 'neutral' }, value: `Explorations for ${x.product} start in the design team's copy, ${x.repo}. Bridge makes it when the first exploration of ${x.product} starts.`, ask: null };
   return {
     label,
     badge: { text: 'Not connected', tone: 'warning' },

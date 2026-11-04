@@ -1,7 +1,8 @@
 // The design team's copy of a product (bridge.config.json products[].design) from Studio, with the viewer's GitHub
-// sign-in: read where it stands, make it ("Make my copy": GitHub's fork, built in the background), and bring it up to
-// date ("Get the latest": GitHub's "Sync fork"). The core calls are @bridge-ds/core's design-copy-github.ts; the words
-// are lib/design-copy.ts. Designers never see a GitHub error here, only what to do next.
+// sign-in: read where it stands, make it (GitHub's fork, built in the background: right after Add a product, or inside
+// Start an exploration for a product added before; never a "Make my copy" step), and bring it up to date ("Get the
+// latest": GitHub's "Sync fork"). The core calls are @bridge-ds/core's design-copy-github.ts; the words are
+// lib/design-copy.ts. Designers never see a GitHub error here, only what to do next.
 import {
   designCopyOf,
   designCopyStateOnGitHub,
@@ -11,7 +12,8 @@ import {
   waitForDesignCopy,
   type ProductConfig,
 } from '@bridge-ds/core';
-import { copyAccessTarget, copyListed, DESIGN_COPY_DESCRIPTION, DESIGN_COPY_TOPIC, type CopyAccess, type CopyInstallation, type CopyView } from '../lib/design-copy';
+import { copyAccessTarget, copyListed, copySetupFresh, copySetupKey, DESIGN_COPY_DESCRIPTION, DESIGN_COPY_TOPIC, type CopyAccess, type CopyInstallation, type CopyView } from '../lib/design-copy';
+import { repoContext } from './repo-context';
 import { githubBusy } from '../lib/github-busy';
 import { explorationsConfig } from './exploration-start';
 import { getToken, ghGet, ghWrite, GitHubError, RateLimitError, sessionMode, studioClient, type Fetched } from './github-session';
@@ -45,8 +47,8 @@ export async function readCopyView(p: ProductConfig | null | undefined): Promise
 export type MakeCopyResult = 'ready' | 'slow' | 'turned-off' | 'no-access' | 'failed' | CopyAccess;
 
 /**
- * "Make my copy": asks GitHub for it, then waits until it is built (about a minute at most). Signed in with the Bridge
- * app on an account where Bridge sees only the ticked products, GitHub does not tick the new copy: Bridge (and the
+ * Makes the copy (right after Add a product, or inside Start an exploration): asks GitHub for it, then waits until it
+ * is built (about a minute at most). Signed in with the Bridge app on an account where Bridge sees only the ticked products, GitHub does not tick the new copy: Bridge (and the
  * viewer's own sign-in) could not open it, so the answer is the access step (CopyAccess), and finishCopy goes on once
  * copyVisible says it is ticked.
  */
@@ -177,5 +179,32 @@ export async function bringLatestIntoExploration(copy: string, branch: string): 
     if (err instanceof GitHubError && err.status === 409) return 'conflict';
     console.warn('Bridge: the latest could not be brought into the exploration.', err);
     return 'failed';
+  }
+}
+
+/** The page's team, "owner/repo": the first half of lib/design-copy.ts copySetupKey. */
+function teamOfPage(): string {
+  const r = repoContext();
+  return `${r.owner}/${r.repo}`;
+}
+
+/**
+ * Whether this browser just added `product` and its copy is still to make: Add a product noted it (lib/design-copy.ts
+ * noteCopySetup) with "Give designers their own copy" ticked. This browser only, never shared.
+ */
+export function copySetupPending(product: string): boolean {
+  try {
+    return copySetupFresh(sessionStorage.getItem(copySetupKey(teamOfPage(), product)), Date.now());
+  } catch {
+    return false;
+  }
+}
+
+/** The copy is there: nothing more to make in the background. */
+export function forgetCopySetup(product: string): void {
+  try {
+    sessionStorage.removeItem(copySetupKey(teamOfPage(), product));
+  } catch {
+    /* ignore */
   }
 }

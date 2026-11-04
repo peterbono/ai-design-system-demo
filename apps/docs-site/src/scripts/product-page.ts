@@ -70,8 +70,8 @@ export async function loadProductPage(key: string, onUpdate: (d: ProductPageData
     onUpdate({ ...base, loading: false });
     return;
   }
-  // A product explored in the design team's copy: where the copy stands first. No copy yet: the page offers to make it.
-  // GitHub busy: not known now, so no "Make my copy"; the explorations as last read still show below.
+  // A product explored in the design team's copy: where the copy stands first. No copy yet: nothing explored there yet.
+  // GitHub busy: not known now; the explorations as last read still show below.
   if (copyRepos(product)) {
     const copy = await readCopyView(product);
     if (copy?.kind === 'busy') base.busy = copy.busy;

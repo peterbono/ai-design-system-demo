@@ -1,10 +1,10 @@
-// "Make my copy" made the copy, but Bridge may open only the products ticked on GitHub, and GitHub does not tick a new
+// Bridge made the designers' copy, but Bridge may open only the products ticked on GitHub, and GitHub does not tick a new
 // copy on its own (scripts/design-copy.ts makeCopy answers CopyAccess). One more step, in designer words: one sentence,
 // "Open GitHub" opens the account's list in a small centered window, and Bridge waits with a Field Guide drawing,
 // reading the list every few seconds (and at once when the return page, pages/studio/auth/access.astro, says so),
 // the same wait as Add a product (AddProduct.tsx, lib/add-product.ts). Once the copy is ticked, `onVisible` goes on
 // as before. GitHub closed with nothing new: the owners decide (nothingNewLine) and Try again. GitHub busy: the busy
-// line. Used by the product page's copy card and Start an exploration.
+// line. Shown to admins only: on the product page right after Add a product, and in Start an exploration.
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { Button, Spinner } from '@bridge-ds/react';
 import { ExternalLink } from 'lucide-react';

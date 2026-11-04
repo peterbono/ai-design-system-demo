@@ -1,13 +1,16 @@
-// The design team's copy of a product (bridge.config.json products[].design), in designer words: the product page's
-// card while there is none ("Make my copy"), the quiet line when the product moved on ("Get the latest"), and what
-// each outcome says. Designers never read "fork", "branch" or "repository" here. Pure: tested in design-copy.test.ts.
+// The design team's copy of a product (bridge.config.json products[].design), in designer words. The copy is a
+// one-time team setup the admin chose in Add a product ("Give designers their own copy"): Bridge makes it right after
+// the add, in the background (the product page's quiet line, for the admin or lead who added it), or, for a product
+// added before that, inside "Start an exploration" (one action, a short wait). Nobody ever sees a "Make my copy" step.
+// Also the quiet line when the product moved on ("Get the latest"), and what each outcome says. Designers never read
+// "fork", "branch" or "repository" here. Pure: tested in design-copy.test.ts.
 
 import type { AppInstallation } from './access-view';
 import type { GitHubBusy } from './github-busy';
 
 /**
  * Where the copy stands for the page: none needed (no design copy set), missing, there (with how far behind), or not
- * known now because GitHub is busy for the viewer (never "missing": the page offers no "Make my copy" then).
+ * known now because GitHub is busy for the viewer (never "missing").
  */
 export type CopyView = { kind: 'none' } | { kind: 'missing' } | { kind: 'ready'; behind: number | null } | { kind: 'busy'; busy: GitHubBusy };
 
@@ -19,13 +22,10 @@ export const DESIGN_COPY_TOPIC = 'bridge-design-copy';
 export const DESIGN_COPY_DESCRIPTION = 'Bridge explorations for this product live here.';
 
 export const COPY_WORDS = {
-  intro: (product: string) => `Get your own copy of ${product} to explore in. The developers' code stays untouched.`,
-  make: 'Make my copy',
-  making: 'Making your copy. It takes about a minute.',
-  made: (product: string) => `Your copy of ${product} is ready. Start an exploration in it.`,
-  slow: 'Your copy is still being made. Come back in a minute.',
-  turnedOff: (product: string) => `Copies of ${product} are turned off. Ask an admin to allow them.`,
-  noAccess: (product: string) => `You cannot make a copy of ${product} yet. Ask an admin to give you access.`,
+  /** After the access step, or wherever Bridge waits for GitHub to build the copy. */
+  making: 'Getting the copy ready. It takes about a minute.',
+  /** Start an exploration on a product added before copies were made at add time: the one short wait. */
+  startMaking: (product: string) => `Getting ${product} ready to explore. It takes about a minute.`,
   behind: (product: string) => `${product} changed since your copy.`,
   getLatest: 'Get the latest',
   upToDate: 'Your copy is up to date.',
@@ -37,31 +37,96 @@ export const COPY_WORDS = {
   bringConflict: 'Bridge could not bring it in on its own. Ask a developer.',
   bringFailed: 'Bridge could not bring it in. Try again in a minute.',
   failed: 'Bridge could not reach GitHub. Try again in a moment.',
-  /** The copy is made but Bridge may not open it yet (Bridge sees only the products ticked on GitHub). */
-  access: (copyName: string) => `One more step: let Bridge open your copy. Tick ${copyName} on GitHub, then Save.`,
+  /** The copy is made but Bridge may not open it yet (Bridge sees only the products ticked on GitHub). Admins only. */
+  access: (copyName: string) => `One more step: let Bridge open the designers' copy. Tick ${copyName} on GitHub, then Save.`,
   openGitHub: 'Open GitHub',
   accessWaiting: (copyName: string) => `Tick ${copyName} on GitHub, then Save. Bridge waits here.`,
-  noCopyStart: (product: string) => `There is no copy of ${product} to explore in yet. Make one first: the developers' code stays untouched.`,
 } as const;
 
-/** The quiet line shows only when the product has moved on since the copy was made or last brought up to date. */
-export const showsBehind = (v: CopyView | null | undefined): boolean => v?.kind === 'ready' && (v.behind ?? 0) > 0;
+/** The product page's quiet line right after Add a product, for the admin or lead who added it (nobody else). */
+export const COPY_SETUP_WORDS = {
+  making: 'Getting a copy ready for your designers…',
+  tryAgain: 'Try again',
+} as const;
 
-/** What "Make my copy" says once GitHub answered. */
-export function madeLine(product: string, r: 'ready' | 'slow' | 'turned-off' | 'no-access' | 'failed'): string {
+/** How making the copy ended, as scripts/design-copy.ts makeCopy and finishCopy answer it (the access step apart). */
+export type CopyOutcome = 'ready' | 'slow' | 'turned-off' | 'no-access' | 'failed';
+
+/**
+ * What the admin or lead who added the product reads when the copy could not be made in the background, beside Try
+ * again. `ask`: the copy is made, but only an admin can let Bridge open it and this viewer is not one.
+ */
+export function setupLine(product: string, r: Exclude<CopyOutcome, 'ready'> | 'ask'): string {
   switch (r) {
-    case 'ready':
-      return COPY_WORDS.made(product);
     case 'slow':
-      return COPY_WORDS.slow;
+      return 'The copy for your designers is taking longer than usual.';
     case 'turned-off':
-      return COPY_WORDS.turnedOff(product);
+      return `Copies of ${product} are turned off on GitHub, so your designers have none yet.`;
     case 'no-access':
-      return COPY_WORDS.noAccess(product);
+      return `GitHub did not let you make a copy of ${product} for your designers.`;
+    case 'ask':
+      return "An admin needs to let Bridge open your designers' copy.";
+    default:
+      return 'Bridge could not get a copy ready for your designers.';
+  }
+}
+
+/**
+ * What Start an exploration says when the copy it made first is not ready: the start waits, and Start tries again.
+ * `ask`: only an admin can let Bridge open the new copy, and this viewer is not one.
+ */
+export function startCopyLine(product: string, r: Exclude<CopyOutcome, 'ready'> | 'ask'): string {
+  switch (r) {
+    case 'slow':
+      return `${product} is still getting ready. Try again in a minute.`;
+    case 'turned-off':
+      return `Copies of ${product} are turned off. Ask an admin to allow them.`;
+    case 'no-access':
+      return `Bridge could not get ${product} ready with your sign-in. Ask an admin to start its first exploration.`;
+    case 'ask':
+      return `${product} is almost ready. Ask an admin to start its first exploration: that finishes the setup.`;
     default:
       return COPY_WORDS.failed;
   }
 }
+
+/**
+ * What Start an exploration does once Bridge made the copy first: start (ready), the access step (an admin only), or
+ * say why it waits.
+ */
+export function afterCopyFirst(r: CopyOutcome | CopyAccess, admin: boolean): { kind: 'start' } | { kind: 'access'; access: CopyAccess } | { kind: 'say'; line: (product: string) => string } {
+  if (needsCopyAccess(r)) return admin ? { kind: 'access', access: r } : { kind: 'say', line: (p) => startCopyLine(p, 'ask') };
+  if (r === 'ready') return { kind: 'start' };
+  return { kind: 'say', line: (p) => startCopyLine(p, r) };
+}
+
+/**
+ * The product page right after Add a product (this browser only, sessionStorage): Bridge makes the copy of this
+ * product of this team in the background. Older than half an hour, it is forgotten (the start flow still makes the
+ * copy if it never came).
+ */
+export const COPY_SETUP_MAX_MS = 30 * 60 * 1000;
+export const copySetupKey = (team: string, product: string): string => `bridge:copy-setup:${team.toLowerCase()}:${product.toLowerCase()}`;
+/** Notes the copy to make (Add a product, right before its page opens). Best effort: storage refused changes nothing. */
+export function noteCopySetup(storage: Pick<Storage, 'setItem'> | null | undefined, team: string, product: string, now: number): void {
+  try {
+    storage?.setItem(copySetupKey(team, product), JSON.stringify({ at: now }));
+  } catch {
+    /* storage refused: the first exploration makes the copy instead */
+  }
+}
+export function copySetupFresh(raw: string | null | undefined, now: number): boolean {
+  if (!raw) return false;
+  try {
+    const at = (JSON.parse(raw) as { at?: unknown }).at;
+    return typeof at === 'number' && now - at >= 0 && now - at < COPY_SETUP_MAX_MS;
+  } catch {
+    return false;
+  }
+}
+
+/** The quiet line shows only when the product has moved on since the copy was made or last brought up to date. */
+export const showsBehind = (v: CopyView | null | undefined): boolean => v?.kind === 'ready' && (v.behind ?? 0) > 0;
 
 /** What "Get the latest" says once GitHub answered. */
 export const latestLine = (r: 'ok' | 'conflict' | 'failed'): string => (r === 'ok' ? COPY_WORDS.upToDate : r === 'conflict' ? COPY_WORDS.conflict : COPY_WORDS.failed);
@@ -114,5 +179,5 @@ export function copyAccessTarget(list: readonly CopyInstallation[], copy: string
 export const copyListed = (repos: readonly { full_name?: string | null }[], copy: string): boolean =>
   repos.some((r) => r.full_name?.toLowerCase() === copy.toLowerCase());
 
-/** The access step's outcome of "Make my copy", told apart from its words. */
+/** The access step's outcome of making the copy, told apart from the others. */
 export const needsCopyAccess = (r: unknown): r is CopyAccess => typeof r === 'object' && r !== null && (r as { kind?: unknown }).kind === 'needs-access';
