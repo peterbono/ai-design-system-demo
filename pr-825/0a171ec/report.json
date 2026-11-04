@@ -1,0 +1,95 @@
+{
+  "pr": 825,
+  "sha": "0a171ece330efca0994a9e93c7139bf104e19914",
+  "baseSha": "a6a67c43df9970278ca0e871af740d049587a7cd",
+  "failed": false,
+  "failures": [],
+  "warnings": 0,
+  "screens": [
+    "home"
+  ],
+  "variants": [
+    {
+      "screen": "home",
+      "viewport": "desktop",
+      "theme": "light",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "status": 200,
+      "height": 1436,
+      "fullHeight": 1436,
+      "png": "home-desktop-light.png",
+      "axe": [],
+      "ms": 6225,
+      "webp": "home-desktop-light.webp",
+      "diff": {
+        "ratio": 0,
+        "pixels": 0,
+        "box": null,
+        "sizeChanged": false
+      }
+    },
+    {
+      "screen": "home",
+      "viewport": "desktop",
+      "theme": "dark",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "status": 200,
+      "height": 1436,
+      "fullHeight": 1436,
+      "png": "home-desktop-dark.png",
+      "axe": [],
+      "ms": 6172,
+      "webp": "home-desktop-dark.webp",
+      "diff": {
+        "ratio": 0,
+        "pixels": 0,
+        "box": null,
+        "sizeChanged": false
+      }
+    },
+    {
+      "screen": "home",
+      "viewport": "mobile",
+      "theme": "light",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "status": 200,
+      "overflow": null,
+      "height": 2532,
+      "fullHeight": 2746,
+      "png": "home-mobile-light.png",
+      "axe": [],
+      "ms": 5954,
+      "webp": "home-mobile-light.webp",
+      "diff": {
+        "ratio": 0,
+        "pixels": 0,
+        "box": null,
+        "sizeChanged": false
+      }
+    },
+    {
+      "screen": "home",
+      "viewport": "mobile",
+      "theme": "dark",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "status": 200,
+      "overflow": null,
+      "height": 2532,
+      "fullHeight": 2746,
+      "png": "home-mobile-dark.png",
+      "axe": [],
+      "ms": 3788,
+      "webp": "home-mobile-dark.webp",
+      "diff": {
+        "ratio": 0,
+        "pixels": 0,
+        "box": null,
+        "sizeChanged": false
+      }
+    }
+  ]
+}
