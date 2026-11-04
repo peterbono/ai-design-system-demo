@@ -155,6 +155,16 @@ describe("the developers' version of a design task", () => {
     expect(devPullOfTimeline([], 'acme/shop')).toBeNull();
   });
 
+  it('matches the developers\' repository under an old name, any case (a task link stored before a rename)', () => {
+    const events = [xref(12, 'the-bridge-company/art-print-shop')];
+    expect(devPullOfTimeline(events, 'art-print-shop-co/art-print-shop')).toEqual({ number: 12, url: 'https://github.com/the-bridge-company/art-print-shop/pull/12' });
+    expect(devPullOfTimeline(events, 'Art-Print-Shop-Co/Art-Print-Shop')).toMatchObject({ number: 12 });
+    expect(devPullOfTimeline([xref(3, 'The-Bridge-Company/AI-Design-System-Demo')], 'peterbono/ai-design-system-demo')).toMatchObject({ number: 3 });
+    // A shipped one too, and still never another repository of the new owner.
+    expect(devPullOfTimeline([xref(14, 'the-bridge-company/art-print-shop', 'closed', { pull_request: { merged_at: '2026-11-01T00:00:00Z' } })], 'art-print-shop-co/art-print-shop', { merged: true })).toMatchObject({ number: 14 });
+    expect(devPullOfTimeline([xref(15, 'the-bridge-company/other')], 'art-print-shop-co/art-print-shop')).toBeNull();
+  });
+
   it('reads the stage from the task and that pull request', () => {
     const open = { assignees: [], state: 'open', stateReason: null, closedAt: null };
     expect(taskStage(open)).toBe('waiting-for-code');

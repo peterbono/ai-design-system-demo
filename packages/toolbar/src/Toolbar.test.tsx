@@ -11,6 +11,7 @@ import type { ToolbarScope } from './scope';
 // The change's facts come from GitHub: each test says what loadChange answers.
 const loadChange = vi.fn<(build: unknown, n: number) => Promise<ChangeFacts>>();
 vi.mock('./github', () => ({ loadChange: (build: unknown, n: number) => loadChange(build, n) }));
+import { ReadError } from './reads';
 
 const { default: Toolbar } = await import('./Toolbar');
 
@@ -106,6 +107,16 @@ describe('the collapsed toolbar', () => {
     await waitFor(() => expect(openTips()).toContain('Live product is not available yet. Reading the change. You can switch sides once it has loaded.'));
     await user.click(live);
     expect(sideButton('This change')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('when the change cannot be read, says what helps: Studio for access, never a reload that cannot help', async () => {
+    loadChange.mockRejectedValue(new ReadError('GitHub answered 404.', 404));
+    const user = userEvent.setup();
+    mount();
+    const live = sideButton('Live product');
+    await user.hover(live);
+    await waitFor(() => expect(openTips().join(' ')).toContain('Open it from Studio to compare both sides.'));
+    expect(openTips().join(' ')).not.toContain('Reload');
   });
 
   it('opens on Show Bridge details', async () => {

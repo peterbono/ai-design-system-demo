@@ -14,7 +14,8 @@ import { Button, ButtonGroup, Checkbox, Icon, IconButton, Kbd, Link, Popover, Po
 import { Check, ChevronUp, GripVertical, Info, ListChecks, Minimize2, ScanSearch } from 'lucide-react';
 import { loadChange, type ChangeFacts } from './github';
 import { tabPass, withPass } from './pass';
-import { branchOfHost, branchTitle, canFlipSides, READ_FAILED, READ_FAILED_TOGETHER } from './session';
+import { branchOfHost, branchTitle, canFlipSides, READ_FAILED, READ_FAILED_TOGETHER, unreadFlipLine } from './session';
+import { ReadError } from './reads';
 import { loadBuild } from './config';
 import type { BridgeToolbarProps } from './BridgeToolbar';
 import { useDocumentScope, type ToolbarScope, type ToolbarShop } from './scope';
@@ -295,7 +296,9 @@ function Toolbar({
   const setPrefs = scope.set;
   const isTenantId = (id: string) => shops.some((t) => t.id === id);
   const [oneFacts, setFacts] = useState<ChangeFacts | null>(null);
-  const [oneError, setError] = useState(false);
+  // Why the change could not be read: the status of the answer that refused it, null without one (no connection).
+  const [oneFailure, setFailure] = useState<{ status: number | null } | null>(null);
+  const oneError = oneFailure !== null;
   // On production the toolbar only exists for the live side of a code change, or for changes tried together (which
   // open on the combination).
   const [side, setSide] = useState<Side>(onProduction && !tg ? 'before' : 'after');
@@ -341,7 +344,7 @@ function Toolbar({
     let live = true;
     loadChange(build, change).then(
       (f) => live && setFacts(f),
-      () => live && setError(true),
+      (e: unknown) => live && setFailure({ status: e instanceof ReadError ? e.status : null }),
     );
     return () => {
       live = false;
@@ -774,7 +777,7 @@ function Toolbar({
     ? null
     : !facts
       ? error
-        ? 'Bridge could not read this change, so there is nothing to compare. Reload the page to try again.'
+        ? unreadFlipLine(tg ? null : (oneFailure?.status ?? null))
         : 'Reading the change. You can switch sides once it has loaded.'
       : side === 'after'
         ? "Bridge does not know where this product runs in production. Add its production URL to bridge.config.json."

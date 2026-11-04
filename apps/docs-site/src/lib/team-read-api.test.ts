@@ -5,7 +5,7 @@ import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/a
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { sha256 } from '../../api/_lib/http';
-import { clearReadMemory, countKey, memberBudgetId, FRESH_MS, immutable, KEEP_S, MAX_BATCH, MAX_CHANGES, PUBLIC_TEAMS, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
+import { clearReadMemory, countKey, memberBudgetId, FRESH_MS, immutable, KEEP_S, MAX_BATCH, MAX_CHANGES, isPublicTeam, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
 import { restoreMissing } from './contribute';
 import { type ContribDeps, cookieName, type FetchLike, handleContribute, signSession } from '../../api/contribute/index';
 
@@ -202,10 +202,12 @@ describe('team reads: a missing file', () => {
 });
 
 describe('team reads: the allow-list', () => {
-  it("keeps Bridge's own repository public under its old and new owner while it moves", () => {
-    expect(PUBLIC_TEAMS).toContain('the-bridge-company/ai-design-system-demo');
-    expect(PUBLIC_TEAMS).toContain('peterbono/ai-design-system-demo');
-    expect(PUBLIC_TEAMS).toContain('peterbono/bridge-demo-ds');
+  it("keeps Bridge's own repository public under its old and new name", () => {
+    expect(isPublicTeam('the-bridge-company/ai-design-system-demo')).toBe(true);
+    expect(isPublicTeam('peterbono/ai-design-system-demo')).toBe(true);
+    expect(isPublicTeam('Peterbono/AI-Design-System-Demo')).toBe(true);
+    expect(isPublicTeam('peterbono/bridge-demo-ds')).toBe(true);
+    expect(isPublicTeam('acme/ds')).toBe(false);
   });
 
   it('allows what Studio reads and refuses the rest without calling GitHub', async () => {
@@ -668,13 +670,14 @@ describe('team reads: from another origin (the Bridge toolbar in a product)', ()
     expect(gets(s.w, `${D}/contents/bridge.config.json`)).toBe(1);
   });
 
-  it('refuses an origin the config does not name, without CORS headers and without reading GitHub', async () => {
+  it('refuses an origin the config does not name without reading GitHub, a refusal the page can read (no data, no credentials)', async () => {
     const s = setup({ configs: demoConfig });
     for (const origin of ['https://evil.example', 'https://shop-git-x.evil-acme-projects.vercel.app', 'https://shop-git-a.b-acme-projects.vercel.app', 'http://shop.example.com', 'https://shop.example.com.evil.example']) {
       const r = await s.read(`${D}/pulls/1`, '', DEMO, from(origin));
       expect(r.status, origin).toBe(403);
       expect((await r.json()).error).toBe('origin');
-      expect(r.headers.get('access-control-allow-origin')).toBeNull();
+      expect(r.headers.get('access-control-allow-origin')).toBe(origin);
+      expect(r.headers.get('access-control-allow-credentials')).toBeNull();
     }
     expect(s.w.calls.some((c) => c.path.startsWith(`${D}/pulls`))).toBe(false);
   });
@@ -684,7 +687,8 @@ describe('team reads: from another origin (the Bridge toolbar in a product)', ()
     const cookie = await s.member();
     const team = await s.read(`${P}/pulls`, cookie, TEAM, from(PROD));
     expect(team.status).toBe(401);
-    expect(team.headers.get('access-control-allow-origin')).toBeNull();
+    expect(await team.json()).toEqual({ error: 'signin', message: expect.any(String) });
+    expect(team.headers.get('access-control-allow-credentials')).toBeNull();
     const collab = await s.read(`${D}/collaborators`, cookie, DEMO, from(PROD));
     expect(collab.status).toBe(403);
   });
@@ -697,7 +701,7 @@ describe('team reads: from another origin (the Bridge toolbar in a product)', ()
     for (const q of ['', '&mine=1', '&members=1', '&users=dana', `&changes=1:${SHA('a')}`]) {
       const r = await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${DEMO}${q}`, { headers: { host: HOST, ...from(PROD) } }), ENV, s.deps);
       expect(r.status, q).toBe(403);
-      expect(r.headers.get('access-control-allow-origin')).toBeNull();
+      expect((await r.json()).error, q).toBe('origin');
     }
     const write = await handleContribute(
       new Request(`${ORIGIN}/api/contribute?repo=${DEMO}&gh=${encodeURIComponent(`${D}/issues`)}`, { method: 'POST', headers: { host: HOST, 'x-bridge-contribute': '1', 'content-type': 'application/json', ...from(PROD) }, body: '{}' }),
@@ -714,6 +718,41 @@ describe('team reads: from another origin (the Bridge toolbar in a product)', ()
     const r = await s.read(`${D}/pulls/1`, '', DEMO, { origin: ORIGIN, 'sec-fetch-site': 'same-origin' });
     expect(r.status).toBe(200);
     expect(r.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});
+
+describe('team reads under an old name (a toolbar or link from before a rename)', () => {
+  const NEW = 'the-bridge-company/ai-design-system-demo';
+  const OLD = 'peterbono/ai-design-system-demo';
+  const PROD = 'https://shop.example.com';
+  const config = { [NEW]: JSON.stringify({ previews: { production: { docs: ORIGIN } }, products: [{ key: 'shop', repo: 'the-bridge-company/art-print-shop', production: `${PROD}/` }] }) };
+  const from = (origin: string) => ({ origin, 'sec-fetch-site': 'cross-site' });
+
+  it('reads the team under its new name: the app is looked up, and GitHub called, by the new name only', async () => {
+    // The app is installed on the repository's current name; the old one is unknown to it (what answered 409).
+    const s = setup({ configs: config, private: { [NEW]: false }, noApp: [OLD] });
+    const r = await s.read(`/repos/${OLD}/pulls/1`, '', OLD, from(PROD));
+    expect(r.status).toBe(200);
+    expect(r.headers.get('access-control-allow-origin')).toBe(PROD);
+    expect(s.tokens.every((t) => t.toLowerCase() === NEW)).toBe(true);
+    expect(s.w.calls.some((c) => c.path.toLowerCase().includes(OLD))).toBe(false);
+    expect(s.w.calls.some((c) => c.path === `/repos/${NEW}/pulls/1`)).toBe(true);
+  });
+
+  it('reads a product under its old owner as the same repository, by its new name', async () => {
+    const s = setup({ configs: config, private: { [NEW]: false, 'the-bridge-company/art-print-shop': false } });
+    const r = await s.read('/repos/art-print-shop-co/art-print-shop/pulls/1', '', NEW, from(PROD));
+    expect(r.status).toBe(200);
+    expect(s.w.calls.some((c) => c.path.includes('art-print-shop-co'))).toBe(false);
+  });
+
+  it('a refusal from another origin carries CORS, so the toolbar reads why and falls back (here: the app is missing)', async () => {
+    const s = setup({ configs: config, private: { [NEW]: false }, noApp: [NEW] });
+    const r = await s.read(`/repos/${OLD}/pulls/1`, '', OLD, from(PROD));
+    expect(r.status).toBeGreaterThanOrEqual(400);
+    expect(r.headers.get('access-control-allow-origin')).toBe(PROD);
+    expect(r.headers.get('vary')).toBe('Origin');
+    expect(r.headers.get('access-control-allow-credentials')).toBeNull();
   });
 });
 
@@ -782,7 +821,8 @@ describe('team reads with a read pass (the toolbar in a private product preview)
     expect((await readWith(s, `/repos/${OTHER}/pulls/1`, pass)).status).toBe(401);
     const evil = await readWith(s, `/repos/${COPY}/pulls/4`, pass, TEAM, 'https://evil.example');
     expect(evil.status).toBe(403);
-    expect(evil.headers.get('access-control-allow-origin')).toBeNull();
+    // The refusal is readable (no data in it); the answer it refused never is.
+    expect((await evil.json()).error).toBe('origin');
     const blob = await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${TEAM}&blobs=${SHA('a')}&pass=${encodeURIComponent(pass)}`, { headers: { host: HOST, ...from(PREVIEW_HOST) } }), ENV, s.deps);
     expect(blob.status).toBe(401);
     const write = await handleContribute(

@@ -3,13 +3,17 @@
 import { designReviewComment, designReviewOf, devPullOfTimeline, taskStage, type LifecycleStage, type DesignAnswer, type DesignTaskRead, type DevPull, type TaskCommentLike, type TimelineEventLike } from '../lib/review-state';
 import { isCloudflareCheck, parseCloudflareCheck, parseExplorationBody } from '@bridge-ds/core';
 import { ghGet, ghWrite } from './github-session';
+import { canonicalRepo } from '../lib/team-path';
 
 const TASK_URL = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)$/;
 
-/** The repository and number of a task URL, or null. */
+/**
+ * The repository and number of a task URL, or null. The repository under its current name: a link stored before a
+ * rename (art-print-shop-co/...) is read by the new name, so GitHub answers at once instead of with a redirect.
+ */
 export function taskRef(url: string): { repo: string; number: number } | null {
   const m = TASK_URL.exec(url.trim());
-  return m ? { repo: m[1]!, number: Number(m[2]) } : null;
+  return m ? { repo: canonicalRepo(m[1]!), number: Number(m[2]) } : null;
 }
 
 /**

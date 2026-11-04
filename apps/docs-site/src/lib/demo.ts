@@ -10,18 +10,18 @@
 
 import type { Owners } from '@bridge-ds/core';
 import { isBotLogin, isClaudeLogin } from './people.js';
-import { isTeamKey } from './team-path.js';
+import { canonicalRepo, isTeamKey } from './team-path.js';
 
 /**
  * The design systems that are the public demo, lower case "owner/repo": the self-hosted site's own repository and
  * the demo team on the hosted site (/studio/peterbono/bridge-demo-ds/). The one place to change what "demo" means.
  */
-// 'peterbono/ai-design-system-demo' is the old key of Bridge's own repository, kept while it moves to
-// the-bridge-company so the switch has no gap: remove it once nothing reads the old name.
-export const DEMO_REPOS: readonly string[] = ['the-bridge-company/ai-design-system-demo', 'peterbono/bridge-demo-ds', 'peterbono/ai-design-system-demo'];
+// Current names only: an old one (peterbono/ai-design-system-demo) is read as its new name by isDemoRepo
+// (team-path.ts canonicalRepo, the one map of renamed repositories).
+export const DEMO_REPOS: readonly string[] = ['the-bridge-company/ai-design-system-demo', 'peterbono/bridge-demo-ds'];
 
-/** True for a demo design system ("owner/repo", any case). */
-export const isDemoRepo = (repo: string | null | undefined): boolean => DEMO_REPOS.includes((repo ?? '').trim().toLowerCase());
+/** True for a demo design system ("owner/repo", any case, old name or new). */
+export const isDemoRepo = (repo: string | null | undefined): boolean => DEMO_REPOS.includes(canonicalRepo(repo ?? '').toLowerCase());
 
 /**
  * The two demo design systems are not the same thing for a visitor, so they never share a name:

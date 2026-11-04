@@ -566,6 +566,19 @@ export const READ_FAILED = "Bridge can't open this change's details here. Open i
 export const READ_FAILED_TOGETHER = "Bridge can't open these changes' details here. Open them from Studio to see them.";
 
 /**
+ * Why Before and After cannot be compared when the change could not be read, and what to do: reloading only helps
+ * when the read failed on the way (no connection, GitHub down). `status` is the answer that refused it (a ReadError's),
+ * null when there was none.
+ *   401, 404: this page may not read the change (a private product opened outside Studio, an old link): open it from Studio.
+ *   403, 429: GitHub's limit for reads without an account: Studio reads with the team's access.
+ */
+export function unreadFlipLine(status: number | null): string {
+  if (status === 401 || status === 404) return "Bridge can't open this change here, so there is nothing to compare. Open it from Studio to compare both sides.";
+  if (status === 403 || status === 429) return 'GitHub limits reads from this page for now, so there is nothing to compare. Open this change from Studio to compare both sides.';
+  return 'Bridge could not read this change, so there is nothing to compare. Check your connection, then reload the page.';
+}
+
+/**
  * Whether Before and After can be switched. A token change switches in place once its tokens are read; a code change
  * opens the same screen on the other deployment, which needs no facts: when the change could not be read, a known
  * production URL (on This change) or way back (on Live product) still flips.
