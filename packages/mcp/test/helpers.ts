@@ -86,6 +86,12 @@ export function withFolderProduct(files: Record<string, string>): Record<string,
 /** Paths of the real repo a token-only copy needs. */
 export const REAL_PATHS = ['bridge.config.json', 'packages/tokens/src', 'AGENTS.md', 'docs/DESIGN-LANGUAGE.md', 'docs/GOVERNANCE.md', '.changeset/config.json', 'packages/react/src/components/Button', 'packages/react/src/components/Switch'];
 
+/**
+ * The products this repository ships with. Admins and leads add others from Studio straight to bridge.config.json on
+ * main (Add a product, POST /api/ship add-product): that is the team's live data, so the fixture never carries it.
+ */
+export const SHIPPED_PRODUCTS = ['admin-app', 'library'];
+
 export function readTree(root: string, paths: string[]): Record<string, string> {
   const out: Record<string, string> = {};
   const walk = (p: string) => {
@@ -95,6 +101,15 @@ export function readTree(root: string, paths: string[]): Record<string, string> 
     else out[relative(root, abs)] = readFileSync(abs, 'utf8');
   };
   paths.forEach(walk);
+  // The repository's own config: its shipped products only (never the ones a team added from Studio).
+  if (root === REPO && out['bridge.config.json'] !== undefined) {
+    const json = JSON.parse(out['bridge.config.json']) as { products?: { key: string }[] };
+    const shipped = json.products?.filter((p) => SHIPPED_PRODUCTS.includes(p.key));
+    if (json.products && shipped && shipped.length !== json.products.length) {
+      json.products = shipped;
+      out['bridge.config.json'] = `${JSON.stringify(json, null, 2)}\n`;
+    }
+  }
   return out;
 }
 
