@@ -52,6 +52,7 @@ import {
 import { isHosted, studioHref } from '../lib/team-path';
 import { explorationNameOf, needsReviewRead, reviewsFromStatus, reviewStateOf, waitsOnViewer } from '../lib/review-state';
 import { explorationHref } from '../lib/explorations-view';
+import { mineFromCards, noteMine } from '../lib/nav-products';
 import { busyText } from '../lib/team-load';
 import { isDemoRepo } from '../lib/demo';
 
@@ -254,7 +255,26 @@ export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
  * requests are Bridge's own (api/entry): they paint as soon as they are read, whatever GitHub does. `settings`: on a
  * team shell, the read of its settings (bridge.config.json products), awaited before the products are known.
  */
-export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: (d: HomeData) => void, onRepaint?: (repaint: () => void) => void, settings?: Promise<unknown>): Promise<void> {
+export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome: (d: HomeData) => void, onRepaint?: (repaint: () => void) => void, settings?: Promise<unknown>): Promise<void> {
+  // Once the explorations are settled, the products the viewer explores in: the side nav lists them first from the next
+  // page on (lib/nav-products.ts).
+  let noted = '';
+  const onUpdate = (d: HomeData) => {
+    if (d.settled && !d.loading && !d.failed && d.viewer) {
+      const mine = mineFromCards(d.explorations, homeProducts(), Date.now());
+      const sig = JSON.stringify(mine);
+      if (sig !== noted) {
+        noted = sig;
+        const { owner, repo } = readRepo();
+        try {
+          noteMine(`${owner}/${repo}`, mine, localStorage);
+        } catch {
+          /* storage blocked: the nav keeps its order */
+        }
+      }
+    }
+    paintHome(d);
+  };
   const facts = typeof stat === 'function' ? stat : () => stat;
   const viewer = currentViewer()?.login ?? null;
   const viewerRef = currentContributor()?.ref ?? null;

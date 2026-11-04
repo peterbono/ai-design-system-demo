@@ -109,7 +109,7 @@ the site footer on the content column: wordmark and "Free and open source design
 GitHub, For AI agents (llms.txt) and Contribute (Storybook workbench) on the end side, underlined on hover only. The
 Studio keeps the meta line and has no site footer. The version picker sits in the Changelog header.
 
-Side nav: at most 7 top-level entries, no group headings, one count (reviews waiting, on Changes), two levels at most.
+Side nav: at most 7 top-level entries, one count (reviews waiting, on Changes), two levels at most. The Studio rail has two headed groups under Home, Changes and Being built (option A, 2026-11-04): Products (the viewer's own first, five at most, then All products with the total) and Design system (Components, Tokens, Quality, Explorations); Settings sits at the foot (lib/nav-products.ts).
 A group is a button with `aria-expanded` and a chevron; only the current group starts open. Its pages hang off a
 hairline guide; the current page gets a Deep Harbor marker on that line. Deeper levels (each component) appear as cards
 on their group page, not in the nav.

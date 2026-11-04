@@ -1,0 +1,12 @@
+---
+// All products (lib/nav-products.ts, board NavAllProducts): every product of the team, the viewer's own first, with a
+// filter. "All products" in the side nav opens it when the team has more products than the nav lists. The island
+// (components/ds/studio/AllProducts) reads the products and their explorations in the browser. Team shell:
+// pages/team-shell/products/index.astro.
+import Layout from '../../../layouts/Layout.astro';
+import AllProducts from '../../../components/ds/studio/AllProducts';
+---
+
+<Layout title="All products" description="Every product of the team, yours first, with where its explorations stand." wide>
+  <AllProducts client:only="react" />
+</Layout>

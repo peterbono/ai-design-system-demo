@@ -7,8 +7,10 @@
 //   Studio   changes it: tokens, changes (in progress and shipped), being built, quality, settings. Its own header (Bridge Studio) and
 //            nav; "Library, view published library" at the bottom of its nav is the way back.
 //
-// Side nav rules (apps/docs-site/DESIGN.md): at most 7 top-level entries per space, no group headings, one count
-// (the reviews waiting on Changes), two levels at most. A top-level entry is either a page (href) or a group of pages (children); only the group you
+// Side nav rules (apps/docs-site/DESIGN.md): at most 7 top-level entries per space, one count (the reviews waiting on
+// Changes), two levels at most. The Studio's rail adds two headed groups under its first three entries (option A,
+// 2026-11-04): Products (the team's, components/ds/studio/ProductsNav.tsx) and Design system (the entries placed
+// 'design-system' here, then Explorations); Settings ('foot') sits at the foot. A top-level entry is either a page (href) or a group of pages (children); only the group you
 // are in starts expanded. Deeper levels (each component) live as cards on their group page, not in the nav.
 import type { IconName } from '../brand/icons';
 import { loadComponents } from './components';
@@ -47,6 +49,11 @@ export interface NavEntry {
   badge?: 'reviews';
   /** Page entry that can show the library as an open change (see NavItem). */
   branchAware?: boolean;
+  /**
+   * Where the Studio rail draws it: under the Design system heading (with Explorations, components/ds/studio/
+   * ProductsNav.tsx), or at the foot above the account (Settings). Unset: the top entries.
+   */
+  place?: 'design-system' | 'foot';
 }
 
 /** The Library home. "/" is the product landing (pages/index.astro), with its own header and footer. */
@@ -124,10 +131,10 @@ export function studioNav(): NavEntry[] {
     { href: STUDIO_HOME, label: 'Home', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
     { href: STUDIO_CHANGES_HREF, label: VOCAB.Branches, icon: 'branch', badge: 'reviews', meta: 'Changes in review, explorations, and everything that shipped, by month' },
     { href: STUDIO_BUILDING_HREF, label: 'Being built', icon: 'wrench', meta: 'Changes sent from Figma that developers are building, where each one stands, and the next release' },
-    { href: '/studio/components/', label: 'Components', icon: 'diamonds', branchAware: true, meta: 'Status, tokens, code and Figma links per component' },
-    { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', branchAware: true, meta: 'Edit tokens into a draft, with live preview and guardrails' },
-    { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', branchAware: true, meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },
-    { href: SETTINGS_HOME, label: 'Settings', icon: 'sliders', meta: 'GitHub connection, the repository this workspace reads, and who approves what' },
+    { href: '/studio/components/', label: 'Components', icon: 'diamonds', branchAware: true, place: 'design-system', meta: 'Status, tokens, code and Figma links per component' },
+    { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', branchAware: true, place: 'design-system', meta: 'Edit tokens into a draft, with live preview and guardrails' },
+    { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', branchAware: true, place: 'design-system', meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },
+    { href: SETTINGS_HOME, label: 'Settings', icon: 'sliders', place: 'foot', meta: 'GitHub connection, the repository this workspace reads, and who approves what' },
   ];
 }
 
@@ -141,7 +148,7 @@ export { WORKSPACE_SETTINGS };
 export function workspaceNav(): NavEntry[] {
   return [
     { href: WORKSPACE_HOME, label: 'Home', icon: 'gauge', meta: 'Your workspace: create your team and connect your design system' },
-    { href: WORKSPACE_SETTINGS, label: 'Settings', icon: 'sliders', meta: "Your team's name and people" },
+    { href: WORKSPACE_SETTINGS, label: 'Settings', icon: 'sliders', place: 'foot', meta: "Your team's name and people" },
   ];
 }
 

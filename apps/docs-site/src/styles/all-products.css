@@ -1,0 +1,89 @@
+/* All products (components/ds/studio/AllProducts.tsx, board NavAllProducts): the shared header, the filter, then one
+   row per product on hairlines: its folder, its name to its page, its status line, and a quiet marker on the viewer's
+   own. The rows share one width with the header (common region); the name is the target. */
+
+.ap {
+  display: grid;
+  gap: var(--space-5);
+  max-width: var(--studio-page-max);
+}
+
+.ap > .st-head {
+  margin-bottom: calc(var(--space-6) - var(--space-5));
+}
+
+.ap-find {
+  max-width: var(--size-120);
+}
+
+.ap-list {
+  margin: 0;
+  padding: 0;
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  list-style: none;
+}
+
+.ap-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, var(--size-60)) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--size-12);
+  padding: var(--space-1-5) var(--space-1);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.ap-icon {
+  color: var(--color-text-muted);
+}
+
+.ap .ap-name {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: var(--size-9);
+  color: var(--color-text-default);
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) {
+  .ap .ap-name:hover {
+    text-decoration: underline;
+  }
+}
+
+.ap-line {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+.ap-own {
+  color: var(--color-text-signal);
+  font-size: var(--typography-caption-size);
+  white-space: nowrap;
+}
+
+.ap .ap-more {
+  justify-self: start;
+}
+
+.ap-none {
+  margin: 0;
+}
+
+/* A phone: the name and the marker on the first line, the status line under the name. */
+@media (max-width: 640px) {
+  .ap-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: 0;
+  }
+
+  .ap-line {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    padding-bottom: var(--space-1-5);
+  }
+}

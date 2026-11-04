@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // A product page: its explorations grouped by where they stand, the archived ones counted in one quiet line, and the calm empty moment
-// with the one action. The sidebar's Products group: one link per configured product, the current one marked.
+// with the one action. The side nav's groups: ProductsNav.test.ts.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -9,7 +9,6 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import type { ProductConfig } from '@bridge-ds/core';
 import { ProductPageView } from './ProductPage';
-import { navProducts, ProductsNavView } from './ProductsNav';
 import { person } from '../../../lib/home-model';
 import type { ExplorationCard } from '../../../lib/home-explorations';
 import type { ProductPageData } from '../../../scripts/product-page';
@@ -527,9 +526,9 @@ describe('ProductPageView, More actions (admins)', () => {
     expect(screen.queryByRole('button', { name: /^More actions/ })).toBeNull();
   });
 
-  it('the library has no rename and no menu, even for an admin', () => {
+  it('the library reads as Library explorations, with no rename and no menu, even for an admin', () => {
     render(createElement(ProductPageView, { productKey: 'library', components: [], data: data({ product: products[1]!, ownRepo: null, reached: null }), rename: offer(), remove: offer() }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Library' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Library explorations' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Rename/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^More actions/ })).toBeNull();
   });
@@ -585,20 +584,5 @@ describe('ProductPageView, More actions (admins)', () => {
     expect(await within(dialog).findByText('Bridge could not send the removal. Ask an admin of the repository.')).toBeTruthy();
     expect(document.body.textContent).not.toContain('Resource not accessible');
     warn.mockRestore();
-  });
-});
-
-describe('ProductsNavView', () => {
-  it('lists every configured product as a link to its page, the current one marked', async () => {
-    const { container } = render(createElement('nav', { 'aria-label': 'Studio navigation' }, createElement(ProductsNavView, { products: navProducts(products), current: 'library' })));
-    const links = screen.getAllByRole('link');
-    expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Product admin', '/studio/products/admin-app/'],
-      ['Library', '/studio/products/library/'],
-    ]);
-    expect(links[1]!.getAttribute('aria-current')).toBe('page');
-    expect(links[0]!.getAttribute('aria-current')).toBeNull();
-    expect(screen.getByText('Products')).toBeTruthy();
-    await expectNoAxeViolations(container);
   });
 });

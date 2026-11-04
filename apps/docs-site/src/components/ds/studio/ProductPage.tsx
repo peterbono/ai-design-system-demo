@@ -69,7 +69,8 @@ import { Drawing } from './Drawing';
 import type { IllustrationName } from '../../../brand/illustrations';
 import StartExploration from './StartExploration';
 import { ExplorationCardItem } from './ExplorationCards';
-import { LIBRARY_ASKS, archivedHref, archivedLine, emptyProductLine, productFacts, signedOutProductLine, productGroups, productKeyFromPath, productSummary } from '../../../lib/product-page';
+import { LIBRARY_ASKS, archivedHref, archivedLine, emptyProductLine, productFacts, signedOutProductLine, productGroups, productKeyFromPath, productPageTitle, productSummary } from '../../../lib/product-page';
+import { noteOpened } from '../../../lib/nav-products';
 import { studioHref } from '../../../lib/team-path';
 import { PRODUCT_NAME_MAX, PRODUCT_NAME_WORDS, productNameProblem } from '../../../lib/product-name';
 import { REMOVE_PRODUCT_WORDS, removeConfirmMatches } from '../../../lib/remove-product';
@@ -553,7 +554,7 @@ export function ProductPageView({
   // The library itself is never renamed nor removed: no More actions on its page.
   const own = product && !product.default ? product : null;
   const menuButton = useRef<HTMLButtonElement>(null);
-  const head = useRenameTitle(product?.name ?? '', product?.key ?? productKey, data?.products ?? [], own ? rename : null, menuButton);
+  const head = useRenameTitle(product ? productPageTitle(product) : '', product?.key ?? productKey, data?.products ?? [], own ? rename : null, menuButton);
   const [removing, setRemoving] = useState(false);
   const [removeNote, setRemoveNote] = useState<string | null>(null);
   // Back from GitHub (a sign-in, scripts/pending-action.ts): the rename or the removal of this product
@@ -956,7 +957,19 @@ export default function ProductPage({
       : null;
   useEffect(() => {
     // A team shell is built once for every product ("Product | Bridge Studio"): the tab names this one.
-    if (data?.product) document.title = document.title.replace(/^[^|]*\|/, `${data.product.name} |`);
+    if (data?.product) document.title = document.title.replace(/^[^|]*\|/, `${productPageTitle(data.product)} |`);
+    // Opened lately in this browser: the side nav lists it among the viewer's own (lib/nav-products.ts).
+    if (data?.product) {
+      const k = data.product.key;
+      void import('../../../scripts/repo-context').then(({ repoContext }) => {
+        const r = repoContext();
+        try {
+          noteOpened(`${r.owner}/${r.repo}`, k, Date.now(), localStorage);
+        } catch {
+          /* storage blocked: the nav keeps its order */
+        }
+      });
+    }
   }, [data?.product]);
   // Only a product the team's own settings list can be renamed (not the defaults Bridge shows without a list).
   // Never the library itself (the default product): it is neither renamed nor removed.

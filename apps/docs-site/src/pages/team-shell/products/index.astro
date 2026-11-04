@@ -1,0 +1,11 @@
+---
+// Team shell of All products (lib/team-shells.ts TEAM_SHELL_ROUTES 'products/'): /studio/<owner>/<repo>/products/ is
+// served from here (vercel.json general rewrite, dev/local-api.ts teamRewrite). The island reads the team's products
+// from its own bridge.config.json, then their explorations (scripts/all-products.ts).
+import Layout from '../../../layouts/Layout.astro';
+import AllProducts from '../../../components/ds/studio/AllProducts';
+---
+
+<Layout title="All products" description="Every product of the team, yours first, with where its explorations stand." hosted wide>
+  <AllProducts client:only="react" />
+</Layout>
