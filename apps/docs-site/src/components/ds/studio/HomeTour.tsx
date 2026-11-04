@@ -3,7 +3,8 @@
 // talks about, so the step is a DS Card in the page flow instead, where the anchor sits: it moves the cards down and
 // covers none of them (tourPlacement). Remembered in this browser once finished. Two tours use it: the demo's, from the DS
 // lead's seat (DemoHome.tsx, lib/demo.ts demoTour), and the contributor's, for someone without a review right
-// (StudioHome.tsx, lib/home-model.ts contributorTour).
+// (StudioHome.tsx, lib/home-model.ts contributorTour). A floating step steps aside while a dialog is open (Add a product,
+// Start an exploration, Account...) and comes back, at the same step, once it closes (useDialogOpen).
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Button, Card, CardBody, Popover, PopoverContent, PopoverTrigger } from '@bridge-ds/react';
 import '../../../styles/demo-home.css';
@@ -15,6 +16,34 @@ export const NARROW_TOUR = '(max-width: 640px)';
 const TOUR_ROOM = 240;
 /** Waits for the popover to open and take focus before measuring, in ms. */
 const TOUR_SETTLE = 120;
+
+/**
+ * Open dialogs a floating step must never sit on: Base UI dialogs and drawers (a dialog popup with no anchor side;
+ * popovers and menus carry data-side), alert dialogs, and Studio's own modal dialogs (aria-modal).
+ */
+const OPEN_DIALOG = '[role="dialog"][data-open]:not([data-side]), [role="alertdialog"][data-open], [role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]';
+
+/** True when a dialog is open on the page (OPEN_DIALOG): one kept closed under `hidden`, or the tour's own, does not count. */
+export function dialogOpen(root: ParentNode = document): boolean {
+  return [...root.querySelectorAll<HTMLElement>(OPEN_DIALOG)].some((el) => !el.closest('[hidden], .dh-tour'));
+}
+
+/** Follows dialogOpen while `watch` is on: any dialog of the page, whoever opens it, without each one telling the tour. */
+export function useDialogOpen(watch: boolean): boolean {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!watch || typeof MutationObserver === 'undefined') {
+      setOpen(false);
+      return;
+    }
+    const check = () => setOpen(dialogOpen());
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-open', 'hidden', 'aria-modal', 'role'] });
+    return () => observer.disconnect();
+  }, [watch]);
+  return open;
+}
 
 /** Where a step shows: floating by what it points at, or in the page flow on a narrow screen (it never covers a card). */
 export const tourPlacement = (narrow: boolean): 'popover' | 'inline' => (narrow ? 'inline' : 'popover');
@@ -81,11 +110,14 @@ export function TourStep({ n, total, words, onNext, onFinish, onClose }: { n: nu
   const narrow = useNarrow();
   const anchor = useId();
   const inline = tourPlacement(narrow) === 'inline';
+  // A floating step sits above dialogs (z.popover over z.modal): it waits, at this step, while one is open. A step in
+  // the page flow stays under the dialog's backdrop like the rest of the page.
+  const covered = useDialogOpen(!inline);
   // Room under the anchor when the page ends right after it (the step under the last cards): without it the page
   // cannot scroll far enough and the step flips above, over the cards.
   const [room, setRoom] = useState(false);
   useEffect(() => {
-    if (inline) return;
+    if (inline || covered) return;
     // The step floats under what it points at: when that sits low on the screen, bring it up first so the step has
     // room below it, instead of flipping above and covering what it talks about. Measured once the popover opened and
     // took focus (which may scroll on its own).
@@ -98,10 +130,11 @@ export function TourStep({ n, total, words, onNext, onFinish, onClose }: { n: nu
       else window.scrollBy({ top: short });
     }, TOUR_SETTLE);
     return () => window.clearTimeout(t);
-  }, [inline, anchor, n, room]);
+  }, [inline, covered, anchor, n, room]);
   if (inline) return <InlineStep n={n} total={total} words={words} onNext={onNext} onFinish={onFinish} />;
   return (
-    <Popover open onOpenChange={(o) => !o && onClose()}>
+    // Closed, not gone, under a dialog: the anchor stays and the step opens again where it was.
+    <Popover open={!covered} onOpenChange={(o) => !o && !covered && onClose()}>
       <PopoverTrigger nativeButton={false} render={<span className="dh-tour-anchor" data-tour-anchor={anchor} aria-hidden="true" tabIndex={-1} />} />
       <PopoverContent side="bottom" align="start" className="dh-tour" title={words.title} description={words.text}>
         <TourFoot n={n} total={total} onNext={onNext} onFinish={onFinish} />
