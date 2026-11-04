@@ -10,7 +10,8 @@
 //
 // Add (and Create product) adds it to the team at once (scripts/add-product.ts addToTeam: Bridge writes it to the
 // team's settings for an admin or a lead, api/_lib/product-add.ts), then the dialog closes and opens the product's
-// page, already in the side nav. A library where Bridge may not write it directly sends it for review instead, and the
+// page, already in the side nav. With "Give designers their own copy" ticked, that page makes the copy in the
+// background with the adder's sign-in (scripts/design-copy.ts noteCopySetup, ProductPage.tsx). A library where Bridge may not write it directly sends it for review instead, and the
 // dialog says so plainly. Someone who may not add products reads why, from Bridge.
 //
 // Find it on GitHub (Vercel's "Adjust GitHub App permissions"): GitHub opens in a small centered window on the page
@@ -437,6 +438,9 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         onSent?.();
       }
       if (out.kind === 'added') {
+        // The designers' copy was chosen here, once for the team: its page makes it in the background with this
+        // sign-in, and designers never see a step for it.
+        if (entry.design) (await import('../../../scripts/design-copy')).noteCopySetup(out.key);
         setOpen(false);
         openPage(productHref(out.key));
         return true;

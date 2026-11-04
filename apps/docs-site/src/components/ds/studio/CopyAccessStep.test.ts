@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// "Make my copy" when Bridge may not open the new copy yet (CopyAccessStep.tsx): one sentence naming the copy and
+// The designers' copy Bridge made, when Bridge may not open it yet (CopyAccessStep.tsx): one sentence naming the copy and
 // "Open GitHub", which opens the account's page in a centered window; Bridge waits, reads again, and goes on once the
 // copy is ticked. GitHub closed with nothing new says the owners decide. Designers never read the GitHub words.
 import '../../../../../../packages/react/src/test/setup';
@@ -43,11 +43,11 @@ afterEach(() => {
 
 const show = (check: (a: CopyAccess) => Promise<boolean>, onVisible = vi.fn()) => ({ onVisible, ...render(createElement(CopyAccessStep, { access: ACCESS, onVisible, check })) });
 
-describe('Make my copy: one more step when Bridge may not open the copy', () => {
+describe("The designers' copy: one more step when Bridge may not open it (admins)", () => {
   it('says the one step in designer words, naming the copy, with Open GitHub as the one action', async () => {
     const { container } = show(async () => false);
     const line = screen.getByText(COPY_WORDS.access('shop-design'));
-    expect(line).toHaveTextContent('One more step: let Bridge open your copy. Tick shop-design on GitHub, then Save.');
+    expect(line).toHaveTextContent("One more step: let Bridge open the designers' copy. Tick shop-design on GitHub, then Save.");
     expect(container.textContent).not.toMatch(/fork|repositor|installation/i);
     expect(screen.getAllByRole('button')).toHaveLength(1);
     await expectNoAxeViolations(container);

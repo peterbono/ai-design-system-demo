@@ -1,4 +1,4 @@
-// Audit scenarios S0 to S22 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
+// Audit scenarios S0 to S23 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
 // <name>` clears the local accounts, teams, codes and outbox, then writes one scenario with the same storage functions
 // the api/* functions use (accounts, members, invites, discovery, join requests) and, where a scenario needs it, the
 // account function itself (sign-in codes). It prints the emails to sign in with and what each one should see.
@@ -153,6 +153,18 @@ const T = {
     products: [
       { key: 'shop', name: 'Art print shop', path: 'apps/admin', preview: 'https://{branch}.art-print-shop.pages.dev', production: 'https://art-print-shop.pages.dev', framework: 'react' },
       { key: 'poster-studio', name: 'Poster studio', path: 'apps/poster-studio', framework: 'react' },
+      { key: 'library', name: 'Library', path: 'packages', framework: 'react', default: true },
+    ],
+  },
+  copies: {
+    repo: 'acme/acme-copies',
+    name: 'Acme Copies',
+    admin: P.sam,
+    members: [P.priya],
+    writable: true,
+    // A product explored in the designers' copy, which nobody made yet (on GitHub neither exists), and the library.
+    products: [
+      { key: 'shop', name: 'Art print shop', repo: 'acme/art-print-shop', design: { repo: 'acme/art-print-shop-design' }, framework: 'react' },
       { key: 'library', name: 'Library', path: 'packages', framework: 'react', default: true },
     ],
   },
@@ -698,6 +710,31 @@ export const SCENARIOS: Scenario[] = [
           { ...P.priya, kind: 'teams', teams: teamsOf([T.posters, 'edit']), expect: 'Can edit: Poster studio shows the way to start only, never the step.' },
         ],
         ['Acme Posters lists Art print shop (previews on Cloudflare), Poster studio (no previews) and the library.'],
+      );
+    },
+  },
+  {
+    id: 'S23',
+    slug: 'design-copy',
+    title: "A product explored in the designers' copy, not made yet (no Make my copy step)",
+    async run(ctx) {
+      const s = new Seed(ctx);
+      await s.team(T.copies);
+      return result(
+        [
+          {
+            ...P.priya,
+            kind: 'teams',
+            teams: teamsOf([T.copies, 'edit']),
+            expect: 'Can edit: Art print shop reads like any new product, Start an exploration only; never "Make my copy", never a line about the copy.',
+          },
+          { ...P.sam, kind: 'teams', teams: teamsOf([T.copies, 'admin']), expect: 'Email admin: the same page, Start an exploration only.' },
+        ],
+        [
+          "Acme Copies lists Art print shop (its designers' copy acme/art-print-shop-design is not made) and the library.",
+          'As the persona dana (token ghp_local_dana, GitHub calls sent to /api/dev/github) right after Add a product (sessionStorage bridge:copy-setup:acme/acme-copies:shop),',
+          'the page makes the copy in the background: "Getting a copy ready for your designers…", then nothing.',
+        ],
       );
     },
   },

@@ -140,40 +140,76 @@ describe('ProductPageView', () => {
     }
   });
 
-  it("no copy of the product yet: one calm card and Make my copy, never the developers' repository", async () => {
-    const make = vi.fn(async () => ({ line: 'Your copy of Product admin is ready. Start an exploration in it.', ready: true }));
-    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ copy: { kind: 'missing' }, reached: null }), copy: { make, latest: vi.fn() } }));
-    const card = container.querySelector('[data-copy-missing]')!;
-    expect(card.textContent).toContain("Get your own copy of Product admin to explore in. The developers' code stays untouched.");
-    // The card is the one action: no start in the header, no list, no "Not connected yet".
-    expect(container.querySelector('[data-st-actions]')!.textContent).toBe('');
-    expect(container.querySelector('[data-state-group]')).toBeNull();
-    expect(container.textContent).not.toMatch(/fork|repository|Not connected/i);
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Make my copy' }));
-    });
-    expect(make).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(card.textContent).toContain('Your copy of Product admin is ready.'));
+  it('no copy of the product yet (added before): the usual way to start, never "Make my copy" for anyone', async () => {
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ copy: { kind: 'missing' }, reached: null }), copy: { latest: vi.fn() } }));
+    // The one way to start, in the empty moment: Start an exploration makes the copy first.
+    await waitFor(() => expect(container.querySelector('.pp-empty')!.textContent).toContain('Start an exploration'));
+    expect(container.querySelector('[data-copy-missing]')).toBeNull();
+    expect(container.querySelector('[data-copy-setup]')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Make my copy' })).toBeNull();
+    expect(container.textContent).not.toMatch(/make my copy|fork|repository|Not connected/i);
     await expectNoAxeViolations(container);
   });
 
-  it('the copy is made but Bridge may not open it yet: the one more step in the same zone, in designer words', async () => {
+  it('right after Add a product: only Start an exploration, one quiet line while the copy is made, then nothing', async () => {
+    const view = (copySetup: Parameters<typeof ProductPageView>[0]['copySetup']) =>
+      createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ copy: { kind: 'missing' }, reached: null }), copySetup });
+    const { container, rerender } = render(view({ kind: 'making' }));
+    const line = container.querySelector('[data-copy-setup="making"]')!;
+    expect(line.textContent).toBe('Getting a copy ready for your designers…');
+    // A quiet fact under the header, never a card nor an action of its own.
+    expect(line.closest('.st-head')).toBeTruthy();
+    expect(line.closest('.zone')).toBeNull();
+    expect(line.querySelectorAll('button')).toHaveLength(0);
+    await waitFor(() => expect(container.querySelector('.pp-empty')!.textContent).toContain('Start an exploration'));
+    await expectNoAxeViolations(container);
+    rerender(view(null));
+    expect(container.querySelector('[data-copy-setup]')).toBeNull();
+    expect(container.textContent).not.toContain('Getting a copy ready');
+  });
+
+  it('the copy could not be made: a calm line and Try again for who added it', async () => {
+    const retry = vi.fn();
+    const { container } = render(
+      createElement(ProductPageView, {
+        productKey: 'admin-app',
+        components: [],
+        data: data({ copy: { kind: 'missing' }, reached: null }),
+        copySetup: { kind: 'failed', line: 'Bridge could not get a copy ready for your designers.', retry },
+      }),
+    );
+    const line = container.querySelector('[data-copy-setup="failed"]')!;
+    expect(line.textContent).toContain('Bridge could not get a copy ready for your designers.');
+    fireEvent.click(within(line as HTMLElement).getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    await expectNoAxeViolations(container);
+  });
+
+  it('made, but only a tick on GitHub lets Bridge open it: the admin step after the way to start, before the previews', async () => {
     const access = { kind: 'needs-access' as const, copy: 'acme/product-admin-design', name: 'product-admin-design', installation: { id: 42, account: { login: 'acme', type: 'Organization' }, repository_selection: 'selected' } };
-    const make = vi.fn(async () => ({ line: '', ready: false, access }));
-    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ copy: { kind: 'missing' }, reached: null }), copy: { make, finish: vi.fn(), latest: vi.fn() } }));
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Make my copy' }));
-    });
-    const zone = container.querySelector('[data-copy-missing]')!;
-    await waitFor(() => expect(zone.textContent).toContain('One more step: let Bridge open your copy. Tick product-admin-design on GitHub, then Save.'));
+    const step = previewsStep(products[0]!, products, null, 'acme/ds');
+    const { container } = render(
+      createElement(ProductPageView, {
+        productKey: 'admin-app',
+        components: [],
+        data: data({ copy: { kind: 'missing' }, reached: null }),
+        copySetup: { kind: 'access', access, onVisible: vi.fn(async () => undefined) },
+        previews: step,
+      }),
+    );
+    const zone = container.querySelector('section[data-copy-setup="access"]')!;
+    expect(zone.textContent).toContain("One more step: let Bridge open the designers' copy. Tick product-admin-design on GitHub, then Save.");
     expect(within(zone as HTMLElement).getByRole('button', { name: 'Open GitHub' })).toBeInTheDocument();
     expect(zone.textContent).not.toMatch(/fork|repositor|installation/i);
+    // Order: the way to start, then this step, then the previews step.
+    const order = [...container.querySelectorAll('.pp-empty, section[data-copy-setup], [data-previews-step]')].map((el) => (el.matches('.pp-empty') ? 'start' : el.matches('[data-copy-setup]') ? 'copy' : 'previews'));
+    expect(order).toEqual(['start', 'copy', 'previews']);
     await expectNoAxeViolations(container);
   });
 
   it('the product moved on since the copy: one quiet line and Get the latest, nothing when up to date', async () => {
     const latest = vi.fn(async () => 'Your copy is up to date.');
-    const { container, unmount } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)], copy: { kind: 'ready', behind: 2 } }), copy: { make: vi.fn(), latest } }));
+    const { container, unmount } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards: [card(1)], copy: { kind: 'ready', behind: 2 } }), copy: { latest } }));
     expect(container.querySelector('[data-copy-behind]')!.textContent).toContain('Product admin changed since your copy.');
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Get the latest' }));
@@ -192,12 +228,12 @@ describe('ProductPageView', () => {
     expect(none.container.querySelector('[data-copy-behind]')).toBeNull();
     expect(none.container.textContent).not.toContain('changed since your copy');
     none.unmount();
-    // Making a copy only (no right to get the latest): still nothing.
-    const makeOnly = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: behind, copy: { make: vi.fn(), latest: null } }));
-    expect(makeOnly.container.querySelector('[data-copy-behind]')).toBeNull();
-    makeOnly.unmount();
-    // An email designer may get the latest (Bridge syncs the copy for them) but not make one: the sentence with its action.
-    const email = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: behind, copy: { make: null, latest: vi.fn(async () => 'Your copy is up to date.') } }));
+    // No right to get the latest: still nothing.
+    const noLatest = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: behind, copy: { latest: null } }));
+    expect(noLatest.container.querySelector('[data-copy-behind]')).toBeNull();
+    noLatest.unmount();
+    // An email designer may get the latest (Bridge syncs the copy for them): the sentence with its action.
+    const email = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: behind, copy: { latest: vi.fn(async () => 'Your copy is up to date.') } }));
     const line = email.container.querySelector('[data-copy-behind]')!;
     expect(line.textContent).toContain('Product admin changed since your copy.');
     expect(within(line as HTMLElement).getByRole('button', { name: 'Get the latest' })).toBeTruthy();

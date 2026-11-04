@@ -16,6 +16,10 @@
 //     products[].repo) gets the branch there, so developers keep their environment and the library comes from npm.
 //     When Bridge cannot reach that repository, nothing starts: one warning in designer words, "Ask an admin to
 //     connect <product>" (copies a message) and, only if the person picks it, "Start in the library instead".
+//     A product explored in the design team's copy (products[].design) that has none yet (added before Bridge made
+//     copies right at the add): Start makes the copy first, in the same action, with one short wait line, then starts.
+//     Only when a tick on GitHub must let Bridge open the new copy does an admin get the one more step
+//     (CopyAccessStep); anyone else reads who can finish it. Never a "Make my copy" step.
 //   - A quiet "Something looks wrong? Report it" in the footer: the component, then its Components drawer on
 //     "Something looks wrong" (lib/overview-board startChangeHref).
 // Old addresses open it too: ?start= on the Changes page (start=new, the old "New component", picks the library).
@@ -25,7 +29,7 @@ import { VOCAB } from '../../../lib/vocabulary';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, ExternalLink, Plus } from 'lucide-react';
 import { defaultProduct, parseJiraKey, productMarks, productsOf, type ProductConfig } from '@bridge-ds/core';
-import { Alert, Button, Combobox, Dialog, DialogContent, DialogTrigger, Icon, Input, Select } from '@bridge-ds/react';
+import { Alert, Button, Combobox, Dialog, DialogContent, DialogTrigger, Icon, Input, Select, Spinner } from '@bridge-ds/react';
 import AddProduct, { useCanAddProduct } from './AddProduct';
 import { ADD_PRODUCT_WORDS } from '../../../lib/add-product';
 import { startChangeHref } from '../../../lib/overview-board';
@@ -47,7 +51,7 @@ import {
   startTargets,
 } from '../../../lib/create-branch';
 import { installUrl } from '../../../lib/access-view';
-import { COPY_WORDS, madeLine, needsCopyAccess, type CopyAccess } from '../../../lib/design-copy';
+import { afterCopyFirst, COPY_WORDS, startCopyLine, type CopyAccess } from '../../../lib/design-copy';
 import { CopyAccessStep } from './CopyAccessStep';
 import { siteConfig } from '../../../scripts/repo-context';
 import { isSampleTeam } from '../../../lib/demo';
@@ -137,12 +141,20 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const [error, setError] = useState<string | null>(null);
   // The product's own repository is out of Bridge's reach: the admin action, and the library fallback on request.
   const [blocked, setBlocked] = useState<{ product: string; repo: string; reason: 'not-connected' | 'read-only' | 'no-copy'; config?: ProductConfig } | null>(null);
-  /** "Make my copy" from the dialog, for a product explored in the design team's copy that has none yet. */
+  /**
+   * A product explored in the design team's copy that has none yet (added before Bridge made it at add time): Start
+   * makes it first, in the same action, with one short wait line. Never a step of its own.
+   */
   const [making, setMaking] = useState(false);
-  // The copy is made but Bridge may not open it yet: the one more step on GitHub (CopyAccessStep).
+  // Why the start waits after making the copy (still getting ready, ask an admin): Start tries again.
+  const [copyNote, setCopyNote] = useState<string | null>(null);
+  // The copy is made but Bridge may not open it yet: an admin's one more step on GitHub (CopyAccessStep).
   const [copyAccess, setCopyAccess] = useState<CopyAccess | null>(null);
-  // Another product picked (or nothing blocks any more): that step was for the copy of the one before.
-  useEffect(() => setCopyAccess(null), [blocked?.product, blocked?.reason]);
+  // Another product picked: that step and that line were for the copy of the one before.
+  useEffect(() => {
+    setCopyAccess(null);
+    setCopyNote(null);
+  }, [target]);
   const { copied, said, copy } = useCopy(3000);
   const [done, setDone] = useState<{ prompt: string; app: string; href: string; name: string; where: string; setup: ToolSetup } | null>(null);
   const [claudeLink, setClaudeLink] = useState<ClaudeLink>('unknown');
@@ -193,6 +205,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
     setDone(null);
     setAdded(false);
     setResumeNote(null);
+    setCopyAccess(null);
+    setCopyNote(null);
   };
 
   useEffect(() => {
@@ -295,11 +309,15 @@ export default function StartExploration({ components, appearance = 'menu', prod
   const problems = featureProblems({ product: target, sentence, jira }, targets);
   const shown = tried ? problems : {};
 
-  /** `inLibrary`: the person chose the fallback, the design system repository, after the product one was out of reach. */
-  async function start(inLibrary = false) {
+  /**
+   * `inLibrary`: the person chose the fallback, the design system repository, after the product one was out of reach.
+   * `afterCopy`: Bridge just made the designers' copy for this start; it is not made a second time.
+   */
+  async function start(inLibrary = false, afterCopy = false) {
     setTried(true);
     setError(null);
     setResumeNote(null);
+    setCopyNote(null);
     if (Object.keys(problems).length) {
       if (problems.sentence) sentenceRef.current?.focus();
       else if (problems.jira) jiraRef.current?.focus();
@@ -332,6 +350,34 @@ export default function StartExploration({ components, appearance = 'menu', prod
       const r = repo
         ? await startInProductRepo(repo, e, labels, { name: t.product.name, library: `${cfg.owner}/${cfg.repo}`, ...(template ? { preview: template } : {}), ...(at ? { copyOf: at.code } : {}) })
         : await startLinkedExploration(cfg, e, null, labels);
+      if ('blocked' in r && r.blocked === 'no-copy') {
+        // The designers' copy is not made yet (a product added before Bridge made it at add time): Bridge makes it
+        // first, in this same action, then starts. Made once per click; still not there after it, the line says so.
+        if (afterCopy) {
+          setCopyNote(startCopyLine(t.product.name, 'slow'));
+          return;
+        }
+        setMaking(true);
+        let made: Parameters<typeof afterCopyFirst>[0];
+        try {
+          made = await (await import('../../../scripts/design-copy')).makeCopy(t.product);
+        } finally {
+          setMaking(false);
+        }
+        const next = afterCopyFirst(made, admin);
+        if (next.kind === 'start') {
+          await start(inLibrary, true);
+          return;
+        }
+        if (next.kind === 'access') {
+          // Only a tick on GitHub lets Bridge open it: the admin's one more step, then the start goes on.
+          setBlocked({ product: t.product.name, repo: repo!, reason: 'no-copy', config: t.product });
+          setCopyAccess(next.access);
+          return;
+        }
+        setCopyNote(next.line(t.product.name));
+        return;
+      }
       if ('blocked' in r) {
         setBlocked({ product: t.product.name, repo: repo!, reason: r.blocked, config: t.product });
         return;
@@ -483,44 +529,21 @@ export default function StartExploration({ components, appearance = 'menu', prod
               const { finishCopy } = await import('../../../scripts/design-copy');
               const r = await finishCopy(config);
               setCopyAccess(null);
-              if (r === 'ready') {
-                setBlocked(null);
-                await start();
-              } else setError(madeLine(blocked.product, r));
+              setBlocked(null);
+              if (r === 'ready') await start(false, true);
+              else setCopyNote(startCopyLine(blocked.product, r));
             }}
           />
         )}
-        {blocked?.reason === 'no-copy' && !copyAccess && !error && (
-          <Alert
-            tone="info"
-            id="sc-blocked"
-            actions={
-              <Button
-                variant="primary"
-                loading={making}
-                onClick={() =>
-                  void (async () => {
-                    if (!blocked.config || making) return;
-                    setMaking(true);
-                    try {
-                      const { makeCopy } = await import('../../../scripts/design-copy');
-                      const r = await makeCopy(blocked.config);
-                      if (needsCopyAccess(r)) setCopyAccess(r);
-                      else if (r === 'ready') {
-                        setBlocked(null);
-                        await start();
-                      } else setError(madeLine(blocked.product, r));
-                    } finally {
-                      setMaking(false);
-                    }
-                  })()
-                }
-              >
-                {COPY_WORDS.make}
-              </Button>
-            }
-          >
-            {making ? COPY_WORDS.making : COPY_WORDS.noCopyStart(blocked.product)}
+        {/* Making the designers' copy first: one short wait line, the Start button busy. */}
+        {making && picked && (
+          <p className="t-body sc-line sc-copy-wait" role="status" data-copy-wait="">
+            <Spinner size="xs" /> {COPY_WORDS.startMaking(picked.product.name)}
+          </p>
+        )}
+        {copyNote && !error && (
+          <Alert tone="info" data-copy-note="">
+            {copyNote}
           </Alert>
         )}
         {blocked && blocked.reason !== 'no-copy' && !error && blockIsAdmins({ admin, email, reason: blocked.reason }) && (

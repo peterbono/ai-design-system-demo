@@ -768,7 +768,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
               <ul className="onb-list">
                 {ctx.products.map((p) => (
                   <li key={p.name}>
-                    {/* A product with a design team copy opens its page: "Make my copy" lives there until the copy exists. */}
+                    {/* A product with a design team copy opens its page, where its explorations start. */}
                     {p.design && p.key ? (
                       <Link href={studioHref(`products/${p.key}/`)} className="onb-strong">
                         {p.name}

@@ -79,24 +79,22 @@
    values), holding the choice cards (.sh-choice, ProductPage) at the Home card's radius and inset: one card
    to start, or a designer's two asks on the library side by side (.sh-choices: two columns, one on a phone). */
 
-/* No copy yet (CopyCard): the drawing beside the reason and the one action. */
-.pp-copy {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-6) var(--space-10);
+/* The designers' copy being made right after Add a product (ProductPage.tsx CopySetupLine): the quiet facts line,
+   a small spinner first, Try again on the same line when it could not be made. */
+.pp-setup {
+  column-gap: var(--space-2);
 }
 
-.pp-empty-text {
-  display: grid;
-  flex: 1 1 var(--size-60);
-  justify-items: start;
-  gap: var(--space-4);
-  max-width: var(--size-120);
+/* Made, but only a tick on GitHub lets Bridge open it (an admin's one more step): a quiet card under the way to start,
+   outside the Harbor zone, like the previews step. */
+.pp-copy-access {
+  padding: var(--space-6) var(--space-7);
 }
 
-.pp-empty-text > p {
-  margin: 0;
+@media (max-width: 640px) {
+  .pp-copy-access {
+    padding: var(--space-5) var(--space-4);
+  }
 }
 
 .pp-empty > .sh-choices > li {

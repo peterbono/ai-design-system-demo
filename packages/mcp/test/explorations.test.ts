@@ -113,7 +113,7 @@ describe('explorations on GitHub', () => {
     const none = ((url: string, init?: RequestInit) =>
       String(url).includes('/repos/acme/shop-design') ? Promise.resolve(new Response('{"message":"Not Found"}', { status: 404 })) : String(url).includes('/repos/acme/shop') ? shop.fetch(url, init) : ds.fetch(url, init)) as typeof fetch;
     const off = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: none });
-    await expect(explorations.startExploration(off, { name: 'Checkout', product: 'shop' })).rejects.toThrow(/design team's copy of Shop \(acme\/shop-design\)[\s\S]*Make my copy/);
+    await expect(explorations.startExploration(off, { name: 'Checkout', product: 'shop' })).rejects.toThrow(/design team's copy of Shop \(acme\/shop-design\)[\s\S]*starts the first exploration of Shop/);
     expect(shop.pulls).toHaveLength(0);
   });
 

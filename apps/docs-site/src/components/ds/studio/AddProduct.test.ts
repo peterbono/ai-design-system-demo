@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { ACCESS_MESSAGE, ACCESS_TICK_MS, ADD_PRODUCT_WORDS as W, foundLine, nothingYetLine, ownersOnlyLine, pendingKey, requestSentLine, type ProductRepoChoice } from '../../../lib/add-product';
 import { NEW_PRODUCT_WORDS as N } from '../../../lib/new-product';
+import { copySetupFresh, copySetupKey } from '../../../lib/design-copy';
 import AddProduct, { setOpenPage } from './AddProduct';
 
 const gh = vi.hoisted(() => ({
@@ -72,6 +73,7 @@ beforeEach(() => {
   gh.opened = [];
   setOpenPage((href) => gh.opened.push(href));
   localStorage.clear();
+  sessionStorage.clear();
   opened = [];
   popup = {
     closed: false,
@@ -129,14 +131,18 @@ describe('Add a product: the products Bridge found', () => {
     expect(gh.add).toHaveBeenCalledWith({ key: 'shop', name: 'Shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' }, framework: 'react' });
     expect(onSent).toHaveBeenCalledTimes(1);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+    // The copy was chosen here, once: the product's page makes it in the background with this sign-in.
+    expect(copySetupFresh(sessionStorage.getItem(copySetupKey('acme/ds', 'shop')), Date.now())).toBe(true);
   });
 
-  it('without the copy: no designers\' copy in the entry', async () => {
+  it('without the copy: no designers\' copy in the entry, nothing to make on its page', async () => {
     gh.access.repos = [SHOP];
     show();
     fireEvent.click(await screen.findByRole('checkbox', { name: W.copy }));
     fireEvent.click(screen.getByRole('button', { name: W.addLabel('Shop') }));
     await waitFor(() => expect(gh.add).toHaveBeenCalledWith({ key: 'shop', name: 'Shop', repo: 'acme/shop', framework: 'react' }));
+    await waitFor(() => expect(gh.opened).toEqual(['/studio/products/shop/']));
+    expect(sessionStorage.getItem(copySetupKey('acme/ds', 'shop'))).toBeNull();
   });
 
   it('a library where Bridge may not add it directly: sent for review, said plainly, Done closes', async () => {
