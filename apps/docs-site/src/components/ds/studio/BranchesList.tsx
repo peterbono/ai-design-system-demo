@@ -32,7 +32,7 @@ import { Badge, Button, Checkbox, Link, Select, Skeleton, Tab, Tabs, TabsList, T
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
-import { ALL_PRODUCTS, ARCHIVED_NOTE, boxDisabled, changesFiltersParam, listSummary, productOptions, designRows, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, isYours, knownNames, peopleOptions, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type StateTab } from '../../../lib/branches-page';
+import { ALL_PRODUCTS, ARCHIVED_NOTE, boxDisabled, changesFiltersParam, listSummary, productOptions, designRows, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, shippedAtOf, shippedByTask, isYours, knownNames, peopleOptions, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type StateTab } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
 import { CLAUDE, displayName, person, requesterPerson, SEP, type Person, type PillTone } from '../../../lib/home-model';
@@ -99,6 +99,8 @@ export interface ListRow {
   requester?: { name: string | null; login: string | null } | null;
   /** An exploration's lifecycle stage once read (lib/review-state): its tab. */
   stage?: LifecycleStage | null;
+  /** Shipped by the developers' task while the design pull request stays open (lib/exploration-state). */
+  shippedAt?: string | null;
   /** An In review exploration: who must review ("Waiting for Florian's review", "Changes requested by Lee"). */
   reviewLine?: string | null;
 }
@@ -224,9 +226,12 @@ export function BranchesList(p: BranchesListProps) {
   const archivedTab = tab === 'archived';
   const shippedTab = tab === 'shipped';
   // Open rows; archived explorations and what shipped only under their own tab.
-  const open = p.rows;
+  // An exploration the developers shipped (their task closed as done) is Shipped while its design pull request stays
+  // open for its preview: under Shipped, out of All and the open counts (lib/exploration-state).
+  const byTask = useMemo(() => shippedByTask(p.rows), [p.rows]);
+  const open = byTask.open;
   const archived = useMemo(() => p.archived ?? [], [p.archived]);
-  const shipped = useMemo(() => shippedRows(p.closed ?? []), [p.closed]);
+  const shipped = useMemo(() => shippedRows([...(p.closed ?? []), ...byTask.shipped]), [p.closed, byTask.shipped]);
   const shown = archivedTab ? archived : shippedTab ? shipped : open;
   const { extras, people } = useExtras(shown, p.connected ? 'all' : p.seat ? 'seat' : 'none');
   // Bridge's own pull requests stay out of every tab and count (lib/branches-page designRows): the files once read.
@@ -555,7 +560,7 @@ export function BranchesList(p: BranchesListProps) {
         <p className="t-body t-muted bl-none">{emptyTabLine(tab, Boolean(viewer))}</p>
       ) : shippedTab ? (
         <>
-          {groupByMonth(rows, (x) => x.r.merged_at).map((g) => (
+          {groupByMonth(rows, (x) => shippedAtOf(x.r)).map((g) => (
             <section className="bl-group" key={g.key} aria-labelledby={`bl-${g.key}`}>
               <h2 className="bl-h2" id={`bl-${g.key}`}>
                 {g.label} <span className="bl-count">{g.rows.length}</span>
@@ -563,7 +568,7 @@ export function BranchesList(p: BranchesListProps) {
               <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
                 {g.rows.map((x) => {
                   const product = products.find((pp) => pp.key === x.product)?.name;
-                  const line = [product, nameOf(x.r), shippedOn(x.r.merged_at!)].filter(Boolean).join(SEP);
+                  const line = [product, nameOf(x.r), shippedOn(shippedAtOf(x.r)!)].filter(Boolean).join(SEP);
                   // Shipped says when on the line; a library change the release has not published yet keeps its tag.
                   const waits = x.r.pill?.label === LIFECYCLE_LABEL['next-release'];
                   return branchRow({ ...x, r: { ...x.r, pill: waits ? x.r.pill : null }, child: false }, line);

@@ -40,6 +40,7 @@ const card = (n: number, over: Partial<ExplorationCard> = {}): ExplorationCard =
   productKey: 'admin-app',
   author: person('ann', 'Ann Leroy', null),
   stage: 'exploring',
+  lifecycle: 'exploring',
   state: 'Exploring',
   updated: '2026-10-20T10:00:00Z',
   preview: { kind: 'screen', src: null },
@@ -63,7 +64,7 @@ const data = (over: Partial<ProductPageData> = {}): ProductPageData => ({
 
 describe('ProductPageView', () => {
   it('groups the explorations by where they stand, says it in the header, and counts the archived ones in one line', async () => {
-    const cards = [card(1), card(2), card(3, { stage: 'with-devs', state: 'Waiting to be picked up' }), card(4, { stage: 'kept', state: 'Shipped' })];
+    const cards = [card(1), card(2), card(3, { stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' }), card(4, { stage: 'kept', state: 'Shipped', lifecycle: 'shipped' })];
     const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ cards, archived: [card(9)] }) }));
     expect(screen.getByRole('heading', { level: 1, name: 'Product admin' })).toBeTruthy();
     expect(container.querySelector('[data-st-summary]')!.textContent).toBe('2 exploring, 1 waiting to be picked up.');

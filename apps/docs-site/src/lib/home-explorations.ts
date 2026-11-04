@@ -9,7 +9,7 @@
 // Each card shows the explored screen (a capture, never a generic icon when one exists), the title, the product, who
 // explores it and where it stands in designer words: "Exploring", "2 new pieces found", "In review", "Kept in the
 // library". Pure: no DOM, no fetch. Unit tested in home-explorations.test.ts.
-import { defaultProduct, EXPLORATION_STATUS_LABEL, explorationStateLabel, explorationStatus, findProduct, isActiveExploration, isArchivedExploration, isExplorationPull, isHandedOff, parseExplorationBody, parsePiecesRecord, PRODUCT_LABEL_PREFIX, requesterOf, type ProductConfig } from '@bridge-ds/core';
+import { defaultProduct, EXPLORATION_ARCHIVED_LABEL, explorationStateLabel, explorationStatus, findProduct, isArchivedExploration, isExplorationPull, isHandedOff, parseExplorationBody, parsePiecesRecord, PRODUCT_LABEL_PREFIX, requesterOf, type ProductConfig } from '@bridge-ds/core';
 import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
 import { studioHref } from './team-path';
@@ -17,6 +17,7 @@ import type { Person } from './home-model';
 import type { ThumbSpec } from './branch-thumb';
 import { changedScreenOf, explorationTag, type TagTone } from './exploration-page';
 import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
+import { explorationState, withDevTask } from './exploration-state';
 
 /** The fields of an open (or closed) pull request the home reads. */
 export interface ExplorationPull {
@@ -51,6 +52,11 @@ export interface ExplorationCard {
   /** Who explores it: the person who asked, before the account (often Claude AI) that opened it. */
   author: Person;
   stage: ExplorationStage;
+  /**
+   * The one status (lib/exploration-state explorationState): every count and group reads this, never the words.
+   * Archived for an archived card.
+   */
+  lifecycle: LifecycleStage;
   /** The stage in designer words: "Exploring", "2 new pieces found", "In review", "Kept in the library". */
   state: string;
   /** The DS tag of the state: the same tone as the exploration page's title row. */
@@ -124,10 +130,39 @@ export function isHomeExploration(p: ExplorationPull, products: readonly Product
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * Where it stands, in designer words. Merged: kept in the library. Still being tried (a draft, or the exploration label
- * on): exploring, or "2 new pieces found" once Bridge found pieces the library does not have. Done exploring and
- * still a draft: with the developers ("Waiting for code", then "Being built"), shipped once merged. Otherwise: in review.
+ * A card's stage and words from the one status (lib/exploration-state explorationState): the bucket every screen
+ * shares, in the card's words. Exploring adds what only a card says: "2 new pieces found" once Bridge found pieces
+ * the library does not have, else "Not started" or "Exploring" from its changed files (when the caller reads them;
+ * nothing while they are read). Shipped reads "Kept in the library" for an exploration promoted and merged without a
+ * hand-off, "Shipped" otherwise.
  */
+export function cardOfLifecycle(
+  p: Pick<ExplorationPull, 'draft' | 'state' | 'merged_at' | 'labels' | 'body'> & { head?: { ref: string; sha?: string } | undefined },
+  lifecycle: LifecycleStage,
+  files?: () => readonly string[] | null | undefined,
+): { stage: ExplorationStage; state: string } {
+  switch (lifecycle) {
+    case 'exploring': {
+      const pieces = parsePiecesRecord(p.body)?.pieces.length ?? 0;
+      if (pieces) return { stage: 'found', state: `${plural(pieces, 'new piece', 'new pieces')} found` };
+      const status = explorationStatus({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body, headSha: p.head?.sha, draft: p.draft });
+      if (files && status === 'active') return { stage: 'exploring', state: explorationStateLabel({ status, files: files() }) ?? '' };
+      return { stage: 'exploring', state: 'Exploring' };
+    }
+    case 'shipped':
+    case 'next-release':
+      return { stage: 'kept', state: isHandedOff({ labels: p.labels ?? [], body: p.body }) ? LIFECYCLE_LABEL[lifecycle] : 'Kept in the library' };
+    case 'in-review':
+      return { stage: 'in-review', state: LIFECYCLE_LABEL['in-review'] };
+    case 'archived':
+      return { stage: 'exploring', state: LIFECYCLE_LABEL.archived };
+    default:
+      // Waiting to be picked up, Being built, Approved, waiting to ship, Not planned, Closed: with the developers.
+      return { stage: 'with-devs', state: LIFECYCLE_LABEL[lifecycle] };
+  }
+}
+
+/** Where it stands, in designer words, from its pull request alone (no task read): cardOfLifecycle over explorationState. */
 export function explorationStage(
   p: Pick<ExplorationPull, 'draft' | 'state' | 'merged_at' | 'labels' | 'body'> & { head?: { ref: string; sha?: string } | undefined },
   /**
@@ -136,22 +171,9 @@ export function explorationStage(
    */
   files?: () => readonly string[] | null | undefined,
 ): { stage: ExplorationStage; state: string } {
-  // Done exploring is read from the body first (core explorationStatus): a label that could not be removed does not
-  // make a handed-off exploration read as running again.
-  const handed = isHandedOff({ labels: p.labels ?? [], body: p.body }) && explorationStatus({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body, headSha: p.head?.sha, draft: p.draft }) !== 'active';
-  if (p.merged_at || p.state === 'merged') return { stage: 'kept', state: handed ? EXPLORATION_STATUS_LABEL.shipped : 'Kept in the library' };
-  if (handed && p.draft !== false) {
-    const s = explorationStatus({ state: p.state ?? 'open', labels: p.labels ?? [], body: p.body, headSha: p.head?.sha, draft: p.draft });
-    return { stage: 'with-devs', state: EXPLORATION_STATUS_LABEL[s] };
-  }
-  if (p.draft || isActiveExploration(p.labels ?? [])) {
-    const pieces = parsePiecesRecord(p.body)?.pieces.length ?? 0;
-    if (pieces) return { stage: 'found', state: `${plural(pieces, 'new piece', 'new pieces')} found` };
-    const status = explorationStatus({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body, headSha: p.head?.sha, draft: p.draft });
-    if (files && status === 'active') return { stage: 'exploring', state: explorationStateLabel({ status, files: files() }) ?? '' };
-    return { stage: 'exploring', state: 'Exploring' };
-  }
-  return { stage: 'in-review', state: 'In review' };
+  // A card shows an archived one as the stage it was archived in; its tag says Archived (homeExplorations).
+  const labels = (p.labels ?? []).filter((l) => (typeof l === 'string' ? l : l.name) !== EXPLORATION_ARCHIVED_LABEL);
+  return cardOfLifecycle(p, explorationState({ pull: { ...p, state: p.state ?? 'open', labels } }), files);
 }
 
 /** Its name: the exploration block's ("Profile page"), else the pull request title for people. */
@@ -231,11 +253,15 @@ export interface HomeExplorationsOptions<P extends ExplorationPull = Exploration
   taskStage?: (p: P) => LifecycleStage | null | undefined;
 }
 
-/** A handed-off card's words from its task's stage: the same as Being built. Closed (taken back) keeps its own read. */
+/**
+ * A handed-off card's words from its task's stage: the precedence of lib/exploration-state (withDevTask). Running,
+ * in review without a hand-off and kept cards keep their own read.
+ */
 export function withTaskStage(read: { stage: ExplorationStage; state: string }, task: LifecycleStage | null | undefined): { stage: ExplorationStage; state: string } {
-  // Not planned keeps the card, in those words: the developers closed it without building it.
-  if (read.stage !== 'with-devs' || !task || task === 'closed' || task === 'archived') return read;
-  return { stage: read.stage, state: LIFECYCLE_LABEL[task] };
+  if (read.stage !== 'with-devs' || !task) return read;
+  const next = withDevTask('waiting-for-code', task);
+  if (next === 'waiting-for-code' && task !== 'waiting-for-code') return read;
+  return next === 'shipped' ? { stage: 'kept', state: LIFECYCLE_LABEL.shipped } : cardOfLifecycle({}, next);
 }
 
 /**
@@ -268,9 +294,13 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
     })
     .map((p): ExplorationCard => {
       const files = opts.files;
-      const read = withTaskStage(explorationStage(p, files ? () => files(p) : undefined), opts.taskStage?.(p));
-      // Archived: out of the lists, never "Exploring". Its tag says what it is (the Archived tab of Changes).
-      const archived = isArchivedExploration(p.labels) && read.stage !== 'kept';
+      const fileRead = files ? () => files(p) : undefined;
+      // The one status, with the developers' task when it was read (lib/exploration-state).
+      const lifecycle = explorationState({ pull: { ...p, state: p.state ?? 'open' }, task: opts.taskStage?.(p) ?? null });
+      // Archived: out of the lists, never "Exploring". Its tag says what it is (the Archived tab of Changes), its place
+      // in the order is the stage it was archived in.
+      const archived = lifecycle === 'archived';
+      const read = archived ? explorationStage(p, fileRead) : cardOfLifecycle(p, lifecycle, fileRead);
       const { stage, state } = archived ? { stage: read.stage, state: LIFECYCLE_LABEL.archived } : read;
       const product = explorationProduct(p, opts.products);
       const tag = archived ? { tone: 'neutral' as const, dot: false } : cardTag(stage, state);
@@ -283,6 +313,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
         productKey: explorationProductKey(p, opts.products),
         author: opts.author(p),
         stage,
+        lifecycle,
         state,
         tone: tag.tone,
         dot: tag.dot,
@@ -340,19 +371,24 @@ export interface OwnOpenWork {
 }
 
 /**
- * Where a card stands while it is still open work: running (exploring, or pieces found), in review, or with the
- * developers (waiting to be picked up, being built, or in review, from its task). Shipped, kept, approved to ship, in
- * the next release, not planned, closed and archived ones are done: null.
+ * Where a card stands while it is still open work, from its one status: running, waiting to be picked up, being built,
+ * or in review (Approved, waiting to ship included, as on Changes and Being built). Shipped, in the next release, not
+ * planned, closed and archived ones are done: null.
  */
-export function openStageOf(c: Pick<ExplorationCard, 'stage' | 'state'>): OpenStage | null {
-  if (c.state === LIFECYCLE_LABEL.archived) return null;
-  if (c.stage === 'exploring' || c.stage === 'found') return 'exploring';
-  if (c.stage === 'in-review') return 'review';
-  if (c.stage !== 'with-devs') return null;
-  if (c.state === LIFECYCLE_LABEL['waiting-for-code'] || c.state === 'Waiting for code') return 'code';
-  if (c.state === LIFECYCLE_LABEL['being-built']) return 'building';
-  if (c.state === LIFECYCLE_LABEL['in-review']) return 'review';
-  return null;
+export function openStageOf(c: Pick<ExplorationCard, 'lifecycle'>): OpenStage | null {
+  switch (c.lifecycle) {
+    case 'exploring':
+      return 'exploring';
+    case 'waiting-for-code':
+      return 'code';
+    case 'being-built':
+      return 'building';
+    case 'in-review':
+    case 'approved':
+      return 'review';
+    default:
+      return null;
+  }
 }
 
 /**
@@ -360,7 +396,7 @@ export function openStageOf(c: Pick<ExplorationCard, 'stage' | 'state'>): OpenSt
  * archived ones are not), and their library changes (a draft is being built, one waiting for a developer waits to be
  * picked up, one sent is in review). Null when nothing is open.
  */
-export function ownOpenWork(cards: readonly Pick<ExplorationCard, 'stage' | 'state' | 'own'>[], branches: readonly OwnBranch[] = []): OwnOpenWork | null {
+export function ownOpenWork(cards: readonly Pick<ExplorationCard, 'lifecycle' | 'own'>[], branches: readonly OwnBranch[] = []): OwnOpenWork | null {
   const zero = (): Record<OpenStage, number> => ({ exploring: 0, code: 0, building: 0, review: 0 });
   const w: OwnOpenWork = { explorations: zero(), changes: zero() };
   for (const x of cards) {

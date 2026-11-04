@@ -34,6 +34,7 @@ import {
   reviewersAsked,
   reviewVerdictOf,
   startedTail,
+  startedAtOf,
   type DoneAction,
   type LibraryPieces,
   type PullReviewLike,
@@ -75,7 +76,8 @@ import { siteApprovers } from './teams';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
-import { askerRole, declineNoteOf, devQuestionOf, explorationLifecycle, reviewStateOf, taskDeclined, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
+import { explorationState } from '../lib/exploration-state';
+import { askerRole, declineNoteOf, devQuestionOf, taskDeclined, taskStage, taskStatus, devVersionUrl, type DesignAnswer } from '../lib/review-state';
 import { answerDevPull, forgetQuestion, readDesignTask, readDevPull, replyOnTask, taskRef } from './design-task';
 import { installReadPass } from './read-pass';
 
@@ -263,7 +265,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       title: r.name,
       stage: 'loading',
       author: faceOf(r.author, false, { ...knownNamesOf([r.author]), ...emailAuthorName(r.author, pull.body) }),
-      startedTail: startedTail(product.name, pull.created_at ?? null),
+      startedTail: startedTail(product.name, startedAtOf(pull.body, pull.created_at)),
       lines,
       todayUrl: null,
       headline: null,
@@ -372,11 +374,11 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   repaint(d, key, {
     stage: stage === 'not-started' ? 'not-started' : 'exploring',
     author: faceOf(r.author, false, names),
-    startedTail: startedTail(product.name, pull.created_at ?? commits[0]?.commit.author?.date ?? null),
+    startedTail: startedTail(product.name, startedAtOf(pull.body, pull.created_at, commits[0]?.commit.author?.date)),
     todayUrl,
     todayLabel: todayLinkLabel(isLibrary),
     headline: headlineOf({ commits, files, author: r.author, names }),
-    activity: activityRows({ commits, author: r.author, startedAt: pull.created_at ?? null, reopened: reopenedOf(pull.body), names }),
+    activity: activityRows({ commits, author: r.author, startedAt: startedAtOf(pull.body, pull.created_at), reopened: reopenedOf(pull.body), names }),
     previewUrl,
     tryUrl,
     previewNote,
@@ -446,8 +448,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // The lifecycle's stage (lib/review-state), the same words as Being built, Changes and the home.
   const library = !own && isLibrary;
   const nextRelease = status === 'shipped' && library ? await waitsForRelease((pull as { merge_commit_sha?: string | null }).merge_commit_sha) : false;
+  // The one status of every screen (lib/exploration-state), with the developers' task and their pull request as read here.
   const fromTaskStage = task ? taskStage({ ...task, devPull: devRead?.pull ?? task.devPull ?? null }) : null;
-  const lifecycle = fromTaskStage && fromTaskStage !== 'closed' ? fromTaskStage : explorationLifecycle({ status, review: reviewStateOf({ draft: pull.draft ?? null, requested, approvers: siteApprovers().design, builders, reviews }), nextRelease });
+  const lifecycle = explorationState({ pull: { ...pull, requested_reviewers: requested }, task: fromTaskStage, approvers: siteApprovers().design, builders, reviews, nextRelease });
   const answer = devRead?.answer ?? null;
   const shippedAnswer = status === 'shipped' ? (task?.shippedAnswer ?? null) : null;
   const askers = [question?.login, declineNote?.login, shippedAnswer?.login].filter((l): l is string => Boolean(l));
@@ -508,7 +511,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     stage: 'handed-off',
     plate,
     ...shotProps,
-    activity: handoffActivity({ commits, author: r.author, startedAt: pull.created_at ?? null, doneBy: doneLogin, doneAt, designAnswer: answer?.login ? answer : null, names: allNames }),
+    activity: handoffActivity({ commits, author: r.author, startedAt: startedAtOf(pull.body, pull.created_at), doneBy: doneLogin, doneAt, designAnswer: answer?.login ? answer : null, names: allNames }),
     // Shipped: the product itself, where it lives now.
     ...(status === 'shipped' ? { previewUrl: todayUrl, tryUrl: null, previewNote: null, previewBuilding: false } : {}),
     handoff: {

@@ -94,6 +94,18 @@ export function gitNamesOf(commits: readonly BranchCommitLike[]): Record<string,
   return out;
 }
 
+/**
+ * When an exploration was started: the time its Bridge block recorded (startedAt), else its pull request's creation,
+ * else its first commit. The block comes first because the pull request can be opened again later (a repository moved
+ * to another organization opens new pull requests for the same branches): its creation would then read after "said
+ * done exploring" in the activity, and "Yesterday" for work started days ago.
+ */
+export function startedAtOf(body: string | null | undefined, createdAt: string | null | undefined, firstCommit?: string | null): string | null {
+  const recorded = parseExplorationBody(body)?.startedAt;
+  const valid = (iso: string | null | undefined) => (iso && !Number.isNaN(Date.parse(iso)) ? iso : null);
+  return valid(recorded) ?? valid(createdAt) ?? valid(firstCommit) ?? null;
+}
+
 /** "Started by" line after the name: " · Admin demo · today". */
 export const startedTail = (productName: string, startedAt: string | null | undefined, now?: Date): string => [productName, startedAt ? startedWhen(startedAt, now) : ''].filter(Boolean).join(' · ');
 

@@ -29,3 +29,21 @@ export function authorFor(login: string | null | undefined, body: string | null 
   const name = parseExplorationBody(body)?.memberName?.trim() || asked?.name?.trim();
   return name ? nameAuthor(name) : (login ?? null);
 }
+
+/**
+ * Who started an exploration, as every screen names them (the Home card, the exploration page, Changes): the person its
+ * record names, whoever's account opened its pull request. The "Requested by" line first (by login, else by name),
+ * then the exploration block's author (a GitHub login, never an email address) and its member name; the account only
+ * when nobody is named. Bridge can open a member's exploration with a lead's account, and a pull request opened again
+ * by someone else (a repository moved to another organization) keeps the person who started it.
+ */
+export function explorationAuthorFor(login: string | null | undefined, body: string | null | undefined): string | null {
+  const asked = requesterOf(body);
+  if (asked?.login) return asked.login;
+  const block = parseExplorationBody(body);
+  const author = block?.author?.trim();
+  if (author && !author.includes('@')) return author;
+  const name = block?.memberName?.trim() || asked?.name?.trim();
+  if (name) return nameAuthor(name);
+  return authorFor(login, body);
+}

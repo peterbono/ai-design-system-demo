@@ -274,10 +274,10 @@ describe('the state of a running exploration card, from its files', () => {
 
 describe('the quiet team Home', () => {
   const c = (n: number, over: Record<string, unknown> = {}) =>
-    ({ number: n, key: String(n), title: `S${n}`, href: '#', product: null, author: person('ann', 'Ann', null), stage: 'exploring', state: 'Exploring', updated: `2026-10-${String(10 + n).padStart(2, '0')}T10:00:00Z`, preview: SCREEN_SKETCH, own: false, ...over }) as Parameters<typeof recentExplorations>[0][number];
+    ({ number: n, key: String(n), title: `S${n}`, href: '#', product: null, author: person('ann', 'Ann', null), stage: 'exploring', lifecycle: 'exploring', state: 'Exploring', updated: `2026-10-${String(10 + n).padStart(2, '0')}T10:00:00Z`, preview: SCREEN_SKETCH, own: false, ...over }) as Parameters<typeof recentExplorations>[0][number];
 
   it('keeps the four newest explorations, whatever their stage, and how many there are in all', () => {
-    const cards = [c(1), c(2, { stage: 'kept', state: 'Shipped' }), c(3), c(4, { stage: 'with-devs', state: 'Waiting to be picked up' }), c(5), c(6)];
+    const cards = [c(1), c(2, { stage: 'kept', state: 'Shipped', lifecycle: 'shipped' }), c(3), c(4, { stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' }), c(5), c(6)];
     const r = recentExplorations(cards);
     expect(RECENT_CARDS).toBe(4);
     expect(r.cards.map((x) => x.number)).toEqual([6, 5, 4, 3]);
@@ -287,31 +287,33 @@ describe('the quiet team Home', () => {
   const say = (...a: Parameters<typeof ownOpenWork>) => quietSentence(ownOpenWork(...a));
 
   it("says what is open of the viewer's own work and who it waits on, in designer words", () => {
-    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })])).toBe('Nothing needs you. 1 of your explorations waits for a developer to pick it up.');
-    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' }), c(2, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })])).toBe('Nothing needs you. 2 of your explorations wait for a developer to pick them up.');
-    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Being built' })])).toBe('Nothing needs you. 1 of your explorations is being built.');
-    expect(say([c(1, { own: true, stage: 'in-review', state: 'In review' }), c(2, { own: true, stage: 'in-review', state: 'In review' })])).toBe('Nothing needs you. 2 of your explorations are in review.');
-    expect(say([c(1, { own: true }), c(2, { own: true, stage: 'found', state: '1 new piece found' }), c(3, { own: true, stage: 'with-devs', state: 'Being built' }), c(4, { own: true, stage: 'in-review', state: 'In review' })])).toBe(
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' })])).toBe('Nothing needs you. 1 of your explorations waits for a developer to pick it up.');
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' }), c(2, { own: true, stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' })])).toBe('Nothing needs you. 2 of your explorations wait for a developer to pick them up.');
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Being built', lifecycle: 'being-built' })])).toBe('Nothing needs you. 1 of your explorations is being built.');
+    expect(say([c(1, { own: true, stage: 'in-review', state: 'In review', lifecycle: 'in-review' }), c(2, { own: true, stage: 'in-review', state: 'In review', lifecycle: 'in-review' })])).toBe('Nothing needs you. 2 of your explorations are in review.');
+    expect(say([c(1, { own: true }), c(2, { own: true, stage: 'found', state: '1 new piece found', lifecycle: 'exploring' }), c(3, { own: true, stage: 'with-devs', state: 'Being built', lifecycle: 'being-built' }), c(4, { own: true, stage: 'in-review', state: 'In review', lifecycle: 'in-review' })])).toBe(
       'Nothing needs you. 2 of your explorations are still being explored, 1 is being built and 1 is in review.',
     );
-    expect(say([c(1, { own: true }), c(2, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })])).toBe('Nothing needs you. 1 of your explorations is still being explored and 1 waits for a developer to pick it up.');
+    expect(say([c(1, { own: true }), c(2, { own: true, stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' })])).toBe('Nothing needs you. 1 of your explorations is still being explored and 1 waits for a developer to pick it up.');
   });
 
   it('counts only what is still open and the viewer\'s own: never shipped, not planned, archived or someone else\'s', () => {
     // A handed-off one its task shipped stays "with the developers" as a stage, but it is done (art-print-shop-design#4).
-    expect(ownOpenWork([c(1, { own: true, stage: 'with-devs', state: 'Shipped' }), c(2, { own: true, stage: 'with-devs', state: 'Not planned' }), c(3, { own: true, stage: 'with-devs', state: 'Approved, waiting to ship' })])).toBeNull();
-    expect(ownOpenWork([c(1), c(2, { own: true, stage: 'kept', state: 'Shipped' }), c(3, { own: true, state: 'Archived' })])).toBeNull();
+    expect(ownOpenWork([c(1, { own: true, stage: 'with-devs', state: 'Shipped', lifecycle: 'shipped' }), c(2, { own: true, stage: 'with-devs', state: 'Not planned', lifecycle: 'not-planned' })])).toBeNull();
+    // Approved, waiting to ship is still in review, as on Changes and Being built: the developers have not shipped it.
+    expect(say([c(3, { own: true, stage: 'with-devs', state: 'Approved, waiting to ship', lifecycle: 'approved' })])).toBe('Nothing needs you. 1 of your explorations is in review.');
+    expect(ownOpenWork([c(1), c(2, { own: true, stage: 'kept', state: 'Shipped', lifecycle: 'shipped' }), c(3, { own: true, state: 'Archived', lifecycle: 'archived' })])).toBeNull();
     // Its task in review: the exploration is in review.
-    expect(say([c(1, { own: true, stage: 'with-devs', state: 'In review' })])).toBe('Nothing needs you. 1 of your explorations is in review.');
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'In review', lifecycle: 'in-review' })])).toBe('Nothing needs you. 1 of your explorations is in review.');
   });
 
   it('says the library changes apart, in the same words', () => {
     expect(say([], [{ stage: 'draft' }, { stage: 'waiting' }, { stage: 'ready' }])).toBe('Nothing needs you. 1 of your library changes waits for a developer to pick it up, 1 is being built and 1 is in review.');
-    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Being built' })], [{ stage: 'ready' }, { stage: 'ready' }])).toBe('Nothing needs you. 1 of your explorations is being built. 2 of your library changes are in review.');
+    expect(say([c(1, { own: true, stage: 'with-devs', state: 'Being built', lifecycle: 'being-built' })], [{ stage: 'ready' }, { stage: 'ready' }])).toBe('Nothing needs you. 1 of your explorations is being built. 2 of your library changes are in review.');
   });
 
   it("makes each clause a link to Changes on the viewer's own work at that stage", () => {
-    const parts = quietParts(ownOpenWork([c(1, { own: true }), c(2, { own: true, stage: 'with-devs', state: 'Waiting to be picked up' })]));
+    const parts = quietParts(ownOpenWork([c(1, { own: true }), c(2, { own: true, stage: 'with-devs', state: 'Waiting to be picked up', lifecycle: 'waiting-for-code' })]));
     expect(parts.filter((p) => p.href).map((p) => [p.text, p.href])).toEqual([
       ['1 of your explorations is still being explored', ownWorkHref('exploring')],
       ['1 waits for a developer to pick it up', ownWorkHref('code')],

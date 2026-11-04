@@ -32,6 +32,7 @@ import { JIRA_IN_BRIDGE } from './studio-flags';
 import { authorFor } from './author';
 import { isProductBranch } from './product-branch';
 import { explorationHref } from './explorations-view';
+import { explorationState } from './exploration-state';
 import { devReviewLine, LIFECYCLE_LABEL, pullLifecycle, reviewLine, reviewStateOf, taskStage, type DesignTaskRead, type LifecycleStage, type PullReviewLike } from './review-state';
 
 /** The fields of a GitHub issue the page reads (GET /repos/{o}/{r}/issues). */
@@ -460,17 +461,14 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
     if (!isExplorationPull(core) || isArchivedExploration(core.labels)) return [];
     const merged = Boolean(p.merged_at);
     const nextRelease = merged && !p.product && Boolean(ctx.nextRelease?.(p));
-    const lifecycle = pullLifecycle(p, { approvers: ctx.approvers ?? [], reviews: ctx.reviews?.(key) ?? null, nextRelease });
-    const { review } = lifecycle;
+    const { review } = pullLifecycle(p, { approvers: ctx.approvers ?? [], reviews: ctx.reviews?.(key) ?? null, nextRelease });
     // From the design team's copy, the developers build from their task: its state, when read, says where it stands.
     const taskUrl = parseExplorationBody(p.body)?.task;
     const task = taskUrl && !merged ? (ctx.task?.(taskUrl) ?? null) : null;
-    const fromTask = task ? taskStage(task) : null;
-    // Taken back (the exploration runs again): its own row is Exploring, not here. Still handed off while the task is
-    // closed without being built: the developers declined it, the row says so instead of leaving.
-    const handedOff = lifecycle.stage === 'waiting-for-code' || lifecycle.stage === 'being-built' || lifecycle.stage === 'in-review';
-    if (fromTask === 'closed' || (fromTask === 'not-planned' && !handedOff)) return [];
-    const stage: LifecycleStage = fromTask ?? lifecycle.stage;
+    // The one status of every screen (lib/exploration-state): a task closed as done is Shipped even while the design
+    // pull request stays open; taken back (running again), it is Exploring and leaves this list; declined while still
+    // handed off, it stays here as Not planned.
+    const stage: LifecycleStage = explorationState({ pull: p, task: task ? taskStage(task) : null, approvers: ctx.approvers ?? [], reviews: ctx.reviews?.(key) ?? null, nextRelease });
     const status = stage === 'not-planned' ? 'not-planned' : STAGE_BUILD_STATUS[stage];
     if (!status) return [];
     const shippedAt = status === 'shipped' ? (task?.closedAt ?? p.merged_at ?? null) : null;

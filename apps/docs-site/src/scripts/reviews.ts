@@ -84,7 +84,8 @@ import { ACTION_LABEL } from '../lib/change-status';
 import { ownedBy, PRODUCTS } from '../lib/branches-page';
 import { waitsOnMe } from '../lib/waiting-on';
 import { waitsOnLead } from '../lib/demo-home';
-import { LIFECYCLE_LABEL, needsReviewRead, pullLifecycle, reviewLine, waitsOnViewer, type LifecyclePull, type LifecycleStage, type PullReviewLike } from '../lib/review-state';
+import { LIFECYCLE_LABEL, needsReviewRead, pullLifecycle, reviewLine, taskStage, waitsOnViewer, type DesignTaskRead, type LifecyclePull, type LifecycleStage, type PullReviewLike } from '../lib/review-state';
+import { explorationState } from '../lib/exploration-state';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
 import { readReviews } from './review-reads';
 import { libraryScope } from './next-release';
@@ -320,8 +321,10 @@ interface Row {
   product?: string;
   /** The merge commit (closed rows): In the next release while the library release lists it. */
   merge_commit_sha?: string | null;
-  /** An exploration's lifecycle stage (lib/review-state), once its review was read when it needs one. */
+  /** An exploration's one status (lib/exploration-state), once its review and its developers' task were read. */
   stage?: LifecycleStage;
+  /** Shipped by the developers' task while the design pull request stays open: when the task was closed as done. */
+  shippedAt?: string | null;
   /** An In review exploration: who must review, in words ("Waiting for Florian's review"). */
   reviewLine?: string | null;
   /** The review of an In review exploration waits on the viewer (lib/review-state waitsOnViewer). */
@@ -462,6 +465,7 @@ function listRow(r: Row): ListRow {
     ...(r.product ? { product: r.product } : {}),
     requester: requesterOf(r.body),
     ...(r.stage ? { stage: r.stage } : {}),
+    ...(r.shippedAt ? { shippedAt: r.shippedAt } : {}),
     ...(r.reviewLine ? { reviewLine: r.reviewLine } : {}),
   };
 }
@@ -590,23 +594,38 @@ async function readExplorationReviews(rows: Row[], pulls: readonly LifecyclePull
   const approvers = siteApprovers().design;
   const byKey = new Map(pulls.map((p) => [p.product ? `${p.product}#${p.number}` : String(p.number), p]));
   const keyOf = (r: Row) => (r.product ? `${r.product}#${r.number}` : String(r.number));
-  const stageAll = (reviews: Map<string, PullReviewLike[]>) => {
+  let tasks = new Map<string, DesignTaskRead>();
+  let reviews = new Map<string, PullReviewLike[]>();
+  const stageAll = () => {
     for (const r of rows) {
       const p = byKey.get(keyOf(r));
       if (!p) continue;
-      const { stage, review } = pullLifecycle(p, { approvers, reviews: reviews.get(keyOf(r)) ?? null });
+      const { review } = pullLifecycle(p, { approvers, reviews: reviews.get(keyOf(r)) ?? null });
+      // The one status of every screen (lib/exploration-state): the developers' task, once read, decides a handed-off
+      // design copy exploration, so a task closed as done reads Shipped here too, open design pull request or not.
+      const u = taskUrlOf(p.body);
+      const task = u ? (tasks.get(u) ?? null) : null;
+      const stage = explorationState({ pull: p, task: task ? taskStage(task) : null, approvers, reviews: reviews.get(keyOf(r)) ?? null });
       r.stage = stage;
-      r.reviewLine = stage === 'in-review' ? reviewLine(review, { viewer, nameOf }) : null;
-      r.reviewWaits = stage === 'in-review' && waitsOnViewer(review, viewer);
+      r.shippedAt = stage === 'shipped' ? (task?.closedAt ?? r.merged_at ?? null) : null;
+      r.reviewLine = stage === 'in-review' && !task ? reviewLine(review, { viewer, nameOf }) : null;
+      r.reviewWaits = stage === 'in-review' && !task && waitsOnViewer(review, viewer);
     }
   };
-  stageAll(new Map());
+  stageAll();
   const toRead = rows.filter((r) => byKey.has(keyOf(r)) && needsReviewRead(byKey.get(keyOf(r))!));
-  if (!toRead.length) return;
-  const reviews = await readReviews(toRead.map((r) => ({ key: keyOf(r), repo: byKey.get(keyOf(r))!.repo ?? `${repo.owner}/${repo.repo}`, number: r.number, version: r.updated_at ?? r.head.sha })));
-  stageAll(reviews);
+  // The tasks of handed-off design copy explorations: one read each, cached a minute and shared with Home and the
+  // product page (scripts/design-task.ts).
+  const taskRead = import('./design-task').then((m) => m.designTaskReads(rows.flatMap((r) => (byKey.get(keyOf(r)) ? [byKey.get(keyOf(r))!] : [])))).catch(() => new Map<string, DesignTaskRead>());
+  const reviewRead = toRead.length ? readReviews(toRead.map((r) => ({ key: keyOf(r), repo: byKey.get(keyOf(r))!.repo ?? `${repo.owner}/${repo.repo}`, number: r.number, version: r.updated_at ?? r.head.sha }))) : Promise.resolve(reviews);
+  [tasks, reviews] = await Promise.all([taskRead, reviewRead]);
+  if (!tasks.size && !toRead.length) return;
+  stageAll();
   paintRows(openRows, listLoading);
 }
+
+/** The developers' task URL in an exploration's Bridge block, or null. */
+const taskUrlOf = (body: string | null | undefined): string | null => parseExplorationBody(body ?? null)?.task ?? null;
 
 /** An open pull request as the lifecycle reads it, with the repository it lives in when it is a product's own. */
 type LifecyclePullOf = LifecyclePull & { number: number; product?: string; repo?: string };
