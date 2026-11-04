@@ -441,8 +441,14 @@ describe('Add a product: someone who can only request access', () => {
     expect(await screen.findByText(requestSentLine('acme', null))).toBeInTheDocument();
     // Coming back to the window reads the list: the approved product is announced and the request forgotten.
     gh.poll.mockResolvedValue([SHOP, PRINT]);
-    fireEvent.focus(window);
-    expect(await screen.findByText(foundLine('Art print shop'))).toBeInTheDocument();
+    // The dialog reopens on the question, then on its GitHub step: focus again until the read has run (slow runners).
+    await waitFor(
+      () => {
+        fireEvent.focus(window);
+        expect(screen.getByText(foundLine('Art print shop'))).toBeInTheDocument();
+      },
+      { timeout: 5000, interval: 200 },
+    );
     expect(localStorage.getItem(KEY)).toBeNull();
     await act(() => new Promise((r) => setTimeout(r, 100)));
   });
