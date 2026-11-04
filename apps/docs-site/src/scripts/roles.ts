@@ -268,7 +268,7 @@ export function proposeReviewRules(next: { rights: Rights; leadsPublishTier1: bo
 export function proposeChangesMode(mode: ChangesMode, opts: { prefix?: string; protectedBranches?: string[] } = {}): Promise<{ number: number; url: string }> {
   return proposeConfig(
     (current) => withChanges(current, mode),
-    (tierLabel) => changesProposal(mode, { date: new Date(), prefix: opts.prefix, suggestApp: readSignInConfig()?.suggestApp ?? null, tierLabel }),
+    (tierLabel) => changesProposal(mode, { date: new Date(), prefix: opts.prefix, signIn: Boolean(readSignInConfig()), tierLabel }),
     opts,
   );
 }

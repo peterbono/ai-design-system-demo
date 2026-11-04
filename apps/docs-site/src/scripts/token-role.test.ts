@@ -24,14 +24,14 @@ let linked: 'admin' | 'edit' | 'view' | null;
 
 function page() {
   document.documentElement.setAttribute('data-hosted', '');
-  document.documentElement.setAttribute('data-gh-app', 'suggest');
+  document.documentElement.setAttribute('data-gh-app', 'direct');
   history.replaceState(null, '', `/studio/${REPO}/settings/`);
   document.body.innerHTML = `<div data-demo-strip hidden></div><dialog id="gh-dialog"><div data-gh-view="signin"></div></dialog>`;
-  localStorage.setItem('bridge.github.token.suggest', TOKEN);
-  localStorage.setItem('bridge.github.app.suggest', JSON.stringify({ kind: 'app', expiresAt: Date.now() + 8 * 3600_000, refreshToken: null, refreshExpiresAt: null }));
+  localStorage.setItem('bridge.github.token.direct', TOKEN);
+  localStorage.setItem('bridge.github.app.direct', JSON.stringify({ kind: 'app', expiresAt: Date.now() + 8 * 3600_000, refreshToken: null, refreshExpiresAt: null }));
   // Checked a minute ago, with the access an earlier read kept through Bridge's proxy: "reader".
   localStorage.setItem(
-    'bridge.github.check.suggest',
+    'bridge.github.check.direct',
     JSON.stringify({ fp: tokenFingerprint(TOKEN), at: Date.now() - 60_000, ok: true, viewer: { login: 'peterbono', name: 'Florian' }, write: false, reach: true, access: { repo: REPO, state: 'reader' } }),
   );
   localStorage.setItem('bridge.teamRoles', JSON.stringify({ [REPO]: 'Can view' }));
@@ -58,7 +58,7 @@ beforeEach(() => {
     if (url.startsWith('/api/account')) return json({ available: true, account: { email: 'florian@bridge.dev', name: 'Florian', github: { login: 'peterbono', id: 8754 }, teams: [] } });
     if (url.startsWith('/api/entry?linked=')) return json({ role: linked });
     if (url === `${API}/user`) return json({ login: 'peterbono', id: 8754, name: 'Florian' });
-    if (url.startsWith(`${API}/user/installations`)) return json({ total_count: 1, installations: [{ id: 7, account: { login: 'the-bridge-company', type: 'Organization' }, repository_selection: 'all', app_slug: 'bridge-ds' }] });
+    if (url.startsWith(`${API}/user/installations`)) return json({ total_count: 1, installations: [{ id: 7, account: { login: 'the-bridge-company', type: 'Organization' }, repository_selection: 'all', app_slug: 'bridge-design-studio' }] });
     if (url === `${API}/repos/${REPO}`) return json({ full_name: REPO, private: false, default_branch: 'main', ...(auth ? { permissions: own } : {}) });
     return json({ message: 'Not Found' }, 404);
   });

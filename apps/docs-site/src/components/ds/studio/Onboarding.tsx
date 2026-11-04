@@ -1147,13 +1147,21 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
       actions={{
         propose: async (mode) => {
           const { proposeChangesMode } = await import('../../../scripts/roles');
+          // Kept if the person has to sign in again first: back on this page, it says to do it again.
+          const keep = await import('../../../scripts/pending-action');
+          keep.armPendingAction('retry', { label: 'send how this team saves changes' });
           const pr = await proposeChangesMode(mode);
+          keep.disarmPendingAction();
           save({ ...memory, proposed: { pr: pr.number, mode } });
           return pr;
         },
         name: async (name) => {
           const { proposeTeamName } = await import('../../../scripts/roles');
+          // Kept if the person has to sign in again first: back on this page, it says to do it again.
+          const keep = await import('../../../scripts/pending-action');
+          keep.armPendingAction('retry', { label: 'send the team name' });
           const pr = await proposeTeamName(name);
+          keep.disarmPendingAction();
           save({ ...memory, named: { pr: pr.number, name: name.trim() } });
           return pr;
         },

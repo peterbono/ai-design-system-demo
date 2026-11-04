@@ -390,7 +390,7 @@ describe('ProductPageView, rename (admins)', () => {
     await act(async () => {
       fireEvent.submit(field.closest('form')!);
     });
-    expect(screen.getByText('Bridge could not send the rename. Ask an admin of the repository.')).toBeTruthy();
+    expect(await screen.findByText('Bridge could not send the rename. Ask an admin of the repository.')).toBeTruthy();
     expect(document.body.textContent).not.toContain('Resource not accessible');
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();

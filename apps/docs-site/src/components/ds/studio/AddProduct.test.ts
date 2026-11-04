@@ -300,7 +300,7 @@ describe('Add a product: someone who can only request access', () => {
     await showBuilt();
     await screen.findByText(ownersOnlyLine('acme'));
     await startWaiting();
-    expect(opened[0]![0]).toBe('https://github.com/apps/bridge-ds/installations/new/permissions?target_id=7');
+    expect(opened[0]![0]).toBe('https://github.com/apps/bridge-design-studio/installations/new/permissions?target_id=7');
   });
 
   it('GitHub closed with nothing new: the request is sent, remembered, and said again on reopening', async () => {

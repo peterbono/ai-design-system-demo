@@ -18,48 +18,28 @@ function req(body: unknown, headers: Record<string, string> = {}, method = 'POST
 
 const github = (payload: unknown, status = 200) => vi.fn<FetchLike>(async () => new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } }));
 
-const TWO = { ...ENV, GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest', GITHUB_APP_SUGGEST_CLIENT_SECRET: 'not-a-real-suggest-secret' };
-
-describe('POST /api/github/token with two apps', () => {
-  it('uses the app named by client_id, with its own secret', async () => {
+describe('POST /api/github/token: one app', () => {
+  it('accepts its own client_id, and works without one', async () => {
     const fetch = github({ access_token: 'ghu_abc' });
-    const res = await handleTokenRequest(req({ ...CODE_BODY, client_id: 'Iv23liSuggest' }), TWO, fetch);
-    expect(res.status).toBe(200);
-    expect(Object.fromEntries(new URLSearchParams(fetch.mock.calls[0]![1].body))).toMatchObject({ client_id: 'Iv23liSuggest', client_secret: TWO.GITHUB_APP_SUGGEST_CLIENT_SECRET });
-
-    const direct = github({ access_token: 'ghu_new' });
-    await handleTokenRequest(req({ grant: 'refresh', refresh_token: 'ghr_old123', client_id: ENV.GITHUB_APP_CLIENT_ID }), TWO, direct);
-    expect(Object.fromEntries(new URLSearchParams(direct.mock.calls[0]![1].body))).toMatchObject({ client_id: ENV.GITHUB_APP_CLIENT_ID, client_secret: ENV.GITHUB_APP_CLIENT_SECRET });
+    expect((await handleTokenRequest(req({ ...CODE_BODY, client_id: ENV.GITHUB_APP_CLIENT_ID }), ENV, fetch)).status).toBe(200);
+    expect((await handleTokenRequest(req(CODE_BODY), ENV, fetch)).status).toBe(200);
+    for (const call of fetch.mock.calls) expect(Object.fromEntries(new URLSearchParams(call[1].body))).toMatchObject({ client_id: ENV.GITHUB_APP_CLIENT_ID, client_secret: ENV.GITHUB_APP_CLIENT_SECRET });
   });
 
-  it('defaults to the Direct app without client_id (tabs opened before the switch)', async () => {
-    const fetch = github({ access_token: 'ghu_abc' });
-    await handleTokenRequest(req(CODE_BODY), TWO, fetch);
-    expect(Object.fromEntries(new URLSearchParams(fetch.mock.calls[0]![1].body))).toMatchObject({ client_id: ENV.GITHUB_APP_CLIENT_ID });
-  });
-
-  it('refuses a client_id outside the allow-list, before calling GitHub', async () => {
+  it('refuses any other client_id (the older second app included), before calling GitHub', async () => {
     const fetch = github({ access_token: 'x' });
-    const res = await handleTokenRequest(req({ ...CODE_BODY, client_id: 'Iv23liSomeoneElse' }), TWO, fetch);
+    const res = await handleTokenRequest(req({ grant: 'refresh', refresh_token: 'ghr_old123', client_id: 'Iv23liSuggest' }), ENV, fetch);
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: 'unknown_client' });
-    expect((await handleTokenRequest(req({ ...CODE_BODY, client_id: 'bad id<x>' }), TWO, fetch)).status).toBe(400);
-    expect((await handleTokenRequest(req({ ...CODE_BODY, client_id: 42 }), TWO, fetch)).status).toBe(400);
+    expect((await handleTokenRequest(req({ ...CODE_BODY, client_id: 'bad id<x>' }), ENV, fetch)).status).toBe(400);
+    expect((await handleTokenRequest(req({ ...CODE_BODY, client_id: 42 }), ENV, fetch)).status).toBe(400);
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('does not allow the suggest app without its secret, and keeps the Direct app working', async () => {
-    const half = { ...ENV, GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' };
+  it('needs both the id and the secret', async () => {
     const fetch = github({ access_token: 'ghu_abc' });
-    expect((await handleTokenRequest(req({ ...CODE_BODY, client_id: 'Iv23liSuggest' }), half, fetch)).status).toBe(400);
-    expect((await handleTokenRequest(req({ ...CODE_BODY, client_id: ENV.GITHUB_APP_CLIENT_ID }), half, fetch)).status).toBe(200);
-  });
-
-  it('works with only the suggest app configured', async () => {
-    const only = { GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest', GITHUB_APP_SUGGEST_CLIENT_SECRET: 'not-a-real-suggest-secret' };
-    const fetch = github({ access_token: 'ghu_abc' });
-    expect((await handleTokenRequest(req(CODE_BODY), only, fetch)).status).toBe(200);
-    expect(Object.fromEntries(new URLSearchParams(fetch.mock.calls[0]![1].body))).toMatchObject({ client_id: 'Iv23liSuggest' });
+    expect((await handleTokenRequest(req(CODE_BODY), { GITHUB_APP_CLIENT_ID: ENV.GITHUB_APP_CLIENT_ID }, fetch)).status).toBe(503);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

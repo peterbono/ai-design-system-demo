@@ -24,7 +24,7 @@ import { Skeleton } from '@bridge-ds/react';
 import { signInConfig } from '../../lib/signin-config';
 
 // Step 1 signs in like a team page (lib/signin-config.ts), so the team picked on step 2 keeps the sign-in.
-const signIn = Boolean(signInConfig(true));
+const signIn = Boolean(signInConfig());
 ---
 
 <Layout title="Your workspace" description="Your Studio before a design system is connected: connect a Storybook or a repository." workspace wide>

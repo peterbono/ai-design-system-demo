@@ -34,7 +34,7 @@ interface Props {
 
 const { workspace = false } = Astro.props;
 const r = siteRepo();
-const signIn = Boolean(signInConfig(workspace));
+const signIn = Boolean(signInConfig());
 ---
 
 <div class="gh-acct" data-gh-connect data-gh-acct data-state="checking">

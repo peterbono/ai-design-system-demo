@@ -73,7 +73,11 @@ export default function TeamNameSetting({ prefix, protectedBranches }: TeamNameS
     setError(null);
     try {
       const { proposeTeamName } = await import('../../../scripts/roles');
+      // Kept if the person has to sign in again first: back on this page, it says to do it again.
+      const keep = await import('../../../scripts/pending-action');
+      keep.armPendingAction('retry', { label: 'send the new team name' });
       const pr = await proposeTeamName(value, { prefix, protectedBranches });
+      keep.disarmPendingAction();
       setSent({ number: pr.number, name: value.trim() });
     } catch (err) {
       setError((err as Error).message);

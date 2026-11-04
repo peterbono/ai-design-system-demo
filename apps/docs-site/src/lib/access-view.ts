@@ -9,17 +9,17 @@ import { CONTRIBUTE_WORDS } from './contribute';
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { isDemoRepo, isSampleTeam, SAMPLE_TEAM, teamDisplayName } from './demo';
 
-import { appSlugFrom, SUGGEST_APP_SLUG } from './github-signin';
+import { appSlugFrom, DIRECT_APP_SLUG } from './github-signin';
 
-/** The second app's slug, the default with the one-app switch off (docs/SIGN-IN.md). */
-export const BRIDGE_APP_SLUG = SUGGEST_APP_SLUG;
+/** The slug of Bridge's GitHub App (Bridge Direct) when nothing else is set (docs/SIGN-IN.md). */
+export const BRIDGE_APP_SLUG = DIRECT_APP_SLUG;
 
 const SLUG = /^[a-z0-9-]{1,100}$/;
 
 /**
  * The one slug of the GitHub App people install and sign in with (github.com/apps/<slug>), from config: in the
  * browser, what the layout wrote on <html data-gh-slug> (lib/signin-config.ts appSlugAtBuild); at build time, the
- * env vars (BRIDGE_ONE_APP: Bridge Direct, else bridge-ds). Every install link and installation check uses it.
+ * env vars (GITHUB_APP_DIRECT_SLUG, default bridge-design-studio). Every install link and installation check uses it.
  */
 export function bridgeAppSlug(): string {
   if (typeof document !== 'undefined') {

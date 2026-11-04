@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { adminOnlyText, appReach, canEditReviewRules, RULES_ADMIN_ONLY, RULES_NEED_REVIEW, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, leadsPublishRow, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges, PRODUCTS_WORDS, productDevValue, productSettingsLine } from './settings-view';
+import { adminOnlyText, appReach, canEditReviewRules, RULES_ADMIN_ONLY, RULES_NEED_REVIEW, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, leadsPublishRow, changesProposal, effectiveChanges, overridePlain, overrideRow, SUGGEST_RULE_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges, PRODUCTS_WORDS, productDevValue, productSettingsLine } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -83,28 +83,20 @@ describe('how changes reach your code', () => {
     expect(appReach({ contents: 'read', issues: 'write' })).toEqual({ writesCode: false, text: 'Can read code and create issues on this repo.' });
   });
 
-  it('proposes the switch as a configuration pull request, saying plainly what the app can still do', () => {
-    const p = changesProposal('suggest', { date: new Date('2026-10-21T10:00:00Z'), prefix: 'bridge/', tierLabel: 'Tier 3', suggestApp: 'direct' });
+  it('proposes the switch as a configuration pull request, saying plainly that suggest mode is Bridge\'s rule', () => {
+    const p = changesProposal('suggest', { date: new Date('2026-10-21T10:00:00Z'), prefix: 'bridge/', tierLabel: 'Tier 3', signIn: true });
     expect(p.branch).toBe('bridge/changes-suggest-20261021');
     expect(p.body).toContain('Sets `changes` to `"suggest"`');
-    expect(p.body).toContain(INTERIM_APP_TEXT);
-    expect(changesProposal('direct', { date: new Date(), tierLabel: 'Tier 3', suggestApp: 'direct' }).body).not.toContain(INTERIM_APP_TEXT);
-    const both = changesProposal('suggest', { date: new Date(), tierLabel: 'Tier 3', suggestApp: 'suggest' }).body;
-    expect(both).toContain(READ_ONLY_APP_TEXT);
-    expect(both).not.toContain(INTERIM_APP_TEXT);
-    const none = changesProposal('suggest', { date: new Date(), tierLabel: 'Tier 3' }).body;
-    expect(none).not.toContain(INTERIM_APP_TEXT);
-    expect(none).not.toContain(READ_ONLY_APP_TEXT);
-    expect(INTERIM_APP_TEXT).toBe("Bridge's GitHub App can still write code on this repo. Suggest mode is a Bridge rule until the read-only app ships.");
+    expect(p.body).toContain(SUGGEST_RULE_TEXT);
+    expect(changesProposal('direct', { date: new Date(), tierLabel: 'Tier 3', signIn: true }).body).not.toContain(SUGGEST_RULE_TEXT);
+    expect(changesProposal('suggest', { date: new Date(), tierLabel: 'Tier 3' }).body).not.toContain(SUGGEST_RULE_TEXT);
+    expect(SUGGEST_RULE_TEXT).not.toMatch(/\u2014|read-only app|until/);
   });
 
-  it('says suggest mode is a Bridge rule only while Studio signs in with the write app', () => {
-    // Only the Direct app configured: suggest mode runs on an app that can write code.
-    expect(suggestAppText('direct')).toBe(INTERIM_APP_TEXT);
-    // Both apps: Studio signs in with the read-only one in suggest mode.
-    expect(suggestAppText('suggest')).toBe(READ_ONLY_APP_TEXT);
-    expect(READ_ONLY_APP_TEXT).not.toMatch(/still write|until the read-only app ships/);
+  it('says suggest mode is a Bridge rule whenever Studio signs in with the GitHub App', () => {
+    expect(suggestAppText(true)).toBe(SUGGEST_RULE_TEXT);
     // No GitHub App (a pasted token): nothing to say about an app.
+    expect(suggestAppText(false)).toBeNull();
     expect(suggestAppText(null)).toBeNull();
     expect(suggestAppText(undefined)).toBeNull();
   });

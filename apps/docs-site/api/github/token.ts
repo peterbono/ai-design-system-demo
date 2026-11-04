@@ -6,12 +6,9 @@
 // pasted token. Two requests, both JSON from the same origin:
 //   { "grant": "code", "code", "code_verifier", "redirect_uri", "client_id"? }   finish a sign-in (PKCE)
 //   { "grant": "refresh", "refresh_token", "client_id"? }                        renew an expired token
-// GitHub Apps (docs/SIGN-IN.md): "Bridge Direct" (the one app with BRIDGE_ONE_APP on) and, for the two-app model
-// while the switch is off, "Bridge" (bridge-ds). Both stay accepted whatever the switch, so a tab opened before a flip
-// still finishes its sign-in; the follow-up that removes bridge-ds drops its pair.
-// Env (server only): GITHUB_APP_SUGGEST_CLIENT_ID + GITHUB_APP_SUGGEST_CLIENT_SECRET for Bridge,
-// GITHUB_APP_CLIENT_ID + GITHUB_APP_CLIENT_SECRET for Bridge Direct. `client_id` picks the app, from an allow-list of
-// those two configured ids; without it the Direct app answers (the one-app setup and tabs opened before the switch).
+// One GitHub App (docs/SIGN-IN.md): Bridge Direct. Env (server only): GITHUB_APP_CLIENT_ID + GITHUB_APP_CLIENT_SECRET.
+// `client_id`, when sent, must be that app's: a sign-in of the older second app (bridge-ds) is refused with
+// `unknown_client` (the browser already shows its holders "Sign in again" on its own, lib/github-signin.ts planSlots).
 // With no app configured it answers 503 and the Studio keeps the token paste. Self-contained on purpose (no
 // imports), so Vercel bundles it as is.
 
@@ -22,8 +19,6 @@ const MAX_BODY = 4096;
 export interface TokenEnv {
   GITHUB_APP_CLIENT_ID?: string | undefined;
   GITHUB_APP_CLIENT_SECRET?: string | undefined;
-  GITHUB_APP_SUGGEST_CLIENT_ID?: string | undefined;
-  GITHUB_APP_SUGGEST_CLIENT_SECRET?: string | undefined;
 }
 
 interface AppCredentials {
@@ -31,19 +26,11 @@ interface AppCredentials {
   secret: string;
 }
 
-/** The configured apps, Direct first (the default without a client_id). An app needs both its id and its secret. */
-export function configuredApps(env: TokenEnv): AppCredentials[] {
-  const pairs: [string | undefined, string | undefined][] = [
-    [env.GITHUB_APP_CLIENT_ID, env.GITHUB_APP_CLIENT_SECRET],
-    [env.GITHUB_APP_SUGGEST_CLIENT_ID, env.GITHUB_APP_SUGGEST_CLIENT_SECRET],
-  ];
-  const out: AppCredentials[] = [];
-  for (const [id, secret] of pairs) {
-    const clientId = id?.trim();
-    const s = secret?.trim();
-    if (clientId && s && !out.some((a) => a.clientId === clientId)) out.push({ clientId, secret: s });
-  }
-  return out;
+/** The configured app: it needs both its id and its secret. Null when either is missing. */
+export function configuredApp(env: TokenEnv): AppCredentials | null {
+  const clientId = env.GITHUB_APP_CLIENT_ID?.trim();
+  const secret = env.GITHUB_APP_CLIENT_SECRET?.trim();
+  return clientId && secret ? { clientId, secret } : null;
 }
 
 const CLIENT_ID = /^[A-Za-z0-9._-]{4,64}$/;
@@ -121,8 +108,8 @@ export async function handleTokenRequest(req: Request, env: TokenEnv, fetchImpl:
   if (req.method !== 'POST') return json(405, { error: 'method', message: 'Use POST.' }, { Allow: 'POST' });
   if (!sameOrigin(req)) return fail(403, 'origin', 'Sign in from the Studio on this site.');
   if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return fail(415, 'content_type', 'Send JSON.');
-  const apps = configuredApps(env);
-  if (!apps.length) return fail(503, 'not_configured', 'Sign in with GitHub is not set up on this site yet.');
+  const app = configuredApp(env);
+  if (!app) return fail(503, 'not_configured', 'Sign in with GitHub is not set up on this site yet.');
 
   const raw = await req.text();
   if (raw.length > MAX_BODY) return fail(413, 'too_large', 'Request too large.');
@@ -135,13 +122,10 @@ export async function handleTokenRequest(req: Request, env: TokenEnv, fetchImpl:
     return fail(400, 'bad_request', 'Send a JSON object.');
   }
 
-  // The app: the one whose client id the Studio sent (allow-list of the configured ids), else the first one.
-  let app = apps[0]!;
+  // A client id, when sent, must be the configured one (an older app's sign-in is refused).
   if (body.client_id !== undefined) {
     if (typeof body.client_id !== 'string' || !CLIENT_ID.test(body.client_id)) return fail(400, 'bad_request', 'The GitHub App client ID is malformed. Sign in again.');
-    const found = apps.find((a) => a.clientId === body.client_id);
-    if (!found) return fail(400, 'unknown_client', 'This site no longer signs in with that GitHub App. Sign in again.');
-    app = found;
+    if (body.client_id !== app.clientId) return fail(400, 'unknown_client', 'This site no longer signs in with that GitHub App. Sign in again.');
   }
   const params = new URLSearchParams({ client_id: app.clientId, client_secret: app.secret });
   if (body.grant === 'code') {
@@ -194,8 +178,6 @@ export function POST(request: Request): Promise<Response> {
   const env: TokenEnv = {
     GITHUB_APP_CLIENT_ID: process.env.GITHUB_APP_CLIENT_ID,
     GITHUB_APP_CLIENT_SECRET: process.env.GITHUB_APP_CLIENT_SECRET,
-    GITHUB_APP_SUGGEST_CLIENT_ID: process.env.GITHUB_APP_SUGGEST_CLIENT_ID,
-    GITHUB_APP_SUGGEST_CLIENT_SECRET: process.env.GITHUB_APP_SUGGEST_CLIENT_SECRET,
   };
   return handleTokenRequest(request, env, (url, init) => fetch(url, init));
 }

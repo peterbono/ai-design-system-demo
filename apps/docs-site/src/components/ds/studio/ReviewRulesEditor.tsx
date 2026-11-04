@@ -56,7 +56,11 @@ export default function ReviewRulesEditor(p: ReviewRulesEditorProps) {
     try {
       const { proposeReviewRules } = await import('../../../scripts/roles');
       const rights: Rights = { approveDesign: groupsOf(picks.approveDesign), approveTech: groupsOf(picks.approveTech), ship: groupsOf(picks.ship) };
+      // Kept if the person has to sign in again first: back on this page, it says to do it again.
+      const keep = await import('../../../scripts/pending-action');
+      keep.armPendingAction('retry', { label: 'send the new review rules' });
       const pr = await proposeReviewRules({ rights, leadsPublishTier1: leads, owners: p.owners, visualMode: p.visualMode }, { prefix: p.prefix, protectedBranches: p.protectedBranches });
+      keep.disarmPendingAction();
       setSent({ number: pr.number });
       setEditing(false);
     } catch (err) {

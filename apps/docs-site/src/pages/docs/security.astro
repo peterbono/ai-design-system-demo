@@ -144,7 +144,7 @@ const STORED = [
     </ul>
     <DevDetail id="not-stored-dev" client:visible>
       <ul>
-        <li>Token swap: <Link href={src('apps/docs-site/api/github/token.ts')}><code>api/github/token.ts</code></Link> (same-origin POST only, <code>Cache-Control: no-store</code>). Browser storage keys <code>bridge.github.token.suggest</code> and <code>bridge.github.token.direct</code>: <Link href={src('apps/docs-site/src/scripts/github-session.ts')}><code>src/scripts/github-session.ts</code></Link>.</li>
+        <li>Token swap: <Link href={src('apps/docs-site/api/github/token.ts')}><code>api/github/token.ts</code></Link> (same-origin POST only, <code>Cache-Control: no-store</code>). Browser storage key <code>bridge.github.token.direct</code>: <Link href={src('apps/docs-site/src/scripts/github-session.ts')}><code>src/scripts/github-session.ts</code></Link>.</li>
         <li>Plugin storage: <code>figma.clientStorage</code> in <Link href={src('apps/figma-plugin/src/main/github-token.ts')}><code>apps/figma-plugin/src/main/github-token.ts</code></Link>.</li>
         <li>Logs: <Link href={src('apps/docs-site/api/csp-report/index.ts')}><code>api/csp-report/index.ts</code></Link> logs Content-Security-Policy reports; <code>onExport</code> in <code>api/account/index.ts</code> warns when <code>BLOB_READ_WRITE_TOKEN</code> is missing. No other <code>console</code> call in <code>apps/docs-site/api</code>.</li>
       </ul>
@@ -155,12 +155,11 @@ const STORED = [
     <h2 id="access">Access and permissions</h2>
     <p>GitHub decides who can do what. People with GitHub act as themselves, with their own sign-in, and never get more than their own access to the repository. People without GitHub go through Bridge, with narrower limits (below). Bridge adds review rules on top; your branch protection on GitHub still applies.</p>
 
-    <h3>The two GitHub Apps</h3>
-    <p>A repository admin installs them on the design system repository only (“Only select repositories”).</p>
+    <h3>The GitHub App</h3>
+    <p>Bridge uses one GitHub App, Bridge Direct. A repository admin installs it on the design system repository only (“Only select repositories”). One consent on GitHub covers reading, suggestions and saving changes.</p>
     <ul>
-      <li><strong>Bridge</strong> reads the code and writes only issues: Contents read, Issues read and write, Pull requests read, Checks read, Commit statuses read, Metadata read, Organization members read.</li>
-      <li><strong>Bridge Direct</strong> opens branches and pull requests: Contents, Pull requests and Issues read and write, Administration read and write (read only is possible if your admins turn branch protection on themselves), Checks, Commit statuses, Metadata and Organization members read. Optional: Workflows read and write, only so Studio can open the pull request that adds the automatic measure workflow (.github/workflows/bridge-measure.yml); without it, Studio gives that file to commit from GitHub.</li>
-      <li>Both ask one account permission: Email addresses, read only, so an invite reaches the person it was sent to.</li>
+      <li><strong>Bridge Direct</strong> opens branches and pull requests, and files suggestions as issues: Contents, Pull requests and Issues read and write, Administration read and write (read only is possible if your admins turn branch protection on themselves), Checks, Commit statuses, Metadata and Organization members read. Optional: Workflows read and write, only so Studio can open the pull request that adds the automatic measure workflow (.github/workflows/bridge-measure.yml); without it, Studio gives that file to commit from GitHub.</li>
+      <li>It asks one account permission: Email addresses, read only, so an invite reaches the person it was sent to.</li>
     </ul>
     <p>Bridge’s server holds Bridge Direct’s private key. With it, the server can act on every repository where Bridge Direct is installed, within the permissions above. It uses that for a few jobs only: changing collaborators when someone accepts an invite, serving a private Library to readers without GitHub, carrying out changes for email members, shipping token value changes, and removing a deleted person’s name from their requests. Each time it asks GitHub for a token limited to one repository, often to fewer permissions, and never stores it.</p>
 

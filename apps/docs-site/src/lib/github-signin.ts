@@ -23,61 +23,26 @@ export const PENDING_MAX_AGE_MS = 10 * 60 * 1000;
 /** A user access token is refreshed when it expires within this margin. */
 export const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
-/**
- * The GitHub Apps (docs/SIGN-IN.md). 'direct': "Bridge Direct" (slug bridge-design-studio), the server's app, writes
- * branches and pull requests. 'suggest': the older second app "Bridge" (slug bridge-ds). With the one-app switch on
- * (BRIDGE_ONE_APP, oneAppOn) every page signs in with Bridge Direct and 'suggest' is never picked; with it off, team
- * pages sign in with 'suggest' and ask for Bridge Direct once in direct mode (the two-app model, removed once flipped).
- */
-export type SignInApp = 'suggest' | 'direct';
-
 /** What the browser needs to start a sign-in. Built at build time; null when the GitHub App is not set up. */
 export interface SignInConfig {
-  /** The GitHub App client ID (public). */
+  /** Bridge Direct's client ID (public): the one GitHub App every page signs in with (docs/SIGN-IN.md). */
   clientId: string;
-  /** Which of the two apps that client ID belongs to. Token storage keys carry it. */
-  app: SignInApp;
-  /**
-   * The app Studio signs in with once `changes` is "suggest": 'suggest' when the read-only app is configured, else
-   * 'direct' (the one app this site has). Settings uses it to say whether suggest mode is enforced by GitHub.
-   */
-  suggestApp: SignInApp;
   /** Production origin, whose callback is the one registered on GitHub. Null: the current origin's callback. */
   productionOrigin: string | null;
   /** Preview origin pattern with {branch} (bridge.config.json previews.apps.docs). Null: no previews. */
   previewPattern: string | null;
-  /**
-   * Team pages only (multi-team plan 3.2, PR 3d), when both apps are set up: Bridge Direct, asked for once when a
-   * team in direct mode starts writing code. Its token lives in its own slot ('direct'). Absent on the self-hosted
-   * site, which signs in with the app its mode needs up front.
-   */
-  direct?: DirectApp;
   /** github.com/apps/<slug> of the app people install ("Install Bridge", "Give Bridge access"): appSlugFrom. */
   slug?: string;
-  /** The one-app switch is on: one sign-in (Bridge Direct) covers reads and writes, no second OK. */
-  oneApp?: boolean;
-}
-
-/** Bridge Direct as a team page asks for it: its client ID (public) and the slug of its GitHub page. */
-export interface DirectApp {
-  clientId: string;
-  /** github.com/apps/<slug>: where an admin installs it on the team's repository. */
-  slug: string;
 }
 
 /** Bridge Direct's slug on GitHub when GITHUB_APP_DIRECT_SLUG is not set. */
 export const DIRECT_APP_SLUG = 'bridge-design-studio';
-/** The second app's slug ("Bridge", two-app model only). */
-export const SUGGEST_APP_SLUG = 'bridge-ds';
 
 /** The env vars Sign in with GitHub reads at build time. */
 export interface SignInEnv {
   GITHUB_APP_CLIENT_ID?: string | undefined;
-  GITHUB_APP_SUGGEST_CLIENT_ID?: string | undefined;
-  /** Bridge Direct's slug (github.com/apps/<slug>), for the install link on team pages. */
+  /** Bridge Direct's slug (github.com/apps/<slug>), for every install link. */
   GITHUB_APP_DIRECT_SLUG?: string | undefined;
-  /** The one-app switch: "1" (or true, on, yes) makes Bridge Direct the only app. Off when absent. */
-  BRIDGE_ONE_APP?: string | undefined;
 }
 
 const trimSlash = (s: string) => s.replace(/\/+$/, '');
@@ -87,92 +52,24 @@ const validId = (id: string | undefined) => {
   return v && /^[A-Za-z0-9._-]{4,64}$/.test(v) ? v : null;
 };
 
-/** The one-app switch is on and Bridge Direct is configured (without its client ID the switch changes nothing). */
-export function oneAppOn(env: SignInEnv): boolean {
-  return /^(1|true|on|yes)$/i.test(env.BRIDGE_ONE_APP?.trim() ?? '') && Boolean(validId(env.GITHUB_APP_CLIENT_ID));
-}
-
-const directSlugFrom = (env: SignInEnv) => {
+/** The one slug every "Install Bridge", "Give Bridge access" and ask-your-admin link uses: Bridge Direct's. */
+export const appSlugFrom = (env: SignInEnv): string => {
   const slug = env.GITHUB_APP_DIRECT_SLUG?.trim();
   return slug && /^[a-z0-9-]{1,100}$/.test(slug) ? slug : DIRECT_APP_SLUG;
 };
 
-/**
- * The one slug every "Install Bridge", "Give Bridge access" and ask-your-admin link uses: Bridge Direct's with the
- * one-app switch on, else the second app's (bridge-ds), as before the switch.
- */
-export const appSlugFrom = (env: SignInEnv): string => (oneAppOn(env) ? directSlugFrom(env) : SUGGEST_APP_SLUG);
-
-/**
- * Which app a sign-in uses (multi-team plan 3.2). One-app switch on: always Bridge Direct. Identity first: every visitor signs in with the read-only Bridge app
- * (suggest), whose token reads, comments and files suggestions on any repository it is installed on. Bridge Direct
- * only when it is needed: the repository's `changes` is "direct" (read at runtime on a team shell) and the sign-in is
- * for writing code (`need: 'write'`). When only one app is configured, that one (a site that never set up the
- * suggest app keeps signing in as before).
- */
-export function pickSignInApp(
-  env: SignInEnv,
-  changes?: string | null,
-  need: 'identity' | 'write' = 'identity',
-): { clientId: string; app: SignInApp } | null {
-  const direct = validId(env.GITHUB_APP_CLIENT_ID);
-  if (direct && oneAppOn(env)) return { clientId: direct, app: 'direct' };
-  const suggest = validId(env.GITHUB_APP_SUGGEST_CLIENT_ID);
-  if (need === 'write' && changes === 'direct' && direct) return { clientId: direct, app: 'direct' };
-  if (suggest) return { clientId: suggest, app: 'suggest' };
-  if (direct) return { clientId: direct, app: 'direct' };
-  return null;
-}
-
-/**
- * The config from build-time env vars and bridge.config.json (previews, changes). Null without a client ID.
- * `changes` is bridge.config.json "changes" ("suggest" when absent). `hosted`: a team page, whose repository and mode
- * are only known in the browser.
- */
-export function signInConfigFrom(
-  env: SignInEnv,
-  previews?: { apps?: { docs?: string }; production?: { docs?: string } } | null,
-  changes?: string | null,
-  opts: { hosted?: boolean } = {},
-): SignInConfig | null {
-  // The self-hosted site has one repository and signs in once: in direct mode its Studio writes code, so it asks for
-  // Bridge Direct up front, as before. Team pages sign in for identity with Bridge and ask for Bridge Direct the first
-  // time a team in direct mode writes code (plan 3.2).
-  const picked = opts.hosted ? pickSignInApp(env) : pickSignInApp(env, changes, 'write');
-  if (!picked) return null;
+/** The config from build-time env vars and bridge.config.json (previews). Null without a client ID. */
+export function signInConfigFrom(env: SignInEnv, previews?: { apps?: { docs?: string }; production?: { docs?: string } } | null): SignInConfig | null {
+  const clientId = validId(env.GITHUB_APP_CLIENT_ID);
+  if (!clientId) return null;
   const prod = previews?.production?.docs?.trim();
   const preview = previews?.apps?.docs?.trim();
-  const directId = validId(env.GITHUB_APP_CLIENT_ID);
-  const oneApp = oneAppOn(env);
   return {
-    ...picked,
-    suggestApp: pickSignInApp(env)!.app,
+    clientId,
     productionOrigin: prod && /^https:\/\/[^/]+\/?$/.test(prod) ? trimSlash(prod) : null,
     previewPattern: preview && preview.includes('{branch}') && preview.startsWith('https://') ? trimSlash(preview) : null,
     slug: appSlugFrom(env),
-    ...(oneApp ? { oneApp: true } : {}),
-    // Two-app model only: Bridge Direct's one more OK. With one app the sign-in already is Bridge Direct's.
-    ...(opts.hosted && picked.app === 'suggest' && directId ? { direct: { clientId: directId, slug: directSlugFrom(env) } } : {}),
   };
-}
-
-/**
- * True for a call that changes code: branches, files, merges, reviews, ready for review (GraphQL mutations). On a
- * team page in direct mode it goes out with Bridge Direct. Reads, and issues with their comments and labels (which
- * Bridge itself may write), stay on the sign-in app.
- */
-export function needsDirectApp(method: string | undefined, url: string): boolean {
-  const m = (method ?? 'GET').toUpperCase();
-  if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return false;
-  let path: string;
-  try {
-    path = new URL(url, 'https://api.github.com').pathname;
-  } catch {
-    return false;
-  }
-  if (path === '/graphql') return true;
-  if (!/^\/repos\/[^/]+\/[^/]+\//.test(path)) return false;
-  return !/^\/repos\/[^/]+\/[^/]+\/issues(\/|$)/.test(path);
 }
 
 /** Base64url without padding (RFC 4648 section 5). */
@@ -274,9 +171,6 @@ export interface PendingSignIn {
   returnTo: string;
   /** Epoch ms when it started. */
   at: number;
-  /** The app this sign-in asks for, and its client ID: the token goes to that app's slot. Absent: the page's app. */
-  app?: SignInApp;
-  clientId?: string;
 }
 
 /** The plain sentences of the sign-in. Each one says how to fix it. */
@@ -292,16 +186,15 @@ export const SIGNIN_TEXT = {
   redirectMismatch: 'This site address is not registered on the Bridge GitHub App. Ask the site owner to add the callback URL, then sign in again.',
   unreachable: 'Studio could not reach its sign-in service. Check your connection, then sign in again.',
   expired: 'Your GitHub sign-in expired. Sign in again to keep editing.',
-  switched: 'Bridge now signs in to GitHub with a different app, so your previous sign-in was removed. Sign in again to keep editing.',
-  /** The one-app switch moved this browser off its old sign-in: one plain sentence, asked once. */
-  oneApp: 'Bridge changed how it connects to GitHub. Sign in again once to keep working.',
+  /** This browser held a sign-in of Bridge's older second GitHub App: one plain sentence, asked once (planSlots). */
+  switched: 'Bridge changed how it connects to GitHub. Sign in again once to keep working.',
   unknownClient: 'This site no longer signs in with that GitHub App. Sign in again.',
   failed: 'GitHub could not finish the sign-in. Sign in again.',
 } as const;
 
 export type CallbackStep =
   | { kind: 'relay'; url: string }
-  | { kind: 'exchange'; code: string; verifier: string; redirectUri: string; returnTo: string; app?: SignInApp; clientId?: string }
+  | { kind: 'exchange'; code: string; verifier: string; redirectUri: string; returnTo: string }
   | { kind: 'error'; message: string; returnTo: string };
 
 /**
@@ -329,9 +222,7 @@ export function callbackStep(params: URLSearchParams, here: string, pending: Pen
   if (error) return { kind: 'error', message: SIGNIN_TEXT.failed, returnTo };
   const code = params.get('code');
   if (!code) return { kind: 'error', message: SIGNIN_TEXT.noCode, returnTo };
-  // The app this tab asked for (Bridge Direct on a team page): only a well-formed pair, else the page's own app.
-  const asked = (pending.app === 'suggest' || pending.app === 'direct') && validId(pending.clientId) ? { app: pending.app, clientId: validId(pending.clientId)! } : {};
-  return { kind: 'exchange', code, verifier: pending.verifier, redirectUri: pending.redirectUri, returnTo, ...asked };
+  return { kind: 'exchange', code, verifier: pending.verifier, redirectUri: pending.redirectUri, returnTo };
 }
 
 /** The token function's answer (GitHub's fields, nothing else). */
@@ -418,17 +309,19 @@ export const readOnlyText = (login: string, repo: string, app: boolean) =>
     : 'This token can read but not write. Reviews and token proposals need Contents and Pull requests write access.';
 
 /**
- * Where a token lives in localStorage: one slot per app ('suggest', 'direct'), so a token of one app is never used as
- * the other's. '' is the slot without an app: a pasted token on a site with no GitHub App, and every token saved
- * before the two apps existed.
+ * Where a token lives in localStorage: 'direct' for a sign-in with Bridge Direct, '' without a GitHub App (a pasted
+ * token, and every token saved before the slots existed).
  */
-export type StorageSlot = SignInApp | '';
-export const STORAGE_SLOTS: readonly StorageSlot[] = ['', 'suggest', 'direct'];
+export type StorageSlot = '' | 'direct';
+/** The slot of Bridge's older second GitHub App ("Bridge", bridge-ds): only read to ask its holders to sign in again. */
+export const OLD_APP_SLOT = 'suggest';
+export type AnySlot = StorageSlot | typeof OLD_APP_SLOT;
+export const STORAGE_SLOTS: readonly AnySlot[] = ['', 'direct', OLD_APP_SLOT];
 
-/** A storage key with its slot suffix: 'bridge.github.token' + 'suggest' -> 'bridge.github.token.suggest'. */
-export const slotKey = (base: string, slot: StorageSlot) => (slot ? `${base}.${slot}` : base);
+/** A storage key with its slot suffix: 'bridge.github.token' + 'direct' -> 'bridge.github.token.direct'. */
+export const slotKey = (base: string, slot: AnySlot) => (slot ? `${base}.${slot}` : base);
 
-/** What one slot holds, as far as the switch cares. */
+/** What one slot holds, as far as the page cares. */
 export interface SlotContent {
   token: boolean;
   /** The sign-in session next to the token: present for Sign in with GitHub, absent for a pasted token. */
@@ -436,27 +329,26 @@ export interface SlotContent {
 }
 
 export interface SlotPlan {
-  /** Slots whose token goes to the current slot (a pasted token, or a sign-in of the same app). At most one. */
-  move: StorageSlot | null;
-  /** Slots to empty: sign-ins of another app (their token belongs to an app this site no longer signs in with). */
-  clear: StorageSlot[];
-  /** A sign-in was removed: say so, and offer to sign in again. */
+  /** The slot whose token goes to the current slot (a pasted token, or an older sign-in of the same app). */
+  move: AnySlot | null;
+  /** Slots to empty: sign-ins this site can no longer use or renew. */
+  clear: AnySlot[];
+  /** A sign-in was removed and nothing replaces it: say "Sign in again" once. */
   switched: boolean;
 }
 
 /**
  * What to do with tokens saved in other slots when the page loads. The current slot is the app this page signs in
- * with ('' without a GitHub App). Token slots are global per app: a token of one app stays valid on every repository,
- * so a page never removes the other app's sign-in because its repository's mode differs (multi-team plan 3.2).
- * - The other app's sign-in is kept. When the current slot is empty, the page says that Bridge signs in with a
- *   different app here (`switched`), so the visitor knows why they look signed out.
- * - A sign-in saved before the apps had slots ('') was made with today's Direct app: it moves to 'direct' when that is
- *   the current app and its client ID still matches; on a suggest page it is removed (no app owns that slot).
+ * with ('direct', or '' without a GitHub App).
+ * - A sign-in saved before the slots existed ('') was made with Bridge Direct: it moves to 'direct' when its client ID
+ *   still matches.
  * - A pasted token belongs to no app: it moves to the current slot when that one is empty.
+ * - A sign-in of the older second app ('suggest') cannot be used or renewed any more: it is removed, and when nothing
+ *   else signs this browser in, the page says once that Bridge changed how it connects to GitHub (`switched`).
  * - The current slot's own sign-in is removed when its client ID is not the current one (the app was replaced).
  * - On a site without a GitHub App ('') the app sign-ins are removed: nothing there can refresh or use them.
  */
-export function planSlots(slots: Partial<Record<StorageSlot, SlotContent>>, current: StorageSlot, clientId: string | null): SlotPlan {
+export function planSlots(slots: Partial<Record<AnySlot, SlotContent>>, current: StorageSlot, clientId: string | null): SlotPlan {
   const plan: SlotPlan = { move: null, clear: [], switched: false };
   const here = slots[current];
   let filled = Boolean(here?.token);
@@ -465,7 +357,7 @@ export function planSlots(slots: Partial<Record<StorageSlot, SlotContent>>, curr
     plan.switched = true;
     filled = false;
   }
-  let otherApp = false;
+  let oldApp = false;
   for (const slot of STORAGE_SLOTS) {
     if (slot === current) continue;
     const c = slots[slot];
@@ -476,14 +368,12 @@ export function planSlots(slots: Partial<Record<StorageSlot, SlotContent>>, curr
       filled = true;
       continue;
     }
-    // Another app's sign-in (or a pasted token kept there): valid for that app, kept for its pages.
-    if (slot !== '' && current !== '') {
-      if (c.session) otherApp = true;
-      continue;
-    }
     plan.clear.push(slot);
-    if (c.session && current) plan.switched = true;
+    if (c.session && current) {
+      if (slot === OLD_APP_SLOT) oldApp = true;
+      else plan.switched = true;
+    }
   }
-  if (otherApp && !filled) plan.switched = true;
+  if (oldApp && !filled) plan.switched = true;
   return plan;
 }
