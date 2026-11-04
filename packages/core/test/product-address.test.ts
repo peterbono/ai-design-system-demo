@@ -34,6 +34,8 @@ test('productProblems wants an https origin, and the design team code beside it'
   assert.match(productProblems([{ key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', address: 'posterstudio.com' }])[0]!, /address" must be the live product's https address/);
   assert.match(productProblems([{ key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', address: 'https://posterstudio.com/checkout' }])[0]!, /without a path/);
   assert.match(productProblems([{ key: 'poster', name: 'Poster studio', address: 'https://posterstudio.com' }])[0]!, /needs "repo" too/);
+  // No developers' code: its repository is the design team's own, so a designers' copy means nothing there.
+  assert.match(productProblems([{ key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', design: { repo: 'acme/poster-studio-design' }, address: 'https://posterstudio.com' }])[0]!, /address" goes without "design"/);
 });
 
 test('the JSON schema lists the address like the parser', () => {

@@ -109,10 +109,11 @@ describe('add a product', () => {
     expect(copyRepoFor('acme/bo')).toBe('acme/bo-design');
   });
 
-  it('a product added from its address keeps it, in the file order, valid for the settings', () => {
+  it('a product added from its address keeps it, never a designers\' copy even when asked, valid for the settings', () => {
     const e = newProductEntry({ key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', copy: true, address: 'https://posterstudio.com' });
-    expect(e).toEqual({ key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', design: { repo: 'acme/poster-studio-design' }, address: 'https://posterstudio.com', framework: 'react' });
-    expect(Object.keys(e)).toEqual(['key', 'name', 'repo', 'design', 'address', 'framework']);
+    expect(e).toEqual({ key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', address: 'https://posterstudio.com', framework: 'react' });
+    expect(Object.keys(e)).toEqual(['key', 'name', 'repo', 'address', 'framework']);
+    expect(productProblems([{ ...e, design: { repo: 'acme/poster-studio-design' } }])[0]).toMatch(/address" goes without "design"/);
     expect(productProblems([e, { key: 'library', name: 'Library', default: true }])).toEqual([]);
     expect(addProductProposal(e, { date: new Date('2026-11-04T10:00:00Z'), tierLabel: 'Tier 1' }).body).toContain('Added from its address, https://posterstudio.com');
     expect(newProductEntry({ key: 'k', name: 'K', repo: 'a/k', copy: false, address: null })).not.toHaveProperty('address');

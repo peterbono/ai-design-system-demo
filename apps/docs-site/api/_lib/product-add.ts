@@ -121,7 +121,8 @@ export function validProductEntry(v: unknown, team: string): ProductEntry | null
   }
   if (address !== undefined) {
     const a = liveAddress(address);
-    if (!a) return null;
+    // An address product has no developers' code: its repository is the design team's own, never copied.
+    if (!a || design !== undefined) return null;
     out.address = a;
   }
   if (framework !== undefined) {

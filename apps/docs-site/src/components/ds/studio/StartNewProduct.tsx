@@ -2,8 +2,9 @@
 //   - B, "It's a new product": its name (no place to pick: it goes where the team's products live, lib/new-product.ts
 //     newProductOwner) and the designers' copy choice, then Create product.
 //   - D2, "Only its address" (`kind: 'address'`): its name and its address (an https link or a bare domain, kept as its
-//     https origin, core productAddressOf), the copy choice, then Add product. The team cannot reach that product's
-//     code, so Bridge starts the design team's own code for it the same way and keeps the address in the entry.
+//     https origin, core productAddressOf), then Add product. The team cannot reach that product's code, so Bridge
+//     starts the design team's own code for it the same way and keeps the address in the entry. No designers' copy:
+//     that code is already the design team's own.
 // Both start the code from the product starter with the viewer's own GitHub sign-in (scripts/new-product.ts), link it
 // to the library, then hand the entry to the dialog (`onAdd`), which adds it to the team and opens its page. Back
 // returns to the first question. Words and rules: lib/new-product.ts. The dialog owns opening, closing and the busy lock.
@@ -91,7 +92,7 @@ export default function StartNewProduct({ products, library, account, busy, setB
     setNote(null);
     // Kept if the person has to sign in again first: this form reopens with the same values (scripts/pending-action).
     const pending = await import('../../../scripts/pending-action');
-    pending.armPendingAction('new-product', { name: clean, owner, copy: copyOn, ...(live ? { address: live } : {}) });
+    pending.armPendingAction('new-product', { name: clean, owner, copy: copyOn && !live, ...(live ? { address: live } : {}) });
     let started: ProductRepoChoice;
     try {
       const m = await import('../../../scripts/new-product');
@@ -105,12 +106,12 @@ export default function StartNewProduct({ products, library, account, busy, setB
     }
     const key = productKeyFor(started.name, products.map((p) => p.key));
     // Its code is on GitHub now: if adding it still needs a sign-in, coming back offers to add it, not create it again.
-    pending.armPendingAction('add-product', { repo: started.full, branch: started.defaultBranch, name: clean, copy: copyOn, ...(live ? { address: live } : {}) });
+    pending.armPendingAction('add-product', { repo: started.full, branch: started.defaultBranch, name: clean, copy: copyOn && !live, ...(live ? { address: live } : {}) });
     setAdding(true);
     try {
       const m = await import('../../../scripts/new-product');
       await m.linkProductCode(started, key);
-      await onAdd(newProductEntry({ key, name: clean, repo: started.full, copy: copyOn, previews: null, address: live }), started);
+      await onAdd(newProductEntry({ key, name: clean, repo: started.full, copy: copyOn && !live, previews: null, address: live }), started);
     } finally {
       setAdding(false);
       setBusy(false);
@@ -172,7 +173,8 @@ export default function StartNewProduct({ products, library, account, busy, setB
             disabled={busy}
           />
         )}
-        <Checkbox label={A.copy} description={A.copyHelp} checked={copyOn} onCheckedChange={onCopyChange} disabled={busy} />
+        {/* An address product has no developers' code: its only code is the design team's own, so no copy. */}
+        {!fromAddress && <Checkbox label={A.copy} description={A.copyHelp} checked={copyOn} onCheckedChange={onCopyChange} disabled={busy} />}
         <div role="status" aria-live="polite" className="addp-status">
           {busy ? (
             <>

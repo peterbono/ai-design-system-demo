@@ -253,6 +253,7 @@ export function productProblems(raw: unknown): string[] {
     if (o.address !== undefined) {
       if (typeof o.address !== 'string' || productAddressOf(o.address) !== o.address) problems.push(`${at}.address" must be the live product's https address, without a path, such as "https://shop.example.com"`);
       else if (typeof o.repo !== 'string') problems.push(`${at}.address" needs "repo" too: the design team's own code, where its pages are rebuilt with the library`);
+      else if (o.design !== undefined) problems.push(`${at}.address" goes without "design": a product added from its address has no developers' code, its "repo" is already the design team's own`);
     }
     if (o.framework !== undefined && (typeof o.framework !== 'string' || !o.framework.trim())) problems.push(`${at}.framework" must be a name such as "react", "vue" or "other"`);
     if (o.default !== undefined && typeof o.default !== 'boolean') problems.push(`${at}.default" must be true or false`);

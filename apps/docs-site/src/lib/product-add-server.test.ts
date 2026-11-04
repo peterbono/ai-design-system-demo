@@ -197,7 +197,7 @@ describe('add a product: what may be added', () => {
 
   // A product added from its address (Add a product, "Only its address"): the design team's own code beside it, and the
   // live product's https origin exactly as Studio keeps it.
-  const ADDRESS: ProductEntry = { key: 'checkout', name: 'Checkout', repo: 'acme/checkout', design: { repo: 'acme/checkout-design' }, address: 'https://posterstudio.com', framework: 'react' };
+  const ADDRESS: ProductEntry = { key: 'checkout', name: 'Checkout', repo: 'acme/checkout', address: 'https://posterstudio.com', framework: 'react' };
   it('accepts a product added from its address, its address kept as is', () => {
     expect(validProductEntry(ADDRESS, TEAM)).toEqual(ADDRESS);
     expect(validProductEntry({ key: 'poster', name: 'Poster', repo: 'acme/poster', address: 'https://shop.poster-studio.co.uk' }, TEAM)).toMatchObject({ address: 'https://shop.poster-studio.co.uk' });
@@ -223,13 +223,21 @@ describe('add a product: what may be added', () => {
     expect(validProductEntry({ ...ADDRESS, address }, TEAM)).toBeNull();
   });
 
+  it('refuses a designers\' copy on a product added from its address: its only code is the design team\'s own', async () => {
+    expect(validProductEntry({ ...ADDRESS, design: { repo: 'acme/checkout-design' } }, TEAM)).toBeNull();
+    const w = world(configWith(GOV));
+    const r = await ask(w, ADMIN, { ...ADDRESS, design: { repo: 'acme/checkout-design' } });
+    expect(r.status).toBe(400);
+    expect(writes(w)).toEqual([]);
+  });
+
   it('writes a product added from its address with its address, in the file order', async () => {
     const w = world(configWith(GOV));
     const r = await ask(w, ADMIN, ADDRESS);
     expect(r.status).toBe(200);
     const added = JSON.parse(w.text).products.find((p: { key: string }) => p.key === 'checkout');
     expect(added).toEqual(ADDRESS);
-    expect(Object.keys(added)).toEqual(['key', 'name', 'repo', 'design', 'address', 'framework']);
+    expect(Object.keys(added)).toEqual(['key', 'name', 'repo', 'address', 'framework']);
     const bad = world(configWith(GOV));
     const refused = await ask(bad, ADMIN, { ...ADDRESS, address: 'http://posterstudio.com' });
     expect(refused.status).toBe(400);

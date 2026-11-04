@@ -113,8 +113,8 @@ describe('start an exploration, in a product or the library', () => {
   });
 
   it('a start page of a product added from its address: the line tells Claude to rebuild it with the library, then explore', () => {
-    const poster: ProductConfig = { key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', design: { repo: 'acme/poster-studio-design' }, address: 'https://posterstudio.com' };
-    const ref = { sentence: 'Checkout with a gift option', product: poster, number: 5, copy: { repo: 'acme/poster-studio-design', branch: 'explore/checkout-with-a-gift-option' }, startPage: 'https://posterstudio.com/checkout' };
+    const poster: ProductConfig = { key: 'poster', name: 'Poster studio', repo: 'acme/poster-studio', address: 'https://posterstudio.com' };
+    const ref = { sentence: 'Checkout with a gift option', product: poster, number: 5, startPage: 'https://posterstudio.com/checkout' };
     for (const line of [connectorPrompt(ref), claudePrompt(ref)]) {
       expect(line).toContain('Start from https://posterstudio.com/checkout, a page of Poster studio as it is live today.');
       expect(line).toContain('Open it in the browser (Claude in Chrome when you have it: a plain fetch misses what JavaScript draws)');
@@ -125,7 +125,7 @@ describe('start an exploration, in a product or the library', () => {
       expect(line).not.toContain("I'll tell you what to explore.");
       expect(line).not.toMatch(/—/);
     }
-    expect(connectorPrompt(ref)).not.toMatch(/acme|explore\//);
+    expect(connectorPrompt(ref)).toBe(claudePrompt(ref));
     // No start page: the usual line.
     expect(connectorPrompt({ ...ref, startPage: null })).toMatch(/I'll tell you what to explore\.$/);
   });

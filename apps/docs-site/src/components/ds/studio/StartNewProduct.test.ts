@@ -180,20 +180,21 @@ describe('Add a product: only its address (D2)', () => {
     fireEvent.click(screen.getByRole('button', { name: D.add }));
   };
 
-  it('the name and its address, the copy on, Back and Add product', async () => {
+  it('the name and its address, Back and Add product: no designers\' copy (its only code is the design team\'s own)', async () => {
     const { baseElement } = show();
     await openForm(A.address);
     expect(screen.getByRole('heading', { name: D.title })).toBeInTheDocument();
     expect(screen.getByText(D.lead)).toBeInTheDocument();
     expect(screen.getByLabelText(D.address)).toHaveAccessibleDescription(expect.stringContaining(D.addressHelp));
-    expect(screen.getByRole('checkbox', { name: A.copy })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: A.copy })).toBeNull();
+    expect(screen.queryByText(A.copyHelp)).toBeNull();
     expect(screen.getByRole('button', { name: A.back })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: D.add })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: W.create })).toBeNull();
     await expectNoAxeViolations(baseElement);
   });
 
-  it('starts the design team code, adds it with its https address, then opens its page', async () => {
+  it('starts the design team code, adds it with its https address and never a copy, then opens its page', async () => {
     gh.start.mockResolvedValue(POSTER);
     show();
     await openForm(A.address);
@@ -201,7 +202,7 @@ describe('Add a product: only its address (D2)', () => {
     await waitFor(() => expect(gh.opened).toEqual(['/studio/products/poster-studio/']));
     expect(gh.start).toHaveBeenCalledWith({ owner: 'acme', slug: 'poster-studio', name: 'Poster studio' });
     expect(gh.link).toHaveBeenCalledWith(POSTER, 'poster-studio');
-    expect(gh.add).toHaveBeenCalledWith({ key: 'poster-studio', name: 'Poster studio', repo: 'acme/poster-studio', design: { repo: 'acme/poster-studio-design' }, address: 'https://posterstudio.com', framework: 'react' });
+    expect(gh.add).toHaveBeenCalledWith({ key: 'poster-studio', name: 'Poster studio', repo: 'acme/poster-studio', address: 'https://posterstudio.com', framework: 'react' });
   });
 
   it('an address Bridge cannot read: said on its field, which takes the focus, nothing started', async () => {

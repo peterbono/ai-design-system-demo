@@ -88,11 +88,12 @@ developers' repository.
 is on GitHub (the recommended path above), only its address, or a new product. "Only its address" is for a product
 whose code the design team cannot reach. Bridge starts the design team's own code for it from the product starter
 with the library (the same path as a new product) and keeps the live product's address in `products[].address`, an
-https origin without a path:
+https origin without a path. It never has `design`: its `repo` is already the design team's own, so there is no
+copy to make (the dialog does not offer one, and the settings check and the server refuse one):
 
 ```json
 { "key": "poster-studio", "name": "Poster studio", "repo": "acme/poster-studio",
-  "design": { "repo": "acme/poster-studio-design" }, "address": "https://posterstudio.com", "framework": "react" }
+  "address": "https://posterstudio.com", "framework": "react" }
 ```
 
 - **Start from a page.** Start an exploration shows an optional "Start from a page" field for such a product. Only

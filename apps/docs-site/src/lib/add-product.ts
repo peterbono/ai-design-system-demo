@@ -396,7 +396,8 @@ export function newProductEntry(x: {
   framework?: string;
 }): ProductConfig {
   const entry: ProductConfig = { key: x.key, name: cleanProductName(x.name), repo: x.repo };
-  if (x.copy) entry.design = { repo: copyRepoFor(x.repo) };
+  // A product added from its address has no developers' code: its repository is the design team's own, never copied.
+  if (x.copy && !x.address) entry.design = { repo: copyRepoFor(x.repo) };
   if (x.previews) {
     entry.preview = x.previews.preview;
     entry.production = x.previews.production;
