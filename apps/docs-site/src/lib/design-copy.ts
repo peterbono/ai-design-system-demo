@@ -11,6 +11,13 @@ import type { GitHubBusy } from './github-busy';
  */
 export type CopyView = { kind: 'none' } | { kind: 'missing' } | { kind: 'ready'; behind: number | null } | { kind: 'busy'; busy: GitHubBusy };
 
+/**
+ * How Bridge marks the designers' copy it makes (scripts/design-copy.ts markDesignCopy), so Add a product never lists a
+ * copy as a product of its own (lib/add-product.ts isDesignCopy): a GitHub topic and the copy's description.
+ */
+export const DESIGN_COPY_TOPIC = 'bridge-design-copy';
+export const DESIGN_COPY_DESCRIPTION = 'Bridge explorations for this product live here.';
+
 export const COPY_WORDS = {
   intro: (product: string) => `Get your own copy of ${product} to explore in. The developers' code stays untouched.`,
   make: 'Make my copy',

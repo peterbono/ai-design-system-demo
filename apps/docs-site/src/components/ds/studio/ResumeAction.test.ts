@@ -12,6 +12,9 @@ import { ADD_PRODUCT_WORDS as A, type ProductRepoChoice } from '../../../lib/add
 import { NEW_PRODUCT_WORDS as W } from '../../../lib/new-product';
 import { PENDING_ACTION_KEY, PENDING_ACTION_MAX_AGE_MS, SIGN_IN_TO_FINISH } from '../../../lib/pending-action';
 import ResumeAction from './ResumeAction';
+import { setOpenPage } from './AddProduct';
+
+setOpenPage(() => undefined);
 
 const gh = vi.hoisted(() => ({
   ok: true,
@@ -21,13 +24,14 @@ const gh = vi.hoisted(() => ({
   propose: vi.fn(),
 }));
 
-vi.mock('../../../scripts/github-session', () => ({ onAccess: (fn: (a: unknown) => void) => fn({ admin: true }), hasWorkingToken: () => gh.ok, ghAuthFailure: () => null }));
+vi.mock('../../../scripts/github-session', () => ({ onAccess: (fn: (a: unknown) => void) => fn({ admin: true }), hasWorkingToken: () => gh.ok, ghAuthFailure: () => null, currentViewer: () => ({ login: 'dana' }) }));
 vi.mock('../../../scripts/repo-context', () => ({ repoContext: () => ({ owner: 'peterbono', repo: 'ai-design-system-demo' }), siteConfig: () => ({ products: [] }) }));
 vi.mock('../../../scripts/add-product', () => ({
   readProductAccess: async () => gh.access,
   pollProductRepos: async () => [],
   readOwnership: async () => true,
   detectPreviews: async () => null,
+  addToTeam: async (entry: { key: string }) => (gh.propose(entry), { kind: 'added', key: entry.key }),
 }));
 vi.mock('../../../scripts/new-product', () => ({
   startProductCode: (...a: unknown[]) => gh.start(...a),
@@ -51,11 +55,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Back from GitHub', () => {
-  it('back from Install on GitHub: "It\'s already built" reopens with the list and one line, nothing sent', async () => {
+  it('back from Install on GitHub: the products Bridge found reopen with one line, nothing sent', async () => {
     gh.access.repos = [{ full: 'art-print-shop-co/shop', name: 'shop', defaultBranch: 'main' }];
     keep('add-product', {});
     const { baseElement } = render(createElement(ResumeAction));
-    await screen.findByRole('heading', { name: A.built }, { timeout: 3000 });
+    await screen.findByRole('button', { name: A.addLabel('Shop') }, { timeout: 3000 });
     expect(await screen.findByText('Back from GitHub. Pick your product to add it.', undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(gh.propose).not.toHaveBeenCalled();
     expect(localStorage.getItem(PENDING_ACTION_KEY)).toBeNull();
@@ -88,13 +92,13 @@ describe('Back from GitHub', () => {
     expect(gh.start).not.toHaveBeenCalled();
   });
 
-  it('reopens "It\'s already built" with the product picked and Add product focused', async () => {
+  it('reopens the products Bridge found with that product\'s Add focused', async () => {
     gh.access.repos = [{ full: 'art-print-shop-co/shop', name: 'shop', defaultBranch: 'main' }];
     keep('add-product', { repo: 'art-print-shop-co/shop', name: 'Shop', copy: true });
     render(createElement(ResumeAction));
-    await screen.findByRole('heading', { name: A.built }, { timeout: 3000 });
+    await screen.findByRole('button', { name: A.addLabel('Shop') }, { timeout: 3000 });
     expect(screen.getByText('Back from GitHub. Add Shop now?')).toBeInTheDocument();
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: A.send })));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: A.addLabel('Shop') })));
     expect(gh.propose).not.toHaveBeenCalled();
   });
 
