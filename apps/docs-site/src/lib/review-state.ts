@@ -145,6 +145,27 @@ export const LIFECYCLE_LABEL: Record<LifecycleStage, string> = {
   'not-planned': 'Not planned',
 };
 
+/** The DS Badge tones a stage's tag can take. */
+export type StageTone = 'neutral' | 'info' | 'warning' | 'success';
+
+/**
+ * The colour of each stage's tag, on every page (Home, Changes, Being built, product and exploration pages): the same
+ * words always wear the same colour. Amber is work that waits on someone (to be picked up, to be reviewed), Harbor is
+ * work moving, green is shipped, grey is over.
+ */
+export const LIFECYCLE_TONE: Record<LifecycleStage, StageTone> = {
+  exploring: 'info',
+  'waiting-for-code': 'warning',
+  'being-built': 'info',
+  'in-review': 'warning',
+  approved: 'info',
+  'next-release': 'info',
+  shipped: 'success',
+  archived: 'neutral',
+  closed: 'neutral',
+  'not-planned': 'neutral',
+};
+
 /**
  * The stage of an exploration from core's status (explorationStatus), its archived label, the review read and, once
  * merged, whether it waits for the library release. Core's "building" splits here: still a draft with nobody asked is

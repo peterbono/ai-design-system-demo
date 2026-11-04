@@ -21,6 +21,7 @@ vi.mock('./github-session', () => ({
 }));
 vi.mock('./product-repos', () => ({
   configuredProducts: () => s.products,
+  explorationFiles: () => Promise.resolve(null),
   productRepoByKey: (key: string) => {
     const p = s.products.find((x) => x.key === key);
     return p?.repo ? { product: p, repo: p.repo } : null;

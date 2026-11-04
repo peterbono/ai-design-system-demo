@@ -27,6 +27,7 @@ import { editorReady, editorSnapshot, initTokenEditor, setEditing } from '../tok
 import { cellValue } from '../../lib/explorer/model';
 import { codeSyntax } from '../../lib/explorer/format';
 import { initReview } from './review';
+import { watchOverflowEdges } from '../../lib/overflow-edges';
 import { loadExplorerData, readJson } from './data';
 import { onSelectPick, setSelect } from '../../lib/select-bridge';
 import { paintVanilla } from '../vanilla-controls';
@@ -85,6 +86,8 @@ export function initTokenExplorer() {
   // with a bubbling bridge:segment event; this script keeps the state and selects with selectSegment().
   const lens = root.querySelector<HTMLElement>('[data-xp-lens]');
   const chips = root.querySelector<HTMLElement>('[data-xp-chips]');
+  // A phone scrolls the type chips: the edge with more chips past it fades (lib/overflow-edges).
+  if (chips) watchOverflowEdges(chips);
   const brandSeg = root.querySelector<HTMLElement>('[data-xp-brand]');
   const densitySeg = root.querySelector<HTMLElement>('[data-xp-density]');
   const brandField = root.querySelector<HTMLElement>('[data-xp-mode-field="brand"]');

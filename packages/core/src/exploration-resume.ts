@@ -283,30 +283,50 @@ export function lastActivity(input: { commits: readonly BranchCommitLike[]; file
   return { who: latest.who, claude: latest.claude, ...(latest.withClaude ? { withClaude: true } : {}), text: things.length ? `changed ${listThings(things)}` : latest.text, at: latest.at };
 }
 
-/** "just now", "5 min ago", "2 h ago", "Yesterday", "3 days ago", then the date ("Oct 12"). */
+/**
+ * Calendar days between a moment and now, in the reader's time zone: 0 today, 1 yesterday. Every "today", "yesterday"
+ * and "N days ago" in Bridge counts days this way, so one moment reads the same on every screen (a change sent at
+ * 23:00 is "yesterday" the next morning everywhere, never "today" on one screen and "yesterday" on another). 0 for a
+ * moment in the future or a date that does not parse.
+ */
+export function calendarDays(iso: string, now: Date = new Date()): number {
+  const t = new Date(iso);
+  if (!Number.isFinite(t.getTime())) return 0;
+  const day = (d: Date) => Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+  return Math.max(0, day(now) - day(t));
+}
+
+const dateLabel = (t: Date, now: Date) => t.toLocaleDateString('en', { month: 'short', day: 'numeric', ...(t.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+
+/**
+ * "just now", "5 min ago", "2 h ago", "Yesterday", "3 days ago", then the date ("Oct 12"). Under an hour it counts
+ * minutes; earlier today, hours; before today, calendar days (calendarDays), like every other date line in Bridge.
+ */
 export function shortAgo(iso: string, now: Date = new Date()): string {
-  const t = new Date(iso).getTime();
-  if (!Number.isFinite(t)) return '';
-  const s = Math.max(0, (now.getTime() - t) / 1000);
+  const t = new Date(iso);
+  if (!Number.isFinite(t.getTime())) return '';
+  const s = Math.max(0, (now.getTime() - t.getTime()) / 1000);
   if (s < 60) return 'just now';
   if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
-  const days = Math.floor(s / 86400);
+  const days = calendarDays(iso, now);
+  if (days === 0) return `${Math.max(1, Math.round(s / 3600))} h ago`;
   if (days === 1) return 'Yesterday';
   if (days < 7) return `${days} days ago`;
-  return new Date(t).toLocaleDateString('en', { month: 'short', day: 'numeric', ...(new Date(t).getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+  return dateLabel(t, now);
 }
+
+/** shortAgo inside a sentence ("edited yesterday", "Captured 2 h ago"): the same words, lower case. */
+export const agoInSentence = (iso: string, now: Date = new Date()): string => shortAgo(iso, now).replace(/^Yesterday$/, 'yesterday');
 
 /** "today", "yesterday", "3 days ago", "Oct 12": when it was started, after "Started by Ann · Admin demo ·". */
 export function startedWhen(iso: string, now: Date = new Date()): string {
   const t = new Date(iso);
   if (!Number.isFinite(t.getTime())) return '';
-  const day = (d: Date) => Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
-  const diff = day(now) - day(t);
+  const diff = calendarDays(iso, now);
   if (diff <= 0) return 'today';
   if (diff === 1) return 'yesterday';
   if (diff < 7) return `${diff} days ago`;
-  return t.toLocaleDateString('en', { month: 'short', day: 'numeric', ...(t.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+  return dateLabel(t, now);
 }
 
 /** The actor in words: "Claude", "Florian", or "Florian with Claude" when Claude co-wrote a person's change. */

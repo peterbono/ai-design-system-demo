@@ -45,7 +45,8 @@ describe("Being built, Claude's fixes as rows of the one list", () => {
     expect(r!.status).toBe('shipped');
     expect(r!.label).toBe('Shipped');
     expect(r!.shippedAt).toBe('2026-10-28T13:27:44Z');
-    expect(r!.fix.line).toBe("Claude's fix from Figma, asked by Florian · Shipped 1 day ago");
+    // Merged Oct 28, read Oct 30: two calendar days, as every screen counts them.
+    expect(r!.fix.line).toBe("Claude's fix from Figma, asked by Florian · Shipped 2 days ago");
     expect(r!.fix.line).not.toContain('peterbono');
     expect(r!.fix.href).toBe('changes/?pr=598');
     expect(r!.builders).toEqual(['claude']);

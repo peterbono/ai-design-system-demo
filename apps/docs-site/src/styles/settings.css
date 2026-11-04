@@ -398,8 +398,19 @@
   line-height: var(--typography-ui-line-height);
 }
 
+/* A copyable address (TeamLink UrlText) wraps at its own separators only; break-word is the last resort for a
+   segment longer than the line. */
+.url-text {
+  overflow-wrap: break-word;
+}
+
 /* Phones: rows stack (label, value, action), a lone action fills its bar, the drawing steps aside. */
 @media (max-width: 640px) {
+  /* Every Copy of an address fills its bar, so the Copy buttons of one page share one width. */
+  .set-copy {
+    width: 100%;
+  }
+
   .set-band {
     padding-block: var(--space-8);
   }
@@ -441,10 +452,6 @@
   padding-inline-start: var(--space-5);
 }
 
-.set-address {
-  overflow-wrap: anywhere;
-}
-
 .set-connection {
   display: flex;
   flex-wrap: wrap;
@@ -458,19 +465,3 @@
   white-space: pre;
 }
 
-/* Settings > Products: Add a product under the rows, apart from them; alone when the team lists no product yet. */
-.set-products-add {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding-block-start: var(--space-4);
-}
-
-.set-rows[hidden] + .set-products-add {
-  padding-block-start: 0;
-}
-
-.set-products-add:empty {
-  display: none;
-}

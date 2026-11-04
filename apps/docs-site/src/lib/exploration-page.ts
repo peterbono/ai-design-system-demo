@@ -2,7 +2,7 @@
 // pure view rules over @bridge-ds/core's exploration-resume words. Not started: the Continue in Claude panel and an
 // empty "Your preview" frame. Exploring: the preview, the last activity in words, Done exploring, the last 3 events.
 // Later states keep their own pages. No DOM, no fetch: tested in exploration-page.test.ts.
-import { DEV_VERSION_READY, LIFECYCLE_LABEL, questionLine, type LifecycleStage } from './review-state';
+import { DEV_VERSION_READY, LIFECYCLE_LABEL, LIFECYCLE_TONE, questionLine, type LifecycleStage } from './review-state';
 import { changedThings, continueLines, explorationActivity, humanAuthorOf, parseExplorationBody, lastActivity, shortAgo, startedWhen, type BranchCommitLike, type PreviewApps } from '@bridge-ds/core';
 import { emailMemberFace, isEmailAddress, nameFace } from './people';
 import { isNameAuthor, nameOfAuthor } from './author';
@@ -199,16 +199,16 @@ export type TagTone = 'neutral' | 'info' | 'success' | 'warning';
  */
 export function explorationTag(status: string, opts: { notStarted?: boolean; stage?: LifecycleStage | null } = {}): { label: string; tone: TagTone; dot: boolean } {
   // The lifecycle stage, once read (lib/review-state): Being built splits into In review, Shipped into In the next release.
-  if (opts.stage === 'in-review') return { label: LIFECYCLE_LABEL['in-review'], tone: 'warning', dot: false };
-  if (opts.stage === 'next-release') return { label: LIFECYCLE_LABEL['next-release'], tone: 'info', dot: false };
+  if (opts.stage === 'in-review') return { label: LIFECYCLE_LABEL['in-review'], tone: LIFECYCLE_TONE['in-review'], dot: false };
+  if (opts.stage === 'next-release') return { label: LIFECYCLE_LABEL['next-release'], tone: LIFECYCLE_TONE['next-release'], dot: false };
   // The designer said it looks right: the developers ship it next. Declined: grey, nothing moves.
-  if (opts.stage === 'approved') return { label: LIFECYCLE_LABEL.approved, tone: 'info', dot: false };
-  if (opts.stage === 'not-planned') return { label: LIFECYCLE_LABEL['not-planned'], tone: 'neutral', dot: false };
-  if (status === 'active') return opts.notStarted ? { label: 'Not started', tone: 'neutral', dot: false } : { label: 'Exploring', tone: 'info', dot: true };
-  if (status === 'ready') return { label: 'Waiting to be picked up', tone: 'warning', dot: false };
-  if (status === 'building') return { label: 'Being built', tone: 'info', dot: true };
-  if (status === 'shipped') return { label: 'Shipped', tone: 'success', dot: false };
-  if (status === 'promoted') return { label: 'In review', tone: 'info', dot: false };
+  if (opts.stage === 'approved') return { label: LIFECYCLE_LABEL.approved, tone: LIFECYCLE_TONE.approved, dot: false };
+  if (opts.stage === 'not-planned') return { label: LIFECYCLE_LABEL['not-planned'], tone: LIFECYCLE_TONE['not-planned'], dot: false };
+  if (status === 'active') return opts.notStarted ? { label: 'Not started', tone: 'neutral', dot: false } : { label: LIFECYCLE_LABEL.exploring, tone: LIFECYCLE_TONE.exploring, dot: true };
+  if (status === 'ready') return { label: LIFECYCLE_LABEL['waiting-for-code'], tone: LIFECYCLE_TONE['waiting-for-code'], dot: false };
+  if (status === 'building') return { label: LIFECYCLE_LABEL['being-built'], tone: LIFECYCLE_TONE['being-built'], dot: true };
+  if (status === 'shipped') return { label: LIFECYCLE_LABEL.shipped, tone: LIFECYCLE_TONE.shipped, dot: false };
+  if (status === 'promoted') return { label: LIFECYCLE_LABEL['in-review'], tone: LIFECYCLE_TONE['in-review'], dot: false };
   if (status === 'kept') return { label: 'Kept in the library', tone: 'success', dot: false };
   return { label: 'Closed', tone: 'neutral', dot: false };
 }

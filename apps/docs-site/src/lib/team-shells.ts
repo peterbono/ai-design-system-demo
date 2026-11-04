@@ -44,6 +44,22 @@ export function productRewrites(): { source: string; destination: string }[] {
   ]);
 }
 
+/**
+ * A team's product list has no page of its own: the products are the folders on the team's Home (ExplorationCards
+ * ProductFolders). /studio/<owner>/<repo>/products/ would otherwise fall into the general rewrite and
+ * 404 on a shell that does not exist, so vercel.json redirects it there (the self-hosted /studio/products/ is in
+ * lib/redirects.ts). Redirects run before rewrites, so these never meet the product page rules.
+ */
+export function productIndexRedirects(): { source: string; destination: string; permanent: false }[] {
+  return [`${studio}/~/${team}`, `${studio}/${team}`].flatMap((base) => {
+    const to = `${base.replace(/\(([^)]*)\)/g, '')}/`;
+    return [
+      { source: `${base}/products/`, destination: to, permanent: false as const },
+      { source: `${base}/products`, destination: to, permanent: false as const },
+    ];
+  });
+}
+
 /** The general rules: two per address form, the trailing slash one first (`:path*` does not match a trailing slash,
  * spike 1.3), the escape form before the plain one. */
 export function generalRewrites(): { source: string; destination: string }[] {

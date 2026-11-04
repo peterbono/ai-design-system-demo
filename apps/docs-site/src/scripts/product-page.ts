@@ -7,9 +7,9 @@
 //     pull requests (the home's two reads), kept to the explorations of this product.
 // Then, once per person, their display name (the home's personOf), and each card's screen from the preview captures
 // (one raw file for all, no API call). Rules: lib/product-page.ts and lib/home-explorations.ts.
-import { findProduct, requesterOf, type ProductConfig } from '@bridge-ds/core';
+import { findProduct, isGuardedExploration, isHandedOff, requesterOf, type ProductConfig } from '@bridge-ds/core';
 import { currentViewer, ghGet, readRepo } from './github-session';
-import { configuredProducts, productRepoByKey } from './product-repos';
+import { configuredProducts, explorationFiles, productRepoByKey } from './product-repos';
 import { designTaskStages, taskUrlOf } from './design-task';
 import type { LifecycleStage } from '../lib/review-state';
 import { homeExplorations, type ExplorationCard, type ExplorationPull } from '../lib/home-explorations';
@@ -125,9 +125,26 @@ export async function loadProductPage(key: string, onUpdate: (d: ProductPageData
     const u = taskUrlOf(p.body);
     return u ? taskStages.get(u) : null;
   };
-  const cardsOf = (archived: 'exclude' | 'only') => mineOnly(homeExplorations(all(), { products, viewer, archived, author, taskStage, preview: (p) => shots.get(shotKey(p)) }));
+  // The changed files of the running and handed-off ones, the Home's read (scripts/home-data readXpFiles): the plate
+  // names the changed screen and the card says "Not started" or "Exploring", as on Home. Cached per head commit.
+  const xpFiles = new Map<string, string[] | null>();
+  const xpAsked = new Set<string>();
+  const xpKey = (p: ExplorationPull) => `${p.product ?? ''}#${p.number}@${p.head?.sha ?? ''}`;
+  const cardsOf = (archived: 'exclude' | 'only') =>
+    mineOnly(homeExplorations(all(), { products, viewer, archived, author, taskStage, files: (p) => (xpFiles.has(xpKey(p)) ? xpFiles.get(xpKey(p)) : undefined), preview: (p) => shots.get(shotKey(p)) }));
   let loading = true;
   const paint = () => onUpdate({ ...base, reached, loading, cards: cardsOf('exclude'), archived: cardsOf('only') });
+  const readFiles = () => {
+    for (const p of all()) {
+      const k = xpKey(p);
+      if (!p.head?.sha || xpAsked.has(k) || !(isGuardedExploration(p) || isHandedOff({ labels: p.labels ?? [], body: p.body ?? null }))) continue;
+      xpAsked.add(k);
+      void explorationFiles({ number: p.number, headSha: p.head.sha, product: p.product }).then((files) => {
+        xpFiles.set(k, files);
+        paint();
+      });
+    }
+  };
 
   paint();
   try {
@@ -138,6 +155,7 @@ export async function loadProductPage(key: string, onUpdate: (d: ProductPageData
   }
   loading = false;
   paint();
+  readFiles();
   taskStages = await designTaskStages(open).catch(() => taskStages);
   if (taskStages.size) paint();
 

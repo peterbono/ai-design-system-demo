@@ -101,6 +101,17 @@ describe('ProductPageView', () => {
     await expectNoAxeViolations(container);
   });
 
+  it('tells a visitor to sign in on a product Bridge cannot read for them, never that nothing was explored', async () => {
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], visitor: true, signedIn: false, data: data({ reached: false }) }));
+    expect(container.querySelector('[data-st-summary]')!.textContent).toBe('Sign in to see what your team explores in Product admin.');
+    // Nothing they cannot use: no empty moment, no start action, no connection fact.
+    expect(container.querySelector('.pp-empty')).toBeNull();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByRole('button', { name: 'Start an exploration' })).toBeNull();
+    expect(screen.queryByText(/Not connected/)).toBeNull();
+    await expectNoAxeViolations(container);
+  });
+
   it("offers a designer of the team no start on the library's page: library changes are the lead's", async () => {
     viewer.access = { state: 'writer', write: true, admin: false, contributor: true };
     try {

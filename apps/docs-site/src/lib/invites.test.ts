@@ -92,8 +92,10 @@ describe('reading roles back from GitHub', () => {
   });
 
   it('words each member', () => {
-    expect(memberLine({ role: 'reviewer', reviews: ['design'] })).toBe('Reviews design');
-    expect(memberLine({ role: 'reviewer', reviews: ['tech'] })).toBe('Reviews code');
+    // A Reviewer's role names what they review: the line never says it again in other words.
+    expect(memberLine({ role: 'reviewer', reviews: ['design'] })).toBe('Changes the library and approves changes');
+    expect(memberLine({ role: 'reviewer', reviews: ['design', 'tech'] })).toBe('Changes the library and approves changes');
+    expect(memberLine({ role: 'admin', reviews: ['tech'] })).toBe('Reviews code');
     expect(memberLine({ role: 'edit', reviews: [] })).toBe('Explores and changes the library');
     expect(memberLine({ role: 'reviewer', reviews: [] })).toBe('Changes the library and approves changes');
     expect(memberLine({ role: 'view', reviews: [] })).toBe('Sees everything in Studio and the library');

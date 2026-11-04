@@ -11,7 +11,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { Alert, Button, Card, CardBody, Input, Radio, RadioGroup, Skeleton } from '@bridge-ds/react';
-import { useCopy } from './TeamLink';
+import { UrlText, useCopy } from './TeamLink';
 import { NoticeLine } from './MemberParts';
 import { adminNames, useTeamPeople, type Notice } from './members-state';
 import { adminOnlyText } from '../../../lib/settings-view';
@@ -136,14 +136,14 @@ function LinkRow({ link }: { link: string }) {
     <div className="set-row">
       <p className="set-row-label">{ACCESS_WORDS.link}</p>
       <div className="set-row-value">
-        <span className="mono lac-link">{link}</span>
+        <UrlText url={link} />
         <p className="sr-only" role="status" aria-live="polite">
           {said}
         </p>
         {said && !copied && <p className="set-row-help">{said}</p>}
       </div>
       <div className="set-row-action">
-        <Button variant="secondary" data-density="compact" className="lac-action" iconStart={copied ? Check : Copy} onClick={() => void copy(link, ACCESS_WORDS.copied)}>
+        <Button variant="secondary" data-density="compact" className="set-copy" iconStart={copied ? Check : Copy} onClick={() => void copy(link, ACCESS_WORDS.copied)}>
           {copied ? ACCESS_WORDS.copied : ACCESS_WORDS.copy}
         </Button>
       </div>

@@ -108,7 +108,9 @@ describe('Settings, Library access', () => {
     const writeText = vi.fn(async () => {});
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     render(createElement(LibraryAccessSection));
-    expect(await screen.findByText('https://bridge.example.com/library/acme/ds/')).toBeInTheDocument();
+    // The address wraps at its own separators (TeamLink UrlText): one element, its parts in spans.
+    const link = await screen.findByText((_, el) => el?.classList.contains('url-text') === true);
+    expect(link).toHaveTextContent('https://bridge.example.com/library/acme/ds/');
     await user.click(screen.getByRole('button', { name: 'Copy library link' }));
     expect(writeText).toHaveBeenCalledWith('https://bridge.example.com/library/acme/ds/');
     expect(await screen.findByRole('button', { name: 'Link copied' })).toBeInTheDocument();

@@ -12,7 +12,7 @@
 // Every value comes from GitHub (pull requests, their timeline and reviews) or from the repo at build time (usage
 // guidance, contrast, adoption, the changelog). Nothing here is guessed.
 import type { ThumbSpec } from './branch-thumb';
-import { isDocsProposalBranch, PUBLISH_ROUTE_COPY } from '@bridge-ds/core';
+import { agoInSentence, calendarDays, isDocsProposalBranch, PUBLISH_ROUTE_COPY } from '@bridge-ds/core';
 import { STATUS_WORDS, VOCAB } from './vocabulary';
 import { isClaudeLogin, nameFace } from './people';
 import { studioHref } from './team-path';
@@ -28,7 +28,6 @@ export const ONLY_REVIEWER_MIN = 5;
 export const HINT_SNOOZE_MS = 7 * 24 * 3600 * 1000;
 /** An adoption drop above this many points since the last audit gets a line. */
 export const ADOPTION_DROP_POINTS = 3;
-const DAY = 24 * 3600 * 1000;
 
 // ---------------------------------------------------------------------------------------------------------------
 // People
@@ -154,8 +153,8 @@ export function waitingSince(
   return { since: pull.created_at, asker: pull.user.login };
 }
 
-/** Whole days between two moments (0 under a day). */
-export const daysSince = (iso: string, now: number) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / DAY));
+/** Calendar days between a moment and now (0 today, 1 yesterday): the one day count of every screen (core calendarDays). */
+export const daysSince = (iso: string, now: number) => calendarDays(iso, new Date(now));
 
 /** "Waiting 4 days", "Waiting 1 day", "New today". */
 export function waitingLabel(iso: string, now: number): string {
@@ -594,15 +593,8 @@ export function sortBranches<B extends Pick<BranchCard, 'stage' | 'updated'>>(xs
   return [...xs].sort((a, b) => order[a.stage] - order[b.stage] || b.updated.localeCompare(a.updated));
 }
 
-/** "2 h ago", "3 days ago", "just now": the age after "edited". */
-export function ago(iso: string, now: number): string {
-  const s = Math.max(0, (now - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
-  const d = Math.round(s / 86400);
-  return `${d} ${d === 1 ? 'day' : 'days'} ago`;
-}
+/** "2 h ago", "yesterday", "3 days ago", "just now": the age after "edited", the same words as every screen (core shortAgo). */
+export const ago = (iso: string, now: number): string => agoInSentence(iso, new Date(now));
 
 /**
  * The status line of a card: "Draft · edited 2 h ago", "Needs design approval", "Approved, waiting for code". In

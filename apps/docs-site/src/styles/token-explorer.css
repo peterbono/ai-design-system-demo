@@ -3380,6 +3380,19 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   scrollbar-width: none;
 }
 
+/* More chips past an edge (lib/overflow-edges): that edge fades, as on the DS Tabs list. Alpha-only mask. */
+.xp-chips[data-overflow-end] {
+  mask-image: linear-gradient(to right, var(--color-text-default) calc(100% - var(--space-10)), transparent);
+}
+
+.xp-chips[data-overflow-start] {
+  mask-image: linear-gradient(to right, transparent, var(--color-text-default) var(--space-10));
+}
+
+.xp-chips[data-overflow-start][data-overflow-end] {
+  mask-image: linear-gradient(to right, transparent, var(--color-text-default) var(--space-10) calc(100% - var(--space-10)), transparent);
+}
+
 .xp-chip-btn {
   display: inline-flex;
   flex: none;
@@ -3510,7 +3523,12 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
 }
 
 @media (max-width: 640px) {
-  .xp[data-surface="app"] {
+  /* The page scrolls on a phone, not the table: the explorer grows with its rows, so the table card's border runs
+     to the last token instead of stopping at one screen height. */
+  .xp[data-surface="app"],
+  .xp[data-surface="app"].has-detail {
+    height: auto;
+    min-height: 0;
     margin: 0;
   }
 

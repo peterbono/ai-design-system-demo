@@ -185,6 +185,9 @@ export function emptyProductLine(product: ProductConfig, library: boolean, lead 
     : `Try one of the screens of ${product.name} with Claude AI. Bridge spots what the library does not have, and what works goes to review.`;
 }
 
+/** A visitor on a product Bridge cannot read for them (its repository is private): the one thing they can do. */
+export const signedOutProductLine = (name: string): string => `Sign in to see what your team explores in ${name}.`;
+
 /**
  * A designer of the team on the library's page (no start action there): the two ways to ask, each a card to its page
  * with its Field Guide drawing. A component change from Components, a token change from Tokens; both reach a lead.

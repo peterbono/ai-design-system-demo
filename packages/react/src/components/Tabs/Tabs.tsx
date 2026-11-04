@@ -1,4 +1,4 @@
-import { createContext, forwardRef, useContext, type HTMLAttributes, type ReactNode } from 'react';
+import { createContext, forwardRef, useCallback, useContext, useEffect, useRef, type HTMLAttributes, type ReactNode, type Ref } from 'react';
 import { Tabs as BaseTabs } from '@base-ui/react/tabs';
 import { cx } from '../../utils/cx';
 import { Icon, type LucideIcon } from '../Icon';
@@ -60,15 +60,51 @@ export interface TabsListProps extends HTMLAttributes<HTMLDivElement> {
   loopFocus?: boolean;
 }
 
+/**
+ * Marks the edges of a horizontal list that has more tabs past them (data-overflow-start, data-overflow-end), so the
+ * CSS fades that edge: a phone shows that the row scrolls instead of cutting a tab with no hint. Recomputed on scroll
+ * and on resize. Returns the cleanup.
+ */
+export function watchOverflowEdges(el: HTMLElement): () => void {
+  const update = () => {
+    const max = el.scrollWidth - el.clientWidth;
+    const vertical = el.getAttribute('data-orientation') === 'vertical';
+    el.toggleAttribute('data-overflow-start', !vertical && max > 1 && el.scrollLeft > 1);
+    el.toggleAttribute('data-overflow-end', !vertical && max > 1 && el.scrollLeft < max - 1);
+  };
+  update();
+  el.addEventListener('scroll', update, { passive: true });
+  const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+  ro?.observe(el);
+  return () => {
+    el.removeEventListener('scroll', update);
+    ro?.disconnect();
+  };
+}
+
+function setRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === 'function') ref(value);
+  else if (ref) (ref as { current: T | null }).current = value;
+}
+
 /** Holds the tabs and the animated indicator. */
 export const TabsList = forwardRef<HTMLDivElement, TabsListProps>(function TabsList(
   { activateOnFocus = false, loopFocus = true, className, children, ...rest },
   ref,
 ) {
   const { variant, size } = useContext(TabsContext);
+  const own = useRef<HTMLDivElement | null>(null);
+  const setRefs = useCallback(
+    (el: HTMLDivElement | null) => {
+      own.current = el;
+      setRef(ref, el);
+    },
+    [ref],
+  );
+  useEffect(() => (own.current ? watchOverflowEdges(own.current) : undefined), []);
   return (
     <BaseTabs.List
-      ref={ref}
+      ref={setRefs}
       activateOnFocus={activateOnFocus}
       loopFocus={loopFocus}
       className={cx(styles.list, styles[variant], styles[size], className)}

@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { Button, Card, CardBody } from '@bridge-ds/react';
-import { useCopy } from './TeamLink';
+import { UrlText, useCopy } from './TeamLink';
 import { NoticeLine } from './MemberParts';
 import { Code, DevFold } from './SettingsParts';
 import MeasureSetting from './MeasureSetting';
@@ -101,8 +101,8 @@ export default function ClaudeConnector() {
                     <li>{W.step2}</li>
                   </ol>
                   <p className="set-connection">
-                    <span className="mono set-address">{url}</span>
-                    <Button variant="secondary" data-density="compact" iconStart={copied ? Check : Copy} onClick={() => void copy(url, W.copied)}>
+                    <UrlText url={url} />
+                    <Button variant="secondary" data-density="compact" className="set-copy" iconStart={copied ? Check : Copy} onClick={() => void copy(url, W.copied)}>
                       {copied ? W.copied : W.copy}
                     </Button>
                   </p>

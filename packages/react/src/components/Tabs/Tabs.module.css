@@ -21,6 +21,20 @@
   scrollbar-width: none;
 }
 
+/* More tabs past an edge (watchOverflowEdges in Tabs.tsx): that edge fades out, so a cut tab reads as "scroll for
+   more". The mask only uses the gradient's alpha. */
+.list[data-overflow-end] {
+  mask-image: linear-gradient(to right, var(--color-text-default) calc(100% - var(--space-10)), transparent);
+}
+
+.list[data-overflow-start] {
+  mask-image: linear-gradient(to right, transparent, var(--color-text-default) var(--space-10));
+}
+
+.list[data-overflow-start][data-overflow-end] {
+  mask-image: linear-gradient(to right, transparent, var(--color-text-default) var(--space-10) calc(100% - var(--space-10)), transparent);
+}
+
 .sm {
   --_height: var(--control-height-sm);
 }

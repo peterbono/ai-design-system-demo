@@ -1,8 +1,8 @@
 // Settings > Products on a team shell (pages/team-shell/settings): the products the team designs for, one row each,
 // its name linking to its page, where its explorations happen in designer words, and Rename for an admin who may
 // (lib/product-name canRenameProduct, a product the team's settings list: it opens the name in place on the product's
-// page, #rename). "Add a product" at the foot, the same dialog as the setup step (AddProduct.tsx), for the admins it
-// lets in. Facts only to who can act on them: the whole band is a lead's or an admin's (lib/create-branch
+// page, #rename). "Add a product" on the title's line (it adds to the whole list, never to the last row), the same
+// dialog as the setup step (AddProduct.tsx), for the admins it lets in. Facts only to who can act on them: the whole band is a lead's or an admin's (lib/create-branch
 // libraryLead, an admin by email too); a designer gains nothing from it and never sees it. Never on the sample team.
 // The repositories behind each product wait in "For developers". Words: lib/settings-view.ts PRODUCTS_WORDS.
 import { useEffect, useState } from 'react';
@@ -58,10 +58,17 @@ export default function TeamProducts() {
   if (!facts || !lead || facts.sample) return null;
   return (
     <section className="ts-band" id="products" aria-labelledby="ts-products">
-      <h2 id="ts-products" className="ts-h">
-        {W.title}
-      </h2>
-      <p className="ts-intro">{W.intro}</p>
+      {/* Add a product acts on the whole list: on the title's line, as Invite collaborators is on Members' (proximity). */}
+      <div className="ts-head">
+        <div className="ts-head-text">
+          <h2 id="ts-products" className="ts-h">
+            {W.title}
+          </h2>
+          <p className="ts-intro">{W.intro}</p>
+        </div>
+        {/* The products the settings list (never Bridge's defaults): the new entry joins that list. */}
+        <AddProduct products={facts.products.filter((p) => facts.listed.includes(p.key.toLowerCase()))} />
+      </div>
       <Card>
         <CardBody>
           <div className="set-rows">
@@ -81,10 +88,6 @@ export default function TeamProducts() {
                 </div>
               </div>
             ))}
-          </div>
-          <div className="set-products-add">
-            {/* The products the settings list (never Bridge's defaults): the new entry joins that list. */}
-            <AddProduct products={facts.products.filter((p) => facts.listed.includes(p.key.toLowerCase()))} />
           </div>
           <DevFold
             facts={[
