@@ -151,6 +151,13 @@ describe('ProductPageView', () => {
     await expectNoAxeViolations(container);
   });
 
+  it("an email designer on a product explored in the designers' copy: never whether Bridge reaches the developers' code", async () => {
+    const shop = { ...products[0]!, design: { repo: 'acme/product-admin-design' } };
+    const { container } = render(createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ product: shop, copy: null, reached: false }) }));
+    await waitFor(() => expect(container.querySelector('.pp-empty')!.textContent).toContain('Start an exploration'));
+    expect(container.textContent).not.toMatch(/Not connected|make my copy/i);
+  });
+
   it('right after Add a product: only Start an exploration, one quiet line while the copy is made, then nothing', async () => {
     const view = (copySetup: Parameters<typeof ProductPageView>[0]['copySetup']) =>
       createElement(ProductPageView, { productKey: 'admin-app', components: [], data: data({ copy: { kind: 'missing' }, reached: null }), copySetup });

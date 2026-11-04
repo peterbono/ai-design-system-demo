@@ -11,6 +11,7 @@ import {
   copySetupKey,
   latestLine,
   needsCopyAccess,
+  noteCopySetup,
   setupLine,
   showsBehind,
   startCopyLine,
@@ -68,6 +69,22 @@ describe('the design team copy, in designer words', () => {
     expect(copySetupFresh(JSON.stringify({ at: now + 1000 }), now)).toBe(false);
     expect(copySetupFresh('not json', now)).toBe(false);
     expect(copySetupFresh(null, now)).toBe(false);
+    const kept = new Map<string, string>();
+    noteCopySetup({ setItem: (k, v) => kept.set(k, v) }, 'acme/ds', 'shop', now);
+    expect(copySetupFresh(kept.get('bridge:copy-setup:acme/ds:shop'), now + 1000)).toBe(true);
+    // Storage refused (a private window): nothing breaks, the first exploration makes the copy instead.
+    expect(() =>
+      noteCopySetup(
+        {
+          setItem: () => {
+            throw new Error('refused');
+          },
+        },
+        'acme/ds',
+        'shop',
+        now,
+      ),
+    ).not.toThrow();
   });
 
   it('the quiet line shows only when the product moved on', () => {

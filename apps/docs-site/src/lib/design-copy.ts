@@ -107,6 +107,14 @@ export function afterCopyFirst(r: CopyOutcome | CopyAccess, admin: boolean): { k
  */
 export const COPY_SETUP_MAX_MS = 30 * 60 * 1000;
 export const copySetupKey = (team: string, product: string): string => `bridge:copy-setup:${team.toLowerCase()}:${product.toLowerCase()}`;
+/** Notes the copy to make (Add a product, right before its page opens). Best effort: storage refused changes nothing. */
+export function noteCopySetup(storage: Pick<Storage, 'setItem'> | null | undefined, team: string, product: string, now: number): void {
+  try {
+    storage?.setItem(copySetupKey(team, product), JSON.stringify({ at: now }));
+  } catch {
+    /* storage refused: the first exploration makes the copy instead */
+  }
+}
 export function copySetupFresh(raw: string | null | undefined, now: number): boolean {
   if (!raw) return false;
   try {

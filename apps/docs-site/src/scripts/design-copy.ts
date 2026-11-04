@@ -189,18 +189,9 @@ function teamOfPage(): string {
 }
 
 /**
- * Add a product just added `product` with "Give designers their own copy" ticked: its page makes the copy in the
- * background, with the adder's sign-in (this browser only, a per-viewer convenience never shared). Best effort.
+ * Whether this browser just added `product` and its copy is still to make: Add a product noted it (lib/design-copy.ts
+ * noteCopySetup) with "Give designers their own copy" ticked. This browser only, never shared.
  */
-export function noteCopySetup(product: string): void {
-  try {
-    sessionStorage.setItem(copySetupKey(teamOfPage(), product), JSON.stringify({ at: Date.now() }));
-  } catch {
-    /* storage refused: the first exploration makes the copy instead */
-  }
-}
-
-/** Whether this browser just added `product` and its copy is still to make (lib/design-copy.ts copySetupFresh). */
 export function copySetupPending(product: string): boolean {
   try {
     return copySetupFresh(sessionStorage.getItem(copySetupKey(teamOfPage(), product)), Date.now());

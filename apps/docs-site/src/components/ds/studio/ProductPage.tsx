@@ -477,7 +477,9 @@ function Facts({ product, data, copy, library }: { product: ProductConfig; data:
   // Only what a designer acts on: the live product, the connection only when Bridge cannot reach it, and "Get the
   // latest" only when the product moved on since the team's copy and the viewer can get it (never the sentence alone).
   // The repository and a healthy "Connected" are developer facts and noise here (Settings has them).
-  const off = f.connection && !f.connection.ok && !data.copy ? f.connection.text : null;
+  // A product explored in the designers' copy: the developers' repository is never where designers work, so whether
+  // Bridge reaches it is not theirs to read here (the copy is Bridge's to make, from the start flow).
+  const off = f.connection && !f.connection.ok && !data.copy && !product.design?.repo ? f.connection.text : null;
   const behind = showsBehind(data.copy) && !said && Boolean(copy?.latest);
   if (!f.production && !off && !behind && !said && !library) return null;
   const latest = async () => {
