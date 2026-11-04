@@ -12,6 +12,10 @@ import StartExploration, { startFromAddress, startLines } from './StartExplorati
 import * as session from '../../../scripts/github-session';
 import bridgeConfig from '../../../../../../bridge.config.json';
 
+// The products this repository ships with. Admins and leads add others from Studio straight to bridge.config.json on
+// main (Add a product): that is the team's live data, so these tests never pin it.
+const OWN_PRODUCTS = bridgeConfig.products.filter((p) => ['admin-app', 'library'].includes(p.key));
+
 // The viewer's access to the team: a lead (GitHub write) by default; a test sets a designer of the team.
 const viewer = vi.hoisted(() => ({ access: { state: 'writer', write: true, admin: false, contributor: false } as Record<string, unknown> | null }));
 // A spied module, never a factory mock: Vitest hands a factory mock's later dynamic imports the real module when two of
@@ -35,7 +39,7 @@ afterEach(() => {
 });
 
 /** The repository's settings as the layout embeds them (#bridge-repo): this repository's products. */
-function embedProducts(products: unknown = bridgeConfig.products): () => void {
+function embedProducts(products: unknown = OWN_PRODUCTS): () => void {
   const embed = document.createElement('script');
   embed.id = 'bridge-repo';
   embed.type = 'application/json';
@@ -65,7 +69,7 @@ describe('Start an exploration', () => {
     const embed = document.createElement('script');
     embed.id = 'bridge-repo';
     embed.type = 'application/json';
-    embed.textContent = JSON.stringify({ products: bridgeConfig.products });
+    embed.textContent = JSON.stringify({ products: OWN_PRODUCTS });
     document.body.append(embed);
     try {
       const user = userEvent.setup();
@@ -87,7 +91,7 @@ describe('Start an exploration', () => {
     const embed = document.createElement('script');
     embed.id = 'bridge-repo';
     embed.type = 'application/json';
-    embed.textContent = JSON.stringify({ products: bridgeConfig.products });
+    embed.textContent = JSON.stringify({ products: OWN_PRODUCTS });
     document.body.append(embed);
     try {
       const user = userEvent.setup();
@@ -138,7 +142,7 @@ describe('Start an exploration', () => {
 
   it('shows a designer of the team every product to pick from when there are several, still no library', async () => {
     viewer.access = { state: 'writer', write: true, admin: false, contributor: true };
-    const done = embedProducts([...bridgeConfig.products, { key: 'checkout', name: 'Checkout', repo: 'acme/checkout' }]);
+    const done = embedProducts([...OWN_PRODUCTS, { key: 'checkout', name: 'Checkout', repo: 'acme/checkout' }]);
     try {
       const user = userEvent.setup();
       render(createElement(StartExploration, { components }));
@@ -214,7 +218,7 @@ describe('Where: Add a product, for the people who may add one', () => {
     const el = document.createElement('script');
     el.id = 'bridge-repo';
     el.type = 'application/json';
-    el.textContent = JSON.stringify({ products: bridgeConfig.products, ...site });
+    el.textContent = JSON.stringify({ products: OWN_PRODUCTS, ...site });
     document.body.append(el);
     return () => el.remove();
   };

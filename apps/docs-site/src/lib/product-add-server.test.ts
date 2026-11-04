@@ -235,7 +235,8 @@ describe('add a product: what is written', () => {
     expect(Object.keys(ws[0]!.body).sort()).toEqual(['branch', 'content', 'message', 'sha']);
     const old = JSON.parse(before);
     const now = JSON.parse(w.text);
-    expect(now.products).toEqual([old.products[0], ENTRY, old.products[1]]);
+    // Before the library (last), whatever products the team added from Studio before it.
+    expect(now.products).toEqual([...old.products.slice(0, -1), ENTRY, old.products.at(-1)]);
     expect({ ...now, products: old.products }).toEqual(old);
     const body = await r.json();
     expect(body.products).toEqual(now.products);
