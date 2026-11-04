@@ -4,7 +4,7 @@ Started from Bridge (the Bridge product starter). Vite + React, built with the t
 `@bridge-ds/tokens`) and the Bridge toolbar (`@bridge-ds/toolbar`, mounted in `src/main.tsx`).
 
 `.bridge/product.json` links this code to the team's design system and names this product's key there. Bridge writes it
-when it starts the product. If it still names `peterbono/ai-design-system-demo` and `new-product` while this product
+when it starts the product. If it still names `the-bridge-company/ai-design-system-demo` and `new-product` while this product
 belongs to another team, run `npx -y @bridge-ds/cli connect --ds <owner/name> --product <key>` once and commit the
 result.
 
