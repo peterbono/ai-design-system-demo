@@ -8,6 +8,7 @@ import {
   addProductProposal,
   ADD_PRODUCT_WORDS,
   copyRepoFor,
+  emptyListLine,
   foundLine,
   isAccessMessage,
   mergeRepos,
@@ -16,8 +17,10 @@ import {
   newRepoIn,
   nothingNewLine,
   nothingYetLine,
+  ownerAccountKey,
   ownersOnlyLine,
   ownsAccount,
+  parseOwnerAccount,
   parsePending,
   PENDING_KEEP_MS,
   pendingKey,
@@ -260,5 +263,37 @@ describe('someone who can only request access', () => {
     expect(parsePending('{nope', at)).toBeNull();
     expect(parsePending(null, at)).toBeNull();
     expect(parsePending('null', at)).toBeNull();
+  });
+});
+
+describe("the team's account, for the GitHub step", () => {
+  it('reads its id and type from GitHub, and nothing else', () => {
+    expect(parseOwnerAccount({ id: 351104414, type: 'Organization', login: 'the-bridge-company' })).toEqual({ id: 351104414, type: 'Organization' });
+    expect(parseOwnerAccount({ id: 63565173, type: 'User' })).toEqual({ id: 63565173, type: 'User' });
+    expect(parseOwnerAccount({ id: 5 })).toEqual({ id: 5, type: 'User' });
+    for (const bad of [null, undefined, 'x', {}, { id: '5' }, { id: 0 }, { id: -1 }, { id: 1.5 }]) expect(parseOwnerAccount(bad)).toBeNull();
+  });
+
+  it('keeps it per account, any case', () => {
+    expect(ownerAccountKey('The-Bridge-Company')).toBe(ownerAccountKey(' the-bridge-company '));
+  });
+});
+
+describe('the empty "It\'s already built" step', () => {
+  it('says why the list is empty', () => {
+    expect(emptyListLine({ unread: true, seen: 3 })).toBe(ADD_PRODUCT_WORDS.unreadLine);
+    expect(emptyListLine({ unread: false, seen: 2 })).toBe(ADD_PRODUCT_WORDS.allListedLine);
+    expect(emptyListLine({ unread: false, seen: 0 })).toBe(ADD_PRODUCT_WORDS.findLine);
+    for (const line of [ADD_PRODUCT_WORDS.unreadLine, ADD_PRODUCT_WORDS.unreadAction, ADD_PRODUCT_WORDS.allListedLine]) {
+      expect(line).not.toMatch(/\u2014|repositor|installation|permission|token|API/i);
+    }
+  });
+
+  it('counts a product listed under an old name as listed, and never offers the design system itself', () => {
+    const repos = [
+      { full_name: 'the-bridge-company/shop', name: 'shop' },
+      { full_name: 'the-bridge-company/ai-design-system-demo', name: 'ai-design-system-demo' },
+    ];
+    expect(pickableRepos(repos, [{ repo: 'art-print-shop-co/shop' } as ProductConfig], 'peterbono/ai-design-system-demo')).toEqual([]);
   });
 });

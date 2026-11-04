@@ -40,6 +40,7 @@ import {
   ADD_PRODUCT_WORDS as W,
   accessStep,
   addProductProblem,
+  emptyListLine,
   foundLine,
   isAccessMessage,
   mergeRepos,
@@ -133,7 +134,11 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   const open = openProp ?? openOwn;
   const [sent, setSent] = useState(false);
   const [repos, setRepos] = useState<ProductRepoChoice[] | null>(null);
-  const [target, setTarget] = useState<{ installation: AppInstallation | null; account: string } | null>(null);
+  const [target, setTarget] = useState<{ installation: AppInstallation | null; account: string; accountId: number | null } | null>(null);
+  // GitHub did not answer the first read (not busy): the empty step says why, with Try again.
+  const [unread, setUnread] = useState(false);
+  // How many products Bridge sees, the ones already in the team included: an empty pick says which case it is.
+  const [seen, setSeen] = useState(0);
   const resumed = resume?.kind === 'add-product' ? resume.values : null;
   const [repo, setRepo] = useState<string | null>(typeof resumed?.repo === 'string' ? resumed.repo : null);
   // The name a product started from "It's a new product" keeps when it comes back to the pick (else Bridge names it).
@@ -178,6 +183,11 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       go({ type: 'cancel' });
       setFound(null);
       setView('choice');
+      // GitHub did not answer this time: the next opening asks again instead of keeping the empty list.
+      if (unread) {
+        setUnread(false);
+        setRepos(null);
+      }
       if (proposedNew.current) {
         proposedNew.current = false;
         if (!controlled) setSent(true);
@@ -188,36 +198,53 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     else setOpenOwn(o);
   };
 
+  // What Bridge sees on GitHub, and who can give it access. Both arrive together: the owners' line never shows up after
+  // the step it belongs to. GitHub did not answer: the step says so with Try again, and the GitHub step still opens on
+  // the team's account (its id read on its own), never GitHub's "Where do you want to install?".
+  const load = async (isLive: () => boolean) => {
+    const m = await import('../../../scripts/add-product');
+    try {
+      const a = await m.readProductAccess(products);
+      // Bridge not knowing who owns the account keeps the usual words (null): never in the way of the list.
+      const o = await Promise.resolve()
+        .then(() => m.readOwnership(a.account, a.installation))
+        .catch(() => null);
+      if (!isLive()) return;
+      setUnread(false);
+      setOwner(o);
+      setSeen(a.seen);
+      setTarget({ installation: a.installation, account: a.account, accountId: a.accountId });
+      setRepos(a.repos);
+    } catch (err) {
+      const t = await Promise.resolve()
+        .then(() => m.teamAccount())
+        .catch(() => null);
+      if (!isLive()) return;
+      if (t) setTarget({ installation: null, account: t.account, accountId: t.accountId });
+      const b = githubBusy(err);
+      setUnread(!b);
+      setRepos([]);
+      if (b) go({ type: 'busy', ...b });
+    }
+  };
   useEffect(() => {
     if (!open || repos) return;
     let live = true;
-    void import('../../../scripts/add-product')
-      .then(async (m) => {
-        const a = await m.readProductAccess(products);
-        // Who can give access, once the account is known (one light read, kept for the page). It may answer after the
-        // list is shown, so it only checks the dialog is still open. Never in the way of the list.
-        Promise.resolve()
-          .then(() => m.readOwnership(a.account, a.installation))
-          .then((o) => openRef.current && setOwner(o), () => undefined);
-        return a;
-      })
-      .then(
-        (a) => {
-          if (!live) return;
-          setRepos(a.repos);
-          setTarget({ installation: a.installation, account: a.account });
-        },
-        (err: unknown) => {
-          if (!live) return;
-          setRepos([]);
-          const b = githubBusy(err);
-          if (b) go({ type: 'busy', ...b });
-        },
-      );
+    void load(() => live);
     return () => {
       live = false;
     };
   }, [open, repos, products]);
+  // Try again after GitHub did not answer: the same read as on opening.
+  const [retrying, setRetrying] = useState(false);
+  const retry = async () => {
+    setRetrying(true);
+    try {
+      await load(() => openRef.current);
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   // A request this browser sent earlier: the approved product arrived (picked, as if found now), or "Request sent" again.
   const restored = useRef(false);
@@ -359,9 +386,12 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     requestAnimationFrame(() => sendRef.current?.focus());
   }, [resume, repos, view]);
 
+  // The page where the team's account ticks its products: its installation, else the app's install page for that
+  // account (never GitHub's account picker when the account is known).
+  const settingsUrl = () => accessSettingsUrl(target?.installation, undefined, target?.accountId);
   const giveAccess = () => {
     // Not an owner: GitHub's own install page for the organization, where Save becomes a request.
-    const url = asker ? requestAccessUrl(target?.installation) : accessSettingsUrl(target?.installation);
+    const url = asker ? requestAccessUrl(target?.installation, undefined, target?.accountId) : settingsUrl();
     // A centered window (the dialog keeps its place); blocked, a new tab. Never noopener: Bridge watches it close.
     const w = window.open(url, 'bridge-github-access', popupFeatures(window)) ?? window.open(url, '_blank');
     if (!w) return;
@@ -457,7 +487,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         variant="link"
         size="sm"
         iconStart={copied ? Check : Copy}
-        onClick={() => void copyText(askOwnersMessage(request?.product ?? null, accessSettingsUrl(target?.installation)), W.copiedForOwnersSaid)}
+        onClick={() => void copyText(askOwnersMessage(request?.product ?? null, settingsUrl()), W.copiedForOwnersSaid)}
       >
         {copied ? W.copiedForOwners : W.copyForOwners}
       </Button>
@@ -494,7 +524,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         variant="link"
         size="sm"
         iconStart={copied ? Check : undefined}
-        onClick={() => void copyText(askDeveloperMessage(accessSettingsUrl(target?.installation), teamLink(location.origin, studioHref(''))), W.askDeveloperSaid)}
+        onClick={() => void copyText(askDeveloperMessage(settingsUrl(),teamLink(location.origin, studioHref(''))), W.askDeveloperSaid)}
       >
         {copied ? W.copiedForOwners : W.askDeveloper}
       </Button>{' '}
@@ -590,9 +620,24 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         {step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />}
         <div className="addp-wait addp-find">
           <Drawing name="components" width={96} className="addp-wait-art" />
-          <p className="addp-wait-line addp-find-line">{requested ? sentLine : W.findLine}</p>
+          <p className="addp-wait-line addp-find-line">{requested ? sentLine : emptyListLine({ unread, seen })}</p>
         </div>
-        {requested ? <p className="addp-more">{ownerActions}</p> : step.kind === 'nothing-new' ? nothingYet : asker ? forOwners : askDeveloper}
+        {requested ? (
+          <p className="addp-more">{ownerActions}</p>
+        ) : step.kind === 'nothing-new' ? (
+          nothingYet
+        ) : unread && step.kind !== 'busy' ? (
+          <p className="addp-more">
+            <span>{W.unreadAction}</span>{' '}
+            <Button variant="link" size="sm" loading={retrying} onClick={() => void retry()}>
+              {W.tryAgain}
+            </Button>
+          </p>
+        ) : asker ? (
+          forOwners
+        ) : (
+          askDeveloper
+        )}
         {error && (
           <p className="addp-error" role="alert">
             {error}

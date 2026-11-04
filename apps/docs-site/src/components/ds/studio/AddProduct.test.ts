@@ -15,10 +15,14 @@ import { askDeveloperMessage } from '../../../lib/access-view';
 import AddProduct from './AddProduct';
 
 const gh = vi.hoisted(() => ({
-  access: { repos: [] as ProductRepoChoice[], installation: { id: 42, account: { login: 'acme', type: 'Organization' } } as unknown, account: 'acme' },
+  access: { repos: [] as ProductRepoChoice[], installation: { id: 42, account: { login: 'acme', type: 'Organization' } } as unknown, account: 'acme', accountId: 77 as number | null, seen: 0 },
   poll: vi.fn(),
   readFails: false,
+  // GitHub did not answer the first read (not busy).
+  readBreaks: 0,
   owner: null as boolean | null,
+  // How long the ownership read takes (ms): the owners' line must never show up after the step.
+  ownerDelay: 0,
 }));
 
 vi.mock('../../../scripts/github-session', () => ({ onAccess: (fn: (a: unknown) => void) => fn({ admin: true }), readRepo: () => ({ owner: 'acme', repo: 'ds' }) }));
@@ -26,11 +30,19 @@ vi.mock('../../../scripts/repo-context', () => ({ repoContext: () => ({ owner: '
 vi.mock('../../../scripts/add-product', () => ({
   readProductAccess: async () => {
     if (gh.readFails) throw Object.assign(new Error('GitHub rate limit reached'), { status: 429, resetAt: null });
+    if (gh.readBreaks > 0) {
+      gh.readBreaks--;
+      throw Object.assign(new Error('GitHub answered 500'), { status: 500 });
+    }
     return gh.access;
   },
+  teamAccount: async () => ({ account: 'acme', accountId: 77 }),
   pollProductRepos: (...a: unknown[]) => gh.poll(...a),
   detectPreviews: async () => null,
-  readOwnership: async () => gh.owner,
+  readOwnership: async () => {
+    if (gh.ownerDelay) await new Promise((r) => setTimeout(r, gh.ownerDelay));
+    return gh.owner;
+  },
 }));
 
 const SHOP: ProductRepoChoice = { full: 'acme/shop', name: 'shop', defaultBranch: 'main' };
@@ -45,10 +57,12 @@ let popup: FakePopup;
 let opened: unknown[][];
 
 beforeEach(() => {
-  gh.access = { repos: [], installation: { id: 42, account: { login: 'acme', type: 'Organization' } }, account: 'acme' };
+  gh.access = { repos: [], installation: { id: 42, account: { login: 'acme', type: 'Organization' } }, account: 'acme', accountId: 77, seen: 0 };
   gh.poll.mockReset();
   gh.readFails = false;
+  gh.readBreaks = 0;
   gh.owner = null;
+  gh.ownerDelay = 0;
   localStorage.clear();
   opened = [];
   popup = {
@@ -170,6 +184,52 @@ describe('Add a product: a product Bridge cannot see yet', () => {
     await showBuilt();
     expect(await screen.findByText(W.notListed)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: W.send })).toBeInTheDocument();
+  });
+
+  it('every product Bridge sees is already in the team: says so instead of an empty list', async () => {
+    gh.access.seen = 2;
+    await showBuilt();
+    expect(await screen.findByText(W.allListedLine)).toBeInTheDocument();
+    expect(screen.queryByText(W.findLine)).toBeNull();
+  });
+
+  it("no installation found: GitHub opens on the team's account, never on its account picker", async () => {
+    gh.access.installation = null;
+    await showBuilt();
+    await startWaiting();
+    expect(opened[0]![0]).toBe('https://github.com/apps/bridge-design-studio/installations/new/permissions?target_id=77');
+  });
+
+  it("GitHub did not answer: the step says why with Try again, and GitHub still opens on the team's account", async () => {
+    gh.readBreaks = 1;
+    const { baseElement } = await showBuilt();
+    expect(await screen.findByText(W.unreadLine)).toBeInTheDocument();
+    expect(screen.getByText(W.unreadAction)).toBeInTheDocument();
+    await expectNoAxeViolations(baseElement);
+    // Try again reads again and fills the list.
+    gh.access.repos = [SHOP];
+    fireEvent.click(screen.getByRole('button', { name: W.tryAgain }));
+    expect(await screen.findByRole('combobox', { name: W.pick })).toBeInTheDocument();
+    expect(screen.queryByText(W.unreadLine)).toBeNull();
+  });
+
+  it("GitHub did not answer: Find it on GitHub opens the team's account", async () => {
+    gh.readBreaks = 1;
+    await showBuilt();
+    await screen.findByText(W.unreadLine);
+    await startWaiting();
+    expect(opened[0]![0]).toBe('https://github.com/apps/bridge-design-studio/installations/new/permissions?target_id=77');
+  });
+
+  it("never shows the owners' line late: it arrives with the step", async () => {
+    gh.owner = false;
+    gh.ownerDelay = 50;
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: W.built }));
+    // While Bridge reads, no step without the owners' line.
+    expect(screen.queryByText(W.findLine)).toBeNull();
+    expect(await screen.findByText(W.findLine)).toBeInTheDocument();
+    expect(screen.getByText(ownersOnlyLine('acme'))).toBeInTheDocument();
   });
 
   it("opens the installation's page in a centered window and waits, Cancel goes back to the list", async () => {

@@ -117,6 +117,24 @@ describe('Add a product: no code yet', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('no name yet: Create product says what is missing on the name field, which takes the focus', async () => {
+    const { baseElement } = show();
+    await openForm();
+    const create = screen.getByRole('button', { name: W.create });
+    // Enabled (DS Button guidance: an enabled button plus a message saying what is missing).
+    expect(create).toBeEnabled();
+    fireEvent.click(create);
+    const field = screen.getByLabelText(W.name);
+    await waitFor(() => expect(field).toHaveAttribute('aria-invalid', 'true'));
+    expect(field).toHaveAccessibleDescription(expect.stringContaining('Type a name for the product.'));
+    expect(document.activeElement).toBe(field);
+    expect(gh.start).not.toHaveBeenCalled();
+    await expectNoAxeViolations(baseElement);
+    // Typing clears it.
+    fireEvent.change(field, { target: { value: 'Atlas' } });
+    await waitFor(() => expect(field).not.toHaveAttribute('aria-invalid', 'true'));
+  });
+
   it('a name taken: says so, nothing proposed', async () => {
     gh.start.mockRejectedValue(Object.assign(new Error('Repository creation failed.'), { status: 422, detail: 'name already exists on this account' }));
     show();

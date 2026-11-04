@@ -5,6 +5,7 @@
 // add-product.test.ts.
 import { fromPlain, getEntry, isCloudflareCheck, parseCloudflareCheck, parseJson, serializeJson, type PreviewCheckRun, type JsonArray, type JsonObject, type ProductConfig } from '@bridge-ds/core';
 import { cleanProductName, PRODUCT_NAME_MAX } from './product-name';
+import { canonicalRepo } from './team-path';
 
 export const ADD_PRODUCT_WORDS = {
   open: 'Add a product',
@@ -29,6 +30,11 @@ export const ADD_PRODUCT_WORDS = {
   findOnGitHub: 'Find it on GitHub',
   // Step 3: already built, Bridge sees none yet. One sentence, the footer's one action is Find it on GitHub.
   findLine: 'Your developers keep its code on GitHub. Show Bridge where it is: tick it on GitHub, then come back.',
+  // Step 3, when Bridge sees products but every one of them is already in the team.
+  allListedLine: 'Every product Bridge can see is already in your team. To add another one, tick it on GitHub, then come back.',
+  // Step 3, when GitHub did not answer: why the list is empty, and what to do.
+  unreadLine: 'Bridge could not get your products from GitHub just now, so the list is empty. Find yours on GitHub, or try again.',
+  unreadAction: 'It often works a moment later.',
   notSure: 'Not sure where it is?',
   askDeveloper: 'Ask a developer',
   askDeveloperNote: '(copies a message to send them)',
@@ -153,12 +159,14 @@ export interface RepoLike {
  * archived one or the same one twice. Sorted by "owner/name".
  */
 export function pickableRepos(repos: readonly RepoLike[], listed: readonly Pick<ProductConfig, 'repo' | 'design'>[], ds: string): ProductRepoChoice[] {
-  const self = ds.toLowerCase();
-  const taken = new Set(listed.flatMap((p) => [p.repo, p.design?.repo]).filter((r): r is string => Boolean(r)).map((r) => r.toLowerCase()));
+  // Old names count as the new ones (lib/team-path canonicalRepo): a product listed before a rename is still listed.
+  const norm = (r: string) => canonicalRepo(r).toLowerCase();
+  const self = norm(ds);
+  const taken = new Set(listed.flatMap((p) => [p.repo, p.design?.repo]).filter((r): r is string => Boolean(r)).map(norm));
   const seen = new Set<string>();
   return repos
     .filter((r) => {
-      const full = r.full_name.toLowerCase();
+      const full = norm(r.full_name);
       if (seen.has(full) || full === self || taken.has(full) || r.archived) return false;
       seen.add(full);
       return true;
@@ -421,4 +429,33 @@ export function addProductProposal(entry: ProductConfig, opts: { date: Date; pre
     'Proposed from Bridge Studio.',
   ].join('\n');
   return { branch: `${opts.prefix ?? ''}product-add-${entry.key.slice(0, 30)}-${stamp}`, title, body, message: `${title}\n\nProposed from Bridge Studio.` };
+}
+
+// The team's GitHub account, for the GitHub step when Bridge does not know its installation (none yet, or GitHub did
+// not answer): the app's install page for that account (lib/access-view installForAccountUrl), never the account picker.
+
+/** The team's GitHub account as GET /users/{login} answers it: its id (it survives a rename) and its type. */
+export interface OwnerAccount {
+  id: number;
+  type: 'User' | 'Organization';
+}
+
+/** An account from GitHub's answer (or this browser's copy of it), else null. */
+export function parseOwnerAccount(v: unknown): OwnerAccount | null {
+  if (!v || typeof v !== 'object') return null;
+  const { id, type } = v as { id?: unknown; type?: unknown };
+  if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0) return null;
+  return { id, type: type === 'Organization' ? 'Organization' : 'User' };
+}
+
+/** Where this browser keeps an account's id (an id never changes, so the copy never goes stale). */
+export const ownerAccountKey = (login: string) => `bridge.owner-account:${login.trim().toLowerCase()}`;
+
+/**
+ * What the empty "It's already built" step says: GitHub did not answer (`unread`), Bridge sees products but every one
+ * is already in the team, or Bridge sees none yet.
+ */
+export function emptyListLine(x: { unread: boolean; seen: number }): string {
+  if (x.unread) return ADD_PRODUCT_WORDS.unreadLine;
+  return x.seen > 0 ? ADD_PRODUCT_WORDS.allListedLine : ADD_PRODUCT_WORDS.findLine;
 }

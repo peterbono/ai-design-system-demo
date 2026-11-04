@@ -62,6 +62,12 @@ export function newProductOwner(
   return (library ?? '').split('/')[0] || account || null;
 }
 
+/** The one problem that is not about the name (said under the form, not on the name field). */
+export const TEAM_NOT_READY = 'Bridge is still reading your team. Try again in a minute.';
+
+/** Whether a problem is about the name: shown on the name field itself, which takes the focus. */
+export const isNameProblem = (problem: string | null): boolean => Boolean(problem) && problem !== TEAM_NOT_READY;
+
 /** What is wrong with the new product, in one sentence; null when it can be created. */
 export function newProductProblem(x: { name: string; owner: string | null }, products: readonly Pick<ProductConfig, 'name' | 'repo' | 'design'>[]): string | null {
   const name = cleanProductName(x.name);
@@ -69,7 +75,7 @@ export function newProductProblem(x: { name: string; owner: string | null }, pro
   if (name.length > PRODUCT_NAME_MAX) return `Keep it to ${PRODUCT_NAME_MAX} characters.`;
   if (!slugFor(name)) return 'Use at least one letter or digit in the name.';
   if (products.some((p) => p.name.trim().toLowerCase() === name.toLowerCase())) return 'Another product already has this name. Pick a different one.';
-  if (!x.owner) return 'Bridge is still reading your team. Try again in a minute.';
+  if (!x.owner) return TEAM_NOT_READY;
   const full = `${x.owner}/${slugFor(name)}`.toLowerCase();
   if (products.some((p) => p.repo?.toLowerCase() === full || p.design?.repo?.toLowerCase() === full)) return 'Another product already has almost the same name. Pick a different one.';
   return null;
