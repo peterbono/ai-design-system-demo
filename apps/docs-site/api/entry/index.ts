@@ -73,6 +73,9 @@
 //                                           repository): { tools } the team default of the AI tools new members start
 //                                           from (src/lib/ai-tools.ts), null when none; 404 for anyone else
 //   POST { action: 'ai-tools', team, tools }  admin: sets that default (null or [] clears it); { tools }, 400 bad_tools
+//   GET  /api/entry?claude-design=<team>    admin: the team's Bridge Library in Claude Design, for the quiet line in
+//                                           Settings > Your AI tools: { design: { url, version, at } | null }. Saved by
+//                                           an admin or lead through the MCP tool bridge_set_claude_design_system_url
 //   POST { action: 'link-team', team, storybook }  admin: keeps the Storybook connected with the quick start. { team }
 //   POST { action: 'link-team', team, repo }  admin of the team and of the repository: the team moves to the repository
 //                                           (members, admins, discovery, requests, invites, name). { repo, next }
@@ -135,6 +138,8 @@ import {
   getTeamNames,
   getTeamAiTools,
   putTeamAiTools,
+  getTeamClaudeDesign,
+  putTeamClaudeDesign,
   getRequest,
   JOIN_REQUEST_TTL_MS,
   type JoinRequest,
@@ -1030,6 +1035,8 @@ async function moveTeam(ctx: Ctx, from: string, to: string): Promise<void> {
   if (name && !names.get(to)) await putTeamName(redis, to, name, now);
   const tools = await getTeamAiTools(redis, from);
   if (tools && !(await getTeamAiTools(redis, to))) await putTeamAiTools(redis, to, tools);
+  const design = await getTeamClaudeDesign(redis, from);
+  if (design && !(await getTeamClaudeDesign(redis, to))) await putTeamClaudeDesign(redis, to, design);
   for (const inv of await invites.list(from)) {
     const left = Math.ceil((Date.parse(inv.expiresAt) - now) / 1000);
     await invites.remove(inv);
@@ -1348,6 +1355,12 @@ export async function handleEntry(req: Request, env: EntryEnv, deps: EntryDeps):
     if (askedOf !== null) return await onAsked(ctx, a, askedOf);
     const linkedOf = params.get('linked');
     if (linkedOf !== null) return await onLinked(ctx, a, linkedOf);
+    const claudeDesignOf = params.get('claude-design');
+    if (claudeDesignOf !== null) {
+      const admin = await requireAdmin(ctx, a, claudeDesignOf);
+      const d = await getTeamClaudeDesign(svc.redis, admin.full);
+      return json(200, { design: d ? { url: d.url, version: d.version, at: d.at } : null }, noStore);
+    }
     const aiToolsOf = params.get('ai-tools');
     if (aiToolsOf !== null) return await onGetTeamAiTools(ctx, a, aiToolsOf);
     const teamOf = params.get('team');

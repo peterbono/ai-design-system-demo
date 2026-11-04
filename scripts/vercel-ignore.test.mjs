@@ -20,6 +20,9 @@ describe('vercel-ignore shouldBuild', () => {
     expect(shouldBuild('admin', ['packages/toolbar/src/index.ts'])).toBe(true);
     expect(shouldBuild('storybook', ['packages/tokens/src/semantic/light/color.json'])).toBe(true);
     expect(shouldBuild('docs', ['packages/mcp/src/server.ts'])).toBe(true);
+    // The Claude Design System the site serves (scripts/claude-design-system/release.mjs, in docs:build).
+    expect(shouldBuild('docs', ['scripts/claude-design-system/lib.mjs'])).toBe(true);
+    expect(shouldBuild('storybook', ['scripts/claude-design-system/lib.mjs'])).toBe(false);
     expect(shouldBuild('docs', ['apps/admin/src/App.tsx', 'deploy/storybook/vercel.json'])).toBe(false);
     expect(shouldBuild('docs', [])).toBe(false);
   });

@@ -466,3 +466,38 @@ export function renderCover() {
 </html>
 `;
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Release manifest (scripts/claude-design-system/release.mjs): what the Bridge site serves per Library version, and
+// what the Bridge MCP tool bridge_get_claude_design_system hands to the team's Claude.
+
+/** Where the site serves the system: /claude-design-system/manifest.json (latest) and /claude-design-system/<version>/. */
+export const SERVE_DIR = 'claude-design-system';
+export const MANIFEST_FORMAT = 1;
+/** The index Claude Design reads: published last, so a canvas never sees an index that points at missing files. */
+export const INDEX_PATH = 'project/design-system.json';
+
+/**
+ * The manifest of one version: every published path (under `project/`, as the Design System artifact serves it) with
+ * its size and sha256, sorted by path with the index last. Nothing in it depends on when it was built: the same files
+ * give the same manifest. `sha256(bytes)` returns a hex digest (node:crypto in release.mjs), injected to keep this pure.
+ */
+export function buildManifest({ files, version, revision, sha256 }) {
+  const list = [...files]
+    .map(([path, text]) => {
+      const bytes = Buffer.from(text, 'utf8');
+      return { path: `project/${path}`, size: bytes.length, sha256: sha256(bytes) };
+    })
+    .sort((a, b) => (a.path === INDEX_PATH ? 1 : b.path === INDEX_PATH ? -1 : a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return {
+    format: MANIFEST_FORMAT,
+    name: TITLE,
+    package: '@bridge-ds/react',
+    version,
+    revision,
+    base: `/${SERVE_DIR}/${version}/`,
+    count: list.length,
+    bytes: list.reduce((n, f) => n + f.size, 0),
+    files: list,
+  };
+}

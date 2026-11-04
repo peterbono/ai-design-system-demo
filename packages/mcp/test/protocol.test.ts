@@ -29,6 +29,7 @@ const TOOLS = [
   'bridge_figma_coverage',
   'bridge_figma_gaps',
   'bridge_get_build_request',
+  'bridge_get_claude_design_system',
   'bridge_get_component',
   'bridge_get_config',
   'bridge_get_design_language',
@@ -76,6 +77,7 @@ const TOOLS = [
   'bridge_scaffold_component',
   'bridge_search_tokens',
   'bridge_send_for_review',
+  'bridge_set_claude_design_system_url',
   'bridge_start_exploration',
   'bridge_switch_to_published',
   'bridge_try_branch',
@@ -138,7 +140,7 @@ describe('MCP over stdio', () => {
     expect(config.source).toContain(config.write);
   });
 
-  it('lists the 73 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 75 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;

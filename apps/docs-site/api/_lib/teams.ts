@@ -56,6 +56,11 @@ export const undoKey = (repo: string, id: string) => `bridge:joinreq:undo:${lc(r
 export const teamNameKey = (repo: string) => `bridge:team:name:${lc(repo)}`;
 /** The team default of the AI tools new members start from (src/lib/ai-tools.ts), a JSON array; absent: none. */
 export const teamAiToolsKey = (repo: string) => `bridge:team:ai-tools:${lc(repo)}`;
+/**
+ * The team's Bridge Library in Claude Design (packages/mcp claude-design.ts): { url, version, revision, files, at, by },
+ * saved by an admin or lead through bridge_set_claude_design_system_url; absent: the team never added it.
+ */
+export const teamClaudeDesignKey = (repo: string) => `bridge:team:claude-design:${lc(repo)}`;
 
 /** How long an admin can take back an approve or decline (the home's Undo toast is shorter). */
 export const UNDO_TTL_S = 30;
@@ -245,6 +250,44 @@ export async function putTeamAiTools(redis: Redis, repo: string, tools: readonly
   const list = tools?.length ? parseAiTools(tools) : null;
   if (list) await redis.cmd('SET', teamAiToolsKey(repo), JSON.stringify(list));
   else await redis.cmd('DEL', teamAiToolsKey(repo));
+}
+
+/** What the team keeps about its Library in Claude Design (the MCP tool writes it, Settings reads it). */
+export interface TeamClaudeDesign {
+  url: string;
+  version: string;
+  revision?: string | undefined;
+  files?: Record<string, string> | undefined;
+  at: string;
+  by?: string | undefined;
+}
+
+const CLAUDE_ARTIFACT = /^https:\/\/claude\.ai\/(?:code\/)?artifact\/[A-Za-z0-9_-]{6,64}$/;
+
+/** A stored record, checked: anything else reads as "not added". */
+export function parseTeamClaudeDesign(raw: unknown): TeamClaudeDesign | null {
+  let v: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      v = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  const r = v as Partial<TeamClaudeDesign> | null;
+  if (!r || typeof r !== 'object' || typeof r.url !== 'string' || !CLAUDE_ARTIFACT.test(r.url) || typeof r.version !== 'string' || typeof r.at !== 'string') return null;
+  const files = r.files && typeof r.files === 'object' ? Object.fromEntries(Object.entries(r.files).filter(([, s]) => typeof s === 'string')) : undefined;
+  return { url: r.url, version: r.version, at: r.at, ...(typeof r.revision === 'string' ? { revision: r.revision } : {}), ...(files ? { files } : {}), ...(typeof r.by === 'string' ? { by: r.by } : {}) };
+}
+
+export async function getTeamClaudeDesign(redis: Redis, repo: string): Promise<TeamClaudeDesign | null> {
+  return parseTeamClaudeDesign(await redis.cmd('GET', teamClaudeDesignKey(repo)));
+}
+
+export async function putTeamClaudeDesign(redis: Redis, repo: string, value: TeamClaudeDesign): Promise<void> {
+  const clean = parseTeamClaudeDesign(value);
+  if (!clean) throw new Error('Not a Claude artifact address.');
+  await redis.cmd('SET', teamClaudeDesignKey(repo), JSON.stringify(clean));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

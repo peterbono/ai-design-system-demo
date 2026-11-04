@@ -225,7 +225,21 @@ export async function extractProps(names, defaults = new Map()) {
 // ---------------------------------------------------------------------------------------------------------------
 // 3. The file tree
 
-const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
+const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+
+/**
+ * The commit and its date, from git; a build without the history falls back to the environment
+ * (VERCEL_GIT_COMMIT_SHA, SOURCE_DATE_EPOCH) so the docs-site build never fails on it.
+ */
+function headStamp() {
+  try {
+    return { commit: git('rev-parse', '--short', 'HEAD'), at: new Date(git('show', '-s', '--format=%cI', 'HEAD')).toISOString() };
+  } catch {
+    const epoch = Number(process.env.SOURCE_DATE_EPOCH);
+    const at = new Date(Number.isFinite(epoch) && epoch > 0 ? epoch * 1000 : Date.now()).toISOString();
+    return { commit: (process.env.VERCEL_GIT_COMMIT_SHA ?? 'unknown').slice(0, 9), at };
+  }
+}
 
 export async function generate({ outDir }) {
   const project = join(outDir, 'project');
@@ -233,8 +247,7 @@ export async function generate({ outDir }) {
   const files = new Map();
   const put = (path, text) => files.set(path, text);
 
-  const commit = git('rev-parse', '--short', 'HEAD');
-  const at = new Date(git('show', '-s', '--format=%cI', 'HEAD')).toISOString();
+  const { commit, at } = headStamp();
   const reactPkg = readJson(join(ROOT, 'packages/react/package.json'));
   const tokensCssPath = join(ROOT, 'packages/tokens/dist/tokens.css');
   if (!existsSync(tokensCssPath)) throw new Error('packages/tokens/dist/tokens.css is missing: run npm run tokens:build first.');
@@ -373,7 +386,7 @@ export async function generate({ outDir }) {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, text);
   }
-  return { project, files, cards, exported, iconCount, bundleBytes: Buffer.byteLength(files.get('components/bundle.js')), cssBytes: Buffer.byteLength(files.get('components/bundle.css')) };
+  return { project, files, version: reactPkg.version, commit, cards, exported, iconCount, bundleBytes: Buffer.byteLength(files.get('components/bundle.js')), cssBytes: Buffer.byteLength(files.get('components/bundle.css')) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

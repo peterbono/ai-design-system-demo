@@ -41,7 +41,7 @@
     "dev:reset": "npm run dev:reset -w @bridge-ds/docs-site",
     "dev:seed": "npm run dev:seed -w @bridge-ds/docs-site --",
     "dev:scenario": "npm run dev:scenario -w @bridge-ds/docs-site --",
-    "docs:build": "npm run tokens:build && npm run build -w @bridge-ds/docs-site",
+    "docs:build": "npm run tokens:build && npm run build -w @bridge-ds/docs-site && node scripts/claude-design-system/release.mjs",
     "docs:preview": "npm run preview -w @bridge-ds/docs-site",
     "admin:dev": "npm run tokens:build && npm run dev -w @bridge-ds/admin",
     "admin:build": "npm run tokens:build && npm run build -w @bridge-ds/admin",

@@ -123,6 +123,14 @@
       ]
     },
     {
+      "source": "/claude-design-system/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Cache-Control", "value": "public, max-age=300" },
+        { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    },
+    {
       "source": "/studio/~/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*/",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
     },
