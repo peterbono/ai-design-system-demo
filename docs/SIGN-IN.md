@@ -31,6 +31,8 @@ rolled back by promoting the previous deployment.
 | `1` (on)         | Bridge Direct         | `bridge-design-studio` | None |
 | unset (off)      | Bridge (`bridge-ds`, `GITHUB_APP_SUGGEST_CLIENT_ID`) | `bridge-ds` | Bridge Direct, once, in direct mode (below) |
 
+Production has it on since 2026-11-04, after a preview test (sign-in with Bridge Direct, a write with no second OK).
+
 It is read at build time (the pages are static), so a change takes a redeploy. The token function accepts both Client
 IDs either way, so tabs opened before a flip still finish their sign-in. Turning it on:
 
