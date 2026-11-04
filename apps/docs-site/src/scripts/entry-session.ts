@@ -183,6 +183,13 @@ export async function getTeamAiTools(team: string): Promise<AiTool[] | null> {
   return parseAiTools(r.tools);
 }
 
+/** Admin: the team's Bridge Library in Claude Design (lib/claude-design.ts), null when it was never added. */
+export async function getTeamClaudeDesign(team: string): Promise<{ url: string; version: string } | null> {
+  const r = await call<{ design?: { url?: unknown; version?: unknown } | null }>('GET', `?claude-design=${encodeURIComponent(team)}`);
+  const d = r.design;
+  return d && typeof d.url === 'string' && typeof d.version === 'string' ? { url: d.url, version: d.version } : null;
+}
+
 /** Admin: sets the team default (null or [] clears it). Answers what the team keeps now. */
 export async function setTeamAiTools(team: string, tools: AiTool[] | null): Promise<AiTool[] | null> {
   const r = await call<{ tools?: unknown }>('POST', '', { action: 'ai-tools', team, tools });

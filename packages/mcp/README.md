@@ -45,7 +45,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 
 <!-- tools:start (generated from the server: npm run readme:tools -w @bridge-ds/mcp) -->
 
-77 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
+79 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
 
 | Tool | Access | What it does |
 | --- | --- | --- |
@@ -68,6 +68,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_figma_coverage` | reads | Which components are in Figma, in Studio's words (Yes, Drafted, Auto layout, Not yet with the reason), and whether code images exist for the fidelity check the DS Bridge Figma plugin runs (its scores live in Figma). |
 | `bridge_figma_gaps` | reads | The components whose Figma build differs from their story (Differs) or cannot be checked (Can't check, with the reason), from the latest Check fidelity run of the DS Bridge plugin (the story shots are the referee), else from the measure's own check; a status fix in figma-fixes.json shows with its reason. |
 | `bridge_get_build_request` | reads | One build request, ready to build: what the designer sent (the request, before and after images, props needed, the spec when the issue keeps it), the status timeline, the linked pull request, the Jira key, the component files and `brief`, the prompt to build it in this repo. |
+| `bridge_get_claude_design_system` | reads | The Bridge Library as a Claude Design System, at the version Bridge serves now: the version, a manifest (path, size, sha256 and download url of each file, published under project/), the team's Design System artifact when Bridge knows it, what to do ("create", "update" or "none"), the files that changed since the team last published, and the steps. |
 | `bridge_get_component` | reads | One component: props parsed from TypeScript (type, default, description, allowed values), usage docs (summary, whenToUse, whenNotToUse, dos/donts with examples, accessibility, contentGuidelines, anatomy), CSS variables it uses, and story names. |
 | `bridge_get_config` | reads | Where the design system lives and what Bridge may do: source (local path or GitHub repo), write access, token tiers, modes (brand/theme/density...) and the full bridge.config.json. |
 | `bridge_get_design_language` | reads | The design language doc (principles, color, type, space, density, radius, elevation, motion, icons, voice, accessibility). |
@@ -115,6 +116,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_scaffold_component` | writes | Generate a new component folder per the repo checklist: Name.tsx (forwardRef, typed props), Name.module.css (existing tokens only), stories with AllStates, docs.json with the reference component's keys, a keyboard + axe test when interactive, index.ts. |
 | `bridge_search_tokens` | reads | Find tokens by words in the path or description ("danger text", "focus ring"), by CSS variable, or by value ("#c2410c", "16px": exact and near colors). |
 | `bridge_send_for_review` | writes | Ask for review: a draft branch becomes ready for review, as "Mark as ready" in Studio. |
+| `bridge_set_claude_design_system_url` | writes | Saves, for the team, the address of its Design System artifact in Claude Design and the version just published to it, so the next bridge_get_claude_design_system lists only the files that changed and Studio Settings says when an update is ready. |
 | `bridge_start_exploration` | writes | Start an exploration: a branch explore/<slug> from the default branch with a note file, and a DRAFT pull request labeled exploration. |
 | `bridge_switch_to_published` | writes | Once its library branches shipped, bring main into the product branch (GitHub update branch): it stops carrying the library change and uses the shipped one. |
 | `bridge_try_branch` | reads | Try a branch before it merges: the preview link of each product Vercel reported for it (the admin demo opens with the Bridge toolbar on, as "Try it in the product" in Studio), the other previews, and "Share with a product team": the install command a product team runs in a staging branch, or why there is none yet, with a ready-to-paste message. |

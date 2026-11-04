@@ -7,7 +7,7 @@ import { type Account, ACCOUNT_COOKIE, putAccount, signAccountSession } from '..
 import { isPublicDomain, workDomain } from '../../api/_lib/domains';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
-import { JOIN_REQUEST_TTL_MS, putRequest } from '../../api/_lib/teams';
+import { JOIN_REQUEST_TTL_MS, putRequest, putTeamClaudeDesign } from '../../api/_lib/teams';
 import { NOTIFY_TEAMS_KEY, watchWrites } from '../../api/_lib/notify';
 import { createGrant, getGrant } from '../../api/_lib/oauth';
 import { settingKey as librarySettingKey } from '../../api/library-access/index';
@@ -474,6 +474,24 @@ describe('discovery opt-in', () => {
     expect(await s.redis.cmd('SMEMBERS', 'bridge:team:domain:acme.design')).toEqual([]);
     expect(await (await get(s, admin, `?discovery=${REPO}`)).json()).toEqual({ domain: 'acme.design', enabled: false, configured: true, eligible: true });
     expect((await post(s, admin, { action: 'discovery', repo: REPO })).status).toBe(400);
+  });
+});
+
+describe('the team’s Library in Claude Design (GET ?claude-design=)', () => {
+  it('answers admins only, with the address and version, never the published hashes', async () => {
+    const s = setup();
+    const admin = await account(s, 'ada@acme.design', 'Ada', { login: 'ada', id: 1 });
+    const bob = await account(s, 'bob@acme.design', 'Bob', { login: 'bob', id: 2 });
+    expect(await (await get(s, admin, `?claude-design=${REPO}`)).json()).toEqual({ design: null });
+    await putTeamClaudeDesign(s.redis, REPO, { url: 'https://claude.ai/artifact/YZ1z4WxSWErcMHVDcbFmkW', version: '1.8.3', files: { 'project/README.md': 'a'.repeat(64) }, at: '2026-11-01T00:00:00.000Z', by: 'Ada' });
+    expect(await (await get(s, admin, `?claude-design=${REPO}`)).json()).toEqual({ design: { url: 'https://claude.ai/artifact/YZ1z4WxSWErcMHVDcbFmkW', version: '1.8.3', at: '2026-11-01T00:00:00.000Z' } });
+    expect(await (await get(s, bob, `?claude-design=${REPO}`)).json()).toMatchObject({ error: 'forbidden', message: ADMIN_ONLY });
+    expect((await get(s, null, `?claude-design=${REPO}`)).status).toBe(401);
+  });
+
+  it('keeps only a Claude artifact address', async () => {
+    const s = setup();
+    await expect(putTeamClaudeDesign(s.redis, REPO, { url: 'https://evil.example/artifact/x', version: '1.8.4', at: '2026-11-04T00:00:00.000Z' })).rejects.toThrow();
   });
 });
 

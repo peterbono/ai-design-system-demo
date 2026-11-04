@@ -18,14 +18,16 @@ import * as figma from './figma.js';
 import * as figmaFixes from './figma-fixes.js';
 import * as suggestions from './suggestions.js';
 import { whoami } from './whoami.js';
+import * as claudeDesign from './claude-design.js';
+import { BRIDGE_SITE_URL } from './site.js';
 import { CHANGE_MARKER_RULE, DRAFT_LINE_MAX, DRAFT_PHRASE, FIX_LOOP_MAX_ROUNDS, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
 declare const __BRIDGE_MCP_VERSION__: string | undefined;
 /** The package version, injected at build time; tests and source runs fall back to "dev". */
 export const VERSION = typeof __BRIDGE_MCP_VERSION__ === 'string' ? __BRIDGE_MCP_VERSION__ : 'dev';
 
-/** The Bridge site: it serves the hosted connector (/mcp) and the official icons. */
-export const BRIDGE_SITE = 'https://bridge.floriangouloubi.com';
+/** The Bridge site: it serves the hosted connector (/mcp), the official icons and the Library for Claude Design. */
+export const BRIDGE_SITE = BRIDGE_SITE_URL;
 
 /**
  * How clients show this server (MCP 2025-11-25, Implementation: `title` is the display name, `icons` the images; the
@@ -98,6 +100,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
         `Access now: ${ctx.access()} bridge_get_config says the same.`,
         'Who you act as: bridge_whoami says which person this session is (name, role, how they signed in) and what a save means for them. Call it when the person asks who they are or which account Bridge uses, and before the first save of an exploration when you are not sure; never guess the account from the repository owner or past activity.',
         'How changes reach the code is the "changes" setting of bridge.config.json (bridge_get_config says which): "suggest" (the default) files token, docs, brand, revert, missing piece and Figma changes as suggestions, GitHub issues with the exact change that the owners approve (bridge_review_suggestion) and a developer applies (bridge_apply_suggestion, or `bridge apply <n>`); "direct" opens branches and pull requests. Writing tools take "changes" to pick one for a call; only pass it when the person asked. When the person says "Apply Bridge suggestion #n", call bridge_apply_suggestion with mode "dry-run" first, show the result, then apply it on a branch.',
+        'Claude Design: when the person asks to add or update the Library in Claude Design, call bridge_get_claude_design_system and follow its steps (create the Design System artifact once, then republish only the changed files to the same artifact and re-run the install in the canvases that use it), then bridge_set_claude_design_system_url.',
         'Read before you write: bridge_get_guidelines for the repo rules, bridge_search_tokens / bridge_get_token before using or proposing a token.',
         'Never hardcode a value in UI code when a token exists; never invent a token name (check it with bridge_get_token).',
         'bridge_audit measures how a product codebase adopts the design system (hardcoded values, foreign UI components) and suggests the tokens and components to use.',
@@ -145,6 +148,36 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
       annotations: RO,
     },
     run(async () => whoami(ctx)),
+  );
+
+  // --- the Library in Claude Design (claude-design.ts) ---
+  server.registerTool(
+    'bridge_get_claude_design_system',
+    {
+      title: 'Get the Library for Claude Design',
+      description:
+        'The Bridge Library as a Claude Design System, at the version Bridge serves now: the version, a manifest (path, size, sha256 and download url of each file, published under project/), the team\'s Design System artifact when Bridge knows it, what to do ("create", "update" or "none"), the files that changed since the team last published, and the steps. Call it when the person asks to add or update the Library in Claude Design. Create the artifact once; after that always republish ONLY the changed files to the same artifact URL, then re-run the install in the canvases that use it. Set "inline" to get the text of small files in the answer.',
+      inputSchema: {
+        inline: z.array(z.string()).max(50).optional().describe(`Manifest paths (project/...) whose text to include in the answer, at most ${claudeDesign.INLINE_MAX_BYTES / 1024} kB together. Download the others (components/bundle.js) from their url.`),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    run(async (a) => claudeDesign.getClaudeDesignSystem(ctx, a) as unknown as Promise<Record<string, unknown>>),
+  );
+
+  server.registerTool(
+    'bridge_set_claude_design_system_url',
+    {
+      title: 'Remember the team\'s Library in Claude Design',
+      description:
+        'Saves, for the team, the address of its Design System artifact in Claude Design and the version just published to it, so the next bridge_get_claude_design_system lists only the files that changed and Studio Settings says when an update is ready. Admins and leads only (Bridge checks). Call it right after creating or republishing the artifact.',
+      inputSchema: {
+        url: z.string().describe('The artifact link, like https://claude.ai/artifact/AbC123.'),
+        version: z.string().optional().describe('The Library version just published (from bridge_get_claude_design_system). Default: the one Bridge serves now.'),
+      },
+      annotations: { readOnlyHint: false, openWorldHint: false },
+    },
+    run(async (a) => claudeDesign.setClaudeDesignSystemUrl(ctx, a) as unknown as Promise<Record<string, unknown>>),
   );
 
   server.registerTool(

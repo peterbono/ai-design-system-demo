@@ -25,7 +25,7 @@ const ROOT = ['package.json', 'package-lock.json', 'tsconfig.base.json', 'script
  * rebuilds the docs site only, never the two previews (the daily deployment budget stays for real changes).
  */
 export const APP_PATHS = {
-  docs: [...ROOT, 'packages/', 'bridge.config.json', 'apps/docs-site/', 'docs/', '.changeset/', 'AGENTS.md', 'README.md', '.github/CODEOWNERS'],
+  docs: [...ROOT, 'packages/', 'scripts/claude-design-system/', 'bridge.config.json', 'apps/docs-site/', 'docs/', '.changeset/', 'AGENTS.md', 'README.md', '.github/CODEOWNERS'],
   storybook: [...ROOT, 'packages/tokens/', 'packages/react/', '.storybook/', 'deploy/storybook/'],
   admin: [...ROOT, 'packages/tokens/', 'packages/react/', 'packages/core/', 'packages/toolbar/', 'bridge.config.json', 'apps/admin/'],
 };

@@ -1,11 +1,13 @@
 // Settings, Your AI tools (lib/ai-tools.ts, scripts/ai-tools.ts): the AI tools this person uses, a personal choice
 // (kept with their Bridge account, else in this browser). The Continue panel of an exploration and the Start dialog
 // show only these tools. An admin of a real team, signed in with a Bridge account, also sets the team default new
-// members start from until they pick their own. The same card on the self-hosted Settings and on a team's Settings.
+// members start from until they pick their own, and sees where the team's Bridge Library stands in Claude Design
+// (ClaudeDesignLine). The same card on the self-hosted Settings and on a team's Settings.
 import { useEffect, useState } from 'react';
 import { Button, Card, CardBody } from '@bridge-ds/react';
 import { AI_TOOLS_WORDS, FALLBACK_TOOLS, toolsSummary, type AiTool } from '../../../lib/ai-tools';
 import { AiToolsChoice } from './AiToolPanel';
+import ClaudeDesignLine from './ClaudeDesignLine';
 
 function useSaver(save: (v: AiTool[]) => Promise<unknown>, allowEmpty = false) {
   const [busy, setBusy] = useState(false);
@@ -95,6 +97,7 @@ export default function AiToolsSetting() {
               </div>
             </div>
           )}
+          {canSetDefault && <ClaudeDesignLine admin={canSetDefault} team={team} />}
         </div>
       </CardBody>
     </Card>

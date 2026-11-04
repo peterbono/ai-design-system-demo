@@ -27,6 +27,8 @@ export * as pieces from './pieces.js';
 export * as figma from './figma.js';
 export * as figmaFixes from './figma-fixes.js';
 export * as suggestions from './suggestions.js';
+export * as claudeDesign from './claude-design.js';
+export type { ClaudeDesignHost, ClaudeDesignManifest, TeamClaudeDesign } from './claude-design.js';
 // The docs logic the docs-draft GitHub Action (scripts/docs-draft.mjs) runs, from the core compiled into this bundle:
 // the workflow builds the MCP library, not core.
 export { DOCS_DRAFT_MODEL, anthropicReplyText, anthropicRequest, formatDocsJson, mergeDocsDraft, missingProse, parseDocsReply } from '@bridge-ds/core';

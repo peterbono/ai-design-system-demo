@@ -36,7 +36,7 @@
 // (email members in Studio), PUBLIC_SITE_URL (the issuer; else the request's origin). Nothing here logs.
 
 import { randomBytes } from 'node:crypto';
-import { BridgeContext, handleHttp, maskEmail, pieces, type WhoAmI } from '@bridge-ds/mcp';
+import { BridgeContext, handleHttp, maskEmail, pieces, type ClaudeDesignHost, type WhoAmI } from '@bridge-ds/mcp';
 import { contributorOf, cookieName, designerProductsFor, handleContribute, ownedWorkFor, signSession, type ContribEnv } from '../contribute/index.js';
 import { displayName, sessionAccount } from '../_lib/account.js';
 import { sameEmail } from '../_lib/canonical-email.js';
@@ -45,7 +45,7 @@ import type { AppTokens } from '../_lib/github-app.js';
 import { clientIp, fail, HttpError, json, parseRepo, readBody, sameOrigin, type FetchLike } from '../_lib/http.js';
 import { meteredFromEnv, readUsage } from '../_lib/github-quota.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
-import { getTeamNames } from '../_lib/teams.js';
+import { getTeamClaudeDesign, getTeamNames, putTeamClaudeDesign } from '../_lib/teams.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
 import { isTeamKey } from '../../src/lib/team-path.js';
 import {
@@ -107,7 +107,7 @@ export interface ConnectorDeps {
   app?: AppTokens;
   mcp?: McpHandler;
   /** How the context is made (tests: a context without GitHub calls). */
-  context?: (opts: { repo: string; token: string; fetch?: FetchLike; owned?: () => Promise<{ repo: string; branch: string }[] | null>; identity?: () => Promise<WhoAmI | null> }) => Promise<BridgeContext>;
+  context?: (opts: { repo: string; token: string; fetch?: FetchLike; owned?: () => Promise<{ repo: string; branch: string }[] | null>; identity?: () => Promise<WhoAmI | null>; claudeDesign?: ClaudeDesignHost }) => Promise<BridgeContext>;
   /** The library check of an exploration (tests replace it; default: the MCP server's bridge_missing_pieces, recorded). */
   checkPieces?: (ctx: BridgeContext, pr: number | string) => Promise<{ pieces: unknown[]; recorded: boolean }>;
 }
@@ -485,6 +485,16 @@ function toolResults(body: unknown): Map<string | number, Record<string, unknown
   return out;
 }
 
+/** Where the hosted connector reads the Library for Claude Design (this site) and keeps the team's artifact (Redis). */
+export function claudeDesignHost(repo: string, redis: Redis, site: Site, f: FetchLike): ClaudeDesignHost {
+  return {
+    site: site.issuer,
+    fetch: f as unknown as typeof fetch,
+    read: () => getTeamClaudeDesign(redis, repo),
+    save: (value) => putTeamClaudeDesign(redis, repo, value),
+  };
+}
+
 async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: Services, site: Site): Promise<Response> {
   const now = (deps.now ?? Date.now)();
   const unauthorized = (error?: 'invalid_token') => new Response(JSON.stringify({ error: error ?? 'unauthorized', error_description: 'Sign in with Bridge from Claude.' }), { status: 401, headers: { 'Content-Type': 'application/json', 'WWW-Authenticate': challenge(site, error), ...NO_STORE } });
@@ -537,9 +547,12 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
   const owned = routed ? () => ownedWorkFor(emailMember ? { email: emailMember.email } : { token }, grant.repo, env, deps).catch(() => null) : undefined;
   // bridge_whoami: who this grant is, read on demand (one team-name read; a lead's role needs one GitHub read).
   const identity = () => grantIdentity({ grant, emailMember, designer: designerProducts !== null, routed, token, redis: svc.redis, fetch: deps.fetch });
+  // The Library in Claude Design: served by this site, the team's artifact kept with the team. The MCP tool checks the
+  // role (admins and leads, from this grant's identity) before it saves.
+  const claudeDesign = claudeDesignHost(grant.repo, svc.redis, site, deps.fetch);
   const ctx = deps.context
-    ? await deps.context({ repo: grant.repo, token, ...(routed ? { fetch: ghFetch } : {}), ...(owned ? { owned } : {}), identity })
-    : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: ghFetch as unknown as typeof fetch, ...(owned ? { owned } : {}), identity });
+    ? await deps.context({ repo: grant.repo, token, ...(routed ? { fetch: ghFetch } : {}), ...(owned ? { owned } : {}), identity, claudeDesign })
+    : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: ghFetch as unknown as typeof fetch, ...(owned ? { owned } : {}), identity, claudeDesign });
   // The body was read here (to record the steps): the transport takes it parsed, the request goes on without it.
   const headers = new Headers(req.headers);
   headers.delete('content-length');

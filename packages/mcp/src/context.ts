@@ -45,6 +45,11 @@ export interface ContextOptions {
    * the local server asks GitHub who owns the token.
    */
   identity?: () => Promise<import('./whoami.js').WhoAmI | null>;
+  /**
+   * The Library in Claude Design (claude-design.ts): the Bridge site that serves it and, on the hosted connector, the
+   * team setting that remembers the team's artifact. Absent: the public Bridge site, no team setting.
+   */
+  claudeDesign?: import('./claude-design.js').ClaudeDesignHost;
 }
 
 /** Whether a request only reads: GET and HEAD, and GraphQL queries (POST /graphql without a mutation). */

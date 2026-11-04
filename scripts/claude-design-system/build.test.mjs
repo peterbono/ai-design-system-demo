@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildBundle, generate, loadBundle, parseDefaults } from './build.mjs';
-import { NAMESPACE, isComponentExport, parseFamilies, parseValueExports, treeToXImport } from './lib.mjs';
+import { INDEX_PATH, NAMESPACE, buildManifest, isComponentExport, parseFamilies, parseValueExports, treeToXImport } from './lib.mjs';
+import { createHash } from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const SRC = join(ROOT, 'packages/react/src');
@@ -36,6 +37,22 @@ describe('lib', () => {
     expect(html).toContain('<x-import component-from-global-scope="Bridge.Button" variant="primary" loading="{{loading}}" icon-start="Check">Publish</x-import>');
     expect(html).toContain('<div style="display: flex;');
     expect(vals).toEqual({ loading: true });
+  });
+
+  it('builds a manifest that is the same for the same files, sorted, with the index last', () => {
+    const sha256 = (b) => createHash('sha256').update(b).digest('hex');
+    const files = new Map([
+      ['design-system.json', '{"v":3}'],
+      ['tokens.css', ':root{}'],
+      ['README.md', '# Bridge Library'],
+      ['api/components/Button.md', '# Button'],
+    ]);
+    const one = buildManifest({ files, version: '1.8.4', revision: 'abc1234', sha256 });
+    const two = buildManifest({ files: new Map([...files].reverse()), version: '1.8.4', revision: 'abc1234', sha256 });
+    expect(JSON.stringify(two)).toBe(JSON.stringify(one));
+    expect(one.files.map((f) => f.path)).toEqual(['project/README.md', 'project/api/components/Button.md', 'project/tokens.css', INDEX_PATH]);
+    expect(one).toMatchObject({ format: 1, name: 'Bridge Library', version: '1.8.4', base: '/claude-design-system/1.8.4/', count: 4, bytes: 7 + 7 + 16 + 8 });
+    expect(one.files[0]).toEqual({ path: 'project/README.md', size: 16, sha256: sha256(Buffer.from('# Bridge Library')) });
   });
 
   it('reads destructuring defaults', () => {

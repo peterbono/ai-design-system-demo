@@ -27,3 +27,6 @@ figma-references/
 bridge-data/
 
 .bridge-local/
+
+# Served Claude Design System (scripts/claude-design-system/release.mjs --out apps/docs-site/public, for astro dev)
+apps/docs-site/public/claude-design-system/
