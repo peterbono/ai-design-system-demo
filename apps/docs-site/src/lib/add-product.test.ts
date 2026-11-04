@@ -7,10 +7,16 @@ import {
   addProductProblem,
   addProductProposal,
   ADD_PRODUCT_WORDS,
+  ADDED_KEEP_MS,
+  addedKey,
+  canAddProduct,
   copyRepoFor,
-  emptyListLine,
   foundLine,
   isAccessMessage,
+  isDesignCopy,
+  parseAdded,
+  teamLeadsOf,
+  withAddedProducts,
   mergeRepos,
   nameFromRepo,
   newProductEntry,
@@ -35,6 +41,10 @@ import {
   withNewProduct,
   type AccessStep,
 } from './add-product';
+import { DESIGN_COPY_DESCRIPTION, DESIGN_COPY_TOPIC } from './design-copy';
+
+/** Every sentence of the dialog, the ones that take a name said with one. */
+const WORDS = Object.values(ADD_PRODUCT_WORDS).map((w) => (typeof w === 'function' ? w('Checkout') : w));
 
 const SHOP: ProductConfig = { key: 'admin-app', name: 'Art print shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' }, framework: 'react' };
 
@@ -131,7 +141,7 @@ describe('add a product', () => {
   });
 
   it('never says repository, fork or config to designers', () => {
-    for (const w of Object.values(ADD_PRODUCT_WORDS)) expect(w).not.toMatch(/repositor|fork|config|branch/i);
+    for (const w of WORDS) expect(w).not.toMatch(/repositor|fork|config|branch/i);
   });
 });
 
@@ -207,7 +217,7 @@ describe('giving Bridge access from the dialog', () => {
     expect(foundLine('Art print shop')).toBe("Art print shop is here. Add it when you're ready.");
     expect(nothingNewLine('acme')).toBe('Nothing new yet. If GitHub asked you to request access, the owners of acme get it; this list updates when they approve.');
     expect(nothingNewLine(null)).toContain('the owners of that account');
-    for (const w of [foundLine('x'), nothingNewLine('acme'), nothingYetLine('acme'), ownersOnlyLine('acme'), requestSentLine('acme', null), ...Object.values(ADD_PRODUCT_WORDS)]) {
+    for (const w of [foundLine('x'), nothingNewLine('acme'), nothingYetLine('acme'), ownersOnlyLine('acme'), requestSentLine('acme', null), ...WORDS]) {
       expect(w).not.toMatch(/repositor|installation|fork|config|—/i);
     }
   });
@@ -279,14 +289,49 @@ describe("the team's account, for the GitHub step", () => {
   });
 });
 
-describe('the empty "It\'s already built" step', () => {
-  it('says why the list is empty', () => {
-    expect(emptyListLine({ unread: true, seen: 3 })).toBe(ADD_PRODUCT_WORDS.unreadLine);
-    expect(emptyListLine({ unread: false, seen: 2 })).toBe(ADD_PRODUCT_WORDS.allListedLine);
-    expect(emptyListLine({ unread: false, seen: 0 })).toBe(ADD_PRODUCT_WORDS.findLine);
-    for (const line of [ADD_PRODUCT_WORDS.unreadLine, ADD_PRODUCT_WORDS.unreadAction, ADD_PRODUCT_WORDS.allListedLine]) {
-      expect(line).not.toMatch(/\u2014|repositor|installation|permission|token|API/i);
+describe('the words of the dialog', () => {
+  it('never says a technical word, never an em dash', () => {
+    const W = ADD_PRODUCT_WORDS;
+    for (const line of [W.unreadLine, W.unreadAction, W.foundLead, W.newLead, W.codeOnGitHub, W.findThere, W.startNew, W.sent, W.reviewLine('Checkout'), W.refused, W.addLabel('Checkout')]) {
+      expect(line).not.toMatch(/\u2014|repositor|installation|permission|token|API|config|pull request|merge/i);
     }
+  });
+});
+
+describe('Bridge never offers its own designers\' copies as products', () => {
+  const base = { copies: new Set<string>(), products: new Set<string>(['acme/checkout']) };
+
+  it('reads the mark Bridge puts on a copy it makes: the topic, or the description', () => {
+    expect(isDesignCopy({ full_name: 'acme/anything', topics: [DESIGN_COPY_TOPIC] }, base)).toBe(true);
+    expect(isDesignCopy({ full_name: 'acme/anything', topics: ['Bridge-Design-Copy'] }, base)).toBe(true);
+    expect(isDesignCopy({ full_name: 'acme/anything', description: DESIGN_COPY_DESCRIPTION }, base)).toBe(true);
+    expect(isDesignCopy({ full_name: 'acme/anything', description: ' bridge explorations for this product live here ' }, base)).toBe(true);
+    expect(isDesignCopy({ full_name: 'acme/anything', description: 'Our marketing site', topics: ['react'] }, base)).toBe(false);
+  });
+
+  it("knows a listed product's copy, and a <product>-design or -design-old next to a product", () => {
+    expect(isDesignCopy({ full_name: 'acme/shop-copy' }, { ...base, copies: new Set(['acme/shop-copy']) })).toBe(true);
+    expect(isDesignCopy({ full_name: 'acme/checkout-design' }, base)).toBe(true);
+    expect(isDesignCopy({ full_name: 'Acme/Checkout-Design-Old' }, base)).toBe(true);
+    // Not next to a known product: a real product that happens to end in "-design".
+    expect(isDesignCopy({ full_name: 'acme/interior-design' }, base)).toBe(false);
+    expect(isDesignCopy({ full_name: 'other/checkout-design' }, base)).toBe(false);
+  });
+
+  it('leaves them out of the list Bridge found, wherever they come from', () => {
+    const repos = [
+      { full_name: 'acme/checkout', name: 'checkout' },
+      { full_name: 'acme/checkout-design', name: 'checkout-design' },
+      { full_name: 'acme/checkout-design-old', name: 'checkout-design-old' },
+      { full_name: 'acme/mobile-app', name: 'mobile-app' },
+      { full_name: 'acme/marked', name: 'marked', topics: [DESIGN_COPY_TOPIC] },
+      { full_name: 'acme/described', name: 'described', description: DESIGN_COPY_DESCRIPTION },
+      { full_name: 'acme/shop-design', name: 'shop-design' },
+      { full_name: 'acme/legacy-copy', name: 'legacy-copy' },
+      { full_name: 'acme/interior-design', name: 'interior-design' },
+    ];
+    const listed = [SHOP, { key: 'old', name: 'Old', repo: 'acme/old', design: { repo: 'acme/legacy-copy' } } as ProductConfig];
+    expect(pickableRepos(repos, listed, 'acme/ds').map((r) => r.full)).toEqual(['acme/checkout', 'acme/interior-design', 'acme/mobile-app']);
   });
 
   it('counts a product listed under an old name as listed, and never offers the design system itself', () => {
@@ -295,5 +340,49 @@ describe('the empty "It\'s already built" step', () => {
       { full_name: 'the-bridge-company/ai-design-system-demo', name: 'ai-design-system-demo' },
     ];
     expect(pickableRepos(repos, [{ repo: 'art-print-shop-co/shop' } as ProductConfig], 'peterbono/ai-design-system-demo')).toEqual([]);
+  });
+});
+
+describe('who adds products', () => {
+  const config = { governance: { owners: { design: ['@Dana'], tech: ['malik', '@acme/web'] }, override: { allowed: ['sam'] } } };
+
+  it('reads the leads from the owners and the override list, people only', () => {
+    expect(teamLeadsOf(config).sort()).toEqual(['dana', 'malik', 'sam']);
+    // The page's settings (core SiteRepo) keep them at the top.
+    expect(teamLeadsOf(config.governance).sort()).toEqual(['dana', 'malik', 'sam']);
+    expect(teamLeadsOf(null)).toEqual([]);
+    expect(teamLeadsOf({ governance: { owners: { design: 'dana' } } })).toEqual([]);
+  });
+
+  it('admins and leads signed in with GitHub; never an email member, a plain writer or the sample team', () => {
+    const can = (access: Parameters<typeof canAddProduct>[0], login: string | null, sample = false) => canAddProduct(access, { sample, login, config });
+    expect(can({ admin: true, write: true }, 'someone')).toBe(true);
+    expect(can({ admin: false, repoAdmin: true }, 'someone')).toBe(true);
+    expect(can({ admin: false, write: true }, 'Malik')).toBe(true);
+    expect(can({ admin: false, write: false }, 'malik')).toBe(false);
+    expect(can({ admin: false, write: true }, 'priya')).toBe(false);
+    expect(can({ admin: true, write: true, contributor: true }, 'dana')).toBe(false);
+    expect(can({ admin: true, write: true }, 'dana', true)).toBe(false);
+    expect(can(null, 'dana')).toBe(false);
+  });
+});
+
+describe('a product just added shows at once', () => {
+  const NEW: ProductConfig = { key: 'checkout', name: 'Checkout', repo: 'acme/checkout', framework: 'react' };
+  const LIB: ProductConfig = { key: 'library', name: 'Library', default: true };
+
+  it('goes in before the library, once, until the settings list it', () => {
+    const added = [{ entry: NEW, at: 1000 }];
+    expect(withAddedProducts([SHOP, LIB], added).map((p) => p.key)).toEqual(['admin-app', 'checkout', 'library']);
+    expect(withAddedProducts([SHOP, { ...NEW, name: 'Renamed' }, LIB], added).map((p) => p.name)).toEqual(['Art print shop', 'Renamed', 'Library']);
+    expect(withAddedProducts([SHOP], added).map((p) => p.key)).toEqual(['admin-app', 'checkout']);
+  });
+
+  it('keeps it for a while only, and ignores anything that is not one', () => {
+    const now = 5_000_000;
+    const kept = JSON.stringify([{ entry: NEW, at: now - 1000 }, { entry: NEW, at: now - ADDED_KEEP_MS - 1 }, { entry: { key: 1 }, at: now }, null]);
+    expect(parseAdded(kept, now)).toEqual([{ entry: NEW, at: now - 1000 }]);
+    for (const bad of [null, '', 'x', '{}', '[1]']) expect(parseAdded(bad, now)).toEqual([]);
+    expect(addedKey('Acme/DS')).toBe(addedKey('acme/ds'));
   });
 });

@@ -50,12 +50,55 @@
   column-gap: var(--space-4);
 }
 
-/* Nothing to pick yet: one sentence; the footer's primary button gives Bridge access. */
-.addp-none-line {
+/* The products Bridge found: one row each, its name over its address, its own Add on the same line (proximity). Hairlines
+   between rows, as on the validated board; a long list scrolls inside the dialog. */
+.addp-rows {
+  display: grid;
+  max-height: var(--size-300);
   margin: 0;
-  text-wrap: pretty;
+  padding: 0;
+  overflow-y: auto;
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  list-style: none;
+}
+
+.addp-row {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-1);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.addp-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.addp-row-text {
+  display: grid;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.addp-row-name {
+  overflow: hidden;
   font-size: var(--typography-body-size);
-  line-height: var(--typography-body-line-height);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-ui-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addp-row-repo {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The new product arrived from GitHub: one sentence above the form, in the text color. */
@@ -113,114 +156,3 @@
   display: inline-flex;
 }
 
-/* Step 1, the choice: two cards side by side, each a real button. A grey plate holds the Field Guide drawing above
-   the title and its one line. On a phone the cards stack, the plate moves beside the text. */
-.addp-choices {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.addp-choice {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-  min-width: 0;
-  margin: 0;
-  padding: var(--space-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-2xl);
-  /* The dialog's own surface, so the grey plate stays visible in dark mode too. */
-  background-color: transparent;
-  color: var(--color-text-default);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-  transition-property: background-color, border-color;
-  transition-duration: var(--motion-duration-instant);
-  transition-timing-function: var(--motion-easing-standard);
-}
-
-@media (hover: hover) {
-  .addp-choice:hover {
-    border-color: var(--color-border-hover);
-  }
-}
-
-.addp-choice:active {
-  border-color: var(--color-border-hover);
-  background-color: var(--color-surface-hover);
-}
-
-.addp-choice:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.addp-choice-art {
-  box-sizing: border-box;
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  align-self: stretch;
-  padding: var(--space-1-5);
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-  color: var(--color-text-default);
-}
-
-.addp-choice-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.addp-choice-title {
-  font-size: var(--typography-body-size);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--typography-ui-line-height);
-}
-
-.addp-choice-help {
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-  text-wrap: pretty;
-}
-
-@media (max-width: 639px) {
-  .addp-choices {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-3);
-  }
-
-  .addp-choice {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-4);
-  }
-
-  .addp-choice-art {
-    align-self: center;
-    padding: var(--space-1);
-  }
-
-  .addp-choice-art > svg {
-    width: var(--size-16);
-    height: var(--size-16);
-  }
-}
-
-/* Step 3, Bridge sees none yet: the drawing beside one sentence, no extra space around it. */
-.addp-find {
-  padding-block: 0;
-}
-
-.addp-find-line {
-  flex: 1 1 var(--size-60);
-}

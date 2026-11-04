@@ -20,9 +20,11 @@ import {
   type GitHubClient,
   type RepoModel,
   type RepoModelOptions,
+  type ProductConfig,
   type RepoSnapshot,
   type SiteRepo,
 } from '@bridge-ds/core';
+import { addedKey, parseAdded, withAddedProducts, type AddedProduct } from '../lib/add-product';
 import { blobCacheFor, getCachedModel, getLatestCachedModel, putCachedModel } from './repo-cache';
 import { githubBusy, type GitHubBusy } from '../lib/github-busy';
 import { isHosted, repoFromPath } from '../lib/team-path';
@@ -97,9 +99,43 @@ export function repoContext(): RepoContext {
  */
 export function siteConfig(): Partial<SiteRepo> {
   const team = hostedRepo();
-  if (!team) return embedded();
+  if (!team) return withAdded(embedded());
   const site = runtime.get(key(team.owner, team.repo))?.site;
-  return site ? { ...site, owner: team.owner, repo: team.repo } : {};
+  return site ? withAdded({ ...site, owner: team.owner, repo: team.repo }) : {};
+}
+
+/** The products this tab just added (lib/add-product.ts AddedProduct), for the page's team. */
+export function addedHere(): AddedProduct[] {
+  const r = repoContext();
+  try {
+    return typeof sessionStorage === 'undefined' ? [] : parseAdded(sessionStorage.getItem(addedKey(`${r.owner}/${r.repo}`)), Date.now());
+  } catch {
+    return [];
+  }
+}
+
+/** The settings with the products this tab just added that they do not list yet (before GitHub's answers catch up). */
+function withAdded(site: Partial<SiteRepo>): Partial<SiteRepo> {
+  const added = addedHere();
+  if (!added.length || !Array.isArray(site.products) || !site.products.length) return site;
+  const products = withAddedProducts(site.products, added);
+  return products.length === site.products.length ? site : { ...site, products };
+}
+
+/**
+ * A product was just added to the team's settings (Add a product): the side nav, its page and every reader of the
+ * settings list it at once, in this tab and on the next pages, until the settings read list it themselves.
+ */
+export function noteAddedProduct(entry: ProductConfig): void {
+  const r = repoContext();
+  const k = addedKey(`${r.owner}/${r.repo}`);
+  try {
+    const kept = parseAdded(sessionStorage.getItem(k), Date.now()).filter((a) => a.entry.key.toLowerCase() !== entry.key.toLowerCase());
+    sessionStorage.setItem(k, JSON.stringify([...kept, { entry, at: Date.now() }]));
+  } catch {
+    /* storage blocked: the settings read lists it a moment later */
+  }
+  if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('bridge:team-model', { detail: { owner: r.owner, repo: r.repo } }));
 }
 
 /** Records what GitHub said about a team's repository (default branch, settings) for repoContext and siteConfig. */

@@ -518,6 +518,13 @@ const mustRenew = (): boolean => Boolean(githubToken()) && !tokenRejected() && (
  * The Authorization a call goes out with: a GitHub token of this page (the current one, or one a refresh replaced, held
  * by a client made earlier) becomes the current token, renewed first when it expires. Anything else is kept as is.
  */
+/** The GitHub sign-in's token, renewed first when it is about to expire (calls to this site's server). Null without one. */
+export async function liveGitHubToken(): Promise<string | null> {
+  if (!githubToken()) return null;
+  if (mustRenew()) await freshToken().catch(() => undefined);
+  return githubToken();
+}
+
 async function liveAuth(auth: string | undefined): Promise<string | undefined> {
   if (!auth || isContribAuth(auth)) return auth;
   const sent = auth.replace(/^Bearer\s+/i, '');
@@ -768,14 +775,32 @@ function cacheSet(url: string, data: unknown) {
   }
 }
 
-/** When this tab last wrote to GitHub: reads ask GitHub again for a while after (lib/token-session readCacheMode). */
-let wroteAt: number | null = null;
+/**
+ * When this tab last wrote to GitHub: reads ask GitHub again for a while after (lib/token-session readCacheMode). Kept
+ * in this tab's sessionStorage too, so the page a write leads to (a product just added opens its own page) reads GitHub
+ * again instead of the browser's copy from before.
+ */
+const WROTE_KEY = 'bridge.wroteAt';
+let wroteAt: number | null = (() => {
+  try {
+    const v = Number(typeof sessionStorage === 'undefined' ? NaN : sessionStorage.getItem(WROTE_KEY));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+})();
 /**
  * Notes a write to GitHub. Exported for writes this site's server makes for the tab (the library check records its
- * result on the pull request): the next reads ask GitHub again, not the browser's copy from before.
+ * result on the pull request, a product added straight to the settings): the next reads ask GitHub again, not the
+ * browser's copy from before.
  */
 export const noteWrite = () => {
   wroteAt = Date.now();
+  try {
+    sessionStorage.setItem(WROTE_KEY, String(wroteAt));
+  } catch {
+    /* storage blocked: this page only */
+  }
 };
 const freshRead = (): RequestCache => readCacheMode(wroteAt, Date.now());
 

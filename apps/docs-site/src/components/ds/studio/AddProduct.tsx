@@ -1,36 +1,38 @@
 // "Add a product" (Settings > Products, the onboarding Products step, and the foot of Start an exploration's Where
-// list, which opens this same dialog through `open`). Every entry opens on one question, "Which product does your team
-// design for?", with two choice cards (Field Guide drawings): "It's already built" and "It's a new product". Never the
-// sample team, never an email admin. Words and rules: lib/add-product.ts.
+// list, which opens this same dialog through `open`), validated board "Add a product v3". One dialog, never the sample
+// team, never an email member. Words and rules: lib/add-product.ts.
 //
-// Already built, Bridge sees products: "Pick your product" among them (named for the person, renamed later if
-// needed), the designers' copy kept or dropped, Add product. Bridge reads its previews from Vercel when it can, then
-// proposes the new entry for review (scripts/roles.ts proposeNewProduct), the same path as a product rename.
+// A: Bridge found products on GitHub that the team does not have yet (never Bridge's own designers' copies,
+// lib/add-product.ts isDesignCopy): one row each with Add, "Not in the list? Find it on GitHub", "Give designers their
+// own copy", and the footer's Cancel and "Start a new product".
+// B: nothing found (or "Start a new product"): the dialog opens straight on the name and Create product
+// (StartNewProduct.tsx), with "Its code is already on GitHub? Find it there".
 //
-// Already built, Bridge sees none (or "Not in the list? Find it on GitHub"), Vercel's "Adjust GitHub App permissions":
-// GitHub opens in a small centered window on the page where the admin ticks which products Bridge sees. The dialog
-// waits with a Field Guide drawing, reads the list again every few seconds (and at once when the return page,
-// pages/studio/auth/access.astro, says so), and goes back to the pick with the new product picked. "Not sure where it
-// is? Ask a developer" copies a ready message with that page and the team's Studio. GitHub closed with nothing new: one
-// line says the owners decide. GitHub busy: the busy line, no more reads.
+// Add (and Create product) adds it to the team at once (scripts/add-product.ts addToTeam: Bridge writes it to the
+// team's settings for an admin or a lead, api/_lib/product-add.ts), then the dialog closes and opens the product's
+// page, already in the side nav. A library where Bridge may not write it directly sends it for review instead, and the
+// dialog says so plainly. Someone who may not add products reads why, from Bridge.
 //
-// Someone who does not own the GitHub account (scripts/add-product readOwnership): before GitHub opens, one line says
-// only its owners can show Bridge where it is and GitHub sends them the request, with "Copy a message for the owners".
-// GitHub closed with nothing new: "Request sent to the owners", remembered in this browser per team (localStorage) so
-// the dialog opens on it again; coming back to the window reads the list, and the approved product is picked.
+// Find it on GitHub (Vercel's "Adjust GitHub App permissions"): GitHub opens in a small centered window on the page
+// where the team's account ticks which products Bridge sees (the team's account even when Bridge could not read its
+// installation, never GitHub's account picker). The dialog waits with a Field Guide drawing, reads the list again
+// every few seconds (and at once when the return page, pages/studio/auth/access.astro, says so), and shows the list
+// with the new product announced. GitHub closed with nothing new: one line says the owners decide. GitHub busy: the
+// busy line, no more reads. GitHub did not answer when the dialog opened: one line and Try again.
 //
-// It's a new product: the same dialog shows StartNewProduct.tsx, where Bridge starts the product's code on GitHub
-// itself, so no GitHub step, then shows the way to its previews. Back goes to the choice from every step.
-import { forwardRef, useEffect, useId, useReducer, useRef, useState } from 'react';
-import { Check, Copy, ExternalLink } from 'lucide-react';
-import { Button, ButtonGroup, Checkbox, Combobox, Dialog, DialogClose, DialogContent, Spinner } from '@bridge-ds/react';
-import { accessSettingsUrl, askDeveloperMessage, askOwnersMessage, requestAccessUrl, teamLink, type AppInstallation } from '../../../lib/access-view';
-import { studioHref } from '../../../lib/team-path';
+// Someone who does not own the GitHub account (scripts/add-product readOwnership): one line says only its owners can
+// show Bridge where it is and GitHub sends them the request, with "Copy a message for the owners". GitHub closed with
+// nothing new: "Request sent to the owners", remembered in this browser per team (localStorage), so the dialog opens
+// on it again; coming back to the window reads the list, and the approved product is announced.
+import { useEffect, useReducer, useRef, useState } from 'react';
+import { Check, Copy } from 'lucide-react';
+import { Button, ButtonGroup, Checkbox, Dialog, DialogClose, DialogContent, Spinner } from '@bridge-ds/react';
+import { accessSettingsUrl, askOwnersMessage, requestAccessUrl, type AppInstallation } from '../../../lib/access-view';
 import { githubBusy } from '../../../lib/github-busy';
+import { productHref } from '../../../lib/product-page';
 import type { ProductConfig } from '@bridge-ds/core';
 import { BusyNotice } from './BusyNotice';
 import { Drawing } from './Drawing';
-import type { IllustrationName } from '../../../brand/illustrations';
 import StartNewProduct from './StartNewProduct';
 import type { PendingValues } from '../../../lib/pending-action';
 import { useCopy } from './TeamLink';
@@ -39,8 +41,7 @@ import {
   ACCESS_TICK_MS,
   ADD_PRODUCT_WORDS as W,
   accessStep,
-  addProductProblem,
-  emptyListLine,
+  canAddProduct,
   foundLine,
   isAccessMessage,
   mergeRepos,
@@ -63,27 +64,35 @@ import {
 /** The page's team ("owner/repo"), noted by useCanAddProduct: the dialog only shows once it is known. */
 let pageTeam: string | null = null;
 
-/** Whether this viewer may add a product: the same rule as renaming one (lib/product-name canRenameProduct). */
+/**
+ * Whether this viewer may add a product: an admin or a lead of the team signed in with GitHub (lib/add-product.ts
+ * canAddProduct). Bridge checks it again before it writes anything.
+ */
 export function useCanAddProduct(): boolean {
   const [can, setCan] = useState(false);
   useEffect(() => {
     let live = true;
+    let unhook = () => undefined as void;
     void (async () => {
-      const [{ isSampleTeam }, { onAccess }, { repoContext }, { canRenameProduct }] = await Promise.all([
-        import('../../../lib/demo'),
-        import('../../../scripts/github-session'),
-        import('../../../scripts/repo-context'),
-        import('../../../lib/product-name'),
-      ]);
-      onAccess((a) => {
+      const [{ isSampleTeam }, session, { repoContext, siteConfig }] = await Promise.all([import('../../../lib/demo'), import('../../../scripts/github-session'), import('../../../scripts/repo-context')]);
+      let last: Parameters<Parameters<typeof session.onAccess>[0]>[0] = null;
+      const paint = () => {
         if (!live) return;
         const r = repoContext();
         pageTeam = `${r.owner}/${r.repo}`;
-        setCan(canRenameProduct(a, isSampleTeam(`${r.owner}/${r.repo}`)));
+        setCan(canAddProduct(last, { sample: isSampleTeam(pageTeam), login: session.currentViewer()?.login ?? null, config: siteConfig() }));
+      };
+      session.onAccess((a) => {
+        last = a;
+        paint();
       });
+      // A lead is known once the team's settings are read.
+      document.addEventListener('bridge:team-model', paint);
+      unhook = () => document.removeEventListener('bridge:team-model', paint);
     })().catch(() => undefined);
     return () => {
       live = false;
+      unhook();
     };
   }, []);
   return can;
@@ -94,7 +103,7 @@ export interface AddProductProps {
   products?: ProductConfig[];
   /** `primary` in the onboarding step (its one action), `secondary` in Settings. */
   variant?: 'primary' | 'secondary';
-  /** Called once the product is proposed. */
+  /** Called once the product is added (just before its page opens), or sent for review. */
   onSent?: () => void;
   /**
    * Opened from elsewhere (Start an exploration's "Add a product"): the dialog only, no button of its own. The opener
@@ -117,6 +126,13 @@ export interface AddProductResume {
   line: string;
 }
 
+/** Opens the product's page once it is in the team (a full page: the side nav and the page read the new settings). */
+let openPage = (href: string) => location.assign(href);
+/** Tests replace the navigation. */
+export const setOpenPage = (fn: (href: string) => void) => {
+  openPage = fn;
+};
+
 export default function AddProduct({ products: given, variant = 'secondary', onSent, open: openProp, onOpenChange, resume = null }: AddProductProps) {
   const can = useCanAddProduct();
   const controlled = openProp !== undefined;
@@ -135,35 +151,31 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   const [sent, setSent] = useState(false);
   const [repos, setRepos] = useState<ProductRepoChoice[] | null>(null);
   const [target, setTarget] = useState<{ installation: AppInstallation | null; account: string; accountId: number | null } | null>(null);
-  // GitHub did not answer the first read (not busy): the empty step says why, with Try again.
+  // GitHub did not answer the first read (not busy): the dialog says why, with Try again.
   const [unread, setUnread] = useState(false);
-  // How many products Bridge sees, the ones already in the team included: an empty pick says which case it is.
-  const [seen, setSeen] = useState(0);
   const resumed = resume?.kind === 'add-product' ? resume.values : null;
-  const [repo, setRepo] = useState<string | null>(typeof resumed?.repo === 'string' ? resumed.repo : null);
-  // The name a product started from "It's a new product" keeps when it comes back to the pick (else Bridge names it).
-  const [named, setNamed] = useState<string | null>(typeof resumed?.name === 'string' && resumed.name ? resumed.name : null);
-  const [copy, setCopy] = useState(typeof resumed?.copy === 'boolean' ? resumed.copy : true);
-  // Back from GitHub: the line over the step, until the person changes something or sends.
-  const [resumeNote, setResumeNote] = useState<string | null>(resume?.line ?? null);
-  const [previews, setPreviews] = useState<{ preview: string; production: string } | null | 'checking'>(null);
+  // Back from GitHub on a found product: its row, and the name the person gave it when it was started from a new one.
+  const resumedRepo = typeof resumed?.repo === 'string' ? resumed.repo : null;
+  const resumedName = typeof resumed?.name === 'string' && resumed.name ? resumed.name : null;
+  const [copy, setCopy] = useState(typeof resume?.values.copy === 'boolean' ? resume.values.copy : true);
+  // Back from GitHub: the line over the list, until the person adds or leaves.
+  const [resumeNote, setResumeNote] = useState<string | null>(resume?.kind === 'add-product' ? resume.line : null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // The product being added (its row shows the spinner), and what went wrong, on its row.
+  const [adding, setAdding] = useState<string | null>(null);
+  const [error, setError] = useState<{ repo: string | null; line: string } | null>(null);
   const [step, go] = useReducer(accessStep, { kind: 'list' });
-  // The new product that arrived from GitHub (announced once, until the admin picks something else).
-  const [found, setFound] = useState<string | null>(null);
+  // The new product that arrived from GitHub (announced once, until the person adds something).
+  const [found, setFound] = useState<{ repo: string; name: string } | null>(null);
+  // Which step: the found products (A) or a new one (B); null until Bridge knows whether it found any.
+  const [mode, setMode] = useState<'found' | 'new' | null>(resume ? (resume.kind === 'new-product' ? 'new' : 'found') : null);
+  // Sent for review instead (a library where Bridge may not add it directly): the product's name.
+  const [review, setReview] = useState<string | null>(null);
   const popup = useRef<Window | null>(null);
   // The products listed when GitHub opened: anything else that shows up is the one the admin just gave access to.
   // Null until GitHub opens (a read after "GitHub is busy" only fills the list).
   const before = useRef<string[] | null>(null);
-  const sendRef = useRef<HTMLButtonElement>(null);
-  const formId = useId();
-  // Which step: the choice (always first), "It's already built" (pick, find, wait) or "It's a new product"
-  // (StartNewProduct.tsx). Once a new product is proposed, closing counts as sent.
-  const [view, setView] = useState<'choice' | 'built' | 'new'>(resume ? (resume.kind === 'new-product' ? 'new' : 'built') : 'choice');
-  // The card the person chose last: Back puts the focus on it again.
-  const chose = useRef<'built' | 'new'>('built');
-  const proposedNew = useRef(false);
+  const addRefs = useRef(new Map<string, HTMLButtonElement>());
   // Whether the viewer owns the GitHub account (null: unknown, the usual words). Not an owner: GitHub only lets them
   // request, so the dialog says so before and after.
   const [owner, setOwner] = useState<boolean | null>(null);
@@ -182,16 +194,16 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       void import('../../../scripts/pending-action').then((m) => m.forgetAction('add-product'), () => undefined);
       go({ type: 'cancel' });
       setFound(null);
-      setView('choice');
+      setError(null);
+      setMode(null);
+      if (review) {
+        setReview(null);
+        if (!controlled) setSent(true);
+      }
       // GitHub did not answer this time: the next opening asks again instead of keeping the empty list.
       if (unread) {
         setUnread(false);
         setRepos(null);
-      }
-      if (proposedNew.current) {
-        proposedNew.current = false;
-        if (!controlled) setSent(true);
-        onSent?.();
       }
     }
     if (onOpenChange) onOpenChange(o);
@@ -199,8 +211,8 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   };
 
   // What Bridge sees on GitHub, and who can give it access. Both arrive together: the owners' line never shows up after
-  // the step it belongs to. GitHub did not answer: the step says so with Try again, and the GitHub step still opens on
-  // the team's account (its id read on its own), never GitHub's "Where do you want to install?".
+  // the step it belongs to. GitHub did not answer: the dialog says so with Try again, and the GitHub step still opens
+  // on the team's account (its id read on its own), never GitHub's "Where do you want to install?".
   const load = async (isLive: () => boolean) => {
     const m = await import('../../../scripts/add-product');
     try {
@@ -212,7 +224,6 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
       if (!isLive()) return;
       setUnread(false);
       setOwner(o);
-      setSeen(a.seen);
       setTarget({ installation: a.installation, account: a.account, accountId: a.accountId });
       setRepos(a.repos);
     } catch (err) {
@@ -246,7 +257,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     }
   };
 
-  // A request this browser sent earlier: the approved product arrived (picked, as if found now), or "Request sent" again.
+  // A request this browser sent earlier: the approved product arrived (announced, as if found now), or "Request sent".
   const restored = useRef(false);
   useEffect(() => {
     if (!open) {
@@ -261,13 +272,9 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     const kept = readPending();
     if (!kept) return;
     const fresh = newRepoIn(kept.before, repos);
-    // The request is the dialog's news: it opens on "It's already built", not on the choice.
-    setView('built');
     if (fresh) {
       forgetPending();
-      setRepo(fresh.full);
-      setNamed(null);
-      setFound(cleanFoundName(fresh.name));
+      announce(fresh);
       return;
     }
     before.current = kept.before;
@@ -275,8 +282,16 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     go({ type: 'pending' });
   }, [open, repos, can]);
 
-  // One light read: a product that was not there when GitHub opened goes into the list, picked and named, GitHub's
-  // window closes and the Add product button takes the focus. `last`: GitHub is closed, nothing new says so.
+  /** A product that just arrived from GitHub: the list shows it, announced, its Add takes the focus. */
+  const announce = (r: ProductRepoChoice) => {
+    setMode('found');
+    setError(null);
+    setResumeNote(null);
+    setFound({ repo: r.full, name: nameFromRepo(r.name) || r.name });
+  };
+
+  // One light read: a product that was not there when GitHub opened goes into the list, announced, GitHub's window
+  // closes and its Add takes the focus. `last`: GitHub is closed, nothing new says so.
   const reading = useRef(false);
   const lastPending = useRef(false);
   const [rereading, setRereading] = useState(false);
@@ -303,10 +318,7 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         void import('../../../scripts/pending-action').then((m) => m.forgetAction('add-product'), () => undefined);
         setRequest(null);
         setRepos((list) => mergeRepos(list ?? [], now));
-        setRepo(fresh.full);
-        setNamed(null);
-        setError(null);
-        setFound(cleanFoundName(fresh.name));
+        announce(fresh);
         go({ type: 'found' });
         return;
       }
@@ -369,22 +381,21 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     };
   }, [open, step]);
 
-  // The new product is picked: the one next action takes the focus.
-  useEffect(() => {
-    if (found && step.kind === 'list') sendRef.current?.focus();
-  }, [found, step.kind]);
-  // Back from GitHub on the pick: Add product takes the focus once the list is there.
+  // Back from GitHub on a found product: it goes in the list (a product Bridge just started may not be in GitHub's
+  // list yet), and its Add takes the focus once the list is there. Nothing is sent before the click.
   const resumedFocus = useRef(false);
   useEffect(() => {
-    if (resume?.kind !== 'add-product' || resumedFocus.current || !repos || view !== 'built') return;
+    if (!resumedRepo || resumedFocus.current || !repos) return;
     resumedFocus.current = true;
-    // A product Bridge just started may not be in GitHub's list yet: it goes in, picked.
-    const full = typeof resume.values.repo === 'string' ? resume.values.repo : '';
-    if (/^[\w.-]+\/[\w.-]+$/.test(full) && !repos.some((r) => r.full === full)) {
-      setRepos((list) => mergeRepos(list ?? [], [{ full, name: full.split('/')[1]!, defaultBranch: typeof resume.values.branch === 'string' ? resume.values.branch : 'main' }]));
+    if (/^[\w.-]+\/[\w.-]+$/.test(resumedRepo) && !repos.some((r) => r.full === resumedRepo)) {
+      setRepos((list) => mergeRepos(list ?? [], [{ full: resumedRepo, name: resumedRepo.split('/')[1]!, defaultBranch: typeof resume?.values.branch === 'string' ? resume.values.branch : 'main' }]));
     }
-    requestAnimationFrame(() => sendRef.current?.focus());
-  }, [resume, repos, view]);
+    requestAnimationFrame(() => addRefs.current.get(resumedRepo)?.focus());
+  }, [resumedRepo, repos]);
+  // A product announced: its Add takes the focus.
+  useEffect(() => {
+    if (found && step.kind === 'list') requestAnimationFrame(() => addRefs.current.get(found.repo)?.focus());
+  }, [found, step.kind]);
 
   // The page where the team's account ticks its products: its installation, else the app's install page for that
   // account (never GitHub's account picker when the account is known).
@@ -403,92 +414,65 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
     go({ type: 'open', at: Date.now() });
   };
 
-  const choice = repos?.find((r) => r.full === repo) ?? null;
-  // No name field: Bridge names the product for the person (renamed later from its page if needed).
-  const name = named ?? (choice ? productNameFor(choice, products) : '');
-  // Nothing to pick yet: the name and the copy choice wait until there is a product (progressive disclosure).
-  const none = repos !== null && repos.length === 0;
-  const waiting = step.kind === 'waiting';
-  useEffect(() => {
-    if (!choice) return;
-    let live = true;
-    setPreviews('checking');
-    void import('../../../scripts/add-product')
-      .then((m) => m.detectPreviews(choice))
-      .then((p) => live && setPreviews(p), () => live && setPreviews(null));
-    return () => {
-      live = false;
-    };
-  }, [choice]);
-
-  // Moving between steps: the focus goes to the new step's first thing to do (Back: the card chosen before).
-  const builtCard = useRef<HTMLButtonElement>(null);
-  const newCard = useRef<HTMLButtonElement>(null);
-  const findRef = useRef<HTMLButtonElement>(null);
-  const pickRef = useRef<HTMLInputElement>(null);
-  const moved = useRef(false);
-  useEffect(() => {
-    if (!moved.current || view === 'new') return;
-    moved.current = false;
-    const to = view === 'choice' ? (chose.current === 'built' ? builtCard : newCard).current : none ? findRef.current : pickRef.current;
-    to?.focus();
-  }, [view, none]);
-  const show = (v: 'choice' | 'built' | 'new') => {
-    if (v !== 'choice') chose.current = v;
-    moved.current = true;
-    setError(null);
-    setView(v);
-  };
-
   if (!can) return controlled || products.length ? null : <p className="set-row-value">{W.noneYet}</p>;
   if (sent && !controlled) return <p className="set-row-value" role="status">{W.sent}</p>;
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const problem = addProductProblem({ name, repo }, products);
-    if (problem) return setError(problem);
+  /**
+   * Adds the product to the team. Added: the dialog closes and its page opens (already in the side nav). Sent for
+   * review instead: the dialog says so. Refused or not done: the reason on its row.
+   */
+  const addEntry = async (entry: ProductConfig): Promise<boolean> => {
     setBusy(true);
+    setAdding(entry.repo ?? null);
     setError(null);
     setResumeNote(null);
-    // Kept if the person has to sign in again first: this step reopens with the same pick (scripts/pending-action).
+    // Kept if the person has to sign in again first: this step reopens with the same product (scripts/pending-action).
     const { armPendingAction, disarmPendingAction } = await import('../../../scripts/pending-action');
-    armPendingAction('add-product', { repo, name, copy });
+    armPendingAction('add-product', { repo: entry.repo ?? null, name: entry.name, copy });
     try {
-      const entry = newProductEntry({
-        key: productKeyFor(choice!.name, products.map((p) => p.key)),
-        name,
-        repo: choice!.full,
-        copy,
-        previews: previews === 'checking' ? null : previews,
-      });
-      const { proposeNewProduct } = await import('../../../scripts/roles');
-      await proposeNewProduct(entry);
-      disarmPendingAction();
-      forgetPending();
-      if (!controlled) setSent(true);
-      onSent?.();
-      setOpen(false);
+      const out = await (await import('../../../scripts/add-product')).addToTeam(entry);
+      if (out.kind === 'added' || out.kind === 'review') {
+        disarmPendingAction();
+        forgetPending();
+        onSent?.();
+      }
+      if (out.kind === 'added') {
+        setOpen(false);
+        openPage(productHref(out.key));
+        return true;
+      }
+      if (out.kind === 'review') {
+        setReview(entry.name);
+        return true;
+      }
+      setError({ repo: entry.repo ?? null, line: out.kind === 'refused' ? out.message : W.refused });
+      return false;
     } catch (err) {
       // The sign-in expired: its sentence (signing in fixes it), not a generic refusal.
-      setError((await import('../../../scripts/resume')).signInLineFor(err, 'add products') ?? W.refused);
+      setError({ repo: entry.repo ?? null, line: (await import('../../../scripts/resume')).signInLineFor(err, 'add products') ?? W.refused });
+      return false;
     } finally {
       setBusy(false);
+      setAdding(null);
     }
+  };
+
+  const addRepo = async (r: ProductRepoChoice) => {
+    // Bridge names it (renamed later from its page if needed); a product started here keeps the name it was given.
+    const name = r.full === resumedRepo && resumedName ? resumedName : productNameFor(r, products);
+    setBusy(true);
+    setAdding(r.full);
+    const previews = await import('../../../scripts/add-product').then((m) => m.detectPreviews(r)).catch(() => null);
+    await addEntry(newProductEntry({ key: productKeyFor(r.name, products.map((p) => p.key)), name, repo: r.full, copy, previews }));
   };
 
   // Someone who does not own the account: a ready-made message for the owners, with the page where they tick it, and
   // once the request is sent, Check again beside it.
   const account = request?.account ?? target?.account ?? '';
   const requested = step.kind === 'requested';
-  const sentLine = requestSentLine(account, request?.product ?? null);
   const ownerActions = (
     <span className="addp-actions">
-      <Button
-        variant="link"
-        size="sm"
-        iconStart={copied ? Check : Copy}
-        onClick={() => void copyText(askOwnersMessage(request?.product ?? null, settingsUrl()), W.copiedForOwnersSaid)}
-      >
+      <Button variant="link" size="sm" iconStart={copied ? Check : Copy} onClick={() => void copyText(askOwnersMessage(request?.product ?? null, settingsUrl()), W.copiedForOwnersSaid)}>
         {copied ? W.copiedForOwners : W.copyForOwners}
       </Button>
       {requested && (
@@ -503,191 +487,199 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
   );
   const forOwners = (
     <p className="addp-more">
-      <span>{requested ? sentLine : ownersOnlyLine(account)}</span> {ownerActions}
+      <span>{requested ? requestSentLine(account, request?.product ?? null) : ownersOnlyLine(account)}</span> {ownerActions}
     </p>
   );
-  const nothingYet = (
-    <p className="addp-more">
-      <span>{nothingYetLine(target?.account)}</span>{' '}
-      <Button variant="link" size="sm" loading={rereading} onClick={() => void readAgain(false)}>
-        {W.tryAgain}
-      </Button>
-    </p>
-  );
+  const busyNotice = step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />;
 
-  // "Not sure where it is? Ask a developer": a ready message with the page where the product is ticked and the team's
-  // Studio, where it then shows (the product is not known yet).
-  const askDeveloper = (
-    <p className="addp-more">
-      <span>{W.notSure}</span>{' '}
-      <Button
-        variant="link"
-        size="sm"
-        iconStart={copied ? Check : undefined}
-        onClick={() => void copyText(askDeveloperMessage(settingsUrl(),teamLink(location.origin, studioHref(''))), W.askDeveloperSaid)}
-      >
-        {copied ? W.copiedForOwners : W.askDeveloper}
-      </Button>{' '}
-      <span>{W.askDeveloperNote}</span>
-      <span className="sr-only" role="status" aria-live="polite">
-        {said}
-      </span>
-    </p>
-  );
-
-  // Under the pick list: the way to a product Bridge cannot see yet (or, once GitHub closed with nothing new, what
-  // happened and Try again).
-  const note = requested ? (
-    forOwners
-  ) : step.kind === 'nothing-new' ? (
-    nothingYet
-  ) : (
-    <>
-      <p className="addp-more">
-        <span>{W.notListed}</span>{' '}
-        <Button variant="link" size="sm" onClick={giveAccess}>
-          {W.findOnGitHub}
-        </Button>
-      </p>
-      {asker && forOwners}
-    </>
-  );
-
-  // Step 1: which product. Two cards, each a real button with its Field Guide drawing on a grey plate.
-
-  const back = (
-    <Button variant="secondary" disabled={busy} onClick={() => show('choice')}>
-      {W.back}
-    </Button>
-  );
-
-  const footer =
-    view === 'choice' || waiting ? (
-      <ButtonGroup align="end">
-        {waiting ? (
-          <Button variant="secondary" onClick={() => go({ type: 'cancel' })}>
-            {W.cancel}
+  /**
+   * The way to a product Bridge cannot see yet, under the list (A) or the new product's form (B), or what happened
+   * with it: the request sent to the owners, GitHub closed with nothing new, GitHub not answering.
+   */
+  const findNote = (lead: string, action: string, onFind: () => void) => {
+    if (requested) return forOwners;
+    if (step.kind === 'nothing-new')
+      return (
+        <p className="addp-more">
+          <span>{nothingYetLine(target?.account)}</span>{' '}
+          <Button variant="link" size="sm" loading={rereading} onClick={() => void readAgain(false)}>
+            {W.tryAgain}
           </Button>
-        ) : (
-          <DialogClose render={<Button variant="secondary" />}>{W.cancel}</DialogClose>
-        )}
-      </ButtonGroup>
-    ) : (
-      <ButtonGroup align="end">
-        {back}
-        {none ? (
-          <Button ref={findRef} variant="primary" iconEnd={ExternalLink} onClick={giveAccess}>
-            {W.findOnGitHub}
-          </Button>
-        ) : (
-          <Button ref={sendRef} type="submit" form={formId} variant="primary" loading={busy} disabled={busy || !repo}>
-            {W.send}
-          </Button>
-        )}
-      </ButtonGroup>
-    );
-
-  let body: React.ReactNode;
-  if (view === 'choice') {
-    body = (
-      <div className="addp-choices">
-        <ChoiceButton ref={builtCard} art="components" title={W.built} help={W.builtHelp} onClick={() => show('built')} />
-        <ChoiceButton ref={newCard} art="fix" title={W.fresh} help={W.freshHelp} onClick={() => show('new')} />
-      </div>
-    );
-  } else if (waiting) {
-    // Step 4: GitHub is open. The dialog waits and reads again on its own.
-    body = (
-      <div className="addp-wait">
-        <Drawing name="guide" width={96} className="addp-wait-art" />
-        <div className="addp-wait-text">
-          <p className="addp-wait-line" role="status">
-            {W.waiting}
-          </p>
+        </p>
+      );
+    return (
+      <>
+        {unread && step.kind !== 'busy' && (
           <p className="addp-more">
-            <Spinner size="xs" /> <span>{W.waitingNote}</span>{' '}
-            <Button variant="link" size="sm" onClick={() => popup.current?.focus()}>
-              {W.showGitHub}
-            </Button>
-          </p>
-        </div>
-      </div>
-    );
-  } else if (none) {
-    // Step 3: Bridge sees none yet. One drawing, one sentence, Find it on GitHub in the footer.
-    body = (
-      <div className="addp-form">
-        {step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />}
-        <div className="addp-wait addp-find">
-          <Drawing name="components" width={96} className="addp-wait-art" />
-          <p className="addp-wait-line addp-find-line">{requested ? sentLine : emptyListLine({ unread, seen })}</p>
-        </div>
-        {requested ? (
-          <p className="addp-more">{ownerActions}</p>
-        ) : step.kind === 'nothing-new' ? (
-          nothingYet
-        ) : unread && step.kind !== 'busy' ? (
-          <p className="addp-more">
-            <span>{W.unreadAction}</span>{' '}
+            <span>
+              {W.unreadLine} {W.unreadAction}
+            </span>{' '}
             <Button variant="link" size="sm" loading={retrying} onClick={() => void retry()}>
               {W.tryAgain}
             </Button>
           </p>
-        ) : asker ? (
-          forOwners
-        ) : (
-          askDeveloper
         )}
-        {error && (
-          <p className="addp-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
+        <p className="addp-more">
+          <span>{lead}</span>{' '}
+          <Button variant="link" size="sm" onClick={onFind}>
+            {action}
+          </Button>
+        </p>
+        {asker && forOwners}
+      </>
+    );
+  };
+
+  const cancel = <DialogClose render={<Button variant="secondary" disabled={busy} />}>{W.cancel}</DialogClose>;
+  const listed = repos ?? [];
+  const view = review !== null ? 'review' : step.kind === 'waiting' ? 'waiting' : (mode ?? (repos === null ? 'loading' : listed.length ? 'found' : 'new'));
+
+  let content: React.ReactNode;
+  if (view === 'review') {
+    content = (
+      <DialogContent
+        title={W.reviewTitle}
+        description={W.reviewLine(review!)}
+        hideClose
+        footer={
+          <ButtonGroup align="end">
+            <DialogClose render={<Button variant="primary" />}>{W.done}</DialogClose>
+          </ButtonGroup>
+        }
+      >
+        <div className="addp-wait">
+          <Drawing name="guide" width={96} className="addp-wait-art" />
+        </div>
+      </DialogContent>
+    );
+  } else if (view === 'waiting') {
+    // GitHub is open. The dialog waits and reads again on its own.
+    content = (
+      <DialogContent
+        title={W.title}
+        hideClose
+        footer={
+          <ButtonGroup align="end">
+            <Button variant="secondary" onClick={() => go({ type: 'cancel' })}>
+              {W.cancel}
+            </Button>
+          </ButtonGroup>
+        }
+      >
+        <div className="addp-wait">
+          <Drawing name="guide" width={96} className="addp-wait-art" />
+          <div className="addp-wait-text">
+            <p className="addp-wait-line" role="status">
+              {W.waiting}
+            </p>
+            <p className="addp-more">
+              <Spinner size="xs" /> <span>{W.waitingNote}</span>{' '}
+              <Button variant="link" size="sm" onClick={() => popup.current?.focus()}>
+                {W.showGitHub}
+              </Button>
+            </p>
+          </div>
+        </div>
+      </DialogContent>
+    );
+  } else if (view === 'loading') {
+    content = (
+      <DialogContent title={W.title} hideClose footer={<ButtonGroup align="end">{cancel}</ButtonGroup>}>
+        <p className="addp-status" role="status">
+          <Spinner size="xs" /> {W.codeLoading}
+        </p>
+      </DialogContent>
+    );
+  } else if (view === 'new') {
+    content = (
+      <StartNewProduct
+        products={products}
+        library={pageTeam}
+        account={target?.account ?? null}
+        busy={busy}
+        setBusy={setBusy}
+        copy={copy}
+        onCopyChange={setCopy}
+        {...(resume?.kind === 'new-product' ? { resume: { values: resume.values, line: resume.line } } : {})}
+        aside={
+          <>
+            {busyNotice}
+            {/* Code already on GitHub: the list when Bridge found some, else GitHub, where the team ticks it. */}
+            {findNote(W.codeOnGitHub, W.findThere, listed.length ? () => setMode('found') : giveAccess)}
+          </>
+        }
+        onAdd={async (entry, started) => {
+          if (await addEntry(entry)) return;
+          // Started on GitHub but not added: it waits in the list with the reason on its row; Add sends it again.
+          setRepos((list) => mergeRepos(list ?? [], [started]));
+          setMode('found');
+        }}
+      />
     );
   } else {
-    // Step 2: pick it among the products Bridge sees.
-    body = (
-      <form id={formId} onSubmit={(e) => void submit(e)} noValidate className="addp-form">
-        <div role="status" aria-live="polite" className="addp-found">
-          {found ? foundLine(found) : resumeNote}
-        </div>
-        {step.kind === 'busy' && <BusyNotice busy={{ resetsAt: step.resetsAt, source: step.source }} onRetry={() => void readAgain(false)} kept />}
-        <div className="addp-pick">
-          <Combobox
-            ref={pickRef}
-            label={W.pick}
-            placeholder={W.pickPlaceholder}
-            options={(repos ?? []).map((r) => ({ value: r.full, label: nameFromRepo(r.name) || r.name, description: r.full }))}
-            loading={!repos}
-            loadingMessage={W.codeLoading}
-            value={repo}
-            onValueChange={(v) => {
-              setRepo(typeof v === 'string' ? v : null);
-              setNamed(null);
-              setError(null);
-              setFound(null);
-              setResumeNote(null);
-            }}
-            emptyMessage={W.codeNone}
-          />
-          {repos && note}
-        </div>
-        <Checkbox label={W.copy} description={W.copyHelp} checked={copy} onCheckedChange={setCopy} />
-        <div role="status" aria-live="polite" className="addp-status">
-          {choice && previews === 'checking' && (
-            <>
-              <Spinner size="xs" /> {W.checking}
-            </>
+    // A: the products Bridge found, one row each with its own Add.
+    content = (
+      <DialogContent
+        title={W.title}
+        description={W.foundLead}
+        hideClose
+        footer={
+          <ButtonGroup align="between">
+            {cancel}
+            <Button variant="secondary" disabled={busy} onClick={() => setMode('new')}>
+              {W.startNew}
+            </Button>
+          </ButtonGroup>
+        }
+      >
+        <div className="addp-form">
+          <div role="status" aria-live="polite" className="addp-found">
+            {found ? foundLine(found.name) : resumeNote}
+          </div>
+          {busyNotice}
+          <ul className="addp-rows">
+            {listed.map((r) => {
+              const label = nameFromRepo(r.name) || r.name;
+              const failed = error && error.repo === r.full ? error.line : null;
+              return (
+                <li key={r.full} className="addp-row" data-found={found?.repo === r.full ? '' : undefined}>
+                  <span className="addp-row-main">
+                    <span className="addp-row-text">
+                      <span className="addp-row-name">{label}</span>
+                      <span className="addp-row-repo">{r.full}</span>
+                    </span>
+                    <Button
+                      ref={(el) => {
+                        if (el) addRefs.current.set(r.full, el);
+                        else addRefs.current.delete(r.full);
+                      }}
+                      variant="secondary"
+                      aria-label={W.addLabel(label)}
+                      loading={adding === r.full}
+                      disabled={busy && adding !== r.full}
+                      onClick={() => void addRepo(r)}
+                    >
+                      {W.add}
+                    </Button>
+                  </span>
+                  {failed && (
+                    <p className="addp-error" role="alert">
+                      {failed}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {error && !error.repo && (
+            <p className="addp-error" role="alert">
+              {error.line}
+            </p>
           )}
-          {choice && previews !== 'checking' && (previews ? W.previewsFound : W.previewsLater)}
+          {findNote(W.notListed, W.findOnGitHub, giveAccess)}
+          <Checkbox label={W.copy} description={W.copyHelp} checked={copy} onCheckedChange={setCopy} disabled={busy} />
         </div>
-        {error && (
-          <p className="addp-error" role="alert">
-            {error}
-          </p>
-        )}
-      </form>
+      </DialogContent>
     );
   }
 
@@ -699,69 +691,11 @@ export default function AddProduct({ products: given, variant = 'secondary', onS
         </Button>
       )}
       <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
-        {view === 'new' && (
-          <StartNewProduct
-            products={products}
-            library={pageTeam}
-            account={target?.account ?? null}
-            busy={busy}
-            setBusy={setBusy}
-            {...(resume?.kind === 'new-product' ? { resume: { values: resume.values, line: resume.line } } : {})}
-            onBack={() => show('choice')}
-            onProposed={() => {
-              proposedNew.current = true;
-            }}
-            onStartedOnly={(r, n) => {
-              // Started on GitHub, not proposed: the pick with it picked, Add product sends it again.
-              setRepos((list) => mergeRepos(list ?? [], [r]));
-              setRepo(r.full);
-              setNamed(n);
-              setView('built');
-              setError(W.refused);
-            }}
-            onDone={() => setOpen(false)}
-          />
-        )}
-        {view !== 'new' && (
-          <DialogContent
-            title={view === 'choice' ? W.title : W.built}
-            description={view === 'choice' ? W.question : undefined}
-            hideClose
-            footer={footer}
-            // Back from "It's a new product" mounts this step again: the card chosen before takes the focus.
-            initialFocus={view === 'choice' ? (chose.current === 'built' ? builtCard : newCard) : undefined}
-          >
-            {body}
-          </DialogContent>
-        )}
+        {content}
       </Dialog>
     </>
   );
 }
-
-/** One choice card: a real button, the drawing on its grey plate, the title as its name and the line as its description. */
-const ChoiceButton = forwardRef<HTMLButtonElement, { art: IllustrationName; title: string; help: string; onClick: () => void }>(function ChoiceButton(
-  { art, title, help, onClick },
-  ref,
-) {
-  const id = useId();
-  return (
-    // bridge-audit-ignore-next-line: the whole card (drawing, title, line) is one target that opens its step, as on the validated board; the DS ChoiceCard is a radio (select, then confirm) and Button would cut it to one label
-    <button type="button" ref={ref} className="addp-choice" onClick={onClick} aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`}>
-      <span className="addp-choice-art">
-        <Drawing name={art} width={88} />
-      </span>
-      <span className="addp-choice-text">
-        <span id={`${id}-t`} className="addp-choice-title">
-          {title}
-        </span>
-        <span id={`${id}-d`} className="addp-choice-help">
-          {help}
-        </span>
-      </span>
-    </button>
-  );
-});
 
 // The request kept for the page's team, in this browser (a per-viewer convenience: never required, never shared).
 function readPending(): PendingRequest | null {
@@ -785,6 +719,3 @@ function forgetPending() {
     /* ignore */
   }
 }
-
-/** The name the found line says: the readable one Bridge proposes. */
-const cleanFoundName = (repoName: string) => nameFromRepo(repoName) || repoName;

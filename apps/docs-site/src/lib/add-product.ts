@@ -1,11 +1,13 @@
 // Adding a product from Bridge (Settings > Products and the onboarding Products step, components/ds/studio/AddProduct.tsx):
 // the words, the key Bridge gives it, what its host (Vercel, Netlify statuses, Cloudflare Pages check runs) says about its previews, the bridge.config.json entry,
-// the format-preserving edit that appends it, and the pull request that carries it (scripts/roles.ts proposeNewProduct,
-// the same path as a product rename). Designers never read "repository", "fork" or "config" here. Pure, covered by
-// add-product.test.ts.
+// which products Bridge offers (never its own designers' copies: isDesignCopy), who adds them (canAddProduct), the
+// product shown at once once added (withAddedProducts), the format-preserving edit and the pull request of the
+// reviewed fallback (scripts/roles.ts proposeNewProduct). Designers never read "repository", "fork" or "config" here.
+// Pure, covered by add-product.test.ts.
 import { fromPlain, getEntry, isCloudflareCheck, parseCloudflareCheck, parseJson, serializeJson, type PreviewCheckRun, type JsonArray, type JsonObject, type ProductConfig } from '@bridge-ds/core';
 import { cleanProductName, PRODUCT_NAME_MAX } from './product-name';
 import { canonicalRepo } from './team-path';
+import { DESIGN_COPY_DESCRIPTION, DESIGN_COPY_TOPIC } from './design-copy';
 
 export const ADD_PRODUCT_WORDS = {
   open: 'Add a product',
@@ -13,46 +15,37 @@ export const ADD_PRODUCT_WORDS = {
   title: 'Add a product',
   // The onboarding Products step's line while the team has none yet (the dialog itself asks `question`).
   lead: 'A product your team designs for. Its explorations happen in a copy of it, so the developers keep their code.',
-  // Step 1: the choice. Two cards, Cancel only.
-  question: 'Which product does your team design for?',
-  built: "It's already built",
-  builtHelp: 'Your developers have it. Bring it into Bridge.',
-  fresh: "It's a new product",
-  freshHelp: 'Bridge sets it up with your library, ready to explore.',
-  back: 'Back',
-  // Step 2: already built, Bridge sees products to pick from.
-  pick: 'Pick your product',
-  pickPlaceholder: 'Choose a product',
-  codeLoading: 'Looking for your products…',
-  codeNone: 'Every product Bridge can open is already here.',
+  // The dialog opens on what Bridge found on GitHub (one row each, with Add), else straight on a new product.
+  codeLoading: 'Looking for your products on GitHub…',
+  foundLead: "Bridge found these on GitHub. Your team doesn't have them yet.",
+  add: 'Add',
+  addLabel: (name: string) => `Add ${name}`,
+  adding: (name: string) => `Adding ${name}…`,
+  startNew: 'Start a new product',
+  // A new product: its name, then Create product (lib/new-product.ts NEW_PRODUCT_WORDS).
+  newLead: 'Bridge sets it up with your library, ready for explorations.',
+  codeOnGitHub: 'Its code is already on GitHub?',
+  findThere: 'Find it there',
   // Under the list, always: the way to a product Bridge cannot see yet (GitHub opens in a small window).
   notListed: 'Not in the list?',
   findOnGitHub: 'Find it on GitHub',
-  // Step 3: already built, Bridge sees none yet. One sentence, the footer's one action is Find it on GitHub.
-  findLine: 'Your developers keep its code on GitHub. Show Bridge where it is: tick it on GitHub, then come back.',
-  // Step 3, when Bridge sees products but every one of them is already in the team.
-  allListedLine: 'Every product Bridge can see is already in your team. To add another one, tick it on GitHub, then come back.',
-  // Step 3, when GitHub did not answer: why the list is empty, and what to do.
-  unreadLine: 'Bridge could not get your products from GitHub just now, so the list is empty. Find yours on GitHub, or try again.',
+  // GitHub did not answer when the dialog opened: why nothing is listed, and Try again.
+  unreadLine: 'Bridge could not get your products from GitHub just now.',
   unreadAction: 'It often works a moment later.',
-  notSure: 'Not sure where it is?',
-  askDeveloper: 'Ask a developer',
-  askDeveloperNote: '(copies a message to send them)',
-  askDeveloperSaid: 'Message copied. Send it to a developer.',
-  // Step 4: while GitHub's window is open, the dialog waits and reads the list again on its own.
+  // While GitHub's window is open, the dialog waits and reads the list again on its own.
   waiting: 'Tick your product on GitHub, then Save. Bridge waits here.',
   waitingNote: 'Bridge looks for it every few seconds.',
   showGitHub: 'Show GitHub',
   tryAgain: 'Try again',
   copy: 'Give designers their own copy',
   copyHelp: 'Designers explore in it. The developers only get a task when a designer is done.',
-  previewsFound: 'Bridge found its previews.',
-  previewsLater: 'Bridge finds the previews after the first change.',
-  checking: 'Checking its previews…',
-  send: 'Add product',
   cancel: 'Cancel',
-  sent: 'Product added for review. It shows everywhere once merged.',
-  refused: 'Bridge could not add the product. Ask an admin of the design system.',
+  // The library does not let Bridge add it straight away (an older setup): it goes to review instead, said plainly.
+  sent: 'Sent for review. It shows here once someone approves it.',
+  reviewTitle: 'Sent for review',
+  reviewLine: (name: string) => `Bridge could not add ${name} straight away on this library, so it went to review. It shows in your products once someone approves it.`,
+  done: 'Done',
+  refused: 'Bridge could not add the product. Try again in a minute.',
   // Someone who does not own the account on GitHub: GitHub lets them request access, its owners approve.
   copyForOwners: 'Copy a message for the owners',
   copiedForOwners: 'Message copied',
@@ -152,6 +145,27 @@ export interface RepoLike {
   default_branch?: string;
   archived?: boolean;
   fork?: boolean;
+  /** GitHub topics (listed with the repository). Bridge marks its designers' copies with DESIGN_COPY_TOPIC. */
+  topics?: string[] | null;
+  description?: string | null;
+}
+
+const sentence = (s: string | null | undefined) => (s ?? '').trim().toLowerCase().replace(/\.$/, '');
+
+/**
+ * Whether a repository is one of Bridge's designers' copies, never a product of its own: marked by Bridge when it made
+ * it (the topic, or its description), some listed product's copy (`copies`: design.repo of the known settings, lower
+ * case), or named "<product>-design" (or "-design-old") next to a product in `products` ("owner/name", lower case:
+ * the team's and the ones found with it).
+ */
+export function isDesignCopy(r: Pick<RepoLike, 'full_name' | 'topics' | 'description'>, x: { copies: ReadonlySet<string>; products: ReadonlySet<string> }): boolean {
+  const full = canonicalRepo(r.full_name).toLowerCase();
+  if (x.copies.has(full)) return true;
+  if ((r.topics ?? []).some((t) => typeof t === 'string' && t.toLowerCase() === DESIGN_COPY_TOPIC)) return true;
+  const said = sentence(r.description);
+  if (said && said === sentence(DESIGN_COPY_DESCRIPTION)) return true;
+  const base = /^(.+)-design(?:-old)?$/.exec(full)?.[1];
+  return Boolean(base && x.products.has(base));
 }
 
 /**
@@ -162,12 +176,16 @@ export function pickableRepos(repos: readonly RepoLike[], listed: readonly Pick<
   // Old names count as the new ones (lib/team-path canonicalRepo): a product listed before a rename is still listed.
   const norm = (r: string) => canonicalRepo(r).toLowerCase();
   const self = norm(ds);
-  const taken = new Set(listed.flatMap((p) => [p.repo, p.design?.repo]).filter((r): r is string => Boolean(r)).map(norm));
+  const copies = new Set(listed.map((p) => p.design?.repo).filter((r): r is string => Boolean(r)).map(norm));
+  const taken = new Set([...listed.map((p) => p.repo).filter((r): r is string => Boolean(r)).map(norm), ...copies]);
+  // Bridge's own designers' copies are never offered (isDesignCopy): next to a listed product or to one found with it.
+  const products = new Set([...taken, ...repos.map((r) => norm(r.full_name))]);
   const seen = new Set<string>();
   return repos
     .filter((r) => {
       const full = norm(r.full_name);
       if (seen.has(full) || full === self || taken.has(full) || r.archived) return false;
+      if (isDesignCopy(r, { copies, products })) return false;
       seen.add(full);
       return true;
     })
@@ -452,10 +470,79 @@ export function parseOwnerAccount(v: unknown): OwnerAccount | null {
 export const ownerAccountKey = (login: string) => `bridge.owner-account:${login.trim().toLowerCase()}`;
 
 /**
- * What the empty "It's already built" step says: GitHub did not answer (`unread`), Bridge sees products but every one
- * is already in the team, or Bridge sees none yet.
+ * The people who lead the team (governance owners, design and tech, and the owner override list), as GitHub logins in
+ * lower case. A team entry ("@org/team") never counts here: the server reads the same list (api/_lib/product-add.ts).
  */
-export function emptyListLine(x: { unread: boolean; seen: number }): string {
-  if (x.unread) return ADD_PRODUCT_WORDS.unreadLine;
-  return x.seen > 0 ? ADD_PRODUCT_WORDS.allListedLine : ADD_PRODUCT_WORDS.findLine;
+export function teamLeadsOf(config: unknown): string[] {
+  type Gov = { owners?: { design?: unknown; tech?: unknown }; override?: { allowed?: unknown } };
+  const c = config && typeof config === 'object' ? (config as Gov & { governance?: Gov }) : null;
+  // bridge.config.json keeps them under `governance`; the page's settings (core SiteRepo) at the top.
+  const g = c?.governance ?? c;
+  const out = new Set<string>();
+  for (const l of [g?.owners?.design, g?.owners?.tech, g?.override?.allowed]) {
+    if (Array.isArray(l)) for (const v of l) if (typeof v === 'string' && /^@?[A-Za-z0-9-]{1,39}$/.test(v.trim())) out.add(v.trim().replace(/^@/, '').toLowerCase());
+  }
+  return [...out];
+}
+
+/**
+ * Who adds products: admins and leads of the team signed in with GitHub (never an email member, never the sample
+ * team). Bridge checks it again on the server before it writes anything; this only decides whether the button shows.
+ */
+export function canAddProduct(
+  access: { admin?: boolean; repoAdmin?: boolean; write?: boolean; contributor?: boolean } | null | undefined,
+  x: { sample: boolean; login: string | null | undefined; config: unknown },
+): boolean {
+  if (x.sample || !access || access.contributor) return false;
+  if (access.admin || access.repoAdmin) return true;
+  const login = x.login?.trim().toLowerCase();
+  return Boolean(access.write && login && teamLeadsOf(x.config).includes(login));
+}
+
+// A product just added (straight to the team's settings, lib/product-add-api.ts): the page knows it before GitHub's
+// answers catch up (a browser's copy of the settings, Bridge's read cache), so the side nav and its page show it at
+// once. Kept per team in this tab (sessionStorage, scripts/repo-context.ts), until the settings read list it or
+// ADDED_KEEP_MS passed.
+
+/** A product this tab added, and when. */
+export interface AddedProduct {
+  entry: ProductConfig;
+  at: number;
+}
+
+/** How long a just-added product is shown before the team's settings list it: long enough for any cache to turn. */
+export const ADDED_KEEP_MS = 10 * 60_000;
+
+/** The sessionStorage key of a team's just-added products ("owner/repo", case-insensitive). */
+export const addedKey = (team: string) => `bridge.addedProducts:${team.toLowerCase()}`;
+
+const isAdded = (a: unknown, now: number): a is AddedProduct => {
+  if (!a || typeof a !== 'object') return false;
+  const { at, entry } = a as Partial<AddedProduct>;
+  return typeof at === 'number' && now - at < ADDED_KEEP_MS && at <= now + 60_000 && typeof entry?.key === 'string' && typeof entry.name === 'string';
+};
+
+/** The kept list, or [] when there is none, it is not one, or its entries are too old. */
+export function parseAdded(text: string | null, now: number): AddedProduct[] {
+  if (!text) return [];
+  try {
+    const v = JSON.parse(text) as unknown;
+    return Array.isArray(v) ? v.filter((a) => isAdded(a, now)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * `products` with the just-added ones it does not list yet (by key), before the default product as the settings keep
+ * them. Unchanged when every one is there.
+ */
+export function withAddedProducts(products: readonly ProductConfig[], added: readonly AddedProduct[]): ProductConfig[] {
+  const keys = new Set(products.map((p) => p.key.toLowerCase()));
+  const missing = added.map((a) => a.entry).filter((e) => !keys.has(e.key.toLowerCase()));
+  const list = [...products];
+  if (!missing.length) return list;
+  const at = list.findIndex((p) => p.default);
+  list.splice(at >= 0 ? at : list.length, 0, ...missing);
+  return list;
 }

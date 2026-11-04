@@ -76,7 +76,8 @@ import { figmaMark, figmaMarkKey, figmaMarkValid, withFigmaMark } from '../_lib/
 import { localAdminsOn } from '../_lib/local-admin.js';
 import { isLead, isTier1, leadsPublishTier1On, tier1Domain, tier1PublishReviewBody, TIER1_PUBLISH_HEADING } from '../_lib/tier1-publish.js';
 import { memberCanWrite, type MemberStore } from '../_lib/members.js';
-import type { Redis } from '../_lib/redis.js';
+import { redisRest, type Redis } from '../_lib/redis.js';
+import { handleAddProduct } from '../_lib/product-add.js';
 
 export type { FetchLike };
 
@@ -628,6 +629,21 @@ export async function handleShip(req: Request, env: ContribEnv, deps: ShipDeps):
     if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return cors(fail(415, 'content_type', 'Send JSON.'));
     const body = await readBody(req, MAX_BODY);
     const { owner, repo, full } = parseRepo(body.repo);
+    // Adding a product (api/_lib/product-add.ts): its own rules, a GitHub sign-in of an admin or a lead only.
+    if (body.action !== undefined) {
+      if (body.action !== 'add-product') return cors(fail(400, 'bad_request', 'Say what to do: "add-product", or leave it out.'));
+      const kvUrl = (env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL)?.trim();
+      const kvToken = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
+      const redis = deps.redis ?? (kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, 'Storage did not answer.') : null);
+      return cors(
+        await handleAddProduct({ owner, repo, full, bearer: bearerToken(req.headers.get('authorization')), product: body.product }, env, {
+          fetch: deps.fetch,
+          ...(deps.now ? { now: deps.now } : {}),
+          ...(deps.app ? { app: deps.app } : {}),
+          redis,
+        }),
+      );
+    }
     if (!PR_NUMBER.test(String(body.pr ?? ''))) return cors(fail(400, 'bad_request', 'Say which pull request, as its number.'));
     const n = Number(body.pr);
     const now = deps.now ?? Date.now;

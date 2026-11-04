@@ -73,6 +73,13 @@ default branch only changes when a reviewed pull request merges.
 - **Owner override.** The ruleset lets repository admins bypass it in pull request mode only: an admin may merge a
   pull request whose approvals are missing (the [owner override](#owner-override-solo-maintainers-and-small-teams),
   with its written reason), but cannot push to the default branch either.
+- **One exception: adding a product.** The owner approved (2026-11-04) that the Bridge GitHub App may bypass the
+  ruleset for one thing only: adding a product to `products` in `bridge.config.json`. `api/_lib/product-add.ts`
+  (`POST /api/ship` with `action: "add-product"`) is the only code path that uses it. It checks on the server that
+  the caller, signed in with GitHub, is a repository admin or a lead (`governance.owners` or `override.allowed`, people
+  only) with write access; it validates the one entry (the shape Studio builds, nothing else); it writes that one file
+  on the default branch with a contents-only installation token, the commit naming the person. A library where GitHub
+  refuses the write gets the usual reviewed pull request.
 - **Studio shows it and sets it up.** The Protection row in Studio, Settings says whether the library is protected, partly
   protected (and what is missing), not protected, or unknown (no token, or the token cannot read it). "Protect the
   library" creates the ruleset with the viewer's token after a confirmation; "Complete protection" replaces Bridge's

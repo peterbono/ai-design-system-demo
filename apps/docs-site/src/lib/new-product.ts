@@ -2,8 +2,8 @@
 // product yet, so Bridge starts it on GitHub from Bridge's product starter (TEMPLATE_REPO, a public template: Vite,
 // React, the Bridge library, its tokens and toolbar), with the viewer's own GitHub sign-in (POST
 // /repos/{template}/generate, scripts/new-product.ts). A product the app starts is one it can open right away, so
-// there is no "Give Bridge access" step. Then the same review as Add product (scripts/roles.ts proposeNewProduct),
-// and the way to its previews (Vercel or Cloudflare Pages, opened in a new window: Bridge never sees a password).
+// there is no "Give Bridge access" step. Then Bridge adds it to the team like any product (lib/product-add-api.ts),
+// and the dialog opens its page, where the way to its previews lives.
 // Designers never read "repository", "template", "fork" or "config" here. Pure, covered by new-product.test.ts.
 import type { ProductConfig } from '@bridge-ds/core';
 import { cleanProductName, PRODUCT_NAME_MAX } from './product-name';
@@ -12,23 +12,14 @@ import { cleanProductName, PRODUCT_NAME_MAX } from './product-name';
 export const TEMPLATE_REPO = 'peterbono/bridge-product-starter';
 
 export const NEW_PRODUCT_WORDS = {
-  // Add a product's second choice card ("It's a new product") opens this form.
-  title: "It's a new product",
-  lead: 'Bridge sets it up with your library, ready for previews and explorations.',
+  // Add a product opens on this form when Bridge found nothing on GitHub, or from "Start a new product".
+  title: 'Add a product',
+  lead: 'Bridge sets it up with your library, ready for explorations.',
   name: 'Name',
   nameHelp: 'What your team calls it.',
   create: 'Create product',
-  back: 'Back',
-  // While GitHub makes it (a few seconds).
+  // While GitHub makes it (a few seconds), then while Bridge adds it to the team.
   creating: (name: string) => `Starting ${name} on GitHub…`,
-  // Made and proposed: the previews step.
-  readyTitle: 'Show its previews',
-  ready: (name: string) => `${name} is ready. It shows everywhere once your team approves it.`,
-  previewsLead: 'Connect it to a host your team uses. Every change then gets its own preview.',
-  vercel: 'Open in Vercel',
-  cloudflare: 'Open in Cloudflare',
-  previewsLater: 'Bridge finds the previews after the first change.',
-  done: 'Done',
 } as const;
 
 /** A GitHub name from the product's name: "Art print shop" -> "art-print-shop". Empty when nothing usable is left. */

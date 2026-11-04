@@ -11,7 +11,7 @@ import {
   waitForDesignCopy,
   type ProductConfig,
 } from '@bridge-ds/core';
-import { copyAccessTarget, copyListed, type CopyAccess, type CopyInstallation, type CopyView } from '../lib/design-copy';
+import { copyAccessTarget, copyListed, DESIGN_COPY_DESCRIPTION, DESIGN_COPY_TOPIC, type CopyAccess, type CopyInstallation, type CopyView } from '../lib/design-copy';
 import { githubBusy } from '../lib/github-busy';
 import { explorationsConfig } from './exploration-start';
 import { getToken, ghGet, ghWrite, GitHubError, RateLimitError, sessionMode, studioClient, type Fetched } from './github-session';
@@ -70,10 +70,26 @@ export async function finishCopy(p: ProductConfig): Promise<'ready' | 'slow' | '
   const at = copyRepos(p);
   if (!at) return 'failed';
   try {
-    return (await waitForDesignCopy(studioClient(at.copy, getToken() ?? ''))) ? 'ready' : 'slow';
+    const ready = await waitForDesignCopy(studioClient(at.copy, getToken() ?? ''));
+    if (ready) await markDesignCopy(at.copy);
+    return ready ? 'ready' : 'slow';
   } catch (err) {
     console.warn('Bridge: the copy could not be made.', err);
     return 'failed';
+  }
+}
+
+/**
+ * Marks the copy as Bridge's (a GitHub topic and its description), so Add a product never offers it as a product of
+ * its own (lib/add-product.ts isDesignCopy). Best effort: GitHub refusing it changes nothing for the designer.
+ */
+export async function markDesignCopy(copy: string): Promise<boolean> {
+  try {
+    await ghWrite('PATCH', `/repos/${copy}`, { description: DESIGN_COPY_DESCRIPTION });
+    await ghWrite('PUT', `/repos/${copy}/topics`, { names: [DESIGN_COPY_TOPIC] });
+    return true;
+  } catch {
+    return false;
   }
 }
 

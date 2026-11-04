@@ -1,6 +1,7 @@
 // Add a product (components/ds/studio/AddProduct.tsx): what Bridge can see on GitHub to pick from, and what the
-// product's Vercel statuses say about its previews. Words and rules: lib/add-product.ts. The pull request:
-// scripts/roles.ts proposeNewProduct.
+// product's Vercel statuses say about its previews, and the add itself (addToTeam: straight to the team's settings,
+// lib/product-add-api.ts, else the reviewed pull request, scripts/roles.ts proposeNewProduct). Words and rules:
+// lib/add-product.ts.
 import type { PreviewCheckRun, ProductConfig } from '@bridge-ds/core';
 import { installationToAdjust, type AppInstallation } from '../lib/access-view';
 import {
@@ -168,6 +169,31 @@ export async function pollProductRepos(listed: readonly ProductConfig[], install
     return pickableRepos(data.repositories ?? [], listed, ds());
   }
   return (await readProductAccess(listed, { fresh: true })).repos;
+}
+
+/** What adding a product came to: in the team now, sent for review instead, refused (with why), or not done. */
+export type AddOutcome = { kind: 'added'; key: string } | { kind: 'review' } | { kind: 'refused'; message: string } | { kind: 'failed' };
+
+/**
+ * Adds the product to the team (lib/product-add-api.ts, api/_lib/product-add.ts): Bridge writes it straight to the
+ * team's settings for an admin or a lead, and the page lists it at once (scripts/repo-context.ts noteAddedProduct, the
+ * next reads ask GitHub again). A library that does not let Bridge write it directly gets the reviewed pull request
+ * instead (scripts/roles.ts proposeNewProduct). Throws only when that pull request could not be opened.
+ */
+export async function addToTeam(entry: ProductConfig): Promise<AddOutcome> {
+  const [{ addProductDirect }, session, { noteAddedProduct }] = await Promise.all([import('../lib/product-add-api'), import('./github-session'), import('./repo-context')]);
+  const r = session.readRepo();
+  const a = await addProductDirect(`${r.owner}/${r.repo}`, entry, await session.liveGitHubToken());
+  if (a.kind === 'added') {
+    session.noteWrite();
+    noteAddedProduct(a.products.find((p) => p.key.toLowerCase() === a.key.toLowerCase()) ?? entry);
+    return { kind: 'added', key: a.key };
+  }
+  if (a.kind === 'refused') return { kind: 'refused', message: a.message };
+  if (a.kind === 'failed') return { kind: 'failed' };
+  const { proposeNewProduct } = await import('./roles');
+  await proposeNewProduct(entry);
+  return { kind: 'review' };
 }
 
 /**

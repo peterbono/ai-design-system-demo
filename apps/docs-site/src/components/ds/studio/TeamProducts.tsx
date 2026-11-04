@@ -28,6 +28,7 @@ export default function TeamProducts() {
   const [rename, setRename] = useState(false);
   useEffect(() => {
     let live = true;
+    let unhook = () => undefined as void;
     const read = () =>
       void Promise.all([import('../../../scripts/repo-context'), import('../../../lib/demo')]).then(([{ repoContext, siteConfig }, { isSampleTeam }]) => {
         if (!live) return;
@@ -41,16 +42,25 @@ export default function TeamProducts() {
     document.addEventListener('bridge:team-model', read);
     void Promise.all([import('../../../scripts/github-session'), import('../../../lib/create-branch'), import('../../../lib/product-name')])
       .then(([{ onAccess, designerRoute }, { libraryLead }, { canRenameProduct }]) => {
-        onAccess((a) => {
+        let last: Parameters<Parameters<typeof onAccess>[0]>[0] = null;
+        const paint = () => {
           if (!live) return;
-          // A lead or an admin (an email admin too), the same people who send a product its library update.
-          setLead((libraryLead(a) && !designerRoute()) || Boolean(a?.admin));
-          setRename(canRenameProduct(a, false));
+          // A lead or an admin (an email admin too), the same people who send a product its library update. Who leads
+          // is known once the team's settings are read: painted again then.
+          setLead((libraryLead(last) && !designerRoute()) || Boolean(last?.admin));
+          setRename(canRenameProduct(last, false));
+        };
+        onAccess((a) => {
+          last = a;
+          paint();
         });
+        document.addEventListener('bridge:team-model', paint);
+        unhook = () => document.removeEventListener('bridge:team-model', paint);
       })
       .catch(() => undefined);
     return () => {
       live = false;
+      unhook();
       document.removeEventListener('bridge:team-model', read);
     };
   }, []);
