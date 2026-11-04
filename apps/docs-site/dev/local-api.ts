@@ -435,18 +435,6 @@ export function devReserved(dir: string): ReservedPaths {
 const OWNER = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 const REPO = /^[A-Za-z0-9._-]{1,100}$/;
 
-/**
- * The redirects vercel.json does before its rewrites, for team addresses that have no page of their own: a team's
- * product list (lib/team-shells.ts productIndexRedirects) goes to the team's Home. Null for any other path.
- */
-export function teamRedirect(url: string, reserved: ReadonlySet<string>): string | null {
-  const q = url.indexOf('?');
-  const path = q < 0 ? url : url.slice(0, q);
-  const m = /^\/studio\/(~\/)?([^/]+)\/([^/]+)\/products\/?$/.exec(path);
-  if (!m || !OWNER.test(m[2]!) || !REPO.test(m[3]!) || (!m[1] && reserved.has(m[2]!))) return null;
-  return `/studio/${m[1] ?? ''}${m[2]}/${m[3]}/`;
-}
-
 /** The shell address a team or Library address is served from, or null (any other path). The query is kept. */
 export function teamRewrite(url: string, reserved: ReadonlySet<string>): string | null {
   const q = url.indexOf('?');
@@ -543,16 +531,9 @@ export function bridgeLocal(opts: { root: string; log?: (s: string) => void }) {
 
         // Team and Library addresses: the rewrites vercel.json does on the real site (dev/local-api.ts teamRewrite).
         const reserved = studioReserved(join(root, 'src', 'pages', 'studio'));
-        server.middlewares.use((req, res, next) => {
+        server.middlewares.use((req, _res, next) => {
           const method = (req.method ?? 'GET').toUpperCase();
           if (method === 'GET' || method === 'HEAD') {
-            const away = teamRedirect(req.url ?? '/', reserved);
-            if (away) {
-              res.statusCode = 307;
-              res.setHeader('Location', away);
-              res.end();
-              return;
-            }
             const to = teamRewrite(req.url ?? '/', reserved);
             if (to) req.url = to;
           }

@@ -12,7 +12,7 @@ import { memoryRedis } from '../../api/_lib/redis';
 import { handleAccount, lastAdminOf } from '../../api/account/index';
 import { handleContribute } from '../../api/contribute/index';
 import { handleEntry } from '../../api/entry/index';
-import { devGithub, studioReserved, teamRedirect, teamRewrite, withoutPersona } from '../../dev/local-api';
+import { devGithub, studioReserved, teamRewrite, withoutPersona } from '../../dev/local-api';
 import { FIXTURE_TOKEN, fixtureApp, fixtureGithub, type FixtureFiles, putFixture, READ_ONLY } from '../../dev/local-github';
 import { APP_LOGIN, clearLocalRepoMemory, personaToken } from '../../dev/local-repo';
 import { findScenario, SCENARIOS, type Scenario } from '../../dev/scenarios';
@@ -83,8 +83,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('every scenario', () => {
-  it('lists S0 to S23, each found by id, number or slug', () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 24 }, (_, i) => `S${i}`));
+  it('lists S0 to S24, each found by id, number or slug', () => {
+    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 25 }, (_, i) => `S${i}`));
     for (const s of SCENARIOS) {
       expect(findScenario(s.id)).toBe(s);
       expect(findScenario(s.id.toLowerCase())).toBe(s);
@@ -433,11 +433,9 @@ describe('team and Library addresses in local mode (dev/local-api.ts)', () => {
     expect(teamRewrite('/library/acme/acme-product/tokens/', reserved)).toBe('/library-shell/tokens/');
   });
 
-  it('sends a team product list to its Home, like the vercel.json redirects', () => {
-    expect(teamRedirect('/studio/acme/acme-product/products/', reserved)).toBe('/studio/acme/acme-product/');
-    expect(teamRedirect('/studio/~/acme/acme-product/products?x=1', reserved)).toBe('/studio/~/acme/acme-product/');
-    for (const p of ['/studio/acme/acme-product/products/admin-app/', '/studio/products/', '/studio/settings/ds/products/', '/studio/acme/acme-product/'])
-      expect(teamRedirect(p, reserved), p).toBeNull();
+  it('serves a team product list from its shell (All products), next to the product pages', () => {
+    expect(teamRewrite('/studio/acme/acme-product/products/', reserved)).toBe('/team-shell/products/');
+    expect(teamRewrite('/studio/acme/acme-product/products/admin-app/', reserved)).toBe('/team-shell/products/item/');
   });
 
   it('leaves real Studio pages and every other path alone', () => {

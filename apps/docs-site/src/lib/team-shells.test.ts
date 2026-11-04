@@ -3,7 +3,7 @@
 // missing or malformed shell and a link the rewrite would turn into a team.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { checkTeamShells, noindexSources, productIndexRedirects, shellMarker, studioPathOfShell, TEAM_SHELL_ROUTES, vercelRewrites } from './team-shells';
+import { checkTeamShells, noindexSources, shellMarker, studioPathOfShell, TEAM_SHELL_ROUTES, vercelRewrites } from './team-shells';
 import { studioNav } from './nav';
 import { libraryRewrites } from './library-shells';
 import { REPO_PATTERN, renamedStudioRedirects } from './team-path';
@@ -24,12 +24,9 @@ describe('vercel.json', () => {
     expect(rules).toContainEqual({ source: `/studio/art-print-shop-co/:repo(${REPO_PATTERN})/:path*`, destination: '/studio/the-bridge-company/:repo/:path*', permanent: true });
   });
 
-  it('sends a team product list address (no page of its own) to its Home, where the product folders are', () => {
-    const rules = productIndexRedirects();
-    expect(rules).toHaveLength(4);
-    for (const r of rules) expect(vercel.redirects).toContainEqual(r);
-    expect(rules).toContainEqual({ source: '/studio/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/products/', destination: '/studio/:owner/:repo/', permanent: false });
-    expect(rules).toContainEqual({ source: '/studio/~/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/products', destination: '/studio/~/:owner/:repo/', permanent: false });
+  it('sends no team product list address away: All products is a page of its own (team shell products/)', () => {
+    expect(vercel.redirects.some((r) => /\/products\/?$/.test(r.source))).toBe(false);
+    expect(TEAM_SHELL_ROUTES).toContain('products/');
   });
 
   it('rewrites team addresses to the shells: two rules per form, the trailing slash first', () => {

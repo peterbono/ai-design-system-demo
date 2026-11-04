@@ -29,8 +29,6 @@ export const REDIRECTS: Record<string, string> = {
   '/studio/settings/integrations': '/studio/settings/#integrations',
   // The theme playground left with the Field Guide redesign: brand and density now switch inside each preview.
   '/playground': '/library/',
-  // Products have no list page of their own: they are the folders on Studio Home (a team's: lib/team-shells.ts).
-  '/studio/products': '/studio/',
 };
 
 /**

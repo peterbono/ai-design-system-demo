@@ -1,4 +1,4 @@
-// Audit scenarios S0 to S23 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
+// Audit scenarios S0 to S24 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
 // <name>` clears the local accounts, teams, codes and outbox, then writes one scenario with the same storage functions
 // the api/* functions use (accounts, members, invites, discovery, join requests) and, where a scenario needs it, the
 // account function itself (sign-in codes). It prints the emails to sign in with and what each one should see.
@@ -165,6 +165,21 @@ const T = {
     // A product explored in the designers' copy, which nobody made yet (on GitHub neither exists), and the library.
     products: [
       { key: 'shop', name: 'Art print shop', repo: 'acme/art-print-shop', design: { repo: 'acme/art-print-shop-design' }, framework: 'react' },
+      { key: 'library', name: 'Library', path: 'packages', framework: 'react', default: true },
+    ],
+  },
+  catalog: {
+    repo: 'acme/acme-catalog',
+    name: 'Acme Catalog',
+    admin: P.sam,
+    members: [P.priya],
+    writable: true,
+    // Fifteen products and the library: the side nav lists five, the viewer's own first, then All products (S24).
+    products: [
+      ...['Checkout', 'Mobile app', 'Art print shop', 'Poster studio', 'Billing', 'Onboarding', 'Admin console', 'Help center', 'Search', 'Reports', 'Settings app', 'Marketing site', 'Partner portal', 'Email kit', 'Kiosk'].map((name) => {
+        const key = name.toLowerCase().replace(/\s+/g, '-');
+        return { key, name, path: `apps/${key}`, framework: 'react' };
+      }),
       { key: 'library', name: 'Library', path: 'packages', framework: 'react', default: true },
     ],
   },
@@ -734,6 +749,30 @@ export const SCENARIOS: Scenario[] = [
           "Acme Copies lists Art print shop (its designers' copy acme/art-print-shop-design is not made) and the library.",
           'As the persona dana (token ghp_local_dana, GitHub calls sent to /api/dev/github) right after Add a product (sessionStorage bridge:copy-setup:acme/acme-copies:shop),',
           'the page makes the copy in the background: "Getting a copy ready for your designers…", then nothing.',
+        ],
+      );
+    },
+  },
+  {
+    id: 'S24',
+    slug: 'many-products',
+    title: 'A team with fifteen products (the side nav lists five, then All products)',
+    async run(ctx) {
+      const s = new Seed(ctx);
+      await s.team(T.catalog);
+      return result(
+        [
+          {
+            ...P.sam,
+            kind: 'teams',
+            teams: teamsOf([T.catalog, 'admin']),
+            expect: 'Side nav: Products lists five (the ones you explore in or opened lately first), then All products 15; Design system: Components, Tokens, Quality, Explorations. All products: Find a product, eight rows, Show 7 more.',
+          },
+          { ...P.priya, kind: 'teams', teams: teamsOf([T.catalog, 'edit']), expect: 'Can edit: the same nav and All products, without Add a product.' },
+        ],
+        [
+          'Acme Catalog is writable locally (dev/local-repo.ts) and lists fifteen products and the library.',
+          'As the persona dana (token ghp_local_dana, GitHub calls sent to /api/dev/github), start explorations in two products: they come first in the nav and say "You explore here" on All products.',
         ],
       );
     },

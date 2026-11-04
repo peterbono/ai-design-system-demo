@@ -12,7 +12,7 @@ import { isTeamName, OWNER_PATTERN, REPO_PATTERN, STUDIO_ROOT } from './team-pat
 export const TEAM_SHELL_ROOT = '/team-shell/';
 
 /** The Studio routes a team can open, relative to the Studio root ('' is Home). Each has a shell page. */
-export const TEAM_SHELL_ROUTES = ['', 'changes/', 'building/', 'review/', 'tokens/', 'components/', 'components/storybook/', 'quality/', 'settings/', 'brands/new/'] as const;
+export const TEAM_SHELL_ROUTES = ['', 'changes/', 'building/', 'review/', 'tokens/', 'components/', 'components/storybook/', 'quality/', 'settings/', 'brands/new/', 'products/'] as const;
 
 export type TeamShellRoute = (typeof TEAM_SHELL_ROUTES)[number];
 
@@ -42,22 +42,6 @@ export function productRewrites(): { source: string; destination: string }[] {
     { source: `${base}/products/:key(${PRODUCT_KEY_GROUP})/`, destination: `${shell}/${PRODUCT_SHELL_ROUTE}` },
     { source: `${base}/products/:key(${PRODUCT_KEY_GROUP})`, destination: `${shell}/${PRODUCT_SHELL_ROUTE}` },
   ]);
-}
-
-/**
- * A team's product list has no page of its own: the products are the folders on the team's Home (ExplorationCards
- * ProductFolders). /studio/<owner>/<repo>/products/ would otherwise fall into the general rewrite and
- * 404 on a shell that does not exist, so vercel.json redirects it there (the self-hosted /studio/products/ is in
- * lib/redirects.ts). Redirects run before rewrites, so these never meet the product page rules.
- */
-export function productIndexRedirects(): { source: string; destination: string; permanent: false }[] {
-  return [`${studio}/~/${team}`, `${studio}/${team}`].flatMap((base) => {
-    const to = `${base.replace(/\(([^)]*)\)/g, '')}/`;
-    return [
-      { source: `${base}/products/`, destination: to, permanent: false as const },
-      { source: `${base}/products`, destination: to, permanent: false as const },
-    ];
-  });
 }
 
 /** The general rules: two per address form, the trailing slash one first (`:path*` does not match a trailing slash,

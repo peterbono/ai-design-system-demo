@@ -373,13 +373,70 @@
   display: none;
 }
 
-/* The side nav's Products group (components/ds/studio/ProductsNav.tsx, DS SidebarNav parts): set apart from the main
-   nav like Figma's project list, its rows at the main nav's height and icon column. */
-.rail-products {
-  margin-block-start: var(--space-6);
+/* The side nav's two groups, Products and Design system (components/ds/studio/ProductsNav.tsx, DS SidebarNav parts):
+   each under its quiet heading, set apart from the entries above like Figma's project list. Their rows read as the
+   entries above: the same height, icon size and gap, the current one a white plate with a hairline in Deep Harbor. */
+.rail-section {
+  margin-block-start: var(--space-5);
 }
 
-.rail-products a {
+.rail-section > [id] {
+  padding-block-end: var(--space-1);
+}
+
+/* The DS list spaces its rows already: no second gap from the rail's own list rule. */
+.rail .rail-section li + li {
+  margin-top: 0;
+}
+
+.rail-section a {
   gap: var(--space-3);
   min-height: var(--size-9);
+  font-size: var(--typography-ui-size);
+}
+
+.rail-section a svg {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+}
+
+.rail-section a[aria-current="page"] {
+  outline: var(--border-width-default) solid var(--color-border-default);
+  outline-offset: calc(var(--border-width-default) * -1);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-signal);
+  font-weight: var(--font-weight-semibold);
+}
+
+.rail-section a[aria-current="page"] svg {
+  color: currentcolor;
+}
+
+.rail-section a[aria-current="page"] > span[aria-hidden="true"]:first-child {
+  display: none;
+}
+
+/* The total on All products: a quiet number, not a badge (the reviews count on Changes is the one that asks). */
+.rail-section a.rail-all > span:last-child {
+  min-width: 0;
+  padding: 0;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+@media (hover: hover) {
+  .rail-section a:hover {
+    background-color: var(--color-surface-default);
+  }
+}
+
+/* Settings sits at the foot of the rail, above the account. */
+.rail .rail-settings {
+  margin-block-start: auto;
+  padding-block-start: var(--space-5);
+}
+
+.rail-settings + .rail-foot {
+  margin-block-start: var(--space-3);
 }

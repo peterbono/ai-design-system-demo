@@ -20,6 +20,12 @@ const KEY = new RegExp(`^${PRODUCT_KEY_PATTERN}$`);
 /** The Studio address of a product page: /studio/products/<key>/ (the team's own on a team shell). */
 export const productHref = (key: string): string => studioHref(`products/${encodeURIComponent(key.toLowerCase())}/`);
 
+/**
+ * A product page's title: the product's name, and for the library (the default product) "Library explorations", the
+ * page the side nav names Explorations under Design system (lib/nav-products.ts).
+ */
+export const productPageTitle = (p: Pick<ProductConfig, 'name' | 'default'>): string => (p.default ? `${p.name} explorations` : p.name);
+
 /** The product key of a product page address (self-hosted or a team's), else null. */
 export function productKeyFromPath(pathname: string): string | null {
   const m = /\/products\/([^/]+)\/?(?:index\.html)?$/.exec(pathname);

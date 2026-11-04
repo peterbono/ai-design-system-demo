@@ -104,6 +104,12 @@ const nav: NavEntry[] = library
     ? workspaceNav()
     : navFor(space);
 const isStudio = space === 'studio';
+// The Studio rail (option A, 2026-11-04): the top entries, then Products and Design system (ProductsNav, with the
+// entries placed 'design-system'), then Settings at the foot. The workspace has no groups: Home, then Settings.
+const groups = isStudio && !library;
+const topNav = groups ? nav.filter((e) => !e.place) : nav;
+const designPages = groups && !noRepo ? nav.filter((e) => e.place === 'design-system' && e.href).map((e) => ({ href: e.href!, label: e.label, icon: e.icon })) : [];
+const footNav = groups ? nav.filter((e) => e.place === 'foot' && e.href) : [];
 const isHome = path === LIBRARY_HOME || path === STUDIO_HOME;
 // Tokens, Components and Quality can show the library as an open change (lib/view-scope): the selector and the banner.
 // Not on a team shell yet: the open changes it lists are the demo's (multi-team PR 3b reads the team's).
@@ -244,7 +250,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
         }
         <ul class="nav">
           {
-            nav.map((entry, n) => {
+            topNav.map((entry, n) => {
               if (entry.href) {
                 const current = isCurrent(entry.href);
                 const inside = !current && here.entry?.label === entry.label;
@@ -295,8 +301,21 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
             })
           }
         </ul>
-        {/* Products, like the project list in Figma's sidebar: each product's page (lib/product-page.ts). */}
-        {isStudio && !noRepo && <ProductsNav client:load products={hosted ? undefined : navProducts(productsOf(siteRepo()))} current={hosted ? null : productKeyFromPath(path)} />}
+        {/* Products, like the project list in Figma's sidebar (each product's page, lib/product-page.ts), then Design
+            system: Components, Tokens, Quality and Explorations (lib/nav-products.ts). */}
+        {isStudio && !noRepo && <ProductsNav client:load products={hosted ? undefined : navProducts(productsOf(siteRepo()))} current={hosted ? null : productKeyFromPath(path)} path={path} pages={designPages} />}
+        {footNav.length > 0 && (
+          <ul class="nav rail-settings">
+            {footNav.map((entry) => (
+              <li>
+                <Link variant="subtle" className="nav-link" href={entry.href} aria-current={isCurrent(entry.href!) ? 'page' : undefined} data-active={!isCurrent(entry.href!) && here.entry?.label === entry.label ? '' : undefined} data-keep-branch="">
+                  <Icon icon={siteIcon(entry.icon)} size="md" className="icon" />
+                  <span>{entry.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
         <div class="rail-foot">
           {/* Light, dark or System lives in Studio Settings (Appearance); the Library follows the same choice. No
               GitHub link here: readers do not need it; developers find the repository from Use, Install. */}
