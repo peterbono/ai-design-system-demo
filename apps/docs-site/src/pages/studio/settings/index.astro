@@ -169,7 +169,7 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
           repo={repoName}
           prefix={config.governance?.branchPrefix ?? ''}
           protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']}
-          suggestApp={signInConfig()?.suggestApp ?? null}
+          signIn={Boolean(signInConfig())}
         />
         <GitHubUsage client:only="react" />
         <Card id="repository">

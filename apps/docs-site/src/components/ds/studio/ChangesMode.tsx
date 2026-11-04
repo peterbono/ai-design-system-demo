@@ -6,7 +6,6 @@ import { Lock } from 'lucide-react';
 import { bridgeMcpInstallCommand, type ChangesMode } from '@bridge-ds/core';
 import { Badge, Button, Card, CardBody, ChoiceCard, ChoiceCardGroup, CodeBlock, Icon, Link } from '@bridge-ds/react';
 import { appReach, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_CHOICE, CHANGES_DEV, CHANGES_ORDER, CHANGES_PLAIN, effectiveChanges, suggestAppText, type AppReach } from '../../../lib/settings-view';
-import type { SignInApp } from '../../../lib/github-signin';
 import { ghAction } from '../../../lib/gh-wording';
 import { VOCAB } from '../../../lib/vocabulary';
 import { currentViewer, getToken, initGitHubConnect, prefersSignIn, type Viewer } from '../../../scripts/github-session';
@@ -82,15 +81,15 @@ export interface ChangesModeSettingProps {
   repo: string;
   prefix?: string;
   protectedBranches?: string[];
-  /** The app Studio signs in with in suggest mode (SignInConfig.suggestApp); null without a GitHub App. */
-  suggestApp?: SignInApp | null;
+  /** The site signs in with Bridge's GitHub App (else a pasted token): Settings says suggest mode is Bridge's rule. */
+  signIn?: boolean;
 }
 
 /** Settings > How changes reach your code: the mode in force, what the GitHub App may do, and the switch. */
-export default function ChangesModeSetting({ set, repo, prefix, protectedBranches, suggestApp = null }: ChangesModeSettingProps) {
+export default function ChangesModeSetting({ set, repo, prefix, protectedBranches, signIn = false }: ChangesModeSettingProps) {
   const current = effectiveChanges(set);
-  // Interim sentence only while suggest mode runs on the write app; the read-only line once Bridge has both apps.
-  const appNote = suggestAppText(suggestApp);
+  // Suggest mode is Bridge's rule: the GitHub App itself could write code.
+  const appNote = suggestAppText(signIn);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<ChangesMode>(current);
   const [busy, setBusy] = useState(false);
@@ -123,7 +122,11 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
     setBusy(true);
     setError(null);
     try {
+      // Kept if the person has to sign in again first: back on this page, it says to do it again.
+      const keep = await import('../../../scripts/pending-action');
+      keep.armPendingAction('retry', { label: 'send how this team saves changes' });
       const pr = await proposeChangesMode(value, { prefix, protectedBranches });
+      keep.disarmPendingAction();
       setDone(pr);
       setEditing(false);
     } catch (err) {

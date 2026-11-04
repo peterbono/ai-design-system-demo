@@ -1,39 +1,24 @@
-// Build-time settings of Sign in with GitHub (docs/SIGN-IN.md): the GitHub App client ID from the host's env vars,
-// the production and preview addresses and the changes mode from bridge.config.json (read through the repo model,
-// lib/model.ts). Two apps: "Bridge" (GITHUB_APP_SUGGEST_CLIENT_ID, read only, the default) and "Bridge Direct"
-// (GITHUB_APP_CLIENT_ID, used when "changes" is "direct"). Client IDs are public: they are written into the pages.
-// Null when neither is set: the Studio then offers the token paste only, exactly as before.
-// Team pages (`hosted`) always sign in with Bridge and carry Bridge Direct for the one-time OK of a direct-mode team.
-// One-app switch (BRIDGE_ONE_APP=1, read at build time): every page signs in with Bridge Direct only, and every install
-// link names Bridge Direct (appSlugFrom). Flip: set it on the host and redeploy; roll back with the previous deployment.
+// Build-time settings of Sign in with GitHub (docs/SIGN-IN.md): Bridge Direct's client ID from the host's env vars
+// (GITHUB_APP_CLIENT_ID, public: it is written into the pages) and the production and preview addresses from
+// bridge.config.json (read through the repo model, lib/model.ts). One GitHub App signs everyone in, on every page.
+// Null when the client ID is not set: the Studio then offers the token paste only, exactly as before.
 import { appSlugFrom, signInConfigFrom, type SignInConfig, type SignInEnv } from './github-signin';
 import { repoModel } from './model';
 
 const signInEnv = (): SignInEnv => ({
   GITHUB_APP_CLIENT_ID: process.env.GITHUB_APP_CLIENT_ID,
-  GITHUB_APP_SUGGEST_CLIENT_ID: process.env.GITHUB_APP_SUGGEST_CLIENT_ID,
   GITHUB_APP_DIRECT_SLUG: process.env.GITHUB_APP_DIRECT_SLUG,
-  BRIDGE_ONE_APP: process.env.BRIDGE_ONE_APP,
 });
 
 /** The slug install links use, written on <html data-gh-slug> by the layout for the browser (lib/access-view.ts). */
 export const appSlugAtBuild = (): string => appSlugFrom(signInEnv());
 
-const cache = new Map<boolean, SignInConfig | null>();
+let cache: SignInConfig | null | undefined;
 
-export function signInConfig(hosted = false): SignInConfig | null {
-  const kept = cache.get(hosted);
-  if (kept !== undefined) return kept;
-  const { config } = repoModel;
-  const cfg = signInConfigFrom(
-    signInEnv(),
-    config.previews,
-    config.changes,
-    { hosted },
-  );
-  cache.set(hosted, cfg);
-  return cfg;
+export function signInConfig(): SignInConfig | null {
+  if (cache === undefined) cache = signInConfigFrom(signInEnv(), repoModel.config.previews);
+  return cache;
 }
 
 /** The config as an attribute value for client scripts ("null" when off). */
-export const signInConfigJson = (hosted = false) => JSON.stringify(signInConfig(hosted));
+export const signInConfigJson = () => JSON.stringify(signInConfig());

@@ -5,8 +5,7 @@
 // products) when it loads. The views the self-hosted page reaches by address work for the team too, with the same
 // modules (the old History address moved: scripts/history-links historyRedirect), a component change
 // request in place (scripts/requests.ts, the team's request issues), Requests when triage is on in Studio, and the
-// exploration start form (scripts/explorations.ts, against the team's repository, following its "changes" mode; in
-// direct mode the first write asks for Bridge Direct's OK, scripts/github-session.ts).
+// exploration start form (scripts/explorations.ts, against the team's repository, following its "changes" mode).
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { listSuggestionsOnGitHub, stalenessStatus } from '@bridge-ds/core';

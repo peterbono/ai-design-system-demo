@@ -6,7 +6,6 @@
 //   may do on the repository, and the format-preserving edit of `changes` in bridge.config.json.
 import { designCopyOf, fromPlain, productCodeRepoOf, type ProductConfig, getEntry, overrideHolders, overrideReasonMin, parseJson, serializeJson, soloOwnerOf, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
 import type { TierSummary } from './governance';
-import type { SignInApp } from './github-signin';
 import { personName } from './people';
 
 export interface ApprovalRule {
@@ -130,22 +129,14 @@ export const CHANGES_SHORT: Record<ChangesMode, string> = {
 };
 
 /**
- * While only today's GitHub App exists (it can write code wherever it is installed), suggest mode is a rule Bridge
- * keeps, not a permission GitHub enforces. Settings says so plainly.
+ * Bridge's one GitHub App can write code wherever it is installed, so suggest mode is a rule Bridge keeps, not a
+ * permission GitHub enforces. Settings says so plainly.
  */
-export const INTERIM_APP_TEXT = "Bridge's GitHub App can still write code on this repo. Suggest mode is a Bridge rule until the read-only app ships.";
+export const SUGGEST_RULE_TEXT = "Bridge's GitHub App can write code on this repo. In suggest mode, Bridge keeps to suggestions on its own.";
 
-/** With the read-only app configured, GitHub itself keeps suggest mode: Studio signs in with an app that cannot write code. */
-export const READ_ONLY_APP_TEXT = "In this mode Studio signs in with Bridge's read-only GitHub App: it can read code and create issues, never write code.";
-
-/**
- * The line Settings shows about suggest mode, from the app Studio signs in with in that mode (SignInConfig.suggestApp):
- * the read-only app, the interim sentence for the one write app, nothing without a GitHub App (a pasted token).
- */
-export function suggestAppText(app: SignInApp | null | undefined): string | null {
-  if (app === 'suggest') return READ_ONLY_APP_TEXT;
-  if (app === 'direct') return INTERIM_APP_TEXT;
-  return null;
+/** The line Settings shows about suggest mode when the site signs in with the GitHub App; nothing for a pasted token. */
+export function suggestAppText(signIn: boolean | null | undefined): string | null {
+  return signIn ? SUGGEST_RULE_TEXT : null;
 }
 
 /** `changes` as the file says it: null when the key is absent (Bridge then sends suggestions, the default). */
@@ -204,8 +195,8 @@ export interface ChangesProposal {
 }
 
 /** Branch, title, body and commit message of the pull request that sets `changes`. */
-export function changesProposal(mode: ChangesMode, opts: { date: Date; prefix?: string; tierLabel: string; suggestApp?: SignInApp | null }): ChangesProposal {
-  const appLine = mode === 'suggest' ? suggestAppText(opts.suggestApp) : null;
+export function changesProposal(mode: ChangesMode, opts: { date: Date; prefix?: string; tierLabel: string; signIn?: boolean | null }): ChangesProposal {
+  const appLine = mode === 'suggest' ? suggestAppText(opts.signIn) : null;
   const stamp = opts.date.toISOString().slice(0, 10).replace(/-/g, '');
   const c = CHANGES_CHOICE[mode];
   const title = mode === 'suggest' ? 'chore(config): send kept changes as suggestions' : 'chore(config): open pull requests for kept changes';

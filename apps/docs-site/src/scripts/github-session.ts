@@ -27,19 +27,17 @@ import {
 } from '../lib/token-session';
 import { closeDialog, isDialogOpen, openDialog as openDsDialog } from '@bridge-ds/react/dom';
 import { paintAvatar, paintDrawnAvatar } from './avatar';
-import { accountLimitLine, askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb } from '../lib/gh-wording';
-import { installUrl, SIGNED_OUT_ELSEWHERE_KEY } from '../lib/access-view';
-import { changesModeOnPage } from './changes-mode';
+import { clearPendingAction, keepPendingAction } from './pending-action';
+import { accountLimitLine, ghAction, ghButton, ghVerb } from '../lib/gh-wording';
+import { SIGNED_OUT_ELSEWHERE_KEY } from '../lib/access-view';
 import { bindDemoGate } from './demo-gate';
 import {
   type AppSession,
-  type DirectApp,
   authorizeUrl,
   callbackUrl,
   canRefresh,
   encodeState,
   exchangeErrorText,
-  needsDirectApp,
   needsRefresh,
   noReachText,
   type PendingSignIn,
@@ -50,9 +48,10 @@ import {
   refreshDelay,
   safeReturnTo,
   sessionFrom,
-  type SignInApp,
   type SignInConfig,
   SIGNIN_TEXT,
+  type AnySlot,
+  OLD_APP_SLOT,
   type SlotContent,
   slotKey,
   STORAGE_SLOTS,
@@ -79,15 +78,15 @@ export interface RepoRef {
   defaultBranch: string;
 }
 
-// The token, its check and its sign-in session live in one slot per GitHub App (lib/github-signin.ts slotKey):
-// 'bridge.github.token.suggest' for "Bridge", '.direct' for "Bridge Direct", no suffix without a GitHub App.
+// The token, its check and its sign-in session live in one slot (lib/github-signin.ts slotKey):
+// 'bridge.github.token.direct' for a sign-in with Bridge Direct, no suffix without a GitHub App.
 /** An email contributor's role, in the words Members uses: "Can edit", or "Can view" for a read-only member. */
 const contributorRole = () => (contributorFor(pageRepo())?.role === 'view' ? ROLE_WORDS.view.label : ROLE_WORDS.edit.label);
 const TOKEN_BASE = 'bridge.github.token';
 const CHECK_BASE = 'bridge.github.check';
 /** The sign-in session (expiry, refresh token) next to its token. Absent for a pasted token. */
 const APP_BASE = 'bridge.github.app';
-/** Set when a sign-in of another app was removed: the account block and the dialog ask to sign in again. */
+/** Set when an older app's sign-in was removed: the account block and the dialog ask to sign in again, once. */
 const SWITCHED_KEY = 'bridge.github.switched';
 
 /**
@@ -96,7 +95,7 @@ const SWITCHED_KEY = 'bridge.github.switched';
  */
 function pageSlot(): StorageSlot | null {
   const v = document.documentElement.getAttribute('data-gh-app');
-  return v === null ? null : v === 'suggest' || v === 'direct' ? v : '';
+  return v === null ? null : v === 'direct' ? v : '';
 }
 
 let slotsReady = false;
@@ -108,7 +107,7 @@ function settleSlots(slot: StorageSlot) {
   if (slotsReady) return;
   slotsReady = true;
   try {
-    const read = (s: StorageSlot): SlotContent => {
+    const read = (s: AnySlot): SlotContent => {
       let session: AppSession | null = null;
       try {
         session = JSON.parse(localStorage.getItem(slotKey(APP_BASE, s)) ?? 'null') as AppSession | null;
@@ -117,7 +116,7 @@ function settleSlots(slot: StorageSlot) {
       }
       return { token: Boolean(localStorage.getItem(slotKey(TOKEN_BASE, s))), session: session && session.kind === 'app' ? session : null };
     };
-    const slots: Partial<Record<StorageSlot, SlotContent>> = {};
+    const slots: Partial<Record<AnySlot, SlotContent>> = {};
     for (const s of STORAGE_SLOTS) slots[s] = read(s);
     const plan = planSlots(slots, slot, readSignInConfig()?.clientId ?? null);
     for (const s of plan.clear) for (const base of [TOKEN_BASE, CHECK_BASE, APP_BASE]) localStorage.removeItem(slotKey(base, s));
@@ -151,11 +150,8 @@ export function signInSwitched(): boolean {
   }
 }
 
-/**
- * Why this browser looks signed out after a switch of app. One-app switch on (BRIDGE_ONE_APP): a plain sentence, asked
- * once (the old sign-in stays in its own slot, so turning the switch off again finds it).
- */
-export const switchedText = (): string => (readSignInConfig()?.oneApp ? SIGNIN_TEXT.oneApp : SIGNIN_TEXT.switched);
+/** Why this browser looks signed out after its older sign-in was removed: one plain sentence, until they sign in. */
+export const switchedText = (): string => SIGNIN_TEXT.switched;
 
 function clearSwitched() {
   try {
@@ -254,12 +250,14 @@ export function getToken(): string | null {
 export const signedInWithGitHub = (): boolean => Boolean(githubToken());
 
 /**
- * A GitHub sign-in this browser holds under any app's slot, read only (nothing moved or cleared): for pages outside
- * the app (the landing has no <html data-gh-app>), where key() would only look at the unscoped slot. The token, or null.
+ * A GitHub sign-in this browser holds under any slot, read only (nothing moved or cleared): for pages outside the app
+ * (the landing has no <html data-gh-app>), where key() would only look at the unscoped slot. The older second app's
+ * sign-in does not count (it cannot be renewed). The token, or null.
  */
 export function anyGitHubToken(): string | null {
   try {
     for (const slot of STORAGE_SLOTS) {
+      if (slot === OLD_APP_SLOT) continue;
       const t = localStorage.getItem(slotKey(TOKEN_BASE, slot));
       if (t && !isContribAuth(t)) return t;
     }
@@ -331,10 +329,9 @@ export class SignInError extends Error {
 
 /**
  * Starts Sign in with GitHub: keeps a state and a PKCE verifier for this tab, then goes to GitHub. `returnTo` is the
- * Studio page to land on afterwards (this one by default). `as`: another app than the page's (Bridge Direct, asked
- * for by a team in direct mode); its token goes to that app's slot.
+ * Studio page to land on afterwards (this one by default, with its search and hash).
  */
-export async function startSignIn(returnTo = location.pathname + location.search + location.hash, as?: { app: SignInApp; clientId: string }): Promise<void> {
+export async function startSignIn(returnTo = location.pathname + location.search + location.hash): Promise<void> {
   const cfg = readSignInConfig();
   if (!cfg) throw new SignInError('Sign in with GitHub is not set up on this site. Connect with a token from Settings instead.');
   if (!globalThis.crypto?.subtle) throw new SignInError('This browser cannot sign in safely here (no Web Crypto). Open Studio over https and sign in again.');
@@ -343,14 +340,15 @@ export async function startSignIn(returnTo = location.pathname + location.search
   const state = encodeState(randomString(24, fill), location.origin);
   const redirectUri = callbackUrl(location.origin, cfg);
   const challenge = await pkceChallenge(verifier, (d) => crypto.subtle.digest('SHA-256', d as Uint8Array<ArrayBuffer>));
-  const app = as ?? { app: cfg.app, clientId: cfg.clientId };
-  const pending: PendingSignIn = { state, verifier, redirectUri, returnTo: safeReturnTo(returnTo), at: Date.now(), app: app.app, clientId: app.clientId };
+  const pending: PendingSignIn = { state, verifier, redirectUri, returnTo: safeReturnTo(returnTo), at: Date.now() };
   try {
     sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
   } catch {
     throw new SignInError('This browser blocks site storage, so the sign-in could not finish. Allow site data for this site, then sign in again.');
   }
-  location.assign(authorizeUrl({ clientId: app.clientId, redirectUri, state, challenge }));
+  // What the person was doing in the last few minutes comes back with them (scripts/pending-action.ts).
+  keepPendingAction();
+  location.assign(authorizeUrl({ clientId: cfg.clientId, redirectUri, state, challenge }));
 }
 
 /** POSTs to this site's token function. Throws a SignInError with the sentence to show. */
@@ -373,17 +371,8 @@ export async function postToken(
   return data as TokenResponse;
 }
 
-/**
- * Saves a finished sign-in: the token like a pasted one, plus its expiry, refresh token and the app's client ID.
- * `slot`: the app the sign-in was for, when it is not this page's (the callback page saves a team page's sign-in, or
- * Bridge Direct's OK, into that app's own slot; the other slots are left as they are).
- */
-export function saveSignIn(r: TokenResponse, opts: { refresh?: boolean; clientId?: string; slot?: StorageSlot } = {}) {
-  if (opts.slot !== undefined && opts.slot !== pageSlot()) {
-    saveToSlot(opts.slot, r, opts.clientId);
-    if (!opts.refresh) clearSwitched();
-    return;
-  }
+/** Saves a finished sign-in: the token like a pasted one, plus its expiry, refresh token and the app's client ID. */
+export function saveSignIn(r: TokenResponse, opts: { refresh?: boolean; clientId?: string } = {}) {
   const previous = opts.refresh ? currentCheck() : null;
   if (!opts.refresh) clearSwitched();
   // Clients made before a refresh still hold the old token: their calls go out with the new one (liveAuth).
@@ -405,7 +394,7 @@ export function refreshSignIn(): Promise<boolean> {
   if (refreshing) return refreshing;
   const s = readAppSession();
   if (!s || !s.refreshToken || !canRefresh(s, Date.now())) return Promise.resolve(false);
-  // The app that issued the token renews it (sessions saved before the two apps: the site's app).
+  // The app that issued the token renews it (sessions saved before the client ID was kept: the site's app).
   const clientId = s.clientId ?? readSignInConfig()?.clientId;
   refreshing = postToken({ grant: 'refresh', refresh_token: s.refreshToken, ...(clientId ? { client_id: clientId } : {}) })
     .then((r) => {
@@ -417,235 +406,6 @@ export function refreshSignIn(): Promise<boolean> {
       refreshing = null;
     });
   return refreshing;
-}
-
-/** Writes a sign-in into one app's slot, without touching this page's (its check is made where it is used). */
-function saveToSlot(slot: StorageSlot, r: TokenResponse, clientId?: string) {
-  try {
-    localStorage.setItem(slotKey(TOKEN_BASE, slot), r.access_token.trim());
-    localStorage.setItem(slotKey(APP_BASE, slot), JSON.stringify(sessionFrom(r, Date.now(), clientId)));
-    localStorage.removeItem(slotKey(CHECK_BASE, slot));
-  } catch {
-    /* storage blocked: the sign-in cannot be kept */
-  }
-}
-
-// --- Bridge Direct on team pages (multi-team plan 3.2, PR 3d) -----------------------------------------------------
-// A team page signs in with Bridge (read code, send suggestions). When the team's bridge.config.json says
-// "changes": "direct", code writes (branches, saves, merges, reviews) go out with Bridge Direct instead: the first one
-// asks for its OK in the "Allow Bridge to save to branches" dialog (components/GitHubDialog.astro), then GitHub
-// brings the visitor back to the same page. Its token lives in its own slot ('direct'), next to Bridge's. The
-// self-hosted site never takes this path: it signs in with the app its mode needs up front.
-
-const DIRECT_SLOT: StorageSlot = 'direct';
-/** Per account and repository: Bridge Direct reaches it (sessionStorage, ACCESS_MAX_AGE_MS like the access). */
-const DIRECT_OK_PREFIX = 'bridge.github.direct-ok:';
-const DIRECT_OK_MAX_AGE_MS = 10 * 60 * 1000;
-
-/** Bridge Direct, when this page's code writes need it: a team page in direct mode, both apps set up. Else null. */
-export function directApp(): DirectApp | null {
-  const cfg = readSignInConfig();
-  if (!cfg?.direct || cfg.app === 'direct' || pageSlot() === DIRECT_SLOT) return null;
-  if (!repoContext().hosted || changesModeOnPage() !== 'direct') return null;
-  return cfg.direct;
-}
-
-function readDirect(): { token: string | null; session: AppSession | null } {
-  try {
-    const raw = localStorage.getItem(slotKey(APP_BASE, DIRECT_SLOT));
-    const session = raw ? (JSON.parse(raw) as AppSession) : null;
-    return { token: localStorage.getItem(slotKey(TOKEN_BASE, DIRECT_SLOT)), session: session?.kind === 'app' ? session : null };
-  } catch {
-    return { token: null, session: null };
-  }
-}
-
-/** Bridge Direct's OK, as far as this browser knows: saved and not past its expiry without a way to renew it. */
-export function hasDirectOk(): boolean {
-  const { token, session } = readDirect();
-  return Boolean(token) && !(session && session.expiresAt !== null && session.expiresAt <= Date.now() && !canRefresh(session, Date.now()));
-}
-
-/** Forgets Bridge Direct's OK in this browser (sign-out, refused by GitHub, another account). */
-function forgetDirect() {
-  try {
-    for (const base of [TOKEN_BASE, CHECK_BASE, APP_BASE]) localStorage.removeItem(slotKey(base, DIRECT_SLOT));
-    for (const k of Object.keys(sessionStorage)) if (k.startsWith(DIRECT_OK_PREFIX)) sessionStorage.removeItem(k);
-  } catch {
-    /* storage blocked */
-  }
-}
-
-let refreshingDirect: Promise<boolean> | null = null;
-/** Renews Bridge Direct's token with its refresh token, into its own slot. True when a fresh one is saved. */
-function refreshDirect(clientId: string): Promise<boolean> {
-  if (refreshingDirect) return refreshingDirect;
-  const { session } = readDirect();
-  if (!session?.refreshToken || !canRefresh(session, Date.now())) return Promise.resolve(false);
-  const id = session.clientId ?? clientId;
-  refreshingDirect = postToken({ grant: 'refresh', refresh_token: session.refreshToken, client_id: id })
-    .then((r) => {
-      saveToSlot(DIRECT_SLOT, r, id);
-      return true;
-    })
-    .catch(() => false)
-    .finally(() => {
-      refreshingDirect = null;
-    });
-  return refreshingDirect;
-}
-
-/** Thrown before a code write that cannot go out yet. The dialog is already open; the message goes under the action. */
-const directError = (message: string, why: 'direct-consent' | 'direct-not-installed') => new GitHubError(403, message, why);
-
-/** True for the error a write throws while it waits for Bridge Direct (its OK, or its setup on the repository). */
-export const isDirectWait = (err: unknown) => err instanceof GitHubError && (err.detail === 'direct-consent' || err.detail === 'direct-not-installed');
-
-/**
- * The token a code write goes out with on this page: Bridge Direct's on a team page in direct mode (renewed when it
- * is about to expire, checked once per repository), null elsewhere (the page's own token, as always). Without its OK,
- * or when it is not set up on the repository, it opens the dialog and throws (nothing was sent).
- */
-async function directTokenForWrite(): Promise<string | null> {
-  const app = directApp();
-  // Signed out, or the sign-in itself stopped working: the usual "Sign in" path says so.
-  if (!app || !getToken() || tokenRejected()) return null;
-  let { token, session } = readDirect();
-  const now = Date.now();
-  if (token && session && needsRefresh(session, now)) {
-    const ok = await refreshDirect(app.clientId);
-    if (!ok && session.expiresAt !== null && session.expiresAt <= now) forgetDirect();
-    ({ token, session } = readDirect());
-  }
-  if (!token) {
-    openDirectDialog('consent');
-    throw directError(DIRECT_CONSENT.needed, 'direct-consent');
-  }
-  const repo = readRepo();
-  const login = viewer?.login ?? '';
-  const okKey = `${DIRECT_OK_PREFIX}${login.toLowerCase()}:${repoName(repo)}`;
-  try {
-    const at = Number(sessionStorage.getItem(okKey));
-    if (at && now - at < DIRECT_OK_MAX_AGE_MS) return token;
-  } catch {
-    /* storage blocked: check again */
-  }
-  // Plain fetch: a refusal here is about Bridge Direct's OK, never about the page's own sign-in.
-  const client = new GitHubClient(`${repo.owner}/${repo.repo}`, token, (url, init) => fetch(url, init), undefined, { etags: false });
-  const refused = (err: unknown) => err instanceof GitHubError && err.status === 401;
-  let who: string | null = null;
-  try {
-    who = (await client.getViewer()).login;
-  } catch (err) {
-    if (refused(err)) {
-      forgetDirect();
-      openDirectDialog('consent', DIRECT_CONSENT.expired);
-      throw directError(DIRECT_CONSENT.needed, 'direct-consent');
-    }
-  }
-  // The OK must come from the account signed in to Bridge: changes are made in its name.
-  if (who && login && who.toLowerCase() !== login.toLowerCase()) {
-    forgetDirect();
-    openDirectDialog('consent', DIRECT_CONSENT.otherAccount(who, login));
-    throw directError(DIRECT_CONSENT.needed, 'direct-consent');
-  }
-  let found: boolean | null = null;
-  try {
-    found = Boolean(await client.findInstallation());
-  } catch (err) {
-    if (refused(err)) {
-      forgetDirect();
-      openDirectDialog('consent', DIRECT_CONSENT.expired);
-      throw directError(DIRECT_CONSENT.needed, 'direct-consent');
-    }
-    found = null;
-  }
-  if (found === false) {
-    openDirectDialog('setup');
-    throw directError(DIRECT_SETUP.needed, 'direct-not-installed');
-  }
-  // Found (or GitHub would not say): send it, GitHub has the last word.
-  if (found)
-    try {
-      sessionStorage.setItem(okKey, String(now));
-    } catch {
-      /* storage blocked: checked again next time */
-    }
-  return token;
-}
-
-/** A code write GitHub refused with Bridge Direct's token: forget it and ask for the OK again. */
-function directRefused(): GitHubError {
-  forgetDirect();
-  openDirectDialog('consent', DIRECT_CONSENT.expired);
-  return directError(DIRECT_CONSENT.needed, 'direct-consent');
-}
-
-let directWired = false;
-/**
- * Opens "Allow Bridge to save to branches" (components/GitHubDialog.astro): `consent` explains the OK and continues
- * on GitHub, back to this page; `setup` says Bridge Direct is not on the repository (admins install it, everyone else
- * copies a message for their lead). `note`: one line on top, when an earlier OK stopped working.
- */
-export function openDirectDialog(view: 'consent' | 'setup', note?: string) {
-  const dialog = document.getElementById('gh-direct-dialog');
-  const app = readSignInConfig()?.direct;
-  if (!dialog || !app) return;
-  const { owner, repo } = readRepo();
-  const full = `${owner}/${repo}`;
-  const admin = Boolean(currentAccess()?.admin || currentAccess()?.repoAdmin);
-  dialog.querySelectorAll<HTMLElement>('[data-gh-direct-view]').forEach((el) => (el.hidden = el.dataset.ghDirectView !== view));
-  const title = dialog.querySelector<HTMLElement>('#gh-direct-dialog-title');
-  if (title) title.textContent = view === 'consent' ? DIRECT_CONSENT.title : DIRECT_SETUP.title;
-  const setupText = dialog.querySelector<HTMLElement>('[data-gh-direct-setup-text]');
-  if (setupText) setupText.textContent = directSetupLine(full, admin);
-  const noteBox = dialog.querySelector<HTMLElement>('[data-gh-direct-note]');
-  const noteText = dialog.querySelector<HTMLElement>('[data-gh-direct-note-text]');
-  if (noteBox && noteText) {
-    noteText.textContent = note ?? '';
-    noteBox.hidden = !note;
-  }
-  const cont = dialog.querySelector<HTMLButtonElement>('[data-gh-direct-continue]');
-  const install = dialog.querySelector<HTMLAnchorElement>('[data-gh-direct-install]');
-  const ask = dialog.querySelector<HTMLButtonElement>('[data-gh-direct-ask]');
-  if (cont) {
-    cont.hidden = view !== 'consent';
-    setButtonBusy(cont, false, DIRECT_CONSENT.continueLabel);
-  }
-  if (install) {
-    install.hidden = view !== 'setup' || !admin;
-    install.href = installUrl(app.slug);
-  }
-  if (ask) {
-    ask.hidden = view !== 'setup' || admin;
-    setButtonLabel(ask, DIRECT_SETUP.askLabel);
-  }
-  if (!directWired) {
-    directWired = true;
-    cont?.addEventListener('click', () => {
-      const direct = readSignInConfig()?.direct;
-      if (!direct) return;
-      setButtonBusy(cont, true, 'Opening GitHub');
-      startSignIn(undefined, { app: 'direct', clientId: direct.clientId }).catch((err: Error) => {
-        setButtonBusy(cont, false, DIRECT_CONSENT.continueLabel);
-        if (noteBox && noteText) {
-          noteText.textContent = err.message;
-          noteBox.hidden = false;
-        }
-      });
-    });
-    // Ask your lead: the message, with the install link and this team's Studio, on the clipboard.
-    ask?.addEventListener('click', () => {
-      const r = readRepo();
-      const direct = readSignInConfig()?.direct;
-      const text = askDirectInstallMessage(`${r.owner}/${r.repo}`, installUrl(direct?.slug), `${location.origin}${studioHref()}`);
-      void navigator.clipboard?.writeText(text).then(
-        () => setButtonLabel(ask, DIRECT_SETUP.copied),
-        () => undefined,
-      );
-    });
-  }
-  if (!isDialogOpen(dialog)) openDsDialog(dialog);
 }
 
 function readCheck(): TokenCheck | null {
@@ -854,15 +614,6 @@ export const studioFetch: FetchLike = async (url, init0 = {}) => {
     const viaBridge = await teamReadViaBridge(url, { ...init, headers });
     if (viaBridge) return viaBridge;
   }
-  // A code write on a team page in direct mode goes out with Bridge Direct (or waits for its OK: this throws).
-  if (headers.Authorization && needsDirectApp(method, url)) {
-    const direct = await directTokenForWrite();
-    if (direct) {
-      const res = await fetch(url, { ...init, headers: { ...headers, Authorization: `Bearer ${direct}` } });
-      if (res.status === 401) throw directRefused();
-      return res;
-    }
-  }
   // A guest's read: the team's activity, this tab's recent answer, Bridge for a public demo team, or GitHub
   // (scripts/guest-activity.ts). GitHub's hourly limit is said in Bridge's words, never "add a GitHub token".
   if (method === 'GET' && !headers.Authorization && url.startsWith(API)) {
@@ -933,11 +684,6 @@ export function ghAuthFailure(err: unknown, action?: string): AuthFailure | null
  * missing permission the permission to add with a link to the token settings, else `fallback`.
  */
 export function showGhError(el: HTMLElement, err: unknown, fallback: string, action?: string) {
-  // Waiting for Bridge Direct: its dialog is open; the line says what to do, then try again.
-  if (isDirectWait(err)) {
-    el.textContent = (err as Error).message;
-    return;
-  }
   const mode = sessionMode();
   const a = authFailure(err, action, mode, prefersSignIn());
   if (!a) {
@@ -1153,17 +899,13 @@ export async function ghWrite<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', pa
   if (!getToken()) throw new GitHubError(401, `${ghVerb(prefersSignIn())} first.`, 'no-token');
   if (tokenRejected()) throw new GitHubError(401, rejectedText(sessionMode(), prefersSignIn()), 'Bad credentials', { auth: 'rejected' });
   noteWrite();
-  // A code write on a team page in direct mode goes out with Bridge Direct (or waits for its OK: this throws).
   const headers = authHeaders({ 'Content-Type': 'application/json' });
   const contributor = isContribAuth(headers.Authorization);
-  const direct = !contributor && needsDirectApp(method, `${API}${path}`) ? await directTokenForWrite() : null;
-  if (direct) headers.Authorization = `Bearer ${direct}`;
-  else if (!contributor) headers.Authorization = (await liveAuth(headers.Authorization)) as string;
+  if (!contributor) headers.Authorization = (await liveAuth(headers.Authorization)) as string;
   const send = () => ghFetch(`${API}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   let res = await send();
-  if (direct && res.status === 401) throw directRefused();
   // A sign-in renewed after the 401 (GitHub changed nothing): the write goes out once more with the fresh token.
-  if (res.status === 401 && !direct && !contributor && (await renewAfter401(headers.Authorization))) {
+  if (res.status === 401 && !contributor && (await renewAfter401(headers.Authorization))) {
     headers.Authorization = `Bearer ${githubToken()}`;
     res = await send();
   }
@@ -1306,7 +1048,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       if (text) text.textContent = viewer?.email ? CONTRIBUTE_WORDS.signedInWithEmail : viewer ? `Connected as @${viewer.login}` : rejected ? (app ? 'Sign-in expired' : 'Token stopped working') : switched ? 'Signed out' : 'Read only';
       const label = block.querySelector('[data-gh-open-label]');
       if (label) label.textContent = viewer ? (app ? 'Account' : 'Token') : rejected || switched ? (app || signIn ? 'Sign in again' : 'Reconnect') : ghButton(signIn);
-      block.querySelectorAll<HTMLElement>('[data-gh-rejected-text]').forEach((el) => (el.textContent = switched ? (readSignInConfig()?.oneApp ? 'Bridge changed how it connects to GitHub' : 'Bridge changed its GitHub app') : app ? 'Your GitHub sign-in expired' : 'Your GitHub token stopped working'));
+      block.querySelectorAll<HTMLElement>('[data-gh-rejected-text]').forEach((el) => (el.textContent = switched ? 'Bridge changed how it connects to GitHub' : app ? 'Your GitHub sign-in expired' : 'Your GitHub token stopped working'));
       block.querySelectorAll<HTMLElement>('[data-gh-reconnect-label]').forEach((el) => (el.textContent = app || switched ? 'Sign in again' : signIn ? 'Sign in with GitHub' : 'Reconnect'));
       // Change token only for a pasted token on a site without Sign in with GitHub.
       block.querySelectorAll<HTMLElement>('[data-gh-token-only]').forEach((el) => (el.hidden = app || signIn || Boolean(viewer?.email)));
@@ -1467,11 +1209,11 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       return;
     }
     clearSwitched();
+    // Nothing comes back for the next person on this browser (scripts/pending-action.ts).
+    clearPendingAction();
     setToken(null);
     writeCheck(null);
     writeAppSession(null);
-    // On a team page, signing out also takes back Bridge Direct's OK in this browser.
-    if (readSignInConfig()?.direct) forgetDirect();
     viewer = null;
     forgetAccess();
     // Bodies and models of private repositories read with this account must not outlive its session.
@@ -1786,13 +1528,11 @@ export function paintGates(root: ParentNode = document) {
   root.querySelectorAll<HTMLElement>('[data-gh-gate]').forEach((el) => {
     if (on) {
       el.removeAttribute('aria-disabled');
-      if (/^(Connect GitHub|Sign in|Your GitHub|Bridge now signs in|Bridge changed how)/.test(el.dataset.tooltip ?? '')) delete el.dataset.tooltip;
+      if (/^(Connect GitHub|Sign in|Your GitHub|Bridge changed how)/.test(el.dataset.tooltip ?? '')) delete el.dataset.tooltip;
     } else {
       el.setAttribute('aria-disabled', 'true');
       el.dataset.tooltip = !rejected && signIn && signInSwitched()
-        ? readSignInConfig()?.oneApp
-          ? `Bridge changed how it connects to GitHub. Sign in again to ${el.dataset.ghGate}.`
-          : `Bridge now signs in with a different GitHub App. Sign in again to ${el.dataset.ghGate}.`
+        ? `Bridge changed how it connects to GitHub. Sign in again to ${el.dataset.ghGate}.`
         : rejected
         ? app
           ? `Your GitHub sign-in expired. Sign in again to ${el.dataset.ghGate}.`

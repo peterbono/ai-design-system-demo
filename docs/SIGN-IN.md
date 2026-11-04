@@ -1,7 +1,7 @@
 # Sign in with GitHub
 
-Designers sign in to Studio with one click instead of creating and pasting a personal token. It needs GitHub Apps
-that you, the owner, create once, and their environment variables on Vercel.
+Designers sign in to Studio with one click instead of creating and pasting a personal token. It needs one GitHub App
+that you, the owner, create once, and its environment variables on Vercel.
 
 ## One app: Bridge Direct
 
@@ -10,8 +10,8 @@ Bridge signs everyone in with **one** GitHub App, **Bridge Direct** (named "Brid
 same app id and private key (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`) read teams for email members, receive the
 webhook and sign people in to the MCP server. One consent on GitHub covers reading, suggestions and code writes.
 
-- **Sign in** on every page (team pages included) uses Bridge Direct's Client ID (`GITHUB_APP_CLIENT_ID`). There is no
-  second OK: the token that reads is the token that writes.
+- **Sign in** on every page (team pages, the team Library, the start screen and the self-hosted Studio) uses Bridge
+  Direct's Client ID (`GITHUB_APP_CLIENT_ID`). The token that reads is the token that writes: there is no second OK.
 - **Install Bridge**, **Give Bridge access**, "Ask your lead to install Bridge", the install checks and the
   installation lookups (`GET /user/installations`, which lists the installations of the app that issued the token) all
   target Bridge Direct. The slug comes from one place: `appSlugFrom` in `apps/docs-site/src/lib/github-signin.ts`
@@ -21,44 +21,17 @@ webhook and sign people in to the MCP server. One consent on GitHub covers readi
   says so), since the app itself could write code.
 - A user can never do more through the app than their own access to the repository allows.
 
-### The switch: `BRIDGE_ONE_APP`
+### People still signed in with the old app
 
-The one-app model ships behind a build-time switch, off by default, so it can be turned on in a preview first and
-rolled back by promoting the previous deployment.
+Until 2026-11-04 team pages signed in with a second app, **Bridge** (`bridge-ds`), and asked for Bridge Direct's OK
+the first time a team in direct mode saved code. That app and its "Allow Bridge to save your changes" dialog are gone.
+A browser that still holds a `bridge-ds` sign-in (`bridge.github.token.suggest` in localStorage) looks signed out on
+its next Studio page and sees one sentence, once: "Bridge changed how it connects to GitHub. Sign in again once to
+keep working." The page removes that old sign-in at the same time (`planSlots` in `lib/github-signin.ts`): nothing
+can use or renew it any more. Someone who had already given Bridge Direct its OK stays signed in, with no notice.
 
-| `BRIDGE_ONE_APP` | Sign-in on team pages | Install links | Second OK for code writes |
-| ---------------- | --------------------- | ------------- | ------------------------- |
-| `1` (on)         | Bridge Direct         | `bridge-design-studio` | None |
-| unset (off)      | Bridge (`bridge-ds`, `GITHUB_APP_SUGGEST_CLIENT_ID`) | `bridge-ds` | Bridge Direct, once, in direct mode (below) |
-
-Production has it on since 2026-11-04, after a preview test (sign-in with Bridge Direct, a write with no second OK).
-
-It is read at build time (the pages are static), so a change takes a redeploy. The token function accepts both Client
-IDs either way, so tabs opened before a flip still finish their sign-in. Turning it on:
-
-- Someone signed in with the old app (`bridge.github.token.suggest`) looks signed out on the next page and sees one
-  sentence: "Bridge changed how it connects to GitHub. Sign in again once to keep working." Their old sign-in is kept
-  in its own slot, so turning the switch off finds it again. Someone who had already given Bridge Direct its OK stays
-  signed in.
-- An account where only `bridge-ds` is installed gets **Install Bridge** (Bridge Direct) once, in the guided window
-  that comes back to `/studio/auth/access/`. Never an error.
-
-Once the switch is on in production and checked, the two-app code (the `bridge-ds` sign-in, the "Allow Bridge to save
-to branches" dialog, `GITHUB_APP_SUGGEST_*`) is removed in a follow-up, and so is the switch.
-
-### The two-app model (switch off, to be removed)
-
-| App               | Used when                                  | Env vars on Vercel                                                   |
-| ----------------- | ------------------------------------------ | -------------------------------------------------------------------- |
-| **Bridge** (`bridge-ds`) | Sign-in on team pages; the self-hosted Studio in `"changes": "suggest"` | `GITHUB_APP_SUGGEST_CLIENT_ID`, `GITHUB_APP_SUGGEST_CLIENT_SECRET` |
-| **Bridge Direct** | Code writes on a team in direct mode (one more OK); the self-hosted Studio in `"changes": "direct"` | `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` |
-
-- `bridge-ds` was meant to be read only on code, but today it has Contents and Administration **write** (and Pull
-  requests read): it no longer enforces suggest mode on GitHub's side, which is one reason to keep only one app.
-- Tokens of each app are stored apart in the browser (`bridge.github.token.suggest`, `bridge.github.token.direct`).
-  A token is valid on every repository its app reaches, so a page never removes the other app's sign-in; a page whose
-  own app has no sign-in yet asks to "Sign in again". A token pasted by hand belongs to no app and is kept.
-- With only one of the two configured, Studio signs in with that one whatever the mode.
+This is all in the browser: the token function accepts Bridge Direct's Client ID only, and refuses any other
+(`unknown_client`), so it never needs the old app's id or secret.
 
 Once the Client ID is set at build time, Sign in with GitHub is the only way into Studio: the sign-in dialog, Settings,
 the account menu and the side nav offer no token paste. Developers keep their own token for the CLI and the MCP
@@ -74,13 +47,12 @@ for a token, and renews tokens when they expire. It stores and logs nothing.
 
 ## 1. Create the GitHub App (5 minutes)
 
-Create **Bridge Direct**. (The two-app model also had **Bridge**, the same steps with the permissions of its table
-below; new setups do not need it.)
+Create **Bridge Direct**.
 
 1. Open <https://github.com/settings/apps/new> (for a repository owned by an organization:
    `https://github.com/organizations/<org>/settings/apps/new`).
 2. Fill in:
-   - **GitHub App name**: `Bridge` or `Bridge Direct` (must be unique on GitHub; add your name if it is taken).
+   - **GitHub App name**: `Bridge Direct` (must be unique on GitHub; add your name if it is taken).
      People see it on the GitHub consent screen.
    - **Homepage URL**: `https://bridge.floriangouloubi.com`
    - **Callback URLs**: `https://bridge.floriangouloubi.com/studio/auth/callback/` (with the final slash; previews
@@ -95,20 +67,6 @@ below; new setups do not need it.)
    - **Webhook**: the hosted Bridge uses it (`/api/github-webhook`, docs/HOSTED.md). A self-hosted Studio alone can
      leave **Active** unchecked.
 3. **Permissions**: set exactly these, leave everything else on "No access".
-
-   **Bridge** (two-app model only; meant read only on code, see above for what it has today):
-
-   | Group        | Permission      | Access         | What Studio does with it                                                            |
-   | ------------ | --------------- | -------------- | ----------------------------------------------------------------------------------- |
-   | Repository   | Contents        | Read only      | Read tokens, components and docs                                                     |
-   | Repository   | Issues          | Read and write | Suggestions (each one is an issue), reviews of suggestions, component requests       |
-   | Repository   | Pull requests   | Read only      | The pull requests that apply suggestions, the review queue, product branches         |
-   | Repository   | Checks          | Read only      | Test results on each change                                                          |
-   | Repository   | Commit statuses | Read only      | Preview links and statuses on each change                                            |
-   | Repository   | Metadata        | Read only      | Required by GitHub                                                                   |
-   | Organization | Members         | Read only      | Roles held by GitHub teams in Settings (only for a repository owned by an organization) |
-
-   No Administration: Settings, Protection says "ask an admin" instead of turning protection on.
 
    **Bridge Direct** (the one app; writes branches and pull requests, and files suggestions):
 
@@ -129,7 +87,7 @@ below; new setups do not need it.)
    (it adds `.github/workflows/bridge-measure.yml`; GitHub refuses workflow files to an app without it). Without it,
    Studio gives the file to commit from GitHub instead (docs/MEASURE.md).
 
-   **Account permissions** (both apps): **Email addresses: Read-only**, and nothing else. Linking GitHub to a Bridge
+   **Account permissions**: **Email addresses: Read-only**, and nothing else. Linking GitHub to a Bridge
    account uses it to read the verified emails of that GitHub account (`GET /user/emails` with their own sign-in;
    docs/HOSTED.md, "Invites by email"), so a reviewer or admin invite goes to the person it was sent to. When you add
    it to an existing app, people already signed in get it the next time they sign in. A pasted token needs the same: the `user:email` scope (classic) or Email addresses
@@ -159,13 +117,10 @@ In the Vercel project that deploys Bridge (`bridge-docs`): **Settings**, **Envir
 | ---------------------------------- | --------------------------------------- | ------------------------------------ |
 | `GITHUB_APP_CLIENT_ID`             | Bridge Direct's Client ID (step 1.6)    | Public: it is written into the pages |
 | `GITHUB_APP_CLIENT_SECRET`         | Bridge Direct's client secret           | Mark it **Sensitive**. Server only   |
-| `GITHUB_APP_DIRECT_SLUG`           | Bridge Direct's slug (optional)         | The end of `github.com/apps/<slug>`. Default `bridge-design-studio`. Every install link uses it with the switch on |
-| `BRIDGE_ONE_APP`                   | `1`                                     | The one-app switch (above). Build time: redeploy after a change |
-| `GITHUB_APP_SUGGEST_CLIENT_ID`     | Bridge's Client ID                      | Two-app model only. Keep until the follow-up removes it |
-| `GITHUB_APP_SUGGEST_CLIENT_SECRET` | Bridge's client secret                  | Two-app model only. **Sensitive**    |
+| `GITHUB_APP_DIRECT_SLUG`           | Bridge Direct's slug (optional)         | The end of `github.com/apps/<slug>`. Default `bridge-design-studio`. Every install link uses it |
 
-The Client IDs and the switch are read at build time by the pages (no `PUBLIC_` prefix needed) and the pairs by the
-token function, which accepts only the configured Client IDs and adds the matching secret.
+The Client ID is read at build time by the pages (no `PUBLIC_` prefix needed) and the pair by the token function,
+which accepts only that Client ID and adds the secret.
 
 Then redeploy production (**Deployments**, the latest production deployment, **Redeploy**): the pages read the
 Client ID at build time, and the ignored build step skips builds when no file changed.
@@ -187,8 +142,8 @@ The hosted site opens any repository at `https://bridge.floriangouloubi.com/stud
 and no Bridge database: GitHub decides who gets in.
 
 1. An admin of the repository installs **Bridge** on it once:
-   [github.com/apps/bridge-design-studio/installations/new](https://github.com/apps/bridge-design-studio/installations/new)
-   (`bridge-ds` with the switch off), **Only select repositories**, pick the design system. Studio shows this link to admins of a repository where Bridge is not set
+   [github.com/apps/bridge-design-studio/installations/new](https://github.com/apps/bridge-design-studio/installations/new),
+   **Only select repositories**, pick the design system. Studio shows this link to admins of a repository where Bridge is not set
    up, and an "Ask your lead to install Bridge" message to everyone else.
 2. The admin shares the team link: Studio, Settings, **Your team** (or the onboarding step **Invite your team**, or
    **Invite your team** in the team menu at the top of the side nav). "Who can do what" under the link says what each
@@ -206,33 +161,25 @@ What each person sees, from what GitHub says:
 | Public repository, not on the team | Read only; they can still send suggestions for the team to review |
 | Read, write or admin | The Studio as usual; the team chip says "Can suggest", "Can edit" or "Admin" |
 
-### Saving to branches on a team page (switch off only)
+### Coming back from GitHub
 
-With `BRIDGE_ONE_APP` on there is nothing here: the sign-in already is Bridge Direct's and saves to branches at once.
+A trip to GitHub never loses what the person was doing:
 
-With the switch off, signing in on a team page uses **Bridge** (`bridge-ds`): it reads the design system and sends suggestions, and
-cannot write code. When the team's `bridge.config.json` says `"changes": "direct"`, the first action that writes code
-(start a branch, save to a branch, ship or merge, review, mark ready for review) opens **Allow Bridge to save to
-branches** first, before anything is sent:
-
-- One sentence on why ("This team saves changes on branches. To start one for you, Bridge needs one more OK from
-  GitHub. You only give it once."), what the OK allows (start a branch and save edits to it; ask for review and ship
-  once approved), and the limit ("never more than your own access on GitHub").
-- **Continue on GitHub** runs the same sign-in (state, PKCE, the same callback) with Bridge Direct's Client ID. GitHub
-  shows its consent screen once; after that the redirect is silent. The token goes to its own slot
-  (`bridge.github.token.direct`), next to Bridge's, and the visitor lands back on the page they were on, where they
-  do the action again. **Not now** closes the dialog; nothing was sent.
-- Suggestions, comments and labels keep going out with Bridge. Only code writes use Bridge Direct.
-- Before the first write on each repository (then every 10 minutes), Studio checks that the OK belongs to the account
-  signed in to Bridge and that Bridge Direct is installed on the repository. If the OK expired or GitHub refuses it,
-  Studio forgets it and asks again.
-- Bridge Direct not installed on the repository: the dialog says saving to branches is not set up yet. Admins of the
-  repository get **Install Bridge Direct** (`github.com/apps/<GITHUB_APP_DIRECT_SLUG>/installations/new`); everyone
-  else gets **Ask your lead**, which copies a message with that link and the team's Bridge address.
-- Signing out on a team page also removes Bridge Direct's OK from the browser.
-
-Teams in suggest mode, and sites with only one of the two apps, never see this dialog. The self-hosted Studio is
-unchanged: in direct mode it signs in with Bridge Direct from the start.
+- **Sign in again** (the sign-in expired in the middle of a save): the dialog arms its action right before the save
+  (`scripts/pending-action.ts`, memory only). Starting the sign-in keeps an action armed in the last 5 minutes, with
+  the page and the time, in localStorage (plain values only, never a token, 15 minutes). GitHub sends the person back
+  to the very page (path, search and hash), where the dialog reopens at the same step with what they typed, the
+  primary button focused and one line such as "Back from GitHub. Create Atlas now?". Nothing is sent before they
+  click. A plain sign-in with nothing armed keeps nothing.
+- **Add a product, Install on GitHub / Give Bridge access**: the step is kept when GitHub's window opens. When the
+  access page (`/studio/auth/access/`) cannot tell the window that opened it (GitHub cut the link), its **Back to
+  Studio** goes to the page Add a product was open on, and "It's already built" reopens there.
+- Add a product (new or already built) reopens wherever the person lands (`components/ds/studio/ResumeAction.tsx`);
+  Start an exploration, a product's rename and removal and a new brand reopen in place; other saves get one short
+  notice to do it again. Back without a sign-in, the line is "Sign in again to finish."
+- A save that stopped because the sign-in expired shows the sign-in sentence ("Your GitHub sign-in expired. Sign in
+  again to keep editing."), never "Ask an owner" or a generic refusal, since signing in fixes it
+  (`signInNeededLine` in `lib/pending-action.ts`).
 
 ## The Figma plugin: Sign in with Bridge
 
@@ -271,10 +218,8 @@ A pasted fine-grained token stays available under **For developers: connect with
 - They can read but not write: "Ask an owner for write access."
 - The app lacks a permission: "The Bridge GitHub App cannot (do this) yet. Ask the repository owner to give it
   (permission): Read and write."
-- The one-app switch was turned on and they were signed in with the old app: "Bridge changed how it connects to
-  GitHub. Sign in again once to keep working."
-- Two-app model, the site moved to the other app (the mode changed): "Bridge now signs in to GitHub with a different
-  app, so your previous sign-in was removed. Sign in again to keep editing."
+- They were signed in with the old app (`bridge-ds`), or the app behind their sign-in was replaced: "Bridge changed
+  how it connects to GitHub. Sign in again once to keep working."
 - The env vars are missing on the host: "Sign in with GitHub is not set up on this site yet. Ask the site owner to
   finish the setup."
 
@@ -284,7 +229,7 @@ GitHub sends everyone back to the production callback. When the sign-in started 
 that page forwards it there, but only to addresses that match `previews.apps.docs` in `bridge.config.json`
 (`https://bridge-docs-git-{branch}-peterbonos-projects.vercel.app`) or `localhost`. Use a preview's branch URL,
 not its hash URL. Previews need the variables in the Preview environment. `astro dev` has no function: run
-`vercel dev` for the full flow, or run `astro dev` without either Client ID to get the token paste. The production site needs this change deployed before previews can
+`vercel dev` for the full flow, or run `astro dev` without the Client ID to get the token paste. The production site needs this change deployed before previews can
 sign in, since the callback page lives there.
 
 ## Security, in short
@@ -293,8 +238,8 @@ sign in, since the callback page lives there.
   within 10 minutes.
 - The one-time code is removed from the address bar as soon as the callback page opens. Tokens never appear in a
   URL: the function answers a same-origin POST.
-- The function signs with the app whose Client ID the page sends, only from the configured ones; an unknown one
-  is refused before GitHub is called.
+- The function signs with the one configured app; a page that sends any other Client ID is refused before GitHub is
+  called.
 - The function accepts only POST with JSON from a page on its own host (Origin and Sec-Fetch-Site checked), only the
   Studio callback as redirect address, answers with `Cache-Control: no-store`, and never logs.
 - Sign out removes the token and its refresh token from the browser. To revoke every session at once:

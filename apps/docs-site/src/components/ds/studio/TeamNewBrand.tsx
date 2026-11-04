@@ -1,8 +1,7 @@
 // Studio New brand for a team (team shell /studio/<owner>/<repo>/brands/new/, multi-team): the self-hosted flow
 // (NewBrandFlow) fed from the team's repository, read in the browser (scripts/team-data.ts), instead of the build
 // checkout. It sends to the team's repository the way the team's bridge.config.json "changes" says: a suggestion, or
-// a draft branch for review; in direct mode the first branch asks for Bridge Direct's OK (scripts/github-session.ts)
-// before anything is sent. The draft is kept per team in this browser. Repo content as React text only.
+// a draft branch for review. The draft is kept per team in this browser. Repo content as React text only.
 import { Braces, FileCog } from 'lucide-react';
 import { EmptyState, Link } from '@bridge-ds/react';
 import NewBrandFlow from './NewBrandFlow';

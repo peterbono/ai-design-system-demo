@@ -59,12 +59,10 @@ export async function runCallback(): Promise<void> {
     return;
   }
   try {
-    // The app the sign-in was started with trades the code and later renews it: this site's app (Bridge, or Bridge
-    // Direct in direct mode), Bridge on a team page, or Bridge Direct when a team in direct mode gave its OK. The token
-    // goes to that app's slot, so a team page's Bridge sign-in and Bridge Direct's OK sit side by side.
-    const clientId = step.clientId ?? cfg.clientId;
+    // The one GitHub App (Bridge Direct) trades the code and later renews it.
+    const clientId = cfg.clientId;
     const token = await postToken({ grant: 'code', code: step.code, code_verifier: step.verifier, redirect_uri: step.redirectUri, client_id: clientId });
-    saveSignIn(token, { clientId, ...(step.app ? { slot: step.app } : {}) });
+    saveSignIn(token, { clientId });
     location.replace(step.returnTo);
   } catch (err) {
     fail((err as Error).message || SIGNIN_TEXT.failed, step.returnTo);

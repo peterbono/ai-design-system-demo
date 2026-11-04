@@ -159,6 +159,9 @@ export default function StartExploration({ components, appearance = 'menu', prod
   });
   const sentenceRef = useRef<HTMLInputElement>(null);
   const jiraRef = useRef<HTMLInputElement>(null);
+  // Back from GitHub (a sign-in): "Back from GitHub. Start this exploration now?", Start focused.
+  const [resumeNote, setResumeNote] = useState<string | null>(null);
+  const startRef = useRef<HTMLButtonElement>(null);
 
   // A lead may also start in the library; until the access is known, only the products (a lead sees it a moment later).
   const [lead, setLead] = useState(false);
@@ -189,6 +192,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
     setBlocked(null);
     setDone(null);
     setAdded(false);
+    setResumeNote(null);
   };
 
   useEffect(() => {
@@ -197,6 +201,28 @@ export default function StartExploration({ components, appearance = 'menu', prod
     setLook(pageLook());
     const all = pageProducts();
     setProducts(all);
+    // Back from GitHub (scripts/pending-action.ts): the start reopens with what was typed. Only a visible start
+    // takes it, once per page; nothing starts before the click.
+    if (!(pageLook().hidden && appearance === 'menu'))
+      void import('../../../scripts/resume')
+        .then(({ takeResume }) => {
+          const r = takeResume('start-exploration');
+          if (!r) return;
+          const v = r.action.values;
+          reset(all, null);
+          if (typeof v.target === 'string' && v.target) {
+            pickedByHand.current = true;
+            setTarget(v.target);
+          }
+          if (typeof v.sentence === 'string') setSentence(v.sentence);
+          if (typeof v.jira === 'string' && v.jira) {
+            setJira(v.jira);
+            setJiraOpen(true);
+          }
+          setResumeNote(r.line);
+          setOpen(true);
+        })
+        .catch(() => undefined);
     // An old address that opened the start (the page header's action only, so it opens once per page).
     const asked = appearance === 'menu' ? startFromAddress(location.search) : null;
     if (asked) {
@@ -273,6 +299,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
   async function start(inLibrary = false) {
     setTried(true);
     setError(null);
+    setResumeNote(null);
     if (Object.keys(problems).length) {
       if (problems.sentence) sentenceRef.current?.focus();
       else if (problems.jira) jiraRef.current?.focus();
@@ -286,6 +313,9 @@ export default function StartExploration({ components, appearance = 'menu', prod
       return;
     }
     setBusy(true);
+    // Kept if the person has to sign in again first: the start reopens with the same words (scripts/pending-action).
+    const kept = await import('../../../scripts/pending-action');
+    kept.armPendingAction('start-exploration', { sentence, target, jira });
     try {
       const { explorationsConfig, startInProductRepo, startLinkedExploration } = await import('../../../scripts/exploration-start');
       const key = parseJiraKey(jira);
@@ -307,6 +337,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
         return;
       }
       setBlocked(null);
+      kept.disarmPendingAction();
       const { started } = r;
       const ds = `${cfg.owner}/${cfg.repo}`;
       const ref = { sentence, product: t.product, number: started.pr, library: t.library, copy: at ? { repo: at.copy, branch: started.branch } : null };
@@ -336,8 +367,8 @@ export default function StartExploration({ components, appearance = 'menu', prod
       }
     } catch (err) {
       const msg = (err as Error).message || 'GitHub did not answer.';
-      // Suggest mode, or waiting for Bridge Direct's OK: the sentence already says what to do.
-      const plain = (err as Error).name === 'SuggestOnlyError' || session.isDirectWait(err);
+      // Suggest mode: the sentence already says what to do.
+      const plain = (err as Error).name === 'SuggestOnlyError';
       setError(plain ? msg : `${msg.replace(/\.?$/, '.')} Try again, or rename it if one with this name already exists.`);
     } finally {
       setBusy(false);
@@ -534,6 +565,11 @@ export default function StartExploration({ components, appearance = 'menu', prod
         </span>
         {error && <Alert tone="danger">{error}</Alert>}
         {added && <Alert tone="success">{ADD_PRODUCT_WORDS.sent}</Alert>}
+        {resumeNote && !error && (
+          <p className="t-body sc-line" role="status">
+            {resumeNote}
+          </p>
+        )}
       </form>
     );
     foot = footer(
@@ -542,7 +578,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
       </Button>,
       // While the product is blocked, starting cannot work: the warning's action is the one primary, and Start waits,
       // disabled, its reason the warning it points to (aria-describedby). Picking another place clears it.
-      <Button size="lg" type="submit" form="sc-start" loading={busy} disabled={stuck} aria-describedby={stuck ? 'sc-blocked' : undefined}>
+      <Button ref={startRef} size="lg" type="submit" form="sc-start" loading={busy} disabled={stuck} aria-describedby={stuck ? 'sc-blocked' : undefined}>
         {startLabel(tools.tab)}
       </Button>,
     );
@@ -647,7 +683,7 @@ export default function StartExploration({ components, appearance = 'menu', prod
           }
         />
         {open && (
-          <DialogContent title={title} footer={foot} className="sc-dialog" initialFocus={step === 'start' ? sentenceRef : undefined}>
+          <DialogContent title={title} footer={foot} className="sc-dialog" initialFocus={step === 'start' ? (resumeNote ? startRef : sentenceRef) : undefined}>
             {body}
           </DialogContent>
         )}

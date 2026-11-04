@@ -136,12 +136,18 @@ function useRenameTitle(
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Back from GitHub (a sign-in): the line under the field, Save focused (nothing sent before the click).
+  const [resumeLine, setResumeLine] = useState<string | null>(null);
   const field = useRef<HTMLInputElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const resumed = useRef(false);
   useEffect(() => {
     // The menu hands focus back to its button as it closes: the field takes it again on the next frame.
     if (!editing) return;
-    field.current?.focus();
-    const id = requestAnimationFrame(() => field.current?.focus());
+    const to = resumed.current ? saveRef : field;
+    resumed.current = false;
+    to.current?.focus();
+    const id = requestAnimationFrame(() => to.current?.focus());
     return () => cancelAnimationFrame(id);
   }, [editing]);
   // Settings > Products' Rename (TeamProducts.tsx) lands here with #rename: the name opens in place, once.
@@ -155,6 +161,7 @@ function useRenameTitle(
   const close = () => {
     setEditing(false);
     setError(null);
+    setResumeLine(null);
     // Back on More actions (focus never lost), after it paints again.
     requestAnimationFrame(() => back.current?.focus());
   };
@@ -169,13 +176,15 @@ function useRenameTitle(
     }
     setBusy(true);
     setError(null);
+    setResumeLine(null);
     try {
       await rename.onSend(value);
       setEditing(false);
       setNote(PRODUCT_NAME_WORDS.sent);
     } catch (err) {
       console.warn('Bridge: the product rename was not sent.', err);
-      setError(PRODUCT_NAME_WORDS.refused);
+      // The sign-in expired: its sentence (signing in fixes it), not a generic refusal.
+      setError((await import('../../../scripts/resume')).signInLineFor(err, 'rename it') ?? PRODUCT_NAME_WORDS.refused);
     } finally {
       setBusy(false);
     }
@@ -185,7 +194,15 @@ function useRenameTitle(
     setError(null);
     setEditing(true);
   };
-  if (!rename || !name) return { title: name || ' ', after: null, note: null, editing: false, canRename: false, start };
+  /** Back from GitHub: the name typed before, the line, Save focused. */
+  const resume = (to: string, line: string) => {
+    resumed.current = true;
+    setValue(to);
+    setError(null);
+    setResumeLine(line);
+    setEditing(true);
+  };
+  if (!rename || !name) return { title: name || ' ', after: null, note: null, editing: false, canRename: false, start, resume };
   if (editing) {
     return {
       // The heading keeps the name for assistive tech while the field takes its place on screen.
@@ -201,9 +218,11 @@ function useRenameTitle(
             maxLength={PRODUCT_NAME_MAX}
             autoComplete="off"
             error={error ?? undefined}
+            hint={resumeLine ?? undefined}
             onValueChange={(v: string) => {
               setValue(v);
               setError(null);
+              setResumeLine(null);
             }}
             onKeyDown={(e) => {
               if (e.key === 'Escape' && !busy) {
@@ -212,7 +231,7 @@ function useRenameTitle(
               }
             }}
           />
-          <Button type="submit" variant="primary" loading={busy}>
+          <Button ref={saveRef} type="submit" variant="primary" loading={busy}>
             {PRODUCT_NAME_WORDS.save}
           </Button>
           <Button type="button" variant="ghost" disabled={busy} onClick={close}>
@@ -224,6 +243,7 @@ function useRenameTitle(
       editing: true,
       canRename: false,
       start,
+      resume,
     };
   }
   const waiting = rename.state === 'waiting' || Boolean(note);
@@ -234,6 +254,7 @@ function useRenameTitle(
     editing: false,
     canRename: !waiting,
     start,
+    resume,
   };
 }
 
@@ -241,9 +262,29 @@ function useRenameTitle(
  * "Remove from Bridge?": what it does in plain words (Bridge deletes nothing on GitHub), and the product's name typed
  * exactly before the danger button turns on (the Delete team pattern, DeleteTeam.tsx).
  */
-function RemoveProductDialog({ name, open, onOpenChange, onSend }: { name: string; open: boolean; onOpenChange: (open: boolean) => void; onSend: () => Promise<void> }) {
+function RemoveProductDialog({
+  name,
+  open,
+  onOpenChange,
+  onSend,
+  resume = null,
+}: {
+  name: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSend: () => Promise<void>;
+  /** Back from GitHub (a sign-in): the name typed before and the line; Remove waits for the click. */
+  resume?: { typed: string; line: string } | null;
+}) {
   const W = REMOVE_PRODUCT_WORDS;
   const [typed, setTyped] = useState('');
+  const [resumeLine, setResumeLine] = useState<string | null>(null);
+  const removeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!resume) return;
+    setTyped(resume.typed);
+    setResumeLine(resume.line);
+  }, [resume]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const formId = useId();
@@ -253,13 +294,14 @@ function RemoveProductDialog({ name, open, onOpenChange, onSend }: { name: strin
     if (!ok || busy) return;
     setBusy(true);
     setError(null);
+    setResumeLine(null);
     try {
       await onSend();
       setTyped('');
       onOpenChange(false);
     } catch (err) {
       console.warn('Bridge: the product removal was not sent.', err);
-      setError(W.refused);
+      setError((await import('../../../scripts/resume')).signInLineFor(err, 'remove it') ?? W.refused);
     } finally {
       setBusy(false);
     }
@@ -273,6 +315,7 @@ function RemoveProductDialog({ name, open, onOpenChange, onSend }: { name: strin
         if (!next) {
           setTyped('');
           setError(null);
+          setResumeLine(null);
         }
       }}
     >
@@ -281,10 +324,11 @@ function RemoveProductDialog({ name, open, onOpenChange, onSend }: { name: strin
         description={W.text(name)}
         size="sm"
         hideClose
+        initialFocus={resumeLine ? removeRef : undefined}
         footer={
           <ButtonGroup align="end">
             <DialogClose render={<Button variant="secondary" disabled={busy} />}>{W.cancel}</DialogClose>
-            <Button type="submit" form={formId} variant="danger" loading={busy} disabled={!ok || busy}>
+            <Button ref={removeRef} type="submit" form={formId} variant="danger" loading={busy} disabled={!ok || busy}>
               {W.remove}
             </Button>
           </ButtonGroup>
@@ -293,6 +337,11 @@ function RemoveProductDialog({ name, open, onOpenChange, onSend }: { name: strin
         <form id={formId} className="pp-remove-form" noValidate onSubmit={(e) => void submit(e)}>
           <p className="t-body pp-remove-safe">{W.safe}</p>
           <Input label={W.confirmLabel(name)} name="confirm" autoComplete="off" spellCheck={false} value={typed} onValueChange={setTyped} />
+          {resumeLine && !error && (
+            <p className="t-body" role="status">
+              {resumeLine}
+            </p>
+          )}
           {error && <Alert tone="danger">{error}</Alert>}
         </form>
       </DialogContent>
@@ -513,6 +562,31 @@ export function ProductPageView({
   const head = useRenameTitle(product?.name ?? '', product?.key ?? productKey, data?.products ?? [], own ? rename : null, menuButton);
   const [removing, setRemoving] = useState(false);
   const [removeNote, setRemoveNote] = useState<string | null>(null);
+  // Back from GitHub (a sign-in, scripts/pending-action.ts): the rename or the removal of this product
+  // reopens with what was typed. Taken once, only for this product, only by someone who may still do it.
+  const [removeResume, setRemoveResume] = useState<{ typed: string; line: string } | null>(null);
+  const resumeAsked = useRef(false);
+  const renameOffer = Boolean(own && rename && rename.state === 'offer');
+  const removeOffer = Boolean(own && remove && remove.state === 'offer');
+  const ownKey = own?.key ?? null;
+  useEffect(() => {
+    if (!(renameOffer || removeOffer) || !ownKey || resumeAsked.current) return;
+    resumeAsked.current = true;
+    void Promise.all([import('../../../scripts/pending-action'), import('../../../scripts/resume')])
+      .then(([{ peekPendingAction }, { takeResume }]) => {
+        const kept = peekPendingAction();
+        if (!kept || kept.values.key !== ownKey) return;
+        if (!((kept.kind === 'rename-product' && renameOffer) || (kept.kind === 'remove-product' && removeOffer))) return;
+        const r = takeResume(kept.kind);
+        if (!r) return;
+        if (r.action.kind === 'rename-product') head.resume(typeof r.action.values.to === 'string' ? r.action.values.to : '', r.line);
+        else {
+          setRemoveResume({ typed: typeof r.action.values.name === 'string' ? r.action.values.name : '', line: r.line });
+          setRemoving(true);
+        }
+      })
+      .catch(() => undefined);
+  }, [renameOffer, removeOffer, ownKey]);
   const removeWaiting = Boolean(own && remove && (remove.state === 'waiting' || removeNote));
   const canRemove = Boolean(own && remove && !removeWaiting);
   const loading = !data || data.loading;
@@ -590,7 +664,11 @@ export function ProductPageView({
         <RemoveProductDialog
           name={name}
           open={removing}
-          onOpenChange={setRemoving}
+          onOpenChange={(o) => {
+            setRemoving(o);
+            if (!o) setRemoveResume(null);
+          }}
+          resume={removeResume}
           onSend={async () => {
             await remove.onSend();
             setRemoveNote(REMOVE_PRODUCT_WORDS.sent(name));
@@ -794,7 +872,11 @@ export default function ProductPage({ productKey, components = [] }: { productKe
                   return { line: `${ghAction('make your copy', session.prefersSignIn())}.`, ready: false };
                 }
                 const { makeCopy } = await import('../../../scripts/design-copy');
+                // Kept if the person has to sign in again first: back on this page, it says to do it again.
+                const keep = await import('../../../scripts/pending-action');
+                keep.armPendingAction('retry', { label: 'make your copy' });
                 const r = await makeCopy(data.product!);
+                keep.disarmPendingAction();
                 if (needsCopyAccess(r)) return { line: '', ready: false, access: r };
                 // Made: the page reads the copy again, and shows the explorations and the start action.
                 if (r === 'ready') setReload((n) => n + 1);
@@ -804,7 +886,11 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           finish: canMake
             ? async () => {
                 const { finishCopy } = await import('../../../scripts/design-copy');
+                // Kept if the person has to sign in again first: back on this page, it says to do it again.
+                const keep = await import('../../../scripts/pending-action');
+                keep.armPendingAction('retry', { label: 'finish your copy' });
                 const r = await finishCopy(data.product!);
+                keep.disarmPendingAction();
                 if (r === 'ready') setReload((n) => n + 1);
                 return { line: madeLine(data.product!.name, r), ready: r === 'ready' };
               }
@@ -817,7 +903,12 @@ export default function ProductPage({ productKey, components = [] }: { productKe
                   return `${ghAction('get the latest', session.prefersSignIn())}.`;
                 }
                 const { getLatest } = await import('../../../scripts/design-copy');
-                return latestLine(await getLatest(data.product!));
+                // Kept if the person has to sign in again first: back on this page, it says to do it again.
+                const keep = await import('../../../scripts/pending-action');
+                keep.armPendingAction('retry', { label: 'get the latest' });
+                const latest = await getLatest(data.product!);
+                keep.disarmPendingAction();
+                return latestLine(latest);
               }
             : null,
         }
@@ -835,7 +926,11 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           state: sent ? 'waiting' : 'offer',
           onSend: async (to) => {
             const { proposeProductName } = await import('../../../scripts/roles');
+            // Kept if the person has to sign in again first: the name opens again with it (scripts/pending-action).
+            const kept = await import('../../../scripts/pending-action');
+            kept.armPendingAction('rename-product', { key: data.product!.key, from: data.product!.name, to });
             await proposeProductName({ key: data.product!.key, from: data.product!.name, to });
+            kept.disarmPendingAction();
             setSent(true);
           },
         }
@@ -849,7 +944,10 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           onSend: async () => {
             const { proposeProductRemoval } = await import('../../../scripts/roles');
             const p = data.product!;
+            const kept = await import('../../../scripts/pending-action');
+            kept.armPendingAction('remove-product', { key: p.key, name: p.name });
             await proposeProductRemoval({ key: p.key, name: p.name, ...(p.repo ? { repo: p.repo } : {}) });
+            kept.disarmPendingAction();
             setRemoveSent(true);
           },
         }
@@ -862,7 +960,11 @@ export default function ProductPage({ productKey, components = [] }: { productKe
           ? {
               send: async () => {
                 const { sendLibraryUpdate } = await import('../../../scripts/library-update');
+                // Kept if the person has to sign in again first: back on this page, it says to do it again.
+                const keep = await import('../../../scripts/pending-action');
+                keep.armPendingAction('retry', { label: 'send the library update' });
                 const r = await sendLibraryUpdate(data.product!);
+                keep.disarmPendingAction();
                 // Sent (or already there): the line says so at once, with the link for people with GitHub.
                 if (r.pr) setLibView((v) => (v ? { ...v, update: { number: r.pr!.number, url: r.pr!.url, version: r.pr!.version } } : v));
               },

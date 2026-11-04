@@ -224,8 +224,6 @@ export const GITHUB_KEYS = [
   'GITHUB_APP_PRIVATE_KEY',
   'GITHUB_APP_CLIENT_ID',
   'GITHUB_APP_CLIENT_SECRET',
-  'GITHUB_APP_SUGGEST_CLIENT_ID',
-  'GITHUB_APP_SUGGEST_CLIENT_SECRET',
 ] as const;
 
 /** Read or create the session secret of this computer (48 random bytes, base64url). */

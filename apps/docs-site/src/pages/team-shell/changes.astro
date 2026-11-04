@@ -30,7 +30,7 @@ import { signInConfig } from '../../lib/signin-config';
 import { studioHref } from '../../lib/team-path';
 import { VOCAB } from '../../lib/vocabulary';
 
-const signIn = Boolean(signInConfig(true));
+const signIn = Boolean(signInConfig());
 ---
 
 <TeamShell route="changes/" title="Changes" scene="changes" what="changes" description="The open changes and suggestions of this team's design system, each reviewed in place.">

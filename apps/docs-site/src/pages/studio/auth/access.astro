@@ -2,7 +2,8 @@
 // Where GitHub sends the browser after an admin changes what Bridge can see (the GitHub App's Setup URL, with
 // "Redirect on update"). Not in the nav. Opened in the window the "Add a product" dialog opened, it tells the dialog
 // at once and closes (scripts/github-access-return.ts); the dialog also finds the new product on its own, so this
-// page is a shortcut, not a step. Opened on its own: one sentence and the way back to Studio.
+// page is a shortcut, not a step. Opened on its own: one sentence and the way back to Studio, to the very page and step
+// the person left when Add a product kept one (scripts/pending-action.ts keptActionUrl).
 import Layout from '../../../layouts/Layout.astro';
 import Illustration from '../../../components/Illustration.astro';
 import { Link } from '@bridge-ds/react';
@@ -15,14 +16,19 @@ import { studioHref } from '../../../lib/team-path';
     <div class="gh-access-text">
       <h1 id="gh-access-title" class="gh-access-title">Bridge has access</h1>
       <p class="gh-access-sub">You can close this tab.</p>
-      <Link href={studioHref()}>Back to Studio</Link>
+      <Link href={studioHref()} data-access-back>Back to Studio</Link>
     </div>
   </section>
 </Layout>
 
 <script>
   import { returnToOpener } from '../../../scripts/github-access-return';
-  returnToOpener(window);
+  import { keptActionUrl } from '../../../scripts/pending-action';
+  if (!returnToOpener(window)) {
+    // Back to the page Add a product was open on: the dialog reopens there at the same step.
+    const back = keptActionUrl();
+    if (back) document.querySelector<HTMLAnchorElement>('[data-access-back]')?.setAttribute('href', back);
+  }
 </script>
 
 <style>
