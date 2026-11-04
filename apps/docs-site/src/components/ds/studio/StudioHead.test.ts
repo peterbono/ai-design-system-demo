@@ -28,6 +28,28 @@ describe('Studio page header', () => {
     await expectNoAxeViolations(container);
   });
 
+  it('keeps More actions last on the title line, on a phone too, apart from the actions that move under the summary', () => {
+    const { container } = render(
+      createElement(StudioHead, {
+        title: 'Art print shop',
+        summary: 'Nothing explored here yet.',
+        actions: createElement('button', { type: 'button' }, 'Start an exploration'),
+        more: createElement('button', { type: 'button', 'aria-label': 'More actions for Art print shop' }),
+      }),
+    );
+    const row = container.querySelector('.st-title-row')!;
+    expect([...row.children].map((c) => c.className)).toEqual(['st-title', 'st-head-actions', 'st-head-more']);
+    expect(row.querySelector('[data-st-more] button')!.getAttribute('aria-label')).toBe('More actions for Art print shop');
+    // Phones: a two-column grid, the title wraps in the first column and More actions holds the end of its line.
+    const css = read('../../../styles/studio-app.css');
+    const phone = css.slice(css.indexOf('@media (max-width: 640px)'));
+    expect(phone).toMatch(/\.st-head-main \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/);
+    expect(phone).toMatch(/\.st-title-row > \.st-head-more \{[^}]*grid-row: 1;[^}]*grid-column: 2;/);
+    // No empty place for a page without More actions.
+    const { container: plain } = render(createElement(StudioHead, { title: 'Changes' }));
+    expect(plain.querySelector('[data-st-more]')).toBeNull();
+  });
+
   it('has no "How it works" fold under the title', () => {
     const { container } = render(createElement(StudioHead, { title: 'Being built', summary: '2 waiting to be picked up.', scene: 'building' }));
     expect(container.querySelector('details')).toBeNull();
