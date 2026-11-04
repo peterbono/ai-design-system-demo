@@ -412,8 +412,11 @@ describe('ProductPageView, More actions (admins)', () => {
   it('one "More actions for <product>" button at the end of the title line: Rename, then Remove from Bridge as danger', async () => {
     const { container } = view();
     const more = screen.getByRole('button', { name: 'More actions for Product admin' });
-    // At the end of the title line, after the page's start action.
-    expect(more.closest('[data-st-actions]')).toBeTruthy();
+    // At the end of the title line, after the page's start action, in its own place: on a phone the start action
+    // moves under the summary, More actions stays by the title.
+    expect(more.closest('.st-title-row > [data-st-more]')).toBeTruthy();
+    expect(more.closest('[data-st-actions]')).toBeNull();
+    expect(container.querySelector('[data-st-actions]')!.textContent).toContain('Start an exploration');
     await expectNoAxeViolations(container);
     await userEvent.click(more);
     const items = await screen.findAllByRole('menuitem');

@@ -105,14 +105,51 @@
   display: none;
 }
 
-/* Phones: the words first (title, then the summary), the actions under them. */
+/* The "..." More actions button, last on the title line: right after the actions, or at the end alone. */
+.st-head-more {
+  display: flex;
+  align-items: center;
+  margin-inline-start: auto;
+}
+
+.st-head-actions:not(:empty) + .st-head-more {
+  /* The same gap as between the actions themselves. */
+  margin-inline-start: calc(var(--space-2) - var(--space-4));
+}
+
+/* Phones: the words first (title, then the summary), the actions under them. The "..." More actions button keeps
+   its place at the end of the title's line: the title wraps beside it, never onto a line of its own. */
 @media (max-width: 640px) {
   .st-head {
     min-height: 0;
   }
 
+  .st-head-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-4);
+  }
+
+  .st-head-main > *,
+  .st-title-row > * {
+    grid-column: 1 / -1;
+  }
+
   .st-title-row {
     display: contents;
+  }
+
+  .st-title-row > .st-title,
+  .st-title-row > .st-title-line {
+    grid-column: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .st-title-row > .st-head-more {
+    grid-row: 1;
+    grid-column: 2;
+    margin-inline-start: 0;
   }
 
   .st-head-actions {

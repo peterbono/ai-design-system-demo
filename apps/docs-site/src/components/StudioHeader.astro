@@ -11,7 +11,8 @@
 //   summary   the summary sentence as built (a page whose island fills it later leaves it out; the line is kept)
 //   scene     the section's drawing
 //   countId   id of a live count next to the title, filled by the page script
-// Slots: "actions" (the title line's end), "summary" (rich summary content), default (extra lines).
+// Slots: "actions" (the title line's end), "more" (the "..." More actions button, last on the title line at every
+// width, on a phone too), "summary" (rich summary content), default (extra lines).
 import type { SectionSceneName } from './ds/studio/QuietScene';
 
 interface Props {
@@ -32,6 +33,7 @@ const { title, summary, scene, countId, countLabel } = Astro.props;
         {countId && <span class="st-count num" id={countId} aria-label={countLabel}></span>}
       </h1>
       <div class="st-head-actions" data-st-actions><slot name="actions" /></div>
+      {Astro.slots.has('more') && <div class="st-head-more" data-st-more><slot name="more" /></div>}
     </div>
     <p class="st-sub" data-st-summary aria-live="polite"><slot name="summary">{summary}</slot></p>
     <slot />

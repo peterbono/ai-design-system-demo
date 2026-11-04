@@ -646,14 +646,9 @@ export function ProductPageView({
         titleAfter={titleAfter}
         summary={loading && !cards.length ? '' : data?.failed || busyAlone ? '' : asks && product ? emptyProductLine(product, true, false) : productSummary(cards)}
         // One primary action: on the title's line, or in the empty moment when there is nothing yet.
-        actions={
-          startAction || menu ? (
-            <>
-              {startAction}
-              {menu}
-            </>
-          ) : null
-        }
+        actions={startAction}
+        // More actions acts on the product: last on the title's line, on a phone too.
+        more={menu}
       >
         {product && data && <Facts product={product} data={data} copy={copy ?? null} library={libraryUpdate} />}
         <p className="t-ui t-muted pp-rename-note" role="status">

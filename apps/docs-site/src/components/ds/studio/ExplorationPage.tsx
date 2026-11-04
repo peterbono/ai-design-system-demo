@@ -718,16 +718,19 @@ function ExplorationBody(p: ExplorationPageProps) {
             ))}
           <span className="xp-spacer" />
           {(p.onRename || p.onReopen || p.onArchive) && (
-            <Menu>
-              <Tooltip content="More actions">
-                <MenuTrigger render={<IconButton icon={Ellipsis} label="More actions" variant="secondary" size="lg" />} />
-              </Tooltip>
-              <MenuContent align="end">
-                {p.onRename && <MenuItem onClick={() => setAsk('rename')}>Rename</MenuItem>}
-                {p.onReopen && <MenuItem onClick={() => setAsk('reopen')}>Back to exploring</MenuItem>}
-                {p.onArchive && <MenuItem onClick={archive}>Archive</MenuItem>}
-              </MenuContent>
-            </Menu>
+            // Last on the title's line, on a phone too (the title wraps beside it).
+            <span className="xp-more">
+              <Menu>
+                <Tooltip content="More actions">
+                  <MenuTrigger render={<IconButton icon={Ellipsis} label="More actions" variant="secondary" size="lg" />} />
+                </Tooltip>
+                <MenuContent align="end">
+                  {p.onRename && <MenuItem onClick={() => setAsk('rename')}>Rename</MenuItem>}
+                  {p.onReopen && <MenuItem onClick={() => setAsk('reopen')}>Back to exploring</MenuItem>}
+                  {p.onArchive && <MenuItem onClick={archive}>Archive</MenuItem>}
+                </MenuContent>
+              </Menu>
+            </span>
           )}
         </header>
         {handoff ? (

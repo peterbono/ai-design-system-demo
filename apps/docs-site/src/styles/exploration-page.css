@@ -76,6 +76,10 @@
   flex: 1;
 }
 
+.xp-more {
+  display: flex;
+}
+
 .xp-meta {
   display: flex;
   align-items: center;
@@ -762,8 +766,26 @@
     min-height: var(--size-6);
   }
 
+  /* The title and More actions share the first line (the title wraps beside the button, never pushes it onto a line of
+     its own); the status tag goes under the title. */
   .xp-pagehead {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2) var(--space-4);
+  }
+
+  .xp-pagehead > * {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .xp-pagehead > .xp-spacer {
+    display: none;
+  }
+
+  .xp-pagehead > .xp-more {
+    grid-row: 1;
+    grid-column: 2;
   }
 
   .xp-paste-head {
