@@ -69,11 +69,23 @@ function session(): Storage | null {
   }
 }
 
-/** On import in a browser: the pass leaves the address before anything reads the hash. */
+/**
+ * On import in a browser: the pass leaves the address before anything reads the hash. A hash router that already read
+ * it (a product that loads the toolbar after its router) hears a hashchange, so it shows the screen the address names
+ * instead of an empty page for a `bridge-pass=` route: replaceState alone tells no one.
+ */
 export function takePassFromAddress(): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    return takePass(window.location, session(), (url) => window.history.replaceState(window.history.state, '', url));
+    return takePass(window.location, session(), (url) => {
+      const oldURL = window.location.href;
+      window.history.replaceState(window.history.state, '', url);
+      try {
+        window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL, newURL: window.location.href }));
+      } catch {
+        // No HashChangeEvent here: the router reads the clean address on its next look.
+      }
+    });
   } catch {
     return null;
   }

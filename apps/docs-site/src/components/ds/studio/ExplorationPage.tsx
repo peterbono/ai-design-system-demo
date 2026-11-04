@@ -126,6 +126,11 @@ export interface ExplorationPageProps {
    * without a production URL (no Before to flip to).
    */
   tryUrl?: string | null;
+  /**
+   * The preview's toolbar is older than the read pass (lib/read-pass-link.ts toolbarTakesPass): the link never carries
+   * the member's pass, which that toolbar would leave in the address (an empty page).
+   */
+  tryWithoutPass?: boolean;
   previewNote: string | null;
   /**
    * A running exploration of the design team's copy that misses changes the product made since it started: the quiet
@@ -821,7 +826,7 @@ function ExplorationBody(p: ExplorationPageProps) {
             <div className={handoff ? 'xp-acts' : p.archived ? 'xp-acts xp-preview-acts is-one' : 'xp-acts xp-preview-acts'}>
               {p.previewUrl ? (
                 // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
-                <ButtonLink variant={zoneLeads ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
+                <ButtonLink variant={zoneLeads ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} data-bridge-pass={p.tryWithoutPass ? 'off' : undefined} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
                   {handoff?.status === 'shipped' ? 'See it in the product' : 'Open the preview'}
                 </ButtonLink>
               ) : p.previewBuilding ? (
