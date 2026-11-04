@@ -692,7 +692,7 @@ describe('explorations on GitHub', () => {
     const noRetry = { attempts: 1, baseDelayMs: 0, sleep: async () => {} };
     const repo = (status: number, body: unknown) => new GitHubClient('acme/shop', 't', (async () => res(status, body)) as unknown as FetchLike, noRetry);
     expect(await productRepoAccess(repo(200, { full_name: 'acme/shop', default_branch: 'develop', private: true, permissions: { push: true } }))).toEqual({ ok: true, base: 'develop' });
-    expect(await productRepoAccess(repo(200, { full_name: 'acme/shop', default_branch: 'main', private: true, permissions: { push: false, pull: true } }))).toEqual({ ok: false, reason: 'read-only' });
+    expect(await productRepoAccess(repo(200, { full_name: 'acme/shop', default_branch: 'main', private: true, permissions: { push: false, pull: true } }))).toEqual({ ok: false, reason: 'read-only', base: 'main' });
     expect(await productRepoAccess(repo(404, { message: 'Not Found' }))).toEqual({ ok: false, reason: 'not-connected' });
     expect(await productRepoAccess(repo(403, { message: 'Resource not accessible by integration' }))).toEqual({ ok: false, reason: 'not-connected' });
   });

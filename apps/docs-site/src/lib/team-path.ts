@@ -78,6 +78,21 @@ export function canonicalRepo(full: string): string {
   return `${canonicalOwner(t.slice(0, slash))}${t.slice(slash)}`;
 }
 
+/**
+ * Every name a repository went by, lower case: its current name first, then each old one that leads to it (a
+ * repository rename, an organization rename). For stores written under a name before a rename: read through them all,
+ * write under the current one.
+ */
+export function repoNames(full: string): string[] {
+  const now = canonicalRepo(full).toLowerCase();
+  const slash = now.indexOf('/');
+  const old = [
+    ...Object.keys(RENAMED_REPOS),
+    ...(slash > 0 ? Object.keys(RENAMED_OWNERS).map((o) => `${o}${now.slice(slash)}`) : []),
+  ].filter((n) => n !== now && canonicalRepo(n).toLowerCase() === now);
+  return [now, ...new Set(old)];
+}
+
 /** True when two "owner/repo" names are the same repository: any case, old or new name. */
 export const sameRepo = (a: string | null | undefined, b: string | null | undefined): boolean =>
   Boolean(a?.trim() && b?.trim()) && canonicalRepo(a!).toLowerCase() === canonicalRepo(b!).toLowerCase();

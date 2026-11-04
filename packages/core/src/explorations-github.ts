@@ -245,17 +245,18 @@ export async function labelExploration(gh: Pick<GitHubClient, 'addLabels'>, pr: 
 }
 
 /** Whether Bridge can open an exploration in a product's own repository with this token, and from which branch. */
-export type ProductRepoAccess = { ok: true; base: string } | { ok: false; reason: 'not-connected' | 'read-only' };
+export type ProductRepoAccess = { ok: true; base: string } | { ok: false; reason: 'not-connected' } | { ok: false; reason: 'read-only'; base: string };
 
 /**
  * One read of a product's own repository before an exploration starts there: its default branch when the token may
  * push to it; `not-connected` when GitHub hides it (Bridge is not installed on it, or the token does not reach it);
- * `read-only` when the person may only read it. A rejected token or a GitHub outage still throws.
+ * `read-only` when the person may only read it (with the default branch, for a host that writes for them through its
+ * own app: the hosted connector, startInProductRepo). A rejected token or a GitHub outage still throws.
  */
 export async function productRepoAccess(gh: GitHubClient): Promise<ProductRepoAccess> {
   try {
     const r = await gh.getRepo();
-    if (r.permissions && r.permissions.push === false) return { ok: false, reason: 'read-only' };
+    if (r.permissions && r.permissions.push === false) return { ok: false, reason: 'read-only', base: r.defaultBranch };
     return { ok: true, base: r.defaultBranch };
   } catch (err) {
     if (err instanceof GitHubError && (err.status === 404 || (err.status === 403 && err.auth !== 'rejected' && !err.resetsAt))) return { ok: false, reason: 'not-connected' };

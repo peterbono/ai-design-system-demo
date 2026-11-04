@@ -29,9 +29,10 @@ export function maskEmail(email: string): string {
 }
 
 /** The one line that says what a save means for this person. */
-export function whoamiLine(w: Pick<WhoAmI, 'name' | 'login' | 'writes'>): string {
+export function whoamiLine(w: Pick<WhoAmI, 'name' | 'login' | 'writes'> & { via?: WhoAmI['via'] }): string {
   if (w.writes === 'bridge') return `Your saves go through Bridge as ${w.name}.`;
   if (w.writes === 'own') return `You write with your own GitHub access${w.login ? ` (@${w.login})` : ''}.`;
+  if (w.via === 'email') return 'You can view this team. Ask an admin for Can edit to start or save explorations.';
   return 'You can read the design system; saving needs a GitHub token with write access.';
 }
 

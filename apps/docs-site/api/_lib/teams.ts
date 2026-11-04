@@ -19,7 +19,7 @@
 import type { Redis } from './redis.js';
 import { parseRepo } from './http.js';
 import { canonicalEmail, emailSpellings } from './canonical-email.js';
-import { TEAM_KEY_OWNER, teamKeyId, teamKeyOf } from '../../src/lib/team-path.js';
+import { canonicalRepo, isTeamKey, repoNames, TEAM_KEY_OWNER, teamKeyId, teamKeyOf } from '../../src/lib/team-path.js';
 import { parseAiTools, type AiTool } from '../../src/lib/ai-tools.js';
 
 export interface Discovery {
@@ -280,14 +280,25 @@ export function parseTeamClaudeDesign(raw: unknown): TeamClaudeDesign | null {
   return { url: r.url, version: r.version, at: r.at, ...(typeof r.revision === 'string' ? { revision: r.revision } : {}), ...(files ? { files } : {}), ...(typeof r.by === 'string' ? { by: r.by } : {}) };
 }
 
+/**
+ * The team's record under its current name, else under a name it had before a rename (src/lib/team-path.ts
+ * repoNames): a connection made before the move keeps the old name, so a record saved through it sits there. Read
+ * only: nothing is moved or deleted; the next save writes the current name, which then wins.
+ */
 export async function getTeamClaudeDesign(redis: Redis, repo: string): Promise<TeamClaudeDesign | null> {
-  return parseTeamClaudeDesign(await redis.cmd('GET', teamClaudeDesignKey(repo)));
+  if (isTeamKey(repo)) return parseTeamClaudeDesign(await redis.cmd('GET', teamClaudeDesignKey(repo)));
+  for (const name of repoNames(repo)) {
+    const found = parseTeamClaudeDesign(await redis.cmd('GET', teamClaudeDesignKey(name)));
+    if (found) return found;
+  }
+  return null;
 }
 
+/** Saved under the team's current name, whatever name the caller holds (an old connection's). */
 export async function putTeamClaudeDesign(redis: Redis, repo: string, value: TeamClaudeDesign): Promise<void> {
   const clean = parseTeamClaudeDesign(value);
   if (!clean) throw new Error('Not a Claude artifact address.');
-  await redis.cmd('SET', teamClaudeDesignKey(repo), JSON.stringify(clean));
+  await redis.cmd('SET', teamClaudeDesignKey(isTeamKey(repo) ? repo : canonicalRepo(repo)), JSON.stringify(clean));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -574,6 +574,9 @@ describe('bridge_whoami on the hosted connector: who a grant acts as', () => {
     const w = await grantIdentity({ grant: { ...grant, name: 'Dino', login: '' }, emailMember: { email: 'dinosolo@yopmail.com', name: 'Dino', role: 'edit' }, designer: false, routed: true, token: 'x', redis: memoryRedis(), fetch: gh(false) });
     expect(w).toEqual({ name: 'Dino', email: 'd***@yopmail.com', role: 'Can edit', via: 'email', team: expect.any(String), writes: 'bridge' });
     expect(JSON.stringify(w)).not.toContain('dinosolo');
+    // A Reader (Can view) saves nothing: the exploration tools read writes: none and start nothing for them.
+    const reader = await grantIdentity({ grant: { ...grant, name: 'Dino', login: '' }, emailMember: { email: 'dinosolo@yopmail.com', name: 'Dino', role: 'view' }, designer: false, routed: true, token: 'x', redis: memoryRedis(), fetch: gh(false) });
+    expect(reader).toMatchObject({ role: 'Reader', via: 'email', writes: 'none' });
   });
 
   it('a designer signed in with GitHub: Can edit, saves in products through Bridge', async () => {

@@ -201,6 +201,43 @@ describe('explorations in a product repository', () => {
     expect(code.pulls).toHaveLength(0);
   });
 
+  it("a member Bridge writes for (the hosted connector) starts one in the design team's copy that GitHub shows read-only; a Reader does not", async () => {
+    const tree = readTree(REPO, [...REAL_PATHS]);
+    const cfg = JSON.parse(tree['bridge.config.json']!);
+    cfg.products = [{ key: 'shop', name: 'Shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' } }, { key: 'library', name: 'Library', default: true }];
+    const make = () => {
+      const ds = fakeGitHub('acme', 'ds', { ...tree, 'bridge.config.json': `${JSON.stringify(cfg, null, 2)}\n` });
+      const code = fakeGitHub('acme', 'shop', { 'package.json': '{"name":"shop"}' });
+      const copy = fakeGitHub('acme', 'shop-design', { 'package.json': '{"name":"shop"}' });
+      const fetch = (async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        // Bridge's proxy reads the copy with its read-only access: GitHub says push false.
+        if (u === 'https://api.github.com/repos/acme/shop-design' && (init?.method ?? 'GET') === 'GET') return new Response(JSON.stringify({ full_name: 'acme/shop-design', default_branch: 'main', private: true, permissions: { push: false, pull: true } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        if (u.includes('/repos/acme/shop-design')) return copy.fetch(url, init);
+        return u.includes('/repos/acme/shop/') || u.endsWith('/repos/acme/shop') ? code.fetch(url, init) : ds.fetch(url, init);
+      }) as typeof globalThis.fetch;
+      return { copy, code, fetch };
+    };
+    const who = (role: 'Can edit' | 'Admin' | 'Reader') => async () => ({ name: 'Dino', email: 'd***@yopmail.com', role, via: 'email' as const, team: 'Acme', writes: role === 'Reader' ? ('none' as const) : ('bridge' as const) });
+
+    for (const role of ['Can edit', 'Admin'] as const) {
+      const ok = make();
+      const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 'bridge-email-member', fetch: ok.fetch, identity: who(role) });
+      const r = (await explorations.startExploration(ctx, { name: 'Orders empty state', product: 'shop', source: 'mcp' })) as any;
+      expect(r, role).toMatchObject({ status: 'started', repo: 'acme/shop-design', branch: 'explore/orders-empty-state', base: 'main' });
+      expect(ok.copy.refs.get('explore/orders-empty-state')).toBeTruthy();
+      expect(ok.code.refs.has('explore/orders-empty-state')).toBe(false);
+    }
+    const reader = make();
+    const rctx = await BridgeContext.create({ repo: 'acme/ds', token: 'bridge-email-member', fetch: reader.fetch, identity: who('Reader') });
+    await expect(explorations.startExploration(rctx, { name: 'Orders empty state', product: 'shop', source: 'mcp' })).rejects.toThrow(/not create branches/);
+    expect(reader.copy.refs.has('explore/orders-empty-state')).toBe(false);
+    // Without the hosted connector's word (a local token that may only read the copy): read-only as before.
+    const local = make();
+    const lctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: local.fetch });
+    await expect(explorations.startExploration(lctx, { name: 'Orders empty state', product: 'shop', source: 'mcp' })).rejects.toThrow(/not create branches/);
+  });
+
   it('the draft body of a product exploration: the preview row says where the link is, closing does not talk about prereleases', () => {
     const body = explorationPrBody(
       { name: 'Wishlist button on product cards', slug: 'wishlist-button-on-product-cards', purpose: '' },
