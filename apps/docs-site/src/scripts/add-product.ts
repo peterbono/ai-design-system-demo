@@ -3,7 +3,19 @@
 // scripts/roles.ts proposeNewProduct.
 import type { PreviewCheckRun, ProductConfig } from '@bridge-ds/core';
 import { installationToAdjust, type AppInstallation } from '../lib/access-view';
-import { ownsAccount, pickableRepos, previewsFromCheckRuns, previewsFromStatuses, type ProductRepoChoice, type RepoLike, type StatusLike } from '../lib/add-product';
+import {
+  ownerAccountKey,
+  ownsAccount,
+  parseOwnerAccount,
+  pickableRepos,
+  previewsFromCheckRuns,
+  previewsFromStatuses,
+  type OwnerAccount,
+  type ProductRepoChoice,
+  type RepoLike,
+  type StatusLike,
+} from '../lib/add-product';
+import { canonicalOwner, canonicalRepo } from '../lib/team-path';
 import { currentViewer, ghGet, GitHubError, RateLimitError, readRepo, sessionMode, type Fetched } from './github-session';
 
 /** What the dialog reads when it opens: the products it can pick, and the installation an admin adjusts on GitHub. */
@@ -13,9 +25,67 @@ export interface ProductAccess {
   installation: AppInstallation | null;
   /** The GitHub account that installation is on (else the team's), for "the owners of <account>". */
   account: string;
+  /**
+   * GitHub's id of `account` (the installation's, else the team's own: readOwnerAccount). With no installation, the
+   * GitHub step opens the app's install page for that account, never GitHub's "Where do you want to install?". Null
+   * when GitHub did not say.
+   */
+  accountId: number | null;
+  /** How many products Bridge sees, the ones the team already lists included (never the design system itself). */
+  seen: number;
 }
 
-const ds = () => `${readRepo().owner}/${readRepo().repo}`;
+/** The team's GitHub account under its current name (an old address keeps working: lib/team-path canonicalOwner). */
+const ds = () => canonicalRepo(`${readRepo().owner}/${readRepo().repo}`);
+const teamOwner = () => ds().split('/')[0]!;
+
+// Asked once per account per page; the id is also kept in this browser (it never changes, a rename keeps it).
+const accounts = new Map<string, Promise<OwnerAccount | null>>();
+
+/**
+ * The team's GitHub account: its id and type, from this browser's copy, else GitHub's answer for the library itself
+ * (GET /repos/{owner}/{repo}, its `owner`: a read the page already makes, so usually no new request), else the public
+ * organization (GET /orgs/{owner}). Not GET /users/{login}: Bridge answers that one with names and photos only.
+ * Null when GitHub does not say; never throws.
+ */
+export function readOwnerAccount(): Promise<OwnerAccount | null> {
+  const name = teamOwner();
+  if (!name) return Promise.resolve(null);
+  const k = ownerAccountKey(name);
+  let p = accounts.get(k);
+  if (p) return p;
+  try {
+    const kept = parseOwnerAccount(JSON.parse(localStorage.getItem(k) ?? 'null'));
+    if (kept) return Promise.resolve(kept);
+  } catch {
+    /* storage blocked or a broken copy: ask GitHub */
+  }
+  const fromRepo = () => ghGet<{ owner?: unknown }>(`/repos/${ds()}`).then((r) => parseOwnerAccount(r.data?.owner));
+  const fromOrg = () => ghGet<unknown>(`/orgs/${encodeURIComponent(name)}`).then((r) => parseOwnerAccount(r.data));
+  p = fromRepo()
+    .catch(() => null)
+    .then((a) => a ?? fromOrg().catch(() => null))
+    .then((a) => {
+      if (!a) {
+        // Not kept as a failure: the next ask reads again.
+        accounts.delete(k);
+        return null;
+      }
+      try {
+        localStorage.setItem(k, JSON.stringify(a));
+      } catch {
+        /* storage full or blocked: kept for this page only */
+      }
+      return a;
+    });
+  accounts.set(k, p);
+  return p;
+}
+
+/** The account the GitHub step opens when Bridge could not read its installation: the team's, with its id when known. */
+export async function teamAccount(): Promise<{ account: string; accountId: number | null }> {
+  return { account: teamOwner(), accountId: (await readOwnerAccount())?.id ?? null };
+}
 
 /** A read GitHub answered from this browser's copy because it refused it: busy, never "nothing new". */
 function live<T>(r: Fetched<T>): T {
@@ -33,10 +103,14 @@ export async function readProductAccess(listed: readonly ProductConfig[], opts: 
   const take = <T,>(r: Fetched<T>): T => (opts.fresh ? live(r) : r.data);
   const repos: RepoLike[] = [];
   let installation: AppInstallation | null = null;
+  const owner = teamOwner();
+  // The team's account id, asked alongside (kept in this browser after the first time): it finds the installation even
+  // when its name changed, and gives the GitHub step its account when there is no installation.
+  const ownerAccount = readOwnerAccount();
   if (sessionMode() === 'app') {
-    const data = take(await ghGet<{ installations?: AppInstallation[] }>('/user/installations?per_page=100', opts));
+    const [data, acct] = await Promise.all([ghGet<{ installations?: AppInstallation[] }>('/user/installations?per_page=100', opts).then(take), ownerAccount]);
     const list = data.installations ?? [];
-    installation = installationToAdjust(list, readRepo().owner);
+    installation = installationToAdjust(list, owner, acct?.id);
     const lists = await Promise.all(
       list.slice(0, 10).map((i) =>
         ghGet<{ repositories?: RepoLike[] }>(`/user/installations/${i.id}/repositories?per_page=100`, opts).then((r) => take(r).repositories ?? [], (err: unknown) => {
@@ -49,7 +123,10 @@ export async function readProductAccess(listed: readonly ProductConfig[], opts: 
   } else {
     repos.push(...take(await ghGet<RepoLike[]>('/user/repos?per_page=100&sort=updated&affiliation=owner,organization_member', opts)));
   }
-  return { repos: pickableRepos(repos, listed, ds()), installation, account: installation?.account?.login || readRepo().owner };
+  const login = installation?.account?.login;
+  const account = login ? canonicalOwner(login) : owner;
+  const accountId = (installation ? installation.account?.id : null) ?? (account.toLowerCase() === owner.toLowerCase() ? ((await ownerAccount)?.id ?? null) : null);
+  return { repos: pickableRepos(repos, listed, ds()), installation, account, accountId, seen: pickableRepos(repos, [], ds()).length };
 }
 
 // Whether the viewer owns the account, per account for this page: asked once, GitHub's answer kept by ghGet too.

@@ -12,6 +12,7 @@ import {
   askInstallMessage,
   askDeveloperMessage,
   askOwnersMessage,
+  installForAccountUrl,
   installUrl,
   requestAccessUrl,
   accessSettingsUrl,
@@ -270,6 +271,43 @@ describe('access settings on GitHub', () => {
     expect(installationToAdjust([other], 'acme')).toBe(other);
     expect(installationToAdjust([other, { id: 3, account: { login: 'x' } }], 'acme')).toBeNull();
     expect(installationToAdjust([], 'acme')).toBeNull();
+  });
+
+  it("finds the team's installation under an old name of its account, or by the account's id", () => {
+    // GitHub's list from before the organization was renamed (lib/team-path RENAMED_OWNERS), next to another account.
+    const old = { id: 177521165, account: { login: 'art-print-shop-co', type: 'Organization', id: 351104414 } };
+    const other = { id: 2, account: { login: 'someone', type: 'User', id: 5 } };
+    expect(installationToAdjust([other, old], 'the-bridge-company')).toBe(old);
+    // An old address of the team, the installation listed under the new name.
+    const renamed = { id: 177521165, account: { login: 'the-bridge-company', type: 'Organization', id: 351104414 } };
+    expect(installationToAdjust([other, renamed], 'art-print-shop-co')).toBe(renamed);
+    // By id, whatever the name says.
+    expect(installationToAdjust([other, { id: 9, account: { login: 'renamed-again', id: 351104414 } }], 'the-bridge-company', 351104414)?.id).toBe(9);
+    expect(installationToAdjust([other, { id: 3, account: { login: 'x', id: 6 } }], 'the-bridge-company', 351104414)).toBeNull();
+  });
+
+  it("opens the organization's page under its current name", () => {
+    expect(accessSettingsUrl({ id: 177521165, account: { login: 'art-print-shop-co', type: 'Organization' } })).toBe(
+      'https://github.com/organizations/the-bridge-company/settings/installations/177521165',
+    );
+  });
+
+  it("never opens GitHub's account picker when the team's account is known", () => {
+    const direct = 'https://github.com/apps/bridge-design-studio/installations/new/permissions?target_id=351104414';
+    // No installation found: the app's install page for the team's account (its id, read from GitHub).
+    expect(accessSettingsUrl(null, undefined, 351104414)).toBe(direct);
+    expect(accessSettingsUrl(undefined, 'bridge-design-studio', 351104414)).toBe(direct);
+    expect(requestAccessUrl(null, undefined, 351104414)).toBe(direct);
+    expect(requestAccessUrl({ id: 8, account: { login: 'acme', type: 'Organization' } }, undefined, 351104414)).toBe(direct);
+    // The installation's own account id wins over the fallback.
+    expect(requestAccessUrl({ id: 8, account: { login: 'acme', type: 'Organization', id: 42 } }, undefined, 351104414)).toContain('target_id=42');
+    // An installation found: its page, the fallback unused.
+    expect(accessSettingsUrl({ id: 7, account: { login: 'the-bridge-company', type: 'Organization', id: 351104414 } }, undefined, 1)).toBe(
+      'https://github.com/organizations/the-bridge-company/settings/installations/7',
+    );
+    // Unknown or broken ids: the picker is the only way left.
+    for (const bad of [null, undefined, 0, -3, 1.5, Number.NaN]) expect(installForAccountUrl(bad as number | null)).toBe(installUrl());
+    expect(installForAccountUrl(63565173, 'bridge-dev')).toBe('https://github.com/apps/bridge-dev/installations/new/permissions?target_id=63565173');
   });
 });
 

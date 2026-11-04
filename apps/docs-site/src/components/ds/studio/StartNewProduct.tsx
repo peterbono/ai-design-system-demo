@@ -17,6 +17,7 @@ import { cleanProductName } from '../../../lib/product-name';
 import {
   CLOUDFLARE_IMPORT_URL,
   NEW_PRODUCT_WORDS as W,
+  isNameProblem,
   newProductOwner,
   newProductProblem,
   refusalLine,
@@ -60,6 +61,8 @@ export default function StartNewProduct({ products, library, account, busy, setB
   const [note, setNote] = useState<string | null>(resume?.line ?? null);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
   const [error, setError] = useState<{ line: string; ask?: { label: string; message: string } } | null>(null);
+  // What is wrong with the name, on the name field (set when Create product is clicked, cleared as the person types).
+  const [nameError, setNameError] = useState<string | null>(null);
   const { copied, said, copy } = useCopy(3000);
   const formId = 'addp-new-form';
   const slug = slugFor(cleanProductName(name));
@@ -72,6 +75,13 @@ export default function StartNewProduct({ products, library, account, busy, setB
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     const problem = newProductProblem({ name, owner }, products);
+    // A problem with the name is said on the name field, which takes the focus (Create product stays enabled and says
+    // what is missing, as the DS Button guidance asks). Anything else: under the form.
+    if (problem && isNameProblem(problem)) {
+      setNameError(problem);
+      nameRef.current?.focus();
+      return;
+    }
     if (problem) return setError({ line: problem });
     const clean = cleanProductName(name);
     setBusy(true);
@@ -168,8 +178,10 @@ export default function StartNewProduct({ products, library, account, busy, setB
           label={W.name}
           hint={W.nameHelp}
           value={name}
+          error={nameError ?? undefined}
           onValueChange={(v) => {
             setName(v);
+            setNameError(null);
             setError(null);
             setNote(null);
           }}

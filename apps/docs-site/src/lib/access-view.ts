@@ -10,6 +10,7 @@ import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { isDemoRepo, isSampleTeam, SAMPLE_TEAM, teamDisplayName } from './demo';
 
 import { appSlugFrom, DIRECT_APP_SLUG } from './github-signin';
+import { canonicalOwner } from './team-path';
 
 /** The slug of Bridge's GitHub App (Bridge Direct) when nothing else is set (docs/SIGN-IN.md). */
 export const BRIDGE_APP_SLUG = DIRECT_APP_SLUG;
@@ -39,32 +40,52 @@ export interface AppInstallation {
   account?: { login?: string; type?: string; id?: number } | null;
 }
 
+/** A GitHub account id as GitHub takes it in a link: a positive whole number, else null. */
+const accountId = (id: unknown): number | null => (typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? id : null);
+
+/**
+ * The app's install page for one account (`targetId`: its GitHub id): GitHub goes straight to that account's repository
+ * list and Save, never "Where do you want to install?". No id: the app's install page, where GitHub asks which account.
+ */
+export function installForAccountUrl(targetId: number | null | undefined, slug = bridgeAppSlug()): string {
+  const id = accountId(targetId);
+  return id ? `${installUrl(slug)}/permissions?target_id=${id}` : installUrl(slug);
+}
+
 /**
  * Where an admin picks which of an account's products Bridge sees: the existing installation's page (its repository
- * list and Save), under the person's settings or the organization's. No installation: the app's install page.
+ * list and Save), under the person's settings or the organization's. No installation: the app's install page for the
+ * team's account (`targetId`: its GitHub id, scripts/add-product readOwnerAccount), so GitHub never asks which account.
+ * The bare install page only when that id is unknown too.
  */
-export function accessSettingsUrl(inst: AppInstallation | null | undefined, slug = bridgeAppSlug()): string {
+export function accessSettingsUrl(inst: AppInstallation | null | undefined, slug = bridgeAppSlug(), targetId?: number | null): string {
   const id = inst && Number.isSafeInteger(inst.id) && inst.id > 0 ? inst.id : null;
-  if (!id) return installUrl(slug);
+  if (!id) return installForAccountUrl(accountId(inst?.account?.id) ?? targetId, slug);
   const login = inst?.account?.login;
-  if (inst?.account?.type === 'Organization' && login) return `https://github.com/organizations/${encodeURIComponent(login)}/settings/installations/${id}`;
+  if (inst?.account?.type === 'Organization' && login) return `https://github.com/organizations/${encodeURIComponent(canonicalOwner(login))}/settings/installations/${id}`;
   return `https://github.com/settings/installations/${id}`;
 }
 
 /**
  * Where someone who does not own the account asks for access: GitHub's install page for that organization, where its
- * Save becomes a request the owners approve (an organization's settings page is for its owners only). No account id:
- * the app's install page, where GitHub asks which account. Not an organization: accessSettingsUrl.
+ * Save becomes a request the owners approve (an organization's settings page is for its owners only). The account's id
+ * comes from the installation, else `targetId` (the team's account). A person's installation: accessSettingsUrl.
  */
-export function requestAccessUrl(inst: AppInstallation | null | undefined, slug = bridgeAppSlug()): string {
-  if (inst?.account?.type !== 'Organization') return accessSettingsUrl(inst, slug);
-  const target = inst.account.id;
-  return Number.isSafeInteger(target) && (target as number) > 0 ? `${installUrl(slug)}/permissions?target_id=${target}` : installUrl(slug);
+export function requestAccessUrl(inst: AppInstallation | null | undefined, slug = bridgeAppSlug(), targetId?: number | null): string {
+  if (inst && inst.account?.type !== 'Organization') return accessSettingsUrl(inst, slug, targetId);
+  return installForAccountUrl(accountId(inst?.account?.id) ?? targetId, slug);
 }
 
-/** The installation an admin adjusts: the one on `owner` (the team's account), else the only one, else none. */
-export function installationToAdjust<T extends AppInstallation>(list: readonly T[], owner: string): T | null {
-  const own = list.find((i) => i.account?.login?.toLowerCase() === owner.toLowerCase());
+/**
+ * The installation an admin adjusts: the one on `owner`, the team's account (by its GitHub id when known, else by its
+ * name, old names included: lib/team-path canonicalOwner), else the only one, else none.
+ */
+export function installationToAdjust<T extends AppInstallation>(list: readonly T[], owner: string, ownerId?: number | null): T | null {
+  const id = accountId(ownerId);
+  const byId = id ? list.find((i) => i.account?.id === id) : undefined;
+  if (byId) return byId;
+  const want = canonicalOwner(owner).toLowerCase();
+  const own = list.find((i) => Boolean(i.account?.login) && canonicalOwner(i.account!.login!).toLowerCase() === want);
   if (own) return own;
   return list.length === 1 ? list[0]! : null;
 }
