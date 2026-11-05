@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "SidebarNavItem",
+      "id": "sidebarnavitem-pressed-status",
+      "kind": "status",
+      "reason": "The pressed item matches the code on every measured value, the 3 percent pixel gap is likely the pressed background or icon: compare the shot with the Figma render by eye.",
+      "status": "differs"
     }
   ]
 }
