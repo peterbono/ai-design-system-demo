@@ -342,6 +342,29 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "CodeBlock",
+      "height": "fixed",
+      "id": "codeblock-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The wrapping code block is 64 px tall in code at rest where Figma draws it 148 px tall around an oversized label.",
+      "where": {
+        "args": {
+          "wrap": true
+        },
+        "state": "rest"
+      }
+    },
+    {
+      "by": "claude",
+      "component": "CodeBlock",
+      "id": "codeblock-hover-status",
+      "kind": "status",
+      "reason": "On hover and pressed every measured value matches the code but 27 percent of pixels differ, likely the copy button hover and pressed fill or the code text style: compare those shots with the Figma render and fix the copy button states.",
+      "status": "differs"
     }
   ]
 }
