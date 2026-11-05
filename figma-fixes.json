@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Combobox",
+      "id": "combobox-draw-status",
+      "kind": "status",
+      "reason": "Sizes and measured values match on all 11 variants, so check the placeholder text rendering, the chevron icon and the input fill in Figma against the story shots.",
+      "status": "differs"
     }
   ]
 }
