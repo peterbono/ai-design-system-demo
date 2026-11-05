@@ -342,6 +342,31 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "AccordionItem",
+      "id": "accordionitem-width-status",
+      "kind": "status",
+      "reason": "The item fills its container in code, so the story shows it at 400 px while Figma draws it 1122 px wide: set the item to 400 px or fill a 400 px frame in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Alert",
+      "height": "fixed",
+      "id": "alert-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The alert height follows the story text in code while Figma keeps its own text height."
+    },
+    {
+      "by": "claude",
+      "component": "Avatar",
+      "id": "avatar-render-status",
+      "kind": "status",
+      "reason": "Every size matches the code, the 70 percent gap on initials avatars is likely the initials text or background color and the 27 percent gap on illustrated avatars is the illustration itself: compare the shots with the Figma render by eye.",
+      "status": "differs"
     }
   ]
 }
