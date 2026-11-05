@@ -14,7 +14,7 @@ import { matchVariant, variantKeyOf, type ComponentSpec, type SpecField, type Sp
 import type { FidelityComponentResult, FidelityReport } from './fidelity';
 import { applyFixes, describePartFix, validateFigmaFixes, type AppliedFix, type FigmaHints, type FigmaFix, type FigmaFixesFile, type FixedMeasuredSpecsFile, FIGMA_FIXES_VERSION } from './figma-fixes';
 import { buildGapCase, measuredResolver, storiesOfComponent, storyForVariant, variantDifferences, type GapBuiltVariant, type GapCase, type GapDifference } from './gap-case';
-import type { MeasuredSpecsFile } from './measured-spec';
+import { measuredSetName, type MeasuredSpecsFile } from './measured-spec';
 import { specsFromMeasure } from './measured-only';
 
 /** Where the plugin's Check fidelity run lives in the team's repo (or on the requests branch), next to measured-specs.json. */
@@ -75,7 +75,6 @@ export function parseFidelityRun(input: string | unknown): FigmaFidelityRun {
 }
 
 const lc = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-const setNameOf = (title: string) => title.split('/').at(-1)!.trim();
 const byName = <T>(map: Record<string, T> | undefined, name: string): T | undefined => (map ? Object.entries(map).find(([k]) => lc(k) === lc(name))?.[1] : undefined);
 
 // ---------------------------------------------------------------------------------------------
@@ -103,7 +102,7 @@ export interface FigmaGapRow {
 export function figmaGaps(measured: FixedMeasuredSpecsFile | MeasuredSpecsFile, run?: FigmaFidelityRun): FigmaGapRow[] {
   const rows = new Map<string, FigmaGapRow>();
   const fixed = measured as FixedMeasuredSpecsFile;
-  const fixesOf = (name: string) => (fixed.components ?? []).filter((c) => lc(setNameOf(c.title)) === lc(name)).flatMap((c) => c.figma?.fixes ?? []);
+  const fixesOf = (name: string) => (fixed.components ?? []).filter((c) => lc(measuredSetName(c)) === lc(name)).flatMap((c) => c.figma?.fixes ?? []);
   const put = (row: FigmaGapRow) => {
     const f = fixesOf(row.component);
     rows.set(lc(row.component), { ...row, ...(f.length ? { fixes: f } : {}) });
@@ -128,7 +127,7 @@ export function figmaGaps(measured: FixedMeasuredSpecsFile | MeasuredSpecsFile, 
   for (const c of fixed.components ?? []) {
     for (const st of c.figma?.status ?? []) {
       if (st.where) continue;
-      const name = setNameOf(c.title);
+      const name = measuredSetName(c);
       const had = rows.get(lc(name));
       if (run && !had) continue;
       put({ component: had?.component ?? name, status: st.status, summary: st.reason, source: 'figma-fixes', ...(had?.checked !== undefined ? { checked: had.checked, differing: had.differing } : {}) });

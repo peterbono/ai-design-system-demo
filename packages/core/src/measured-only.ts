@@ -18,7 +18,7 @@
 
 import { hashSpec, variantKeyOf, type ComponentSpec, type ComponentSpecsFile, type SpecAxis, type SpecField, type SpecLayout, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
 import type { FigmaHints, FixedComponent, FixedMeasuredSpecsFile } from './figma-fixes';
-import { pairParts, type MeasuredArgType, type MeasuredPart, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory } from './measured-spec';
+import { measuredSetName, pairParts, type MeasuredArgType, type MeasuredPart, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory } from './measured-spec';
 
 /** What building from the measure gave: sets, variants, and the stories it used. */
 export interface MeasuredOnlyReport {
@@ -50,7 +50,6 @@ const STATES: { value: string; of: (s: MeasuredSpecsStory) => boolean }[] = [
   { value: 'Disabled', of: (s) => s.props?.disabled === true },
 ];
 
-const setNameOf = (title: string) => title.split('/').at(-1)!.trim();
 const axisName = (prop: string) => prop.charAt(0).toUpperCase() + prop.slice(1).replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
 const propsOf = (s: MeasuredSpecsStory) => ({ ...(s.props ?? {}), ...(s.overrides ?? {}) });
 
@@ -524,14 +523,14 @@ export function specsFromMeasure(
   const groups = new Map<string, MeasuredSpecsStory[]>();
   for (const s of file.stories) {
     if (s.error || !s.spec) continue;
-    const name = setNameOf(s.title);
+    const name = measuredSetName(s);
     if (only !== undefined && key(name) !== only) continue;
     groups.set(name, [...(groups.get(name) ?? []), s]);
   }
-  const argTypesOf = (name: string) => Object.assign({}, ...(file.components ?? []).filter((c) => setNameOf(c.title) === name).map((c) => c.argTypes));
+  const argTypesOf = (name: string) => Object.assign({}, ...(file.components ?? []).filter((c) => measuredSetName(c) === name).map((c) => c.argTypes));
   // What figma-fixes.json says about a set (applyFixes): its property names and values, its status and notes.
   const hints: Record<string, FigmaHints> = {};
-  for (const c of (file.components ?? []) as FixedComponent[]) if (c.figma) hints[setNameOf(c.title)] = { ...hints[setNameOf(c.title)], ...c.figma };
+  for (const c of (file.components ?? []) as FixedComponent[]) if (c.figma) hints[measuredSetName(c)] = { ...hints[measuredSetName(c)], ...c.figma };
   const components: ComponentSpec[] = [];
   const shots: MeasuredShots = {};
   const report: MeasuredOnlyReport = { sets: 0, variants: 0, stories: 0, skipped: [] };

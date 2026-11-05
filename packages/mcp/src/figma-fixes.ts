@@ -27,6 +27,7 @@ import {
   parseMeasuredSpecsFile,
   protectedBranchesOf,
   REQUESTS_BRANCH,
+  storiesOfComponent,
   tryFigmaFixes,
   type BridgeConfig,
   type FigmaFidelityRun,
@@ -162,7 +163,7 @@ const lc = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 export async function getGapCaseOp(ctx: BridgeContext, a: FixFilesArgs & { component: string }) {
   const files = await loadFixFiles(ctx, a);
   const { gap, spec } = gapCaseFor({ component: a.component, measured: files.measured, fixes: files.fixes, run: files.run });
-  if (!spec && !files.measured.stories.some((s) => lc(s.title.split('/').at(-1)!) === lc(a.component)))
+  if (!spec && !storiesOfComponent(files.measured, a.component).length)
     throw new Error(`No measured story of ${a.component} in ${files.measuredFrom}. Measure it with \`bridge specs --measure --variants --shots --only ${a.component}\`.`);
   const used = roundsOf(ctx).get(lc(a.component)) ?? 0;
   return {

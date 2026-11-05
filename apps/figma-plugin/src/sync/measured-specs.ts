@@ -12,6 +12,7 @@ import {
   type SpecField,
   type SpecValue,
   MeasuredSpecsError,
+  measuredSetName,
   pairParts,
   parseMeasuredSpecsFile,
 } from '@bridge-ds/core';
@@ -49,7 +50,8 @@ export function parseMeasuredSpecs(text: string): MeasuredSpecsFile {
 }
 
 const norm = (v: unknown) => String(v).trim().toLowerCase();
-const componentOf = (title: string) => norm(title.split('/').at(-1) ?? title);
+/** The set a story stands for: its `set` (Dialog/Popup), else the last segment of its title. */
+const componentOf = (s: MeasuredSpecsStory) => norm(measuredSetName(s));
 
 /** The values a state axis may use for a story: its forced pseudo state, else disabled, else at rest. */
 function stateWords(story: MeasuredSpecsStory, props: Record<string, string>): string[] {
@@ -124,8 +126,8 @@ export function overlayMeasured(specs: ComponentSpecsFile, measured: MeasuredSpe
   const components = specs.components.map((spec) => {
     // Stories titled by the set ("Figma variants/Radio") first; else the component's own ("Forms/RadioGroup"), which
     // every set of a folder shares (Menu parts), so it only stands in when no story names the set.
-    const bySet = stories.filter((s) => componentOf(s.title) === norm(spec.name));
-    const byFolder = spec.component ? stories.filter((s) => componentOf(s.title) === norm(spec.component!)) : [];
+    const bySet = stories.filter((s) => componentOf(s) === norm(spec.name));
+    const byFolder = spec.component ? stories.filter((s) => !s.set && componentOf(s) === norm(spec.component!)) : [];
     const mine = (bySet.length ? bySet : byFolder).map((s) => ({ s, variant: storyVariant(spec, s) }));
     const variants = spec.variants.map((v) => {
       report.variants++;
