@@ -229,6 +229,23 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Badge",
+      "height": 21,
+      "id": "badge-solid-sm-size",
+      "kind": "part",
+      "part": "root",
+      "reason": "The small solid neutral badge is 56 by 21 px in code where Figma draws it 55 by 20 px.",
+      "where": {
+        "args": {
+          "appearance": "solid",
+          "size": "sm",
+          "tone": "neutral"
+        }
+      },
+      "width": 56
     }
   ]
 }
