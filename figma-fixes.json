@@ -177,20 +177,6 @@
     {
       "by": "claude",
       "component": "Kbd",
-      "id": "kbd-sm-size",
-      "kind": "part",
-      "part": "root",
-      "reason": "The small key combination is 54 px wide in code where Figma draws it 55 px wide.",
-      "where": {
-        "args": {
-          "size": "sm"
-        }
-      },
-      "width": 54
-    },
-    {
-      "by": "claude",
-      "component": "Kbd",
       "id": "kbd-md-width",
       "kind": "part",
       "part": "root",
@@ -229,6 +215,20 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Kbd",
+      "height": 19,
+      "id": "kbd-sm-size",
+      "kind": "part",
+      "part": "root",
+      "reason": "The small key combination is 19 px tall in code where Figma draws it 18 px tall.",
+      "where": {
+        "args": {
+          "size": "sm"
+        }
+      }
     }
   ]
 }
