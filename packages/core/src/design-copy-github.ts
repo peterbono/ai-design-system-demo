@@ -120,6 +120,8 @@ export function designTaskBody(t: {
   doneBy?: string | null | undefined;
   /** Who said it when they have no GitHub account (a member who joined by email): their display name, never an email. */
   doneByName?: string | null | undefined;
+  /** The design spec from the exploration's notes (exploration-notes.ts notesSpec): its own section when there is one. */
+  spec?: string | null | undefined;
 }): string {
   const login = githubLoginOf(t.doneBy);
   const by = login ? ` From @${login}.` : t.doneByName?.trim() ? ` From ${t.doneByName.trim()}, through Bridge.` : '';
@@ -134,6 +136,7 @@ export function designTaskBody(t: {
     ...(t.changes.length ? t.changes.slice(0, 20).map((c) => `- ${c}`) : ['- See the prototype.']),
     ...(t.changes.length > 20 ? [`- And ${t.changes.length - 20} more files.`] : []),
     '',
+    ...specSection(t.spec),
     '### Library pieces it needed',
     '',
     ...(t.pieces.length ? t.pieces.map((p) => `- [${p.title}](${p.url}): asked from the design system team`) : ['- None: everything it uses is in the library.']),
@@ -168,6 +171,7 @@ export function addressTaskBody(t: {
   pr: { number: number; url: string };
   doneBy?: string | null | undefined;
   doneByName?: string | null | undefined;
+  spec?: string | null | undefined;
 }): string {
   const login = githubLoginOf(t.doneBy);
   const by = login ? ` From @${login}.` : t.doneByName?.trim() ? ` From ${t.doneByName.trim()}, through Bridge.` : '';
@@ -184,6 +188,7 @@ export function addressTaskBody(t: {
     `- ${what}`,
     '- Compare the preview with the page today: the prototype rebuilds that page with the library, then makes the change.',
     '',
+    ...specSection(t.spec),
     '### Library pieces it needed',
     '',
     ...(t.pieces.length ? t.pieces.map((p) => `- [${p.title}](${p.url}): asked from the design system team`) : ['- None: everything it uses is in the library.']),
@@ -193,6 +198,10 @@ export function addressTaskBody(t: {
     `The prototype was rebuilt from the live page with the library, without ${t.product}'s code: use it as the picture of the change, not as code to merge (${t.pr.url}).`,
   ].join('\n');
 }
+
+/** The "Design spec" section of a task: what the designers decided and which edge cases they covered, from their notes. */
+const specSection = (spec: string | null | undefined): string[] =>
+  spec?.trim() ? ['### Design spec', '', 'From the exploration\'s notes: what the design team decided, the edge cases (checked when the prototype covers it) and what is still open.', '', spec.trim(), ''] : [];
 
 /** The task title: the exploration's name. */
 export const designTaskTitle = (name: string): string => `Design: ${name.trim()}`;

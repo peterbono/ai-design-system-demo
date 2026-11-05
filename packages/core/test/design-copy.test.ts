@@ -191,6 +191,10 @@ test("the developers' task: preview, changes, pieces and where the prototype cod
 test('the task names a member without GitHub by name, never by email', () => {
   const base = { name: 'Toast', changes: [], pieces: [], copy: 'acme/shop-design', branch: 'explore/toast', pr: { number: 4, url: 'https://github.com/acme/shop-design/pull/4' } };
   assert.match(designTaskBody({ ...base, doneBy: 'ann' }), /From @ann\./);
+  // The designers' notes as the spec: its own section between what changes and the library pieces, only when given.
+  assert.doesNotMatch(designTaskBody(base), /Design spec/);
+  const withSpec = designTaskBody({ ...base, spec: '**Decisions.**\n\n- Pill on primary' });
+  assert.match(withSpec, /### What changes[\s\S]*### Design spec[\s\S]*- Pill on primary[\s\S]*### Library pieces it needed/);
   const byName = designTaskBody({ ...base, doneByName: 'Dino' });
   assert.match(byName, /From Dino, through Bridge\./);
   assert.doesNotMatch(byName, /@/);

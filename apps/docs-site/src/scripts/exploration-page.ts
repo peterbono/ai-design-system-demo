@@ -9,7 +9,7 @@
 // reviews once the developers started), and the library part. A product exploration never checked against the
 // library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
 // viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { archiveExplorationOnGitHub, branchPreviewUrl, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { archiveExplorationOnGitHub, branchPreviewUrl, EXPLORATION_PREFIX, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
   canRunCheck,
@@ -351,6 +351,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const [files, commits, sources, shot] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r), previewShotOf(r).catch(() => null)]);
   reported = sources;
   if (current?.key !== key) return;
+  // "Where it stands": the handover notes, while it runs (after Done exploring they went to the developers as the spec).
+  if (!handedOff) void paintNotes(d, key, r, gh, files, notesEditable({ writable, member: Boolean(member), designer, emailOnProduct, direct, own: Boolean(own) }) && !r.archived);
   // Archived: the page of the state it was archived in (not started or exploring), with the Archived tag.
   const stage = explorationStage({ status: r.archived ? 'active' : r.status, files });
   const app = own ? undefined : isLibrary ? (libraryPreviewApp(files, CFG.apps) ?? 'docs') : (product.key as 'admin');
@@ -595,6 +597,35 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     if (ok) return void refreshPieces();
   }
   repaint(d, key, { handoff: { ...current.props.handoff, pieces: first } });
+}
+
+/**
+ * Who edits "Where it stands" in place: whoever keeps the exploration (writable: the person who started it, a
+ * reviewer, the email member or designer Bridge writes for in the copy), and in the library anyone signed in who can
+ * write to it. The save goes through the same route as every other write of this page (GitHub, or Bridge's proxy for
+ * a member, on the exploration's own branch only).
+ */
+export function notesEditable(x: { writable: boolean; member: boolean; designer: boolean; emailOnProduct: boolean; direct: boolean; own: boolean }): boolean {
+  if (x.writable) return true;
+  return !x.own && x.direct && !x.member && !x.designer && !x.emailOnProduct && connected() && currentAccess()?.write === true;
+}
+
+/** The notes read once per head (the note file at the branch), then painted; the save merges into a fresh read. */
+async function paintNotes(d: HTMLElement, key: string, r: ExplorationRow, gh: GitHubClient, files: readonly string[] | null, editable: boolean) {
+  const path = explorationNotePathOf(files, r.branch);
+  const read = () => gh.getFileText(path, r.branch).catch(() => undefined);
+  const view = (notes: ExplorationNotes | null) => ({ notes, onSave: editable ? save : null });
+  const save = async (update: NotesUpdate): Promise<string | void> => {
+    // A fresh read, so a section Claude or someone else wrote meanwhile stays; only the sections edited here change.
+    const before = (await gh.getFileText(path, r.branch)) ?? explorationNote({ name: r.name, purpose: r.purpose ?? '', slug: explorationSlugFromBranch(r.branch) ?? undefined });
+    const md = mergeExplorationNotes(before, update, { replace: true });
+    if (md !== before) await gh.withBranchPrefix(EXPLORATION_PREFIX).commitToBranch({ branch: r.branch, message: 'Update where it stands', files: [{ path, content: md }] });
+    repaint(d, key, { notes: view(parseExplorationNotes(md)) });
+  };
+  repaint(d, key, { notes: view(null) });
+  const text = await read();
+  if (current?.key !== key) return;
+  repaint(d, key, { notes: view(parseExplorationNotes(text)) });
 }
 
 /** Leaves the page (another view opens in the same place). */

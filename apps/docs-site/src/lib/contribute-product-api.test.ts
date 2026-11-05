@@ -226,6 +226,17 @@ describe('the design copy', () => {
     expect((await call('DELETE', `${C}/contents/src/Old.tsx`, { message: 'x', sha: 's', branch: 'explore/theirs' })).r.status).toBe(200);
   });
 
+  it('saves the exploration\'s notes ("Where it stands") with the code, in one tree or on their own', async () => {
+    const { call } = await signedIn();
+    const note = { path: '.bridge/explorations/theirs.md', mode: '100644', content: '# Exploration: Theirs\n\n## Next step\n\nTry the empty state.\n' };
+    expect((await call('POST', `${C}/git/trees`, { base_tree: 't', tree: [note, { path: 'src/App.tsx', content: 'x' }] })).r.status).toBe(201);
+    expect((await call('POST', `${C}/git/trees`, { base_tree: 't', tree: [note] })).r.status).toBe(201);
+    expect((await call('PUT', `${C}/contents/.bridge/explorations/theirs.md`, { message: 'Notes', content: 'eA==', branch: 'explore/theirs' })).r.status).toBe(200);
+    // Never on someone else's exploration or the default branch.
+    expect((await call('PUT', `${C}/contents/.bridge/explorations/theirs.md`, { message: 'Notes', content: 'eA==', branch: 'explore/other' })).r.status).toBe(403);
+    expect((await call('PUT', `${C}/contents/.bridge/explorations/theirs.md`, { message: 'Notes', content: 'eA==', branch: 'main' })).r.status).toBe(403);
+  });
+
   it('isSandboxPath: any file but CI, hosting settings and node_modules, with sane segments', () => {
     for (const ok of ['src/App.tsx', 'package.json', 'public/logo.svg', '.bridge/explorations/x.md', 'README.md', '.env.example']) expect(isSandboxPath(ok), ok).toBe(true);
     for (const no of ['', '/src/App.tsx', '.github', '.github/workflows/ci.yml', '.GitHub/x', 'vercel.json', '.vercel/project.json', 'node_modules/x', 'a/node_modules/b', 'apps/web/vercel.json', 'apps/web/.vercel/x.json', 'src/../x', 'src//x', 'src/./x', 'a\\b'])

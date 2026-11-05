@@ -659,3 +659,20 @@ describe('the "..." menu: Rename, Back to exploring, Archive', () => {
     expect(await screen.findByText('Back to exploring. Say Done exploring again when it is ready for developers.')).toBeTruthy();
   });
 });
+
+describe('Where it stands on the page', () => {
+  const notes = { context: '', decisions: ['Pill on primary'], edgeCases: [], openQuestions: [], nextStep: 'Try the cart.' };
+  it('sits above the activity while exploring, under the start panel while nothing is built, not shown without notes', () => {
+    paint({ stage: 'exploring', activity: [], notes: { notes } });
+    const where = screen.getByRole('heading', { name: 'Where it stands' });
+    const activity = screen.getByRole('heading', { name: 'Activity' });
+    expect(where.compareDocumentPosition(activity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+    paint({ notes: { notes } });
+    const start = screen.getByRole('heading', { name: 'Nothing built yet' });
+    expect(start.compareDocumentPosition(screen.getByRole('heading', { name: 'Where it stands' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+    paint({ stage: 'exploring', activity: [] });
+    expect(screen.queryByRole('heading', { name: 'Where it stands' })).toBeNull();
+  });
+});
