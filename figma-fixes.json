@@ -367,6 +367,14 @@
       "kind": "status",
       "reason": "Every size matches the code, the 70 percent gap on initials avatars is likely the initials text or background color and the 27 percent gap on illustrated avatars is the illustration itself: compare the shots with the Figma render by eye.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Badge",
+      "id": "badge-label-status",
+      "kind": "status",
+      "reason": "The badge hugs its text in code and the stories use longer labels than the Figma placeholder, so the badge is 27 to 53 px narrower in Figma: set the Figma label to the story text, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
