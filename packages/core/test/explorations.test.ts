@@ -55,6 +55,7 @@ import {
   reviewQueue,
   withDoneExploring,
   withPiecesRecord,
+  mergeExplorationNotes,
   type MissingPiece,
 } from '../src/index';
 import { EXPLORATION_STARTING_POINT, explorationStartingPoint } from '../src/explorations';
@@ -209,6 +210,38 @@ describe('done exploring: request wording and the developer note', () => {
 });
 
 describe('done exploring and archive on GitHub', () => {
+  it('hands the notes to the developers as the spec before the note leaves the branch', async () => {
+    const gh = fakeGitHub();
+    const c = gh.client();
+    await startExplorationOnGitHub(c, { name: 'Pill buttons', purpose: 'Friendlier checkout.' }, settings);
+    const path = '.bridge/explorations/pill-buttons.md';
+    const note = gh.trees.get(gh.refs.get('explore/pill-buttons')!)!.get(path)!;
+    const withNotes = mergeExplorationNotes(note, { decisions: ['Pill radius on primary only'], edgeCases: [{ component: 'Button', state: 'Loading', covered: true, note: 'spinner, width kept' }, { component: 'Button', state: 'Long label', covered: false }], openQuestions: ['Dark mode?'], nextStep: 'Try the cart.' });
+    await c.withBranchPrefix('explore/').commitToBranch({ branch: 'explore/pill-buttons', message: 'notes', files: [{ path, content: withNotes }, { path: 'apps/admin/x.tsx', content: 'x' }] });
+    const r = await doneExploringOnGitHub(c, 1, { openedBy: 'ann' });
+    expect(r.spec).toContain('- Pill radius on primary only');
+    const body = gh.pulls[0].body as string;
+    expect(body).toContain('**Design spec**');
+    expect(body).toContain('- [x] Button, Loading: spinner, width kept');
+    expect(body).toContain('- [ ] Button, Long label');
+    expect(body).toContain('- Dark mode?');
+    expect(body.indexOf('### For developers')).toBeLessThan(body.indexOf('**Design spec**'));
+    // The note left the branch; Back to exploring takes the spec out with the developer section.
+    expect(gh.trees.get(gh.refs.get('explore/pill-buttons')!)!.has(path)).toBe(false);
+    expect(withoutDoneExploring(body, '2026-11-02T00:00:00Z')).not.toContain('Design spec');
+    // Rewritten again (said twice): one spec, never two.
+    expect(withDoneExploring(body, { branch: 'explore/pill-buttons', doneAt: '2026-11-03T00:00:00Z', spec: r.spec }).match(/Design spec/g)).toHaveLength(1);
+  });
+
+  it('an exploration without notes hands no spec', async () => {
+    const gh = fakeGitHub();
+    const c = gh.client();
+    await startExplorationOnGitHub(c, { name: 'Plain', purpose: '' }, settings);
+    const r = await doneExploringOnGitHub(c, 1);
+    expect(r.spec).toBeUndefined();
+    expect(gh.pulls[0].body).not.toContain('Design spec');
+  });
+
   it('sends the ticked pieces as requests, swaps the labels, removes the note, keeps it open and a draft', async () => {
     const gh = fakeGitHub();
     const c = gh.client();
@@ -580,6 +613,10 @@ function fakeGitHub() {
       return sha ? res(200, { object: { sha } }) : res(404, { message: 'Not Found' });
     }
     if (method === 'GET' && (m = /^\/git\/commits\/(.+)$/.exec(path))) return res(200, { tree: { sha: m[1] } });
+    if (method === 'GET' && (m = /^\/contents\/([^?]+)\?ref=(.+)$/.exec(path))) {
+      const text = trees.get(refs.get(decodeURIComponent(m[2]!)) ?? '')?.get(decodeURIComponent(m[1]!));
+      return text === undefined ? res(404, { message: 'Not Found' }) : res(200, { type: 'file', encoding: 'base64', sha: 'b', content: Buffer.from(text).toString('base64') });
+    }
     if (method === 'POST' && path === '/git/trees') {
       const t = new Map(trees.get(body.base_tree));
       for (const e of body.tree) e.sha === null ? t.delete(e.path) : t.set(e.path, e.content);

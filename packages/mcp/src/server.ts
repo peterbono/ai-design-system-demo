@@ -762,7 +762,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     {
       title: 'Continue an exploration',
       description:
-        'Pick an exploration up where it was left, when the person says "Continue Bridge exploration #12" (Studio\'s Continue line; shop#12 for a product with its own repository) or asks to continue one by name. Resolves it, switches the local checkout of its repository to its explore/ branch when nothing is uncommitted (checkout: false leaves the working tree alone; remote: the write tools take "branch"), and returns where it stands: stage (not-started: nothing built beyond the Bridge note; exploring; handed: done exploring or later), whereItStands (one or two plain sentences), the last 3 activity events, the changed files, the missing pieces when recorded, the lines to continue it in an AI tool, and startFrom when it starts from a page of a live product (a product added from its address): then follow next, which says to open that page in the browser and rebuild it with the library only before exploring. Start your answer with where it stands, without technical words, then ask what to do next. Read only on GitHub.',
+        'Pick an exploration up where it was left, when the person says "Continue Bridge exploration #12" (Studio\'s Continue line; shop#12 for a product with its own repository) or asks to continue one by name. Resolves it, switches the local checkout of its repository to its explore/ branch when nothing is uncommitted (checkout: false leaves the working tree alone; remote: the write tools take "branch"), and returns where it stands: stage (not-started: nothing built beyond the Bridge note; exploring; handed: done exploring or later), whereItStands (one or two plain sentences), the last 3 activity events, the changed files, the missing pieces when recorded, the lines to continue it in an AI tool, and startFrom when it starts from a page of a live product (a product added from its address): then follow next, which says to open that page in the browser and rebuild it with the library only before exploring. It also returns notes, the handover the last person left ("Where it stands": context, decisions, edge cases per component, open questions, next step): read them first, keep the decisions already taken, and start from notes.nextStep. Start your answer with where it stands, without technical words, then propose that next step or ask what to do next. Read only on GitHub.',
       inputSchema: {
         exploration: z.string().min(1).describe('Its ref (#12, or shop#12 in a product repository), the whole "Continue Bridge exploration #12" line, a name, explore/<name> branch or pull request link.'),
         checkout: z.boolean().optional().describe('false: do not switch the local working tree. Default: switch when it is a clean checkout of the exploration\'s repository.'),
@@ -777,7 +777,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     {
       title: 'Save to the exploration',
       description:
-        'Save prototype code on an exploration: one commit with the files you send on its explore/<name> branch, so its preview updates in a few minutes. Use it after each step you build, sending every changed file whole (content, or contentBase64 for an image or a font; delete: true removes one). It works without a GitHub access of your own: Bridge saves through the person\'s Bridge account, also for a designer who joined with their email (Can edit or Admin; a Reader saves nothing). For them any file goes in a product exploration; in an exploration of the design system repository itself only design files (tokens, docs, assets), since its leads change the library. git push stays for whoever has their own access to the repository. Never the main branch, never a merge or a force; CI settings (.github), hosting settings (vercel.json, .vercel) and node_modules are refused. At most 200 files and 2 MB per save. Only when the person asked to build or change something on that exploration.',
+        'Save prototype code on an exploration: one commit with the files you send on its explore/<name> branch, so its preview updates in a few minutes. Use it after each step you build, sending every changed file whole (content, or contentBase64 for an image or a font; delete: true removes one). It works without a GitHub access of your own: Bridge saves through the person\'s Bridge account, also for a designer who joined with their email (Can edit or Admin; a Reader saves nothing). For them any file goes in a product exploration; in an exploration of the design system repository itself only design files (tokens, docs, assets), since its leads change the library. git push stays for whoever has their own access to the repository. Never the main branch, never a merge or a force; CI settings (.github), hosting settings (vercel.json, .vercel) and node_modules are refused. At most 200 files and 2 MB per save. Only when the person asked to build or change something on that exploration. With each save, also send notes (the exploration\'s "Where it stands", the handover for whoever carries on, another designer or another AI tool): the decisions taken in this step, the edge cases you covered or found still open per component (state, covered, a short note), new open questions and answeredQuestions, and nextStep, in plain words a designer reads, no code. Send only what changed: lists are added to, a text section replaces the old one, and what a person wrote by hand stays. Notes alone (files left out) save too.',
       inputSchema: {
         exploration: z.string().min(1).describe('Its ref (#12, or shop#12 for a product), the "Continue Bridge exploration #12" line, its name or its explore/<name> branch.'),
         message: z.string().min(1).describe('What this step changes, in a few plain words ("Orders: success toast when an order ships").'),
@@ -790,12 +790,33 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
               delete: z.boolean().optional().describe('true: remove this file from the exploration.'),
             }),
           )
-          .min(1)
-          .describe('Every file this step changed, each whole.'),
+          .optional()
+          .describe('Every file this step changed, each whole. Leave it out to save only notes.'),
+        notes: z
+          .object({
+            context: z.string().optional().describe('What this exploration is about, in two or three plain sentences. Replaces the old context.'),
+            decisions: z.array(z.string()).optional().describe('Decisions taken in this step, one plain sentence each ("Pill radius on primary buttons only"). Added to the list.'),
+            edgeCases: z
+              .array(
+                z.object({
+                  component: z.string().min(1).describe('The component, by its name in the library ("Button").'),
+                  state: z.string().min(1).describe('The state or situation ("Loading", "Empty list", "Long label in German").'),
+                  covered: z.boolean().describe('true when the prototype handles it now.'),
+                  note: z.string().optional().describe('How it is handled, or what is missing, in a few words.'),
+                }),
+              )
+              .optional()
+              .describe('Edge cases checked in this step. The same component and state updates the line already there.'),
+            openQuestions: z.array(z.string()).optional().describe('New questions nobody answered yet. Added to the list.'),
+            answeredQuestions: z.array(z.string()).optional().describe('Open questions now answered: taken out of the list (add the answer to decisions).'),
+            nextStep: z.string().optional().describe('Where the next person starts, in one or two plain sentences. Replaces the old next step.'),
+          })
+          .optional()
+          .describe('The exploration\'s notes ("Where it stands"), merged into it in the same save.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    run((a) => explorations.saveExploration(ctx, { ref: a.exploration, message: a.message, files: a.files })),
+    run((a) => explorations.saveExploration(ctx, { ref: a.exploration, message: a.message, files: a.files, notes: a.notes })),
   );
 
   server.registerTool(
@@ -803,7 +824,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     {
       title: 'Done exploring',
       description:
-        '"Done exploring" on an exploration (explore/<name>), as in Studio (the tool keeps its old name). It never closes, merges or marks the draft ready for review: the pull request stays open so its preview link keeps working for the designer, the DS lead, stakeholders and developers. The pieces you pass (ids from bridge_missing_pieces; ask the person which ones) each become a request for the DS lead with a link to the preview; pieces left out are not proposed. For an exploration in a product\'s own repository (shop#42) the requests are filed in the design system repository, where the DS lead works, and link back to the product pull request; its status keeps following that pull request. Then the exploration label and note go and ready-for-devs comes: developers take the branch (git fetch origin, then git checkout explore/<name>) as a starting point, never as code ready to ship. Their pushes read "Being built", the merge "Shipped". Said again later, it only sends newly picked pieces. dryRun shows what it would send. Needs GITHUB_TOKEN (contents, pull requests and issues: write). Only when the person asked.',
+        '"Done exploring" on an exploration (explore/<name>), as in Studio (the tool keeps its old name). It never closes, merges or marks the draft ready for review: the pull request stays open so its preview link keeps working for the designer, the DS lead, stakeholders and developers. The pieces you pass (ids from bridge_missing_pieces; ask the person which ones) each become a request for the DS lead with a link to the preview; pieces left out are not proposed. For an exploration in a product\'s own repository (shop#42) the requests are filed in the design system repository, where the DS lead works, and link back to the product pull request; its status keeps following that pull request. Then the exploration label and note go and ready-for-devs comes: developers take the branch (git fetch origin, then git checkout explore/<name>) as a starting point, never as code ready to ship. The exploration\'s notes go with it: their decisions, edge cases and open questions become the design spec in the developers\' task. Their pushes read "Being built", the merge "Shipped". Said again later, it only sends newly picked pieces. dryRun shows what it would send. Needs GITHUB_TOKEN (contents, pull requests and issues: write). Only when the person asked.',
       inputSchema: {
         exploration: z.string().min(1).describe('Its ref from bridge_list_explorations (#42, or shop#42 in a product repository), name, explore/<name> branch or pull request link.'),
         pieces: z.array(z.string()).optional().describe('Ids of the missing pieces the person ticked (bridge_missing_pieces). Omitted: none is proposed, and the result lists the ones not sent.'),

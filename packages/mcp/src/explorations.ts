@@ -64,6 +64,15 @@ import {
   shortAgo,
   whereItStands,
   EXPLORATION_STATUS_LABEL,
+  explorationSlugFromBranch,
+  mergeExplorationNotes,
+  explorationNotePathOf,
+  notesCounts,
+  notesEmpty,
+  parseExplorationNotes,
+  updateEmpty,
+  type ExplorationNotes,
+  type NotesUpdate,
 } from '@bridge-ds/core';
 import { branchExists, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
 import { BridgeContext } from './context.js';
@@ -410,10 +419,11 @@ export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces
     notProposed: unsent,
     // Whether the exploration was checked against the library (bridge pieces --record) before saying it.
     checked: Boolean(record),
-    forDevelopers: { take: r.take, note: r.note },
+    forDevelopers: { take: r.take, note: r.note, ...(r.spec ? { spec: r.spec } : {}) },
     warnings: r.warnings,
     next: [
       record ? (unsent.length ? `${unsent.length} piece${unsent.length === 1 ? ' was' : 's were'} not sent to the DS lead: pass their ids in pieces to send them later.` : '') : `The exploration was not checked against the library: ${say(ctx, `bridge_missing_pieces { pr: "${explorationRefLabel({ number: r.number, product: at.product?.key, repo: at.repo })}", record: true }`, `\`bridge pieces ${explorationRefLabel({ number: r.number, product: at.product?.key, repo: at.repo })} --record\``)} finds the pieces to propose.`,
+      r.spec ? 'The decisions and edge cases from the notes went to the developers as the design spec.' : '',
       `Developers take it with \`${r.take[0]}\` then \`${r.take[1]}\`, as a starting point. The pull request stays open so the preview keeps working; ${say(ctx, 'bridge_archive_exploration', '`bridge explore archive`')} hides it from the lists later.`,
     ]
       .filter(Boolean)
@@ -472,6 +482,8 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
   const gh = at.gh;
   const p = await findExplorationOnGitHub(gh, refOf(at.ref));
   const [files, commits] = await Promise.all([gh.listPullRequestFiles(p.number).then((f) => f.map((x) => x.filename)).catch(() => null), gh.listPullRequestCommits(p.number).catch(() => [])]);
+  // "Where it stands": the handover notes the last person left (decisions, edge cases, open questions, next step).
+  const notes = parseExplorationNotes(await gh.getFileText(explorationNotePathOf(files, p.headRef), p.headRef).catch(() => undefined));
   const status = explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body });
   const archived = isArchivedExploration(p.labels);
   const stage = explorationStage({ status, archived, files });
@@ -505,6 +517,7 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
     archived,
     stage,
     whereItStands: whereItStands({ name, stage, statusLabel: EXPLORATION_STATUS_LABEL[status], events, files }),
+    notes: notesOut(notes),
     activity: events.map((x) => ({ who: actorName(x), what: x.text, when: shortAgo(x.at) })),
     changedFiles: files,
     previews: previewLinksOf(previews),
@@ -515,7 +528,9 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
     ...(startPage && stage !== 'handed' ? { startFrom: startPage } : {}),
     next: [
       ...(startPage && stage === 'not-started' ? [startPageBrief(startPage, product.name, e?.purpose || name)] : []),
-      'Start by telling the designer where it stands, in one or two sentences from whereItStands and activity, without technical words, then ask what they want to do next.',
+      notesEmpty(notes)
+        ? 'Start by telling the designer where it stands, in one or two sentences from whereItStands and activity, without technical words, then ask what they want to do next.'
+        : `Read notes first: they are what the last person left for whoever carries on. Start by telling the designer where it stands in one or two plain sentences (whereItStands, then the notes: ${notesLine(notes)}), then propose to start from notes.nextStep${notes.nextStep ? '' : ' (none written yet: ask what to do next)'}. Keep the decisions already taken; ask before reopening one.`,
       stage === 'handed' ? 'It is no longer being explored: say so, and only change it if they ask.' : `${keepWorking} Never open a pull request to main from it.`,
     ].join(' '),
   };
@@ -666,8 +681,10 @@ export function saveFilesOf(files: SaveFileInput[]): CommitFile[] {
  * designer who joined with their email the team's Bridge proxy (its copy policy decides). Returns the commit and where
  * to see it.
  */
-export async function saveExploration(ctx: BridgeContext, a: { ref: string; message: string; files: SaveFileInput[] }) {
-  const files = saveFilesOf(a.files);
+export async function saveExploration(ctx: BridgeContext, a: { ref: string; message: string; files?: SaveFileInput[] | undefined; notes?: NotesUpdate | undefined }) {
+  const withNotes = !updateEmpty(a.notes);
+  // Notes alone are a save too (a decision taken, an edge case covered): the files then may be none.
+  const files = withNotes && !a.files?.length ? [] : saveFilesOf(a.files ?? []);
   const message = a.message.trim();
   if (!message) throw new Error('Say what this step changes in the message, in a few words ("Orders: success toast when an order ships").');
   const at = await located(ctx, a.ref.replace(/^\s*continue\s+bridge\s+exploration\s+/i, '').replace(/\s+".*$/, '').trim());
@@ -675,6 +692,20 @@ export async function saveExploration(ctx: BridgeContext, a: { ref: string; mess
   if (!isExplorationBranch(p.headRef)) throw new Error(`${p.headRef} is not an exploration branch: Bridge only saves on explore/ branches.`);
   // MCP only: the tool is Claude's, the CLI has no save command.
   if (p.state !== 'open') throw new Error(`This exploration is closed, so nothing is saved on it. Start a new one with bridge_start_exploration.`);
+  // The notes merged into the note file, in the same commit: section by section, what a person wrote stays.
+  let notes: ExplorationNotes | null = null;
+  if (withNotes) {
+    const prFiles = await at.gh.listPullRequestFiles(p.number).then((f) => f.map((x) => x.filename)).catch(() => null);
+    const path = explorationNotePathOf(prFiles, p.headRef);
+    if (files.some((f) => f.path === path)) throw new Error(`${path} holds the exploration's notes: send them in notes, not as a file.`);
+    const before = await at.gh.getFileText(path, p.headRef);
+    const e = parseExplorationBody(p.body);
+    const base = before ?? explorationNote({ name: e?.name ?? p.title.replace(/^Exploration:\s*/i, ''), purpose: e?.purpose ?? '', slug: explorationSlugFromBranch(p.headRef) ?? undefined });
+    const md = mergeExplorationNotes(base, a.notes!);
+    notes = parseExplorationNotes(md);
+    if (md !== before) files.push({ path, content: md });
+  }
+  if (!files.length) throw new Error('Nothing changed: the notes already say this, and no file was sent.');
   const res = await at.gh.withBranchPrefix(EXPLORATION_PREFIX).commitToBranch({ branch: p.headRef, message, files });
   const ref = explorationRefLabel({ number: p.number, product: at.product?.key, repo: at.repo });
   const preview = at.product ? branchPreviewUrl(at.product.preview, p.headRef) : null;
@@ -688,8 +719,25 @@ export async function saveExploration(ctx: BridgeContext, a: { ref: string; mess
     removed,
     url: p.url,
     preview,
-    next: `Saved on ${ref}. ${preview ? `The preview updates in a few minutes: ${preview}` : 'Its previews rebuild in a few minutes.'} Tell the designer in one plain sentence what changed and where to look; nothing reached the developers or the library.`,
+    ...(notes ? { notes: notesOut(notes) } : {}),
+    next: `Saved on ${ref}. ${preview ? `The preview updates in a few minutes: ${preview}` : 'Its previews rebuild in a few minutes.'} Tell the designer in one plain sentence what changed and where to look; nothing reached the developers or the library.${notes ? '' : ' Next save, update the notes too (notes: decisions taken, edge cases covered or open, the next step), so whoever carries on knows where it stands.'}`,
   };
+}
+
+/** The notes as the tools return them: the five sections and their counts. */
+function notesOut(n: ExplorationNotes) {
+  return { ...n, counts: notesCounts(n), empty: notesEmpty(n) };
+}
+
+/** The notes in a few words for Claude's first sentence: "3 decisions, 4 of 6 edge cases covered, 1 open question". */
+export function notesLine(n: ExplorationNotes): string {
+  const c = notesCounts(n);
+  const parts = [
+    c.decisions ? `${c.decisions} ${c.decisions === 1 ? 'decision' : 'decisions'}` : '',
+    c.edgeCases ? `${c.covered} of ${c.edgeCases} edge cases covered` : '',
+    c.questions ? `${c.questions} open ${c.questions === 1 ? 'question' : 'questions'}` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') : 'only a next step';
 }
 
 export { explorationRules };

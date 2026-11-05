@@ -595,7 +595,7 @@ const DEV_SECTION = '### For developers';
  */
 export function withDoneExploring(
   body: string | null | undefined,
-  done: { branch: string; doneAt: string; doneBy?: string | undefined; doneSha?: string | undefined; checks?: ExplorationChecks | null | undefined; copy?: string | undefined; task?: string | undefined },
+  done: { branch: string; doneAt: string; doneBy?: string | undefined; doneSha?: string | undefined; checks?: ExplorationChecks | null | undefined; copy?: string | undefined; task?: string | undefined; spec?: string | null | undefined },
 ): string {
   const e = parseExplorationBody(body);
   const [fetch, checkout] = done.copy ? designCopyTakeCommands(done.copy, done.branch) : explorationTakeCommands(done.branch);
@@ -627,6 +627,8 @@ export function withDoneExploring(
           '```',
           '',
           'Mark this pull request ready for review when the code is yours. Keep it open: its preview link is how designers, the DS lead and stakeholders come back to the prototype.',
+          // The designers' notes as the spec: bold labels, never a heading, so the section stays one piece.
+          ...(done.spec?.trim() ? ['', '**Design spec**, from the exploration\'s notes:', '', done.spec.trim()] : []),
         ]
   ).join('\n');
   const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);

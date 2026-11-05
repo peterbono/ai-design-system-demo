@@ -725,6 +725,122 @@
   height: var(--size-14);
 }
 
+/* "Where it stands" (WhereItStands.tsx): the handover notes above the activity. A plain region, never a second Harbor
+   zone: the heading and Edit on one line, the next step, the counts with Show details on one line, then the details. */
+.xp-notes {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.xp-notes-head,
+.xp-notes-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.xp-notes-sum {
+  justify-content: flex-start;
+}
+
+.xp-notes-next,
+.xp-notes-part,
+.xp-notes-details:not([hidden]) {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.xp-notes-details:not([hidden]) {
+  gap: var(--space-5);
+  padding-block-start: var(--space-2);
+}
+
+.xp-notes-text {
+  white-space: pre-line;
+}
+
+.xp-notes-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.xp-notes-group {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.xp-notes-group + .xp-notes-group {
+  margin-block-start: var(--space-2);
+}
+
+.xp-notes-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.xp-notes-art {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.xp-notes-form,
+.xp-notes-cases-edit {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.xp-notes-cases-edit {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.xp-notes-cases-edit > legend {
+  margin-block-end: var(--space-2);
+  padding: 0;
+}
+
+/* One edge case: its fields, then Covered and remove on one line (the row's own actions beside what they act on). */
+.xp-case-row {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width-1) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+}
+
+.xp-case-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+}
+
+.xp-case-note {
+  grid-column: 1 / -1;
+}
+
+.xp-case-acts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.xp-case-add {
+  justify-self: start;
+}
+
+.xp-notes-error {
+  color: var(--color-feedback-danger-text);
+}
+
 /* Narrow windows: one column, the frame under the panel. Phones: the way back instead of the breadcrumb. */
 @media (max-width: 960px) {
   .xp-start,

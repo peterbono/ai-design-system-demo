@@ -8,7 +8,7 @@
 // - X2, exploring: "Exploring", who changed what and when, the preview (a captured image when Bridge has one, else a
 //   neutral frame) with one group of actions: "Open the preview" (with the Bridge toolbar, Before and After, when the
 //   product supports it) and the tool's button, the Harbor card "Happy with it?" (Done exploring), and the last 3
-//   events.
+//   events, with "Where it stands" (WhereItStands.tsx, the handover notes) above them.
 // - After Done exploring (Waiting for code, Being built, Shipped), the same family: the status tag, who said done and
 //   when, the preview with one action, and the one Harbor zone on what happens next: the hand-off in four steps (the
 //   DS Checklist), then what the library gets from it (the pieces Bridge found, each with its request status; Bridge
@@ -68,6 +68,7 @@ import type { AiTool } from '../../../lib/ai-tools';
 import { DEV_MESSAGE_WORDS } from '../../../lib/developers-message';
 import { useCopy } from './TeamLink';
 import { ClaudeGlyph, claudeNewUrl, ConnectClaudeButton, ConnectFirst, ToolAction, ToolPanel, useAiTools, useClaudeRecheck, type ToolLines, type ToolSetup } from './AiToolPanel';
+import { WhereItStands, type WhereItStandsView } from './WhereItStands';
 
 export { claudeNewUrl };
 
@@ -209,6 +210,12 @@ export interface ExplorationPageProps {
    * this exploration's branch, and stands for the AI tool panel and its Continue button.
    */
   claudeCodeUrl?: string | null;
+  /**
+   * "Where it stands": the handover notes (decisions, edge cases, open questions, next step), above the activity while
+   * it runs. Editable in place by whoever can edit the exploration (onSave), read only otherwise. Unset: not shown
+   * (after Done exploring the notes went to the developers).
+   */
+  notes?: WhereItStandsView | null;
 }
 
 /** The tool the panel has open, for the buttons further down the page (Check in Claude, the X2 action). */
@@ -845,6 +852,7 @@ function ExplorationBody(p: ExplorationPageProps) {
           <EmptyFrame label="Your preview" />
         </section>
       )}
+      {notStarted && p.notes && <WhereItStands view={p.notes} say={setSaid} />}
       {(p.stage === 'exploring' || handoff) && (
         // The preview and the Harbor zone end on one line: the preview's frame takes the height the zone beside it needs
         // (within a screen-like ratio). While exploring, the activity sits under the Harbor card; after Done exploring,
@@ -880,6 +888,7 @@ function ExplorationBody(p: ExplorationPageProps) {
           </section>
           <div className="xp-side">
             {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} /> : <DoneCard p={p} />}
+            {!handoff && p.notes && <WhereItStands view={p.notes} say={setSaid} />}
             {!handoff && <ActivityList rows={p.activity} />}
           </div>
           {handoff && <ActivityList rows={p.activity} />}

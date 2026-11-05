@@ -750,6 +750,8 @@ describe('design files only', () => {
     expect(isDesignPath('tokens/color.tokens.json', fallback)).toBe(true);
     expect(isDesignPath('.changeset/x.md', fallback)).toBe(true);
     expect(isDesignPath('.bridge/figma/x.json', fallback)).toBe(true);
+    // The exploration's notes ("Where it stands") are Bridge's own file: an email member saves them in the library too.
+    expect(isDesignPath('.bridge/explorations/pill-buttons.md', fallback)).toBe(true);
     expect(isDesignPath('src/components/Button/Button.docs.json', fallback)).toBe(false);
     expect(isDesignPath('package.json', fallback)).toBe(false);
   });

@@ -30,6 +30,7 @@ import { branchPreviewUrl } from './previews';
 import { liveAddressOf, productCodeRepoOf, productOfDesignCopy, type ProductConfig } from './products';
 import { addressTaskBody, designTaskBody, designTaskTitle, githubLoginOf, FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION } from './design-copy-github';
 import type { RequestSource } from './requests';
+import { notesSpec, parseExplorationNotes } from './exploration-notes';
 
 export interface DoneExploringInput {
   /** Piece ids the designer ticked: each becomes a request for the DS lead. Unticked ones are not proposed. */
@@ -73,6 +74,8 @@ export interface DoneExploring {
   warnings: string[];
   /** From a design copy: the developers' task opened in the product's own repository. */
   task?: { number: number; url: string; repo: string } | undefined;
+  /** The design spec handed to developers from the exploration's notes (decisions, edge cases, open questions), when any. */
+  spec?: string | undefined;
 }
 
 /**
@@ -101,7 +104,10 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   const take = plan?.take ?? (codeRepo ? designCopyTakeCommands(gh.fullName, p.headRef) : (['git fetch origin', `git checkout ${p.headRef}`] as [string, string]));
   // The checks of the head the developers start from, so the note says truthfully whether anything ran or passed.
   const checks: ExplorationChecks | null = p.headSha ? await Promise.resolve(p.headSha).then((sha) => gh.getChecks(sha, { exploration: isGuardedExploration({ state: p.state, draft: p.draft, labels: p.labels, headRef: p.headRef, body: p.body }) })).then((c) => c.state, () => null) : null;
-  const out: DoneExploring = { number: p.number, url: p.url, branch: p.headRef, status: fresh ? 'ready' : status, handedOff: fresh, plan, pieces: { proposed: [], already: [], unknown: [], warnings: [] }, take, checks, note: codeRepo ? DESIGN_COPY_STARTING_POINT : explorationStartingPoint(checks), warnings: [] };
+  // "Where it stands": the notes leave the branch with the note file, so their decisions and edge cases go to the
+  // developers as the spec first. Read before anything is removed; a note that cannot be read hands nothing on.
+  const spec = plan?.removeFiles.length ? await notesSpecOnBranch(gh, plan.removeFiles, p.headRef) : null;
+  const out: DoneExploring = { number: p.number, url: p.url, branch: p.headRef, status: fresh ? 'ready' : status, handedOff: fresh, plan, pieces: { proposed: [], already: [], unknown: [], warnings: [] }, take, checks, note: codeRepo ? DESIGN_COPY_STARTING_POINT : explorationStartingPoint(checks), warnings: [], ...(spec ? { spec } : {}) };
   const products = input.products ?? [];
   const ask = { pieces: input.pieces ?? [], products, previewUrl: input.previewUrl, openedBy: doneByOfInput(input), agent: input.agent, source: input.source, library: input.library };
   if (input.dryRun) {
@@ -132,6 +138,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
           pr: { number: p.number, url: p.url },
           doneBy: input.openedBy,
           doneByName: input.openedByName,
+          spec,
         })
       : designTaskBody({
         name,
@@ -145,6 +152,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
         pr: { number: p.number, url: p.url },
         doneBy: input.openedBy,
         doneByName: input.openedByName,
+        spec,
       });
     // Said again after Back to exploring: the same task comes back, never a second one next to it.
     const earlier = designTaskRef(e?.task, codeRepo);
@@ -171,7 +179,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   // The pieces wrote their links into the body: read it again before the developer section goes in.
   const latest = await gh.getPullRequest(p.number).catch(() => p);
   const doneAt = parseExplorationBody(plan.body)?.doneAt ?? (input.date ?? new Date()).toISOString();
-  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneBy: doneByOfInput(input), doneSha, checks, ...(codeRepo ? { copy: gh.fullName } : {}), ...(task ? { task } : {}) }) });
+  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneBy: doneByOfInput(input), doneSha, checks, ...(codeRepo ? { copy: gh.fullName } : {}), ...(task ? { task } : {}), ...(spec && !codeRepo ? { spec } : {}) }) });
   return out;
 }
 
@@ -216,6 +224,13 @@ export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | 
     if (!(e instanceof GitHubError && e.status === 404)) out.warnings.push(`The ${EXPLORATION_READY_LABEL} label is still on (${e.message}).`);
   });
   return out;
+}
+
+/** The design spec from the exploration's note files on the branch (exploration-notes.ts), or null when they hold none. */
+async function notesSpecOnBranch(gh: GitHubClient, paths: readonly string[], branch: string): Promise<string | null> {
+  const texts = await Promise.all(paths.map((path) => gh.getFileText(path, branch).catch(() => undefined)));
+  const md = texts.filter((t): t is string => typeof t === 'string').join('\n\n');
+  return md ? notesSpec(parseExplorationNotes(md)) : null;
 }
 
 /** What the developers' task says when the design team takes the exploration back. */

@@ -203,6 +203,57 @@ repository, that checkout is the product's, connected once with `bridge connect`
 Claude mentions your running explorations once (`bridge_list_explorations` with `mine: true`) and offers to continue
 one.
 
+### Where it stands: notes for whoever carries on
+
+Every exploration keeps handover notes in its note file (`.bridge/explorations/<name>.md`), so another designer, or
+another AI tool, continues without the first one. They stay plain readable text under five stable headings, below
+Bridge's marker text:
+
+```md
+## Context
+Checkout asks for a gift option in three places today.
+
+## Decisions
+- One "This is a gift" switch on the cart, above the total
+
+## Edge cases
+### Textarea
+- [x] Empty message: allowed, the slip says "Enjoy"
+- [ ] Message over 200 characters: counter turns red, no hard stop yet
+
+## Open questions
+- Does the printed slip need the sender's name?
+
+## Next step
+Try the long message on a phone and decide between a hard limit and a soft counter.
+```
+
+An edge case is one line per state under its component: `[x]` when the prototype covers it, `[ ]` while it is still
+open, then a short note. `@bridge-ds/core` (`exploration-notes.ts`) reads and writes them: `parseExplorationNotes`
+tolerates old notes (only the marker text) and hand-written lines (a paragraph under Decisions counts as one),
+and `mergeExplorationNotes` merges an update section by section. What the update does not name stays exactly as
+written: the title and marker text, sections Bridge does not know, a person's own lines. Lists are added to (the same
+words are never repeated, an edge case with the same component and state is updated in place), Context and Next step
+are replaced, `answeredQuestions` takes questions out of Open questions.
+
+- **Claude.** `bridge_save_exploration` takes an optional `notes` (any of `context`, `decisions`, `edgeCases`,
+  `openQuestions`, `answeredQuestions`, `nextStep`) merged into the note file in the same commit; `files` may be left
+  out to save notes alone. Its description tells Claude to update the notes with each save, in plain words.
+  `bridge_continue_exploration` returns `notes` (the five sections, their counts, `empty`) and tells Claude to read them
+  first, keep the decisions taken and start from the next step. On the hosted connector this works for email members
+  with Can edit too: the note file is a design file in the library and a sandbox file in a design copy, on their own
+  explore/ branches only, like the rest of the save.
+- **Studio.** The exploration page shows "Where it stands" above the activity (under the start panel while nothing is
+  built): the next step and the counts ("3 decisions · 4 of 6 edge cases covered · 2 open questions"), the context,
+  decisions, edge cases per component and open questions behind Show details. Whoever keeps the exploration (and, in
+  the library, anyone signed in with write access) edits it in place: one form, saved through the same route as the
+  page's other writes, on the exploration's branch, merged into a fresh read so only the sections edited there change.
+  Readers see it read only. Empty, one quiet line says it fills itself when someone works on it in Claude.
+- **Done exploring** reads the notes before the note file leaves the branch: the decisions, edge cases and open
+  questions become the **Design spec** for developers, a section of their task ("### Design spec" in the task of a
+  design copy or of a product added from its address) or, for a branch they take, a bold "Design spec" part of the
+  For developers section. Back to exploring removes it with that section.
+
 ## Done exploring, archive
 
 - **Done exploring** (Studio, `bridge explore done <name>`, Claude `bridge_promote_exploration`; `bridge explore
