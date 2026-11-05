@@ -7,6 +7,19 @@
           "package": "@bridge-ds/react",
           "export": "Accordion"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:910",
+        "properties": {
+          "Multiple": {
+            "prop": "multiple",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          }
+        }
       }
     },
     "Alert": {
@@ -14,6 +27,22 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Alert"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:1054",
+        "properties": {
+          "Tone": {
+            "prop": "tone",
+            "values": {
+              "neutral": "neutral",
+              "info": "info",
+              "success": "success",
+              "warning": "warning",
+              "danger": "danger"
+            }
+          }
         }
       }
     },
@@ -23,6 +52,10 @@
           "package": "@bridge-ds/react",
           "export": "AlertDialog"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:5910"
       }
     },
     "Avatar": {
@@ -30,6 +63,35 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Avatar"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:1158",
+        "properties": {
+          "Fallback": {
+            "prop": "fallback",
+            "values": {
+              "initials": "initials",
+              "illustrated": "illustrated"
+            }
+          },
+          "Kind": {
+            "prop": "kind",
+            "values": {
+              "person": "person",
+              "agent": "agent"
+            }
+          },
+          "Size": {
+            "prop": "size",
+            "values": {
+              "xs": "xs",
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          }
         }
       }
     },
@@ -39,6 +101,43 @@
           "package": "@bridge-ds/react",
           "export": "Badge"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:1320",
+        "properties": {
+          "Appearance": {
+            "prop": "appearance",
+            "values": {
+              "subtle": "subtle",
+              "solid": "solid"
+            }
+          },
+          "Dot": {
+            "prop": "dot",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md"
+            }
+          },
+          "Tone": {
+            "prop": "tone",
+            "values": {
+              "neutral": "neutral",
+              "success": "success",
+              "warning": "warning",
+              "danger": "danger",
+              "info": "info"
+            }
+          }
+        }
       }
     },
     "Banner": {
@@ -46,6 +145,19 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Banner"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:1398",
+        "properties": {
+          "Appearance": {
+            "prop": "appearance",
+            "values": {
+              "strong": "strong",
+              "neutral": "neutral"
+            }
+          }
         }
       }
     },
@@ -55,6 +167,10 @@
           "package": "@bridge-ds/react",
           "export": "Breadcrumb"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:1426"
       }
     },
     "Button": {
@@ -62,6 +178,45 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Button"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:1529",
+        "properties": {
+          "Full width": {
+            "prop": "fullWidth",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Loading": {
+            "prop": "loading",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          },
+          "Variant": {
+            "prop": "variant",
+            "values": {
+              "primary": "primary",
+              "secondary": "secondary",
+              "ghost": "ghost",
+              "danger": "danger",
+              "link": "link",
+              "inverse": "inverse"
+            }
+          }
         }
       }
     },
@@ -71,6 +226,10 @@
           "package": "@bridge-ds/react",
           "export": "ButtonGroup"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:5985"
       }
     },
     "Card": {
@@ -78,6 +237,27 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Card"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:1951",
+        "properties": {
+          "Interactive": {
+            "prop": "interactive",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Padding": {
+            "prop": "padding",
+            "values": {
+              "none": "none",
+              "compact": "compact",
+              "default": "default"
+            }
+          }
         }
       }
     },
@@ -87,6 +267,26 @@
           "package": "@bridge-ds/react",
           "export": "Checkbox"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:1996",
+        "properties": {
+          "Checked": {
+            "prop": "checked",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Default checked": {
+            "prop": "defaultChecked",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          }
+        }
       }
     },
     "CheckboxGroup": {
@@ -94,6 +294,26 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "CheckboxGroup"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2105",
+        "properties": {
+          "Orientation": {
+            "prop": "orientation",
+            "values": {
+              "vertical": "vertical",
+              "horizontal": "horizontal"
+            }
+          },
+          "Required": {
+            "prop": "required",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          }
         }
       }
     },
@@ -103,6 +323,10 @@
           "package": "@bridge-ds/react",
           "export": "Checklist"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2261"
       }
     },
     "ChoiceCard": {
@@ -111,6 +335,10 @@
           "package": "@bridge-ds/react",
           "export": "ChoiceCard"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2289"
       }
     },
     "CodeBlock": {
@@ -118,6 +346,26 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "CodeBlock"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2339",
+        "properties": {
+          "Hide copy": {
+            "prop": "hideCopy",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Wrap": {
+            "prop": "wrap",
+            "values": {
+              "true": true,
+              "false": false
+            }
+          }
         }
       }
     },
@@ -127,6 +375,41 @@
           "package": "@bridge-ds/react",
           "export": "Combobox"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2387",
+        "properties": {
+          "Default open": {
+            "prop": "defaultOpen",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Loading": {
+            "prop": "loading",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Multiple": {
+            "prop": "multiple",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          }
+        }
       }
     },
     "Container": {
@@ -135,6 +418,10 @@
           "package": "@bridge-ds/react",
           "export": "Container"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:6356"
       }
     },
     "Dialog": {
@@ -143,6 +430,10 @@
           "package": "@bridge-ds/react",
           "export": "Dialog"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:6377"
       }
     },
     "Divider": {
@@ -151,6 +442,10 @@
           "package": "@bridge-ds/react",
           "export": "Divider"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2540"
       }
     },
     "Drawer": {
@@ -158,6 +453,20 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Drawer"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:6458",
+        "properties": {
+          "Side": {
+            "prop": "side",
+            "values": {
+              "end": "end",
+              "start": "start",
+              "bottom": "bottom"
+            }
+          }
         }
       }
     },
@@ -167,6 +476,20 @@
           "package": "@bridge-ds/react",
           "export": "EmptyState"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2598",
+        "properties": {
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          }
+        }
       }
     },
     "Field": {
@@ -174,6 +497,19 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Field"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2664",
+        "properties": {
+          "Required": {
+            "prop": "required",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          }
         }
       }
     },
@@ -183,6 +519,10 @@
           "package": "@bridge-ds/react",
           "export": "Form"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2696"
       }
     },
     "Grid": {
@@ -191,6 +531,10 @@
           "package": "@bridge-ds/react",
           "export": "Grid"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:6917"
       }
     },
     "Icon": {
@@ -198,6 +542,21 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Icon"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:6947",
+        "properties": {
+          "Size": {
+            "prop": "size",
+            "values": {
+              "xs": "xs",
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          }
         }
       }
     },
@@ -207,6 +566,29 @@
           "package": "@bridge-ds/react",
           "export": "IconButton"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:2834",
+        "properties": {
+          "Loading": {
+            "prop": "loading",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Variant": {
+            "prop": "variant",
+            "values": {
+              "primary": "primary",
+              "secondary": "secondary",
+              "ghost": "ghost",
+              "danger": "danger",
+              "inverse": "inverse"
+            }
+          }
+        }
       }
     },
     "Inline": {
@@ -215,6 +597,10 @@
           "package": "@bridge-ds/react",
           "export": "Inline"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:7006"
       }
     },
     "Input": {
@@ -222,6 +608,20 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Input"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:3016",
+        "properties": {
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          }
         }
       }
     },
@@ -231,6 +631,10 @@
           "package": "@bridge-ds/react",
           "export": "Kbd"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:3067"
       }
     },
     "Link": {
@@ -238,6 +642,27 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Link"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:3089",
+        "properties": {
+          "External": {
+            "prop": "external",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Variant": {
+            "prop": "variant",
+            "values": {
+              "inline": "inline",
+              "standalone": "standalone",
+              "subtle": "subtle"
+            }
+          }
         }
       }
     },
@@ -247,6 +672,10 @@
           "package": "@bridge-ds/react",
           "export": "Menu"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:7014"
       }
     },
     "NumberField": {
@@ -254,6 +683,20 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "NumberField"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:3282",
+        "properties": {
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          }
         }
       }
     },
@@ -263,6 +706,10 @@
           "package": "@bridge-ds/react",
           "export": "PageHeader"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:3420"
       }
     },
     "Pagination": {
@@ -270,6 +717,26 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Pagination"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:7085",
+        "properties": {
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md"
+            }
+          },
+          "Variant": {
+            "prop": "variant",
+            "values": {
+              "full": "full",
+              "compact": "compact"
+            }
+          }
         }
       }
     },
@@ -279,6 +746,10 @@
           "package": "@bridge-ds/react",
           "export": "Popover"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:7567"
       }
     },
     "Progress": {
@@ -286,6 +757,36 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Progress"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:7590",
+        "properties": {
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          },
+          "Tone": {
+            "prop": "tone",
+            "values": {
+              "signal": "signal",
+              "success": "success",
+              "warning": "warning",
+              "danger": "danger"
+            }
+          },
+          "Variant": {
+            "prop": "variant",
+            "values": {
+              "linear": "linear",
+              "circular": "circular"
+            }
+          }
         }
       }
     },
@@ -295,6 +796,26 @@
           "package": "@bridge-ds/react",
           "export": "RadioGroup"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:3971",
+        "properties": {
+          "Orientation": {
+            "prop": "orientation",
+            "values": {
+              "vertical": "vertical",
+              "horizontal": "horizontal"
+            }
+          },
+          "Required": {
+            "prop": "required",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          }
+        }
       }
     },
     "SegmentedControl": {
@@ -302,6 +823,33 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "SegmentedControl"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:4163",
+        "properties": {
+          "Appearance": {
+            "prop": "appearance",
+            "values": {
+              "default": "default",
+              "strong": "strong"
+            }
+          },
+          "Full width": {
+            "prop": "fullWidth",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md"
+            }
+          }
         }
       }
     },
@@ -311,6 +859,27 @@
           "package": "@bridge-ds/react",
           "export": "Select"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:4272",
+        "properties": {
+          "Default open": {
+            "prop": "defaultOpen",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          }
+        }
       }
     },
     "SidebarNav": {
@@ -319,6 +888,10 @@
           "package": "@bridge-ds/react",
           "export": "SidebarNav"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:4363"
       }
     },
     "Skeleton": {
@@ -326,6 +899,20 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Skeleton"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:4504",
+        "properties": {
+          "Variant": {
+            "prop": "variant",
+            "values": {
+              "text": "text",
+              "circle": "circle",
+              "rect": "rect"
+            }
+          }
         }
       }
     },
@@ -335,6 +922,10 @@
           "package": "@bridge-ds/react",
           "export": "Slider"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:4513"
       }
     },
     "Spinner": {
@@ -342,6 +933,28 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Spinner"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:4539",
+        "properties": {
+          "Size": {
+            "prop": "size",
+            "values": {
+              "xs": "xs",
+              "sm": "sm",
+              "md": "md",
+              "lg": "lg"
+            }
+          },
+          "Tone": {
+            "prop": "tone",
+            "values": {
+              "current": "current",
+              "signal": "signal"
+            }
+          }
         }
       }
     },
@@ -351,6 +964,22 @@
           "package": "@bridge-ds/react",
           "export": "Stack"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:7879",
+        "properties": {
+          "Align": {
+            "prop": "align",
+            "values": {
+              "start": "start",
+              "center": "center",
+              "end": "end",
+              "stretch": "stretch",
+              "baseline": "baseline"
+            }
+          }
+        }
       }
     },
     "Switch": {
@@ -358,6 +987,40 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Switch"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:4605",
+        "properties": {
+          "Checked": {
+            "prop": "checked",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Default checked": {
+            "prop": "defaultChecked",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Label placement": {
+            "prop": "labelPlacement",
+            "values": {
+              "end": "end",
+              "start": "start"
+            }
+          },
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md"
+            }
+          }
         }
       }
     },
@@ -367,6 +1030,10 @@
           "package": "@bridge-ds/react",
           "export": "Table"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:4774"
       }
     },
     "Tabs": {
@@ -374,6 +1041,26 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "Tabs"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:4841",
+        "properties": {
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md"
+            }
+          },
+          "Variant": {
+            "prop": "variant",
+            "values": {
+              "underline": "underline",
+              "contained": "contained"
+            }
+          }
         }
       }
     },
@@ -383,6 +1070,26 @@
           "package": "@bridge-ds/react",
           "export": "Tag"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:5079",
+        "properties": {
+          "Default selected": {
+            "prop": "defaultSelected",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          },
+          "Tone": {
+            "prop": "tone",
+            "values": {
+              "neutral": "neutral",
+              "signal": "signal"
+            }
+          }
+        }
       }
     },
     "Textarea": {
@@ -391,6 +1098,39 @@
           "package": "@bridge-ds/react",
           "export": "Textarea"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:5119",
+        "properties": {
+          "Appearance": {
+            "prop": "appearance",
+            "values": {
+              "field": "field",
+              "inline": "inline"
+            }
+          },
+          "Autosize": {
+            "prop": "autosize",
+            "values": {
+              "true": true,
+              "false": false
+            }
+          },
+          "Show count": {
+            "prop": "showCount",
+            "values": {
+              "false": false,
+              "true": true
+            }
+          }
+        }
+      }
+    },
+    "Toast": {
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:5148"
       }
     },
     "TokenValue": {
@@ -398,6 +1138,19 @@
         "import": {
           "package": "@bridge-ds/react",
           "export": "TokenValue"
+        }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "2:5268",
+        "properties": {
+          "Size": {
+            "prop": "size",
+            "values": {
+              "sm": "sm",
+              "md": "md"
+            }
+          }
         }
       }
     },
@@ -407,6 +1160,10 @@
           "package": "@bridge-ds/react",
           "export": "Tooltip"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:7941"
       }
     },
     "VisuallyHidden": {
@@ -415,6 +1172,10 @@
           "package": "@bridge-ds/react",
           "export": "VisuallyHidden"
         }
+      },
+      "figma": {
+        "file": "IEhO7sznq4yr6X5iLqZqzz",
+        "node": "19:7949"
       }
     }
   }

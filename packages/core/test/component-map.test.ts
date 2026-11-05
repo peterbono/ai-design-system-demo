@@ -98,13 +98,14 @@ describe('bridge.components.json', () => {
     expect(componentMapLines(bad)[0]).toBe('component map: bridge.components.json is invalid');
   });
 
-  it("this repository's starter map is valid, names Library components only and invents no Figma side", () => {
+  it("this repository's map is valid and names Library components only, each linked to the team's Figma file", () => {
     const text = readFileSync(join(__dirname, '../../..', COMPONENT_MAP_FILE), 'utf8');
     const map = parseComponentMap(text);
     expect(serializeComponentMap(map)).toBe(text);
     for (const [name, e] of Object.entries(map.components)) {
-      expect(e.figma, name).toBeUndefined();
-      expect(e.code?.import).toEqual({ package: '@bridge-ds/react', export: name });
+      expect(e.figma?.file, name).toBe('IEhO7sznq4yr6X5iLqZqzz');
+      // Toast is called through useToast: nothing named Toast to import.
+      if (name !== 'Toast') expect(e.code?.import).toEqual({ package: '@bridge-ds/react', export: name });
     }
   });
 });
