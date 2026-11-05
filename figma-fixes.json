@@ -342,6 +342,33 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "ButtonGroup",
+      "height": "fixed",
+      "id": "buttongroup-vertical-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The vertical group is taller in Figma than the stacked buttons the code renders, so the root takes the measured story height.",
+      "where": {
+        "args": {
+          "orientation": "vertical"
+        }
+      }
+    },
+    {
+      "by": "claude",
+      "component": "ButtonGroup",
+      "id": "buttongroup-horizontal-status",
+      "kind": "status",
+      "reason": "Horizontal groups match the code on every measured value but up to 37 percent of pixels differ, likely the button labels, fills or their placement inside the row: compare the footer and attached shots with the Figma render by eye.",
+      "status": "differs",
+      "where": {
+        "args": {
+          "orientation": "horizontal"
+        }
+      }
     }
   ]
 }
