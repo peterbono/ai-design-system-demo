@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Tabs",
+      "id": "tabs-pixel-status",
+      "kind": "status",
+      "reason": "Every measured value matches the code but about 60 percent of pixels differ on the vertical variants and 26 to 31 percent on the horizontal ones, likely the tab list layout (vertical tabs side by side with the panel in code), the selected indicator or the panel content: check the vertical layout first, then compare the shots with the Figma render by eye.",
+      "status": "differs"
     }
   ]
 }
