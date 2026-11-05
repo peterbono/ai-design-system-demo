@@ -3,6 +3,7 @@
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { forgetAiToolsRead } from '../../../scripts/ai-tools';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { ExplorationPage, type ExplorationPageProps } from './ExplorationPage';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
@@ -47,8 +48,10 @@ const paint = (over: Partial<ExplorationPageProps> = {}) => render(createElement
 
 afterEach(() => {
   cleanup();
-  // The last tab and the AI tools are this browser's: each test starts without them.
+  // The last tab and the AI tools are this browser's: each test starts without them. The read of the tools is kept
+  // once per page: the one of an earlier test would otherwise answer here, with no tools.
   localStorage.clear();
+  forgetAiToolsRead();
 });
 
 describe('the Continue panel shows only the viewer\'s own AI tools', () => {
