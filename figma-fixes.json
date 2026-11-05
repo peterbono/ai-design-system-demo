@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Form",
+      "id": "form-draw",
+      "kind": "status",
+      "reason": "The form is 18 px shorter in Figma and the fields sit higher than in code, so a root height alone does not move it: rework the field spacing in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
