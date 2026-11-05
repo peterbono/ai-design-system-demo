@@ -92,34 +92,6 @@
     },
     {
       "by": "claude",
-      "component": "CheckboxGroup",
-      "height": 115,
-      "id": "checkboxgroup-root-height",
-      "kind": "part",
-      "part": "root",
-      "reason": "The vertical group is 115 px tall in code, with its description shown.",
-      "where": {
-        "args": {
-          "orientation": "vertical"
-        }
-      }
-    },
-    {
-      "by": "claude",
-      "component": "CheckboxGroup",
-      "height": 83,
-      "id": "checkboxgroup-horizontal-height",
-      "kind": "part",
-      "part": "root",
-      "reason": "The horizontal group is 83 px tall in code, with its description shown.",
-      "where": {
-        "args": {
-          "orientation": "horizontal"
-        }
-      }
-    },
-    {
-      "by": "claude",
       "component": "CodeBlock",
       "id": "codeblock-label-text",
       "kind": "part",
@@ -342,6 +314,29 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "CheckboxGroup",
+      "height": "fixed",
+      "id": "checkboxgroup-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The group height follows each story's label, description and error in code, so Figma takes each story's measured height."
+    },
+    {
+      "by": "claude",
+      "component": "CheckboxGroup",
+      "height": "fixed",
+      "id": "checkboxgroup-horizontal-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The horizontal group is 118 px tall in code with its description shown, so Figma takes the story's measured height.",
+      "where": {
+        "args": {
+          "orientation": "horizontal"
+        }
+      }
     }
   ]
 }
