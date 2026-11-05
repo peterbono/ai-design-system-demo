@@ -99,3 +99,5 @@ export * from './requester';
 export * from './activity';
 export * from './build-requests';
 export * from './build-requests-github';
+export * from './figma-file';
+export * from './component-map';

@@ -550,6 +550,8 @@ describe('an email member connects Claude with their Bridge sign-in (no GitHub)'
     }
     const lib = await (await mcpPost(w, t.body.access_token, rpc(3, 'bridge_open_library_branch', {}))).json();
     expect(lib.error.message).toBe(LIBRARY_LEADS_WORDS);
+    const map = await (await mcpPost(w, t.body.access_token, rpc(4, 'bridge_propose_component_map', { components: [{ name: 'Button', key: 'k' }] }))).json();
+    expect(map.error.message).toBe(LIBRARY_LEADS_WORDS);
     expect(w.mcpSeen.length).toBe(seen);
     expect(EMAIL_REFUSED_TOOLS).toContain('bridge_scaffold_component');
     expect(EMAIL_REFUSED_TOOLS).not.toContain('bridge_start_exploration');

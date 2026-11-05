@@ -6,6 +6,7 @@
 
 import { ConfigError, defineConfig, loadConfig, tokensPath, CONFIG_FILE, DEFAULT_CHANGES_MODE, DEFAULT_OVERRIDE, type BridgeConfig, type BridgeConfigInput, type ChangesMode, type DemoConfig } from './config';
 import { scanComponents, parseComponentFamilies, type ScannedComponent } from './component-scan';
+import { COMPONENT_MAP_FILE, readComponentMap, type ComponentMapFile } from './component-map';
 import { parseComponentSpecs, type ComponentSpecsFile, type SpecCoverage } from './component-spec';
 import { evaluateContrastPairs, parseContrastSpecs, type ContrastPairResult, type ContrastPairSpec } from './contrast-model';
 import { globToRegExp, selectTokenFiles } from './layered';
@@ -60,6 +61,8 @@ export interface SiteRepo {
   tooling?: ToolingConfig;
   /** A public demo's persona (config "demo"), when set. */
   demo?: DemoConfig;
+  /** The team's Figma file (config "figma"), when set. */
+  figma?: { file: string };
 }
 
 type LegacyRaw = { owner?: unknown; defaultBranch?: unknown; owners?: { design?: string[]; tech?: string[] }; governance?: { owners?: unknown } } | null | undefined;
@@ -92,6 +95,7 @@ export function siteRepoFromConfig(
     changes: config.changes ?? DEFAULT_CHANGES_MODE,
     ...(config.tooling ? { tooling: { paths: [...config.tooling.paths], ...(config.tooling.scopes ? { scopes: [...config.tooling.scopes] } : {}) } } : {}),
     ...(config.demo ? { demo: { ...config.demo } } : {}),
+    ...(config.figma ? { figma: { file: config.figma.file } } : {}),
     ...(config.name ? { name: config.name } : {}),
   };
 }
@@ -220,6 +224,11 @@ export interface RepoModel {
     globs: string[];
     vars: Record<string, string[]>;
   };
+  /**
+   * The component map (bridge.components.json): each Library component's Figma component and code. Null when the repo
+   * has none or it is invalid (the reason is in `problems`). Absent from a model built before Bridge read it.
+   */
+  componentMap?: ComponentMapFile | null;
   specs: {
     path: string;
     /** Parsed component-specs.json, null when missing or of another version. */
@@ -293,7 +302,7 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
   const specsPath = comps.specs ?? REPO_MODEL_DEFAULTS.componentSpecs;
   const indexPath = comps.index ?? (parentDir(comps.dir) ? `${parentDir(comps.dir)}/index.ts` : 'index.ts');
   let compFiles: string[] = [];
-  const codeRead: string[] = [specsPath];
+  const codeRead: string[] = [specsPath, COMPONENT_MAP_FILE];
   const docsRead: string[] = [];
   if (options.components !== false) {
     compFiles = await source.list(comps.dir);
@@ -410,6 +419,9 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     }
   }
 
+  const mapRead = readComponentMap(readMore(COMPONENT_MAP_FILE));
+  problems.push(...mapRead.problems.map((p) => `${COMPONENT_MAP_FILE}: ${p}`));
+
   return {
     ref: source.ref,
     configText,
@@ -420,6 +432,7 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     contrast: { path: contrastPath, specs, pairs },
     components,
     styles: { globs: listedStyles.globs, vars: styleVars },
+    componentMap: mapRead.map,
     specs: { path: specsPath, file: specsFile, coverage },
   };
 }

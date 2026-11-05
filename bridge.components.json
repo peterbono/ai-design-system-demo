@@ -1,0 +1,421 @@
+{
+  "version": 1,
+  "components": {
+    "Accordion": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Accordion"
+        }
+      }
+    },
+    "Alert": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Alert"
+        }
+      }
+    },
+    "AlertDialog": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "AlertDialog"
+        }
+      }
+    },
+    "Avatar": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Avatar"
+        }
+      }
+    },
+    "Badge": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Badge"
+        }
+      }
+    },
+    "Banner": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Banner"
+        }
+      }
+    },
+    "Breadcrumb": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Breadcrumb"
+        }
+      }
+    },
+    "Button": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Button"
+        }
+      }
+    },
+    "ButtonGroup": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "ButtonGroup"
+        }
+      }
+    },
+    "Card": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Card"
+        }
+      }
+    },
+    "Checkbox": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Checkbox"
+        }
+      }
+    },
+    "CheckboxGroup": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "CheckboxGroup"
+        }
+      }
+    },
+    "Checklist": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Checklist"
+        }
+      }
+    },
+    "ChoiceCard": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "ChoiceCard"
+        }
+      }
+    },
+    "CodeBlock": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "CodeBlock"
+        }
+      }
+    },
+    "Combobox": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Combobox"
+        }
+      }
+    },
+    "Container": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Container"
+        }
+      }
+    },
+    "Dialog": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Dialog"
+        }
+      }
+    },
+    "Divider": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Divider"
+        }
+      }
+    },
+    "Drawer": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Drawer"
+        }
+      }
+    },
+    "EmptyState": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "EmptyState"
+        }
+      }
+    },
+    "Field": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Field"
+        }
+      }
+    },
+    "Form": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Form"
+        }
+      }
+    },
+    "Grid": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Grid"
+        }
+      }
+    },
+    "Icon": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Icon"
+        }
+      }
+    },
+    "IconButton": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "IconButton"
+        }
+      }
+    },
+    "Inline": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Inline"
+        }
+      }
+    },
+    "Input": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Input"
+        }
+      }
+    },
+    "Kbd": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Kbd"
+        }
+      }
+    },
+    "Link": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Link"
+        }
+      }
+    },
+    "Menu": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Menu"
+        }
+      }
+    },
+    "NumberField": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "NumberField"
+        }
+      }
+    },
+    "PageHeader": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "PageHeader"
+        }
+      }
+    },
+    "Pagination": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Pagination"
+        }
+      }
+    },
+    "Popover": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Popover"
+        }
+      }
+    },
+    "Progress": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Progress"
+        }
+      }
+    },
+    "RadioGroup": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "RadioGroup"
+        }
+      }
+    },
+    "SegmentedControl": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "SegmentedControl"
+        }
+      }
+    },
+    "Select": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Select"
+        }
+      }
+    },
+    "SidebarNav": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "SidebarNav"
+        }
+      }
+    },
+    "Skeleton": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Skeleton"
+        }
+      }
+    },
+    "Slider": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Slider"
+        }
+      }
+    },
+    "Spinner": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Spinner"
+        }
+      }
+    },
+    "Stack": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Stack"
+        }
+      }
+    },
+    "Switch": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Switch"
+        }
+      }
+    },
+    "Table": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Table"
+        }
+      }
+    },
+    "Tabs": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Tabs"
+        }
+      }
+    },
+    "Tag": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Tag"
+        }
+      }
+    },
+    "Textarea": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Textarea"
+        }
+      }
+    },
+    "TokenValue": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "TokenValue"
+        }
+      }
+    },
+    "Tooltip": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "Tooltip"
+        }
+      }
+    },
+    "VisuallyHidden": {
+      "code": {
+        "import": {
+          "package": "@bridge-ds/react",
+          "export": "VisuallyHidden"
+        }
+      }
+    }
+  }
+}

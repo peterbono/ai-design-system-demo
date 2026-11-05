@@ -16,6 +16,7 @@ import * as studio from './studio.js';
 import * as pieces from './pieces.js';
 import * as figma from './figma.js';
 import * as figmaFixes from './figma-fixes.js';
+import * as componentMap from './component-map.js';
 import * as suggestions from './suggestions.js';
 import { whoami } from './whoami.js';
 import * as claudeDesign from './claude-design.js';
@@ -254,7 +255,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     'bridge_list_components',
     {
       title: 'List components',
-      description: 'List design system components with family and one-line summary (what it is for). Use before building UI: prefer an existing component over new markup. For a claude.ai artifact or any page that cannot install npm packages, call bridge_get_claude_design_system and load the Library from its base URL; never invent token values.',
+      description: 'List design system components with family, one-line summary (what it is for) and figma: the Figma component and its link, or "not linked to Figma yet". Use before building UI: prefer an existing component over new markup. For a claude.ai artifact or any page that cannot install npm packages, call bridge_get_claude_design_system and load the Library from its base URL; never invent token values.',
       inputSchema: { family: z.string().optional().describe('Storybook family, e.g. Forms, Overlays.'), withSummaries: z.boolean().optional().describe('Default true locally, false remotely (fewer requests).') },
       annotations: RO,
     },
@@ -265,7 +266,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     'bridge_get_component',
     {
       title: 'Get component',
-      description: 'One component: props parsed from TypeScript (type, default, description, allowed values), usage docs (summary, whenToUse, whenNotToUse, dos/donts with examples, accessibility, contentGuidelines, anatomy), CSS variables it uses, and story names. For a claude.ai artifact or any page that cannot install npm packages, call bridge_get_claude_design_system and load the Library from its base URL; never invent token values.',
+      description: 'One component: props parsed from TypeScript (type, default, description, allowed values), usage docs (summary, whenToUse, whenNotToUse, dos/donts with examples, accessibility, contentGuidelines, anatomy), CSS variables it uses, story names, and figma: its Figma component and link from bridge.components.json, or "not linked to Figma yet". For a claude.ai artifact or any page that cannot install npm packages, call bridge_get_claude_design_system and load the Library from its base URL; never invent token values.',
       inputSchema: { name: z.string().describe('Component name, e.g. Button.'), include: z.array(z.string()).optional().describe('Keep only these docs keys, e.g. ["whenToUse","accessibility"].') },
       annotations: RO,
     },
@@ -1010,6 +1011,27 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
       annotations: WRITE,
     },
     run((a) => figmaFixes.proposeFigmaFixesOp(ctx, { ...a, source: 'mcp' })),
+  );
+
+  const FigmaProperty = z.object({ type: z.string().optional().describe('VARIANT, BOOLEAN, TEXT or INSTANCE_SWAP.'), values: z.array(z.string()).optional().describe('Variant options.'), variantOptions: z.array(z.string()).optional() });
+  server.registerTool(
+    'bridge_propose_component_map',
+    {
+      title: 'Link components to Figma',
+      description: `Proposes bridge.components.json entries that link Library components to their Figma components, and opens them for review like other Bridge changes (a suggestion, or a draft pull request in direct mode; never main). Read the Figma side first with the Figma connector: open the team\'s Figma file (bridge_get_config, figma.file) and list its components and component sets with their keys, node ids and variant properties. Matches by name, then by variant properties; ambiguous matches are listed, never guessed, and links a person already made are kept. dryRun shows the file and the matches. Only when the person asked.`,
+      inputSchema: {
+        components: z
+          .array(z.object({ name: z.string().min(1), key: z.string().optional().describe('Component or component set key.'), node: z.string().optional().describe('Node id, like "12:34".'), file: z.string().optional(), type: z.string().optional().describe('COMPONENT or COMPONENT_SET.'), properties: z.record(z.string(), FigmaProperty).optional().describe('Figma property name -> definition, as componentPropertyDefinitions.') }))
+          .min(1)
+          .describe('The Figma components and component sets read from the team\'s file. Variants ("Size=sm") are skipped.'),
+        file: z.string().optional().describe('The Figma file link or key. Default: figma.file of bridge.config.json.'),
+        summary: z.string().optional().describe('One sentence for the reviewer. No em dash.'),
+        dryRun: z.boolean().optional(),
+        changes: ChangesArg,
+      },
+      annotations: WRITE,
+    },
+    run((a) => componentMap.proposeComponentMapOp(ctx, { ...a, source: 'mcp' })),
   );
 
   server.registerTool(

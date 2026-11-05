@@ -323,8 +323,9 @@ describe('bridge snapshot', () => {
     expect(llms).toContain('### Button');
     expect(llms).not.toContain('\u2014');
     // component-specs.json is over 1 MB; the snapshot carries its coverage only.
-    // About 0.9 MB of files the model reads, plus 0.15 MB of releases, packages and motion (2026-10).
-    expect(res.bytes).toBeLessThan(1_250_000);
+    // About 0.9 MB of files the model reads (the component map included, 2026-11), plus 0.15 MB of releases, packages
+    // and motion (2026-10).
+    expect(res.bytes).toBeLessThan(1_300_000);
     expect(res.summary.contrast.failing).toBe(0);
     expect(res.summary.components).toBeGreaterThan(20);
     expect(res.summary.figma?.inFigma).toBeGreaterThan(20);

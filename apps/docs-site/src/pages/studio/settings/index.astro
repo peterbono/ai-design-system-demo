@@ -21,7 +21,9 @@
 //                 bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no tier
 //                 numbers), and that token values ship once the look is approved and the automatic checks pass (TV-1).
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
-//   Figma and Claude, then Integrations (Jira, only with JIRA_IN_BRIDGE: off for the MVP), then Your AI tools (the person's own, components/ds/studio/AiToolsSetting.tsx),
+//   Figma and Claude: the team's Figma file (bridge.config.json `figma.file`, a lead or an admin sets it, a review is
+//                 requested on a branch; components/ds/studio/FigmaFileSetting.tsx), the Figma plugin, your own Claude.
+//   Then Integrations (Jira, only with JIRA_IN_BRIDGE: off for the MVP), then Your AI tools (the person's own, components/ds/studio/AiToolsSetting.tsx),
 //   then Appearance: light or dark, a preference of this browser,
 //   not a team rule (components/ds/studio/AppearanceSetting.tsx).
 //   Settings speak designer words (lib/vocabulary): no developer section; the repository, branch, file and keys behind
@@ -60,6 +62,7 @@ import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSec
 import ClaudeConnector from '../../../components/ds/studio/ClaudeConnector';
 import GitHubUsage from '../../../components/ds/studio/GitHubUsage';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
+import FigmaFileSetting from '../../../components/ds/studio/FigmaFileSetting';
 import { TEAM_NAME_WORDS } from '../../../lib/team-name';
 import '../../../styles/team-access.css';
 import { JIRA_IN_BRIDGE } from '../../../lib/studio-flags';
@@ -373,6 +376,7 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
         <p class="set-intro">Work on the library from Figma or from your own Claude.</p>
       </div>
       <div class="set-band-body">
+        <FigmaFileSetting client:only="react" prefix={config.governance?.branchPrefix ?? ''} protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']} />
         <Card>
           <CardBody>
             <div class="set-rows">

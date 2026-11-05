@@ -737,6 +737,15 @@
         }
       }
     },
+    "figma": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file"],
+      "description": "The team's Figma file: where the design system lives in Figma. Set from Studio, Settings, Figma file. Claude reads it (bridge_get_config) to find the Figma components to link in bridge.components.json.",
+      "properties": {
+        "file": { "type": "string", "minLength": 1, "description": "A link to the file (https://www.figma.com/design/<key>/...) or its key. A branch link names the branch." }
+      }
+    },
     "demo": {
       "type": "object",
       "additionalProperties": false,
