@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Breadcrumb",
+      "id": "breadcrumb-hover-status",
+      "kind": "status",
+      "reason": "On hover every measured value matches the code but 7 percent of pixels differ, likely the hover color or underline of a crumb: compare the shot with the Figma render by eye.",
+      "status": "differs"
     }
   ]
 }
