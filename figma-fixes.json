@@ -89,6 +89,15 @@
         }
       },
       "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "TableEmpty",
+      "height": 83,
+      "id": "tableempty-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The empty state is 83 px tall in code where Figma draws it 85 px tall."
     }
   ]
 }
