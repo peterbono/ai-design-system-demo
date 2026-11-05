@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { nameFace } from './people';
 import type { BranchCommitLike } from '@bridge-ds/core';
 import {
+  canPutInFigma,
   canRunCheck,
   activityRows,
   avatarOf,
@@ -380,5 +381,29 @@ describe('the library check runs on its own', () => {
     expect(canRunCheck(base)).toBe(false);
     expect(canRunCheck({ ...base, github: true, direct: false })).toBe(false);
     expect(canRunCheck({ ...base, emailInCopy: true, emailOnProduct: true })).toBe(false);
+  });
+});
+
+describe('canPutInFigma', () => {
+  const v = { figmaFile: 'AbCdEf0123456789', demo: false, archived: false, status: 'active', memberRole: null, designer: false, reviewer: false, write: true };
+  it('needs the team\'s Figma file and someone who can edit', () => {
+    expect(canPutInFigma(v)).toBe(true);
+    expect(canPutInFigma({ ...v, figmaFile: null })).toBe(false);
+    expect(canPutInFigma({ ...v, figmaFile: '  ' })).toBe(false);
+    expect(canPutInFigma({ ...v, write: false })).toBe(false);
+    expect(canPutInFigma({ ...v, write: null, designer: true })).toBe(true);
+    expect(canPutInFigma({ ...v, write: false, reviewer: true })).toBe(true);
+  });
+  it('email members: Can edit and Admin, never Reader', () => {
+    expect(canPutInFigma({ ...v, write: null, memberRole: 'edit' })).toBe(true);
+    expect(canPutInFigma({ ...v, write: null, memberRole: 'admin' })).toBe(true);
+    expect(canPutInFigma({ ...v, write: true, memberRole: 'view' })).toBe(false);
+  });
+  it('not on the sample team, archived, shipped or closed', () => {
+    expect(canPutInFigma({ ...v, demo: true })).toBe(false);
+    expect(canPutInFigma({ ...v, archived: true })).toBe(false);
+    expect(canPutInFigma({ ...v, status: 'shipped' })).toBe(false);
+    expect(canPutInFigma({ ...v, status: 'closed' })).toBe(false);
+    expect(canPutInFigma({ ...v, status: 'ready' })).toBe(true);
   });
 });

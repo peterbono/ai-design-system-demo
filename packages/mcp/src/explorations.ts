@@ -65,6 +65,7 @@ import {
   whereItStands,
   EXPLORATION_STATUS_LABEL,
   explorationSlugFromBranch,
+  figmaPageLink,
   mergeExplorationNotes,
   explorationNotePathOf,
   noteFileOf,
@@ -685,6 +686,7 @@ export function saveFilesOf(files: SaveFileInput[]): CommitFile[] {
  */
 export async function saveExploration(ctx: BridgeContext, a: { ref: string; message: string; files?: SaveFileInput[] | undefined; notes?: NotesUpdate | undefined }) {
   const withNotes = !updateEmpty(a.notes);
+  if (a.notes?.figmaPage !== undefined && !figmaPageLink(a.notes.figmaPage)) throw new Error('notes.figmaPage takes the figma.com link of the page.');
   // Notes alone are a save too (a decision taken, an edge case covered): the files then may be none.
   const files = withNotes && !a.files?.length ? [] : saveFilesOf(a.files ?? []);
   const message = a.message.trim();

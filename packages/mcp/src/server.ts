@@ -17,6 +17,7 @@ import * as pieces from './pieces.js';
 import * as figma from './figma.js';
 import * as figmaFixes from './figma-fixes.js';
 import * as componentMap from './component-map.js';
+import * as explorationFigma from './exploration-figma.js';
 import * as suggestions from './suggestions.js';
 import { whoami } from './whoami.js';
 import * as claudeDesign from './claude-design.js';
@@ -119,6 +120,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
         'Components from Figma: the DS Bridge plugin sends a component changed in Figma to a library branch. Token swaps go as exact token changes; new variants, properties and components go to a branch carrying the spec, waiting for an AI to draft the code. When the person asks you to draft one, bridge_figma_changes lists them and bridge_get_figma_change gives the spec and the steps; write the code on that branch, push it, then bridge_mark_figma_change_drafted. Never claim a branch is drafted before its code is pushed.',
         'Fix with Claude: when a component built in Figma differs from its story, you are the team\'s AI and Bridge is the referee. bridge_figma_gaps lists them, bridge_get_gap_case gives one gap case and the fix schema, bridge_try_figma_fix checks fixes on the measured values (at most 3 rounds per component), bridge_propose_figma_fixes opens them for review; a component that will not come closer gets a status fix (Differs or Can\'t check, with the reason), never Matches. A request naming several components ("Fix these 31 components in Figma with Bridge: ...", or "Fix every component that differs", which bridge_figma_gaps lists) means all of them: work through them one at a time, proposing each component\'s fixes before starting the next so the designer sees them arrive, and do not stop after the first. Every component asked about ends with bridge_propose_figma_fixes: its fixes, or a status fix whose reason tells the designer, in their words, what to do (parts missing in Figma, which no fix can draw: "The indicator is missing in Figma: draw it in the component, then compare with code again."). The designer\'s plugin shows only what Bridge records: a reason said in this chat alone never reaches it. The plugin\'s Check fidelity (the story shots) decides after the next pull.',
         `Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. When a designer says they want to explore something, start one with bridge_start_exploration right away, named from their words, without asking for a purpose or a brief: for a product with its own repository it is created there, and the library comes as the npm package. bridge_list_explorations lists them. When the person says "Continue Bridge exploration #n" (or shop#n, or names one), call bridge_continue_exploration with that ref: it switches the checkout to its branch when safe and says where it stands; start your answer with that, in one or two plain sentences, then ask what to do next. At the start of a session, call bridge_list_explorations with mine: true once; if the person has explorations running, mention them in one line (names and refs) and offer to continue one. Say it once, never again in the session, and nothing when there are none. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it. ${explorations.SAVE_RULE} ${CHANGE_MARKER_RULE} An exploration is a living prototype: when the person says they are done exploring, call bridge_promote_exploration ("Done exploring") with the pieces they picked; it hands the branch to the developers and never closes it. bridge_archive_exploration hides one from the lists while its preview stays alive.`,
+        'Explorations in Figma: when the person says put or send this exploration in Figma (or Studio\'s line "Put Bridge exploration #12 in Figma"), call bridge_exploration_to_figma, then build it yourself with your Figma connector, following the recipe it returns, in a new page of the team\'s Figma file with real component instances. Bridge never writes to Figma and holds no Figma token. End by giving the page link and the gaps (substitutions, components with no link, what could not be expressed) in plain words, and save the link as it says.',
         ...(ctx.product ? [`This session runs inside the "${ctx.product}" product repository, connected to this design system (.bridge/product.json): new explorations are for ${ctx.product}, "#12" means ${ctx.product}#12, and bridge_continue_exploration switches this checkout to the exploration branch when nothing is uncommitted. Exploring needs no brief; at the end the designer picks the pieces the library should get.`] : []),
         ...(excluded.has('bridge_merge_branch') ? ['On this server you never merge: bridge_merge_branch is not available here. When a branch is ready, say so; a person merges it from Bridge Studio or GitHub.'] : []),
       ].join(' '),
@@ -774,6 +776,20 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
   );
 
   server.registerTool(
+    'bridge_exploration_to_figma',
+    {
+      title: 'Put an exploration in Figma',
+      description:
+        'What Claude needs to rebuild an exploration in a new page of the team\'s Figma file, when the person says put or send this exploration in Figma (Studio\'s line: "Put Bridge exploration shop#12 in Figma"). Reads only: Bridge never writes to Figma and holds no Figma token. You build it afterwards with your own Figma connector (use_figma, Plugin API). Returns the Figma file (or, when the team has none, a sentence for the designer pointing to Settings, Figma file), the page name, the source of the changed screens, each Library component they use with its bridge.components.json link (node, key when known, property map, how to reach it), components with no link, the product\'s own components, the preview to look at, which ids work in which file, the recipe and the gaps to report. End with the page link and the gaps; save the link with bridge_save_exploration notes.figmaPage while it is still being explored. For Can edit and Admin, email members included.',
+      inputSchema: {
+        exploration: z.string().min(1).describe('Its ref (admin-app#1, #12), the whole "Put Bridge exploration #12 in Figma" line, a name, explore/<name> branch or pull request link.'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    run((a) => explorationFigma.explorationToFigma(ctx, { ref: a.exploration })),
+  );
+
+  server.registerTool(
     'bridge_save_exploration',
     {
       title: 'Save to the exploration',
@@ -811,6 +827,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
             openQuestions: z.array(z.string()).optional().describe('New questions nobody answered yet. Added to the list.'),
             answeredQuestions: z.array(z.string()).optional().describe('Open questions now answered: taken out of the list (add the answer to decisions).'),
             nextStep: z.string().optional().describe('Where the next person starts, in one or two plain sentences. Replaces the old next step.'),
+            figmaPage: z.string().optional().describe('The figma.com link of the page built from this exploration (bridge_exploration_to_figma). Studio links to it. Replaces the old link.'),
           })
           .optional()
           .describe('The exploration\'s notes ("Where it stands"), merged into it in the same save.'),
@@ -1039,10 +1056,10 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     'bridge_propose_component_map',
     {
       title: 'Link components to Figma',
-      description: `Proposes bridge.components.json entries that link Library components to their Figma components, and opens them for review like other Bridge changes (a suggestion, or a draft pull request in direct mode; never main). Read the Figma side first with the Figma connector: open the team\'s Figma file (bridge_get_config, figma.file) and list its components and component sets with their keys, node ids and variant properties. Matches by name, then by variant properties; ambiguous matches are listed, never guessed, and links a person already made are kept. dryRun shows the file and the matches. Only when the person asked.`,
+      description: `Proposes bridge.components.json entries that link Library components to their Figma components, and opens them for review like other Bridge changes (a suggestion, or a draft pull request in direct mode; never main). Read the Figma side first with the Figma connector: open the team\'s Figma file (bridge_get_config, figma.file) and list its components and component sets with their node ids and variant properties, and their keys whenever your connector gives them (.key in the Plugin API): without a key, a link only works inside that same Figma file. Matches by name, then by variant properties; ambiguous matches are listed, never guessed, and links a person already made are kept. dryRun shows the file and the matches. Only when the person asked.`,
       inputSchema: {
         components: z
-          .array(z.object({ name: z.string().min(1), key: z.string().optional().describe('Component or component set key.'), node: z.string().optional().describe('Node id, like "12:34".'), file: z.string().optional(), type: z.string().optional().describe('COMPONENT or COMPONENT_SET.'), properties: z.record(z.string(), FigmaProperty).optional().describe('Figma property name -> definition, as componentPropertyDefinitions.') }))
+          .array(z.object({ name: z.string().min(1), key: z.string().optional().describe('Component or component set key. Send it when your connector gives it: only a key reaches the component from another file.'), node: z.string().optional().describe('Node id, like "12:34".'), file: z.string().optional(), type: z.string().optional().describe('COMPONENT or COMPONENT_SET.'), properties: z.record(z.string(), FigmaProperty).optional().describe('Figma property name -> definition, as componentPropertyDefinitions.') }))
           .min(1)
           .describe('The Figma components and component sets read from the team\'s file. Variants ("Size=sm") are skipped.'),
         file: z.string().optional().describe('The Figma file link or key. Default: figma.file of bridge.config.json.'),

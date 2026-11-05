@@ -242,7 +242,7 @@ export function ToolPanel({ tools, tab, setTab, chosen, lines, setup, onCopy, sa
  * The tool's button. The Claude app opens Claude (the connector gate first while the viewer's Claude has no Bridge);
  * the terminal and Copilot copy the line and say where to paste it.
  */
-export function ToolAction({ tool, line, onCopy, say, variant, claudeLink, connectorAddress, onClaudeConnected, children, size = 'lg' }: { tool: AiTool; line: string; onCopy: (text: string) => Promise<void>; say: (s: string) => void; variant: 'primary' | 'secondary'; claudeLink?: ClaudeLink; connectorAddress?: string; onClaudeConnected?: () => void; children?: string; size?: 'md' | 'lg' }) {
+export function ToolAction({ tool, line, onCopy, say, variant, claudeLink, connectorAddress, onClaudeConnected, children, size = 'lg' }: { tool: AiTool; line: string; onCopy: (text: string) => Promise<void>; say: (s: string) => void; variant: 'primary' | 'secondary' | 'ghost'; claudeLink?: ClaudeLink; connectorAddress?: string; onClaudeConnected?: () => void; children?: string; size?: 'md' | 'lg' }) {
   const [asking, setAsking] = useState(false);
   const label = children ?? ACTION_LABEL[tool];
   const open = tool === 'claude-app';

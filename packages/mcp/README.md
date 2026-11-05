@@ -45,7 +45,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 
 <!-- tools:start (generated from the server: npm run readme:tools -w @bridge-ds/mcp) -->
 
-80 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
+81 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
 
 | Tool | Access | What it does |
 | --- | --- | --- |
@@ -64,6 +64,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_create_request` | writes | File a component change request as a GitHub issue labeled component-change (source: mcp), in the same format as Figma and Bridge Studio requests. |
 | `bridge_create_suggestion` | writes | File any change as a suggestion from its payload (schema bridge.suggestion/1: kind, title, summary, and tokens edits, docs, componentSpec or files). |
 | `bridge_draft_docs` | reads | Start or refresh a component's docs.json. |
+| `bridge_exploration_to_figma` | reads | What Claude needs to rebuild an exploration in a new page of the team's Figma file, when the person says put or send this exploration in Figma (Studio's line: "Put Bridge exploration shop#12 in Figma"). |
 | `bridge_figma_changes` | reads | The library branches the DS Bridge Figma plugin opened for components changed in Figma (label from-figma), with where each stands: an exact token change (no AI, contrast gated), or a branch carrying the spec, waiting for Claude AI to draft the code, then drafted by Claude AI and reviewed by a person. |
 | `bridge_figma_coverage` | reads | Which components are in Figma, in Studio's words (Yes, Drafted, Auto layout, Not yet with the reason), and whether code images exist for the fidelity check the DS Bridge Figma plugin runs (its scores live in Figma). |
 | `bridge_figma_gaps` | reads | The components whose Figma build differs from their story (Differs) or cannot be checked (Can't check, with the reason), from the latest Check fidelity run of the DS Bridge plugin (the story shots are the referee), else from the measure's own check; a status fix in figma-fixes.json shows with its reason. |

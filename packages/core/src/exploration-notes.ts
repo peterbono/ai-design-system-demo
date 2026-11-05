@@ -70,7 +70,16 @@ export interface ExplorationNotes {
   edgeCases: EdgeCase[];
   openQuestions: string[];
   nextStep: string;
+  /** The page Claude built from this exploration in the team's Figma file ("## In Figma"), once there is one. */
+  figmaPage?: string | undefined;
 }
+
+/** The note file's own heading for the Figma page: not one of the five sections, a link rather than something to edit. */
+const FIGMA_PAGE_HEADING = 'In Figma';
+const FIGMA_PAGE_LINK = /https:\/\/(?:www\.)?figma\.com\/\S+/;
+
+/** The Figma link a text holds, or null. */
+export const figmaPageLink = (text: string | null | undefined): string | null => FIGMA_PAGE_LINK.exec(text ?? '')?.[0] ?? null;
 
 /**
  * What a save or an edit changes. Every field is optional: a section left out stays as it is. Text sections
@@ -86,6 +95,8 @@ export interface NotesUpdate {
   openQuestions?: readonly string[] | undefined;
   answeredQuestions?: readonly string[] | undefined;
   nextStep?: string | undefined;
+  /** The link of the page Claude built in Figma. Replaces the old link. */
+  figmaPage?: string | undefined;
 }
 
 /** A section of the note file as written: its heading line, its section when it is one of the five, its body. */
@@ -314,7 +325,11 @@ const textOf = (body: string): string => {
 export function parseExplorationNotes(md: string | null | undefined): ExplorationNotes {
   const notes: ExplorationNotes = { context: '', decisions: [], edgeCases: [], openQuestions: [], nextStep: '' };
   for (const s of split(md ?? '').sections) {
-    if (!s.key) continue;
+    if (!s.key) {
+      const page = s.heading.replace(/^##\s+/, '').trim().toLowerCase() === FIGMA_PAGE_HEADING.toLowerCase() ? figmaPageLink(s.body) : null;
+      if (page) notes.figmaPage = page;
+      continue;
+    }
     if (s.key === 'context') notes.context = [notes.context, textOf(s.body)].filter(Boolean).join('\n\n');
     else if (s.key === 'nextStep') notes.nextStep = [notes.nextStep, textOf(s.body)].filter(Boolean).join('\n\n');
     else if (s.key === 'edgeCases') notes.edgeCases.push(...edgeCasesOf(s.body));
@@ -477,6 +492,12 @@ export function mergeExplorationNotes(md: string | null | undefined, update: Not
     if (update.answeredQuestions?.length) s.body = removeItems(s.body, update.answeredQuestions);
   }
   if (named(update.nextStep)) section('nextStep').body = trimBlank(clean(update.nextStep!).trim());
+  const page = figmaPageLink(update.figmaPage);
+  if (page) {
+    const at = f.sections.find((s) => !s.key && s.heading === `## ${FIGMA_PAGE_HEADING}`);
+    if (at) at.body = page;
+    else f.sections.push({ heading: `## ${FIGMA_PAGE_HEADING}`, key: null, body: page });
+  }
   // A section emptied by the update keeps its heading only while a person's own text is elsewhere in it: an empty one goes.
   f.sections = f.sections.filter((s) => !s.key || s.body.trim() || !named(updateOf(update, s.key)));
   return join(f);
@@ -518,7 +539,7 @@ const updateOf = (u: NotesUpdate, key: NoteSection): unknown => (key === 'openQu
 
 /** True when the update names nothing. */
 export const updateEmpty = (u: NotesUpdate | null | undefined): boolean =>
-  !u || (u.context === undefined && u.nextStep === undefined && u.decisions === undefined && u.edgeCases === undefined && u.openQuestions === undefined && !u.answeredQuestions?.length);
+  !u || (u.context === undefined && u.nextStep === undefined && u.decisions === undefined && u.edgeCases === undefined && u.openQuestions === undefined && !u.answeredQuestions?.length && u.figmaPage === undefined);
 
 /**
  * The spec developers get on Done exploring, from the notes: the decisions, the edge cases (covered or still open)

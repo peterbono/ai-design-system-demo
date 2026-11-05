@@ -25,6 +25,7 @@ const TOOLS = [
   'bridge_create_request',
   'bridge_create_suggestion',
   'bridge_draft_docs',
+  'bridge_exploration_to_figma',
   'bridge_figma_changes',
   'bridge_figma_coverage',
   'bridge_figma_gaps',

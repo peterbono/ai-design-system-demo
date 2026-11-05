@@ -213,6 +213,15 @@ export function figmaLinkOf(map: ComponentMapFile | null | undefined, name: stri
   return { name: f.name?.trim() || id!, url: figmaFileUrl(file.key, f.node), file: file.key, ...(f.key ? { key: f.key } : {}), ...(f.node ? { node: f.node } : {}) };
 }
 
+/**
+ * How a Figma file reaches a linked component: `node` (getNodeByIdAsync, in the file that holds it, nothing else),
+ * `key` (imported from a published Library, the only way from another file), or `none` (another file and no key).
+ */
+export function figmaReach(link: Pick<FigmaLink, 'file' | 'key' | 'node'>, fileKey: string): 'node' | 'key' | 'none' {
+  if (link.file === fileKey && link.node) return 'node';
+  return link.key ? 'key' : 'none';
+}
+
 /** What an agent reads for a component with no Figma link. */
 export const NOT_LINKED_TO_FIGMA = 'not linked to Figma yet';
 

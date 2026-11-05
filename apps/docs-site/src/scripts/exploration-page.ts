@@ -9,9 +9,10 @@
 // reviews once the developers started), and the library part. A product exploration never checked against the
 // library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
 // viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { archiveExplorationOnGitHub, branchPreviewUrl, EXPLORATION_PREFIX, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { archiveExplorationOnGitHub, branchPreviewUrl, EXPLORATION_PREFIX, figmaLines, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
+  canPutInFigma,
   canRunCheck,
   reopenedOf,
   buildersOf,
@@ -57,6 +58,7 @@ import { canKeepExploration, keepExplorationLine, productKeeperLine, startedByDe
 import type { ExplorationPageProps } from '../components/ds/studio/ExplorationPage';
 import { askDoneExploring } from './exploration-done';
 import { explorationsConfig } from './exploration-start';
+import { siteConfig } from './repo-context';
 import { changedFiles, namesOf, pieceActions, pieceActor, previewSources, productPreviewOf, readView, withToolbar } from './product-branch';
 import { productClient, productRepoByKey } from './product-repos';
 import { bringLatestIntoExploration, copyRepos, explorationBehind } from './design-copy';
@@ -258,6 +260,11 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const isLibrary = !own && product.default === true;
   const handedOff = handedOffHere(r);
   const lines = pageLines({ number: r.number, name: r.name, productName: product.name, product: own?.product.key, repo: own?.repo });
+  // "Put in Figma": for who can edit, only when the team has a Figma file (Bridge's rule: a fact goes to who can act on it).
+  const figmaLine = (status: string) =>
+    canPutInFigma({ figmaFile: (siteConfig() as { figma?: { file?: string } }).figma?.file, demo: sampleVisitor(), archived: Boolean(r.archived), status, memberRole: member?.role, designer, reviewer: viewerRole() === 'reviewer', write: currentAccess()?.write })
+      ? figmaLines({ number: r.number, name: r.name, product: own?.product.key, repo: own?.repo })
+      : null;
   let reported: Awaited<ReturnType<typeof previewSources>> = null;
   current = {
     key,
@@ -269,6 +276,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       author: faceOf(r.author, false, { ...knownNamesOf([r.author]), ...emailAuthorName(r.author, pull.body) }),
       startedTail: startedTail(product.name, startedAtOf(pull.body, pull.created_at)),
       lines,
+      figma: figmaLine(r.status),
       todayUrl: null,
       headline: null,
       previewUrl: null,
@@ -536,6 +544,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     plate,
     ...shotProps,
     activity: handoffActivity({ commits, author: r.author, startedAt: startedAtOf(pull.body, pull.created_at), doneBy: doneLogin, doneAt, designAnswer: answer?.login ? answer : null, names: allNames }),
+    figma: figmaLine(status),
     // Shipped: the product itself, where it lives now.
     ...(status === 'shipped' ? { previewUrl: todayUrl, tryUrl: null, previewNote: null, previewBuilding: false } : {}),
     handoff: {

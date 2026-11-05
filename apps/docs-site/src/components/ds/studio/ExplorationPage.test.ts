@@ -676,3 +676,56 @@ describe('Where it stands on the page', () => {
     expect(screen.queryByRole('heading', { name: 'Where it stands' })).toBeNull();
   });
 });
+
+describe('Put in Figma', () => {
+  const exploring: Partial<ExplorationPageProps> = { stage: 'exploring', previewUrl: 'https://preview.example.com', activity: [] };
+  const figma = { app: 'Put Bridge exploration admin-app#1 "Orders" in Figma.', terminal: 'claude "Put Bridge exploration admin-app#1 in Figma"' };
+  const notes = (figmaPage?: string) => ({ notes: { context: '', decisions: [], edgeCases: [], openQuestions: [], nextStep: '', ...(figmaPage ? { figmaPage } : {}) } });
+
+  it('no Figma file or no right to edit (no line): no button', () => {
+    paint(exploring);
+    expect(screen.queryByText('Put in Figma')).toBeNull();
+    expect(screen.queryByRole('link', { name: /See it in Figma/ })).toBeNull();
+  });
+
+  it('opens a new Claude conversation with the line, and copies it', async () => {
+    const onCopy = vi.fn(async () => {});
+    paint({ ...exploring, figma, onCopy, claudeLink: 'yes' });
+    const link = await screen.findByRole('link', { name: /Put in Figma/ });
+    expect(link.getAttribute('href')).toBe(`https://claude.ai/new?q=${encodeURIComponent(figma.app)}`);
+    await act(async () => {
+      fireEvent.click(link);
+    });
+    expect(onCopy).toHaveBeenCalledWith(figma.app);
+  });
+
+  it('asks to connect Claude first while its Claude has no Bridge', async () => {
+    paint({ ...exploring, figma, claudeLink: 'no' });
+    expect(await screen.findByRole('button', { name: /Put in Figma/ })).toBeTruthy();
+  });
+
+  it('in the design copy: still goes to the Claude app, never Claude Code', async () => {
+    paint({ ...exploring, figma, claudeCodeUrl: 'https://claude.ai/code?repo=x' });
+    expect((await screen.findByRole('link', { name: /Put in Figma/ })).getAttribute('href')).toContain('claude.ai/new?q=');
+  });
+
+  it('once Claude recorded the page: the link, for everyone, and the action says again', async () => {
+    paint({ ...exploring, figma, notes: notes('https://www.figma.com/design/x/?node-id=24-5') });
+    expect((await screen.findByRole('link', { name: /See it in Figma/ })).getAttribute('href')).toBe('https://www.figma.com/design/x/?node-id=24-5');
+    expect(screen.getByRole('link', { name: /Put in Figma again/ })).toBeTruthy();
+    cleanup();
+    paint({ ...exploring, notes: notes('https://www.figma.com/design/x/?node-id=24-5') });
+    expect(screen.getByRole('link', { name: /See it in Figma/ })).toBeTruthy();
+    expect(screen.queryByText(/Put in Figma/)).toBeNull();
+  });
+
+  it('archived: nothing offers it', () => {
+    paint({ ...exploring, figma, archived: true, notes: notes() });
+    expect(screen.queryByText('Put in Figma')).toBeNull();
+  });
+
+  it('a page with the action has no axe violations', async () => {
+    const { container } = paint({ ...exploring, figma, notes: notes() });
+    await expectNoAxeViolations(container);
+  });
+});
