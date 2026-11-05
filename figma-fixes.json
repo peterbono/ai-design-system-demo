@@ -342,6 +342,28 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Progress/Circular",
+      "height": "fixed",
+      "id": "progress-circular-lg-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The large circular progress is 56 px tall in code but 100 px in Figma, so the root keeps the measured height.",
+      "where": {
+        "args": {
+          "size": "lg"
+        }
+      }
+    },
+    {
+      "by": "claude",
+      "component": "Progress/Circular",
+      "id": "progress-circular-pixel-status",
+      "kind": "status",
+      "reason": "The sm and md variants match the code on every measured value but 8 to 12 percent of pixels differ, likely the ring stroke, arc length or the label text: compare the shots with the Figma render by eye.",
+      "status": "differs"
     }
   ]
 }
