@@ -1992,7 +1992,7 @@ function viewPull(): View {
             ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
             : 'First time in this file: Bridge adds its variables and components.',
         art: 'tokens',
-      }), claudeRunsGroup(), howUpdatesWork(!!init.sync.baseSha), compareBlock(), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]])],
+      }), compareBlock(), claudeRunsGroup(), howUpdatesWork(!!init.sync.baseSha), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]])],
       // Pull is getting updates: its one action. Comparing with code is its own block, with its own button.
       bar: { label: 'Check for updates', onClick: checkPull },
     };
@@ -2910,10 +2910,14 @@ function claudeRunsGroup(): Child {
   const item = (r: (typeof rows)[number]) => h('li', { class: 'row review' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, r.name)), claudePanel(r.name));
   const open = rows.filter((r) => !FINISHED_ROWS.includes(r.kind));
   const done = rows.filter((r) => FINISHED_ROWS.includes(r.kind));
+  // Rows Claude left unfinished are asked again from the comparison, where Ask Claude to fix all lists them.
+  const again = rows.some((r) => ASK_AGAIN_ROWS.includes(r.kind))
+    ? h('button', { class: 'btn', 'data-focus-id': 'claude-ask-again', disabled: !!state.busy, onClick: () => void checkFidelityAnywhere() }, 'Compare and ask again')
+    : null;
   return group(
     "Claude's fixes",
     rows.length,
-    null,
+    again,
     fixRowsSummary(rows),
     [
       open.length ? rowList('claude-fixes', open.map(item), 8) : null,
