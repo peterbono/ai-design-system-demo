@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "SegmentedControl",
+      "id": "segmentedcontrol-draw",
+      "kind": "status",
+      "reason": "The strong stories show 4 to 7 segments in code where Figma draws only 2, and the 1 px width gaps follow the segment labels: draw the extra segments in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
