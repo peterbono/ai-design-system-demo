@@ -89,7 +89,8 @@ describe('bridge_exploration_to_figma', () => {
     expect(r.gaps.join(' ')).toContain('StatCard');
     const recipe = r.recipe.join(' ');
     for (const word of ['figma.createPage()', 'setCurrentPageAsync', 'getNodeByIdAsync', 'createInstance()', 'then set FILL', 'loadFontAsync', 'closest variant', 'child.visible = false', '1440', 'Never touch the page that holds the components']) expect(recipe).toContain(word);
-    expect(r.previewNote).toMatch(/visual reference/);
+    expect(r.previewNote).toMatch(/never invent content/);
+    expect(recipe).toContain('Never make up realistic data');
     expect(r.next).toContain('bridge_save_exploration');
     // Reads only, and only the design team's copy: the developers' repository is never read for the exploration.
     expect(copy.log.filter((l) => l.method !== 'GET').length).toBe(before);

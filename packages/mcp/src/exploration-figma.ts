@@ -110,6 +110,8 @@ function screensOf(files: readonly { path: string; before: string | null; after:
 /** The recipe a manual run proved, for one page of the team's file. */
 export function figmaRecipe(page: string): string[] {
   return [
+    'Content: use the names, figures, dates and labels the preview shows, word for word. Never make up realistic data or a chart shape: what you could not read stays a plain placeholder (Customer name, $0, an empty chart area), and your report says so.',
+    'A Card or slot that takes a single text: make a small local component on this page and swap it into the slot, built from Library pieces first. Say which ones in your report.',
     `Page: \`const page = figma.createPage(); page.name = ${JSON.stringify(page)}\`, then \`await figma.setCurrentPageAsync(page)\` once. If a page already has that name, add " (2)": never reuse or edit an older page. Never touch the page that holds the components.`,
     'Components: for "node id", `await figma.getNodeByIdAsync(node)`. For "key", `await figma.importComponentSetByKeyAsync(key)`, or `importComponentByKeyAsync` for a single component. On a COMPONENT_SET pick a variant by parsing the `Prop=value` pairs of each child\'s name, then `createInstance()`; a COMPONENT is instantiated as it is.',
     'Layout: a root frame 1440 wide with a white fill, auto layout frames inside. Append a child to its auto layout frame first, then set FILL.',
@@ -200,7 +202,7 @@ export async function explorationToFigma(ctx: BridgeContext, a: { ref: string })
     page,
     ...(notes?.figmaPage ? { alreadyInFigma: notes.figmaPage } : {}),
     preview,
-    previewNote: 'The preview is the visual reference: the source alone does not show the data, spacing or states on screen. Look at it when you can. If you cannot open it, build from the source and say so in your report.',
+    previewNote: 'The preview is the reference for what the screen shows: the source alone does not hold its data, spacing or states. Open it first. If you cannot read it, never invent content: build from the source with plain placeholders and say so at the top of your report.',
     screens,
     components: linked,
     notLinked,
