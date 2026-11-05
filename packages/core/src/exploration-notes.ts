@@ -11,8 +11,10 @@
 // Claude adds to them with each save (bridge_save_exploration `notes`), Studio's exploration page shows and edits
 // them, Claude reads them first when it continues one, and Done exploring hands the decisions and edge cases to the
 // developers as the spec. The rules below are pure: a parser tolerant of old notes (only Bridge's marker text, no
-// headings) and of hand-written text, and a writer that merges an update section by section, keeping everything a
-// person wrote that the update does not name, in place, with its own words.
+// headings) and of hand-written text (numbered lists, heading words singular or plural, "Component, state: covered"
+// lines: it never drops a word), a writer that merges an update section by section, keeping everything a person
+// wrote that the update does not name, in place, with its own words, and a normalizer that rewrites a note file an
+// AI tool wrote itself in this format, so Studio and the next person read a clean file.
 import { EXPLORATION_PREFIX, explorationNotePath, explorationSlugFromBranch } from './explorations';
 
 /** The five sections, in the order a note shows them. */
@@ -35,12 +37,16 @@ const ALIASES: Record<string, NoteSection> = {
   decisions: 'decisions',
   decision: 'decisions',
   'decisions taken': 'decisions',
+  'decisions made': 'decisions',
   'edge cases': 'edgeCases',
   'edge case': 'edgeCases',
+  'edge-cases': 'edgeCases',
+  'edge-case': 'edgeCases',
   states: 'edgeCases',
   'open questions': 'openQuestions',
   'open question': 'openQuestions',
   questions: 'openQuestions',
+  question: 'openQuestions',
   'next step': 'nextStep',
   'next steps': 'nextStep',
   next: 'nextStep',
@@ -97,10 +103,19 @@ interface NoteFile {
 
 const H2 = /^##\s+(.+?)\s*#*\s*$/;
 const H3 = /^###\s+(.+?)\s*#*\s*$/;
-const BULLET = /^\s{0,3}[-*+]\s+(.*)$/;
+/** A list item: "-", "*" or "+" bullets and numbered items ("1." or "1)"). */
+const BULLET = /^\s{0,3}(?:[-*+]|\d{1,3}[.)])\s+(.*)$/;
 const CHECK = /^\[( |x|X)\]\s*(.*)$/;
 
-const keyOf = (heading: string): NoteSection | null => ALIASES[heading.trim().replace(/:$/, '').trim().toLowerCase()] ?? null;
+const keyOf = (heading: string): NoteSection | null =>
+  ALIASES[
+    heading
+      .replace(/[*_`]/g, '')
+      .trim()
+      .replace(/[\s:.?]+$/, '')
+      .replace(/\s+/g, ' ')
+      .toLowerCase()
+  ] ?? null;
 
 /** Words compared without case, spacing or end punctuation: "Keep the width." matches "keep the width". */
 export const sameWords = (a: string, b: string): boolean => norm(a) === norm(b);
@@ -143,7 +158,15 @@ function itemsOf(body: string): string[] {
     para = [];
   };
   for (const line of body.split('\n')) {
-    if (/^\s*(```|~~~)/.test(line) || H3.test(line)) continue;
+    if (/^\s*(```|~~~)/.test(line)) continue;
+    const h = H3.exec(line);
+    if (h) {
+      // A subheading a person used to group the list: kept as a line of its own, never lost.
+      flush();
+      out.push(h[1]!.trim());
+      inItem = false;
+      continue;
+    }
     const b = BULLET.exec(line);
     if (b) {
       flush();
@@ -171,40 +194,121 @@ function stateAndNote(text: string): { state: string; note?: string } {
 
 const GENERAL = 'General';
 
+/** Words that say whether a case is covered, as people (and AI tools) write them after the state. */
+const STATUS = '(not yet covered|not covered|uncovered|covered|not done|done|to do|todo|missing|yes|no|ok)';
+const coveredWord = (w: string) => /^(covered|done|yes|ok)$/i.test(w.trim());
+/** "State: covered. note", "State: no - note": the status word ends the state, then punctuation or the end. */
+const COLON_STATUS = new RegExp(`^(.+?)\\s*:\\s*${STATUS}(?:\\s*$|\\s*[.,;:!]\\s*|\\s+[-–]\\s+)(.*)$`, 'i');
+/** "State (covered) note". */
+const PAREN_STATUS = new RegExp(`^(.+?)\\s*\\(${STATUS}\\)\\s*[.,;:]?\\s*(?:[-–]\\s+)?(.*)$`, 'i');
+/** A covered or open mark some tools write instead of a checkbox. */
+const MARK = /^(✅|✔️?|☑️?|❌|✖️?|⬜|☐)\s*/u;
+
+const unbold = (s: string) => s.replace(/\*\*|__/g, '').trim();
+
+/**
+ * One edge case line, in any of the forms people and AI tools write:
+ *   under "### Button":  "- [x] Loading: spinner"      "- Loading: covered. spinner"     "- Loading (covered) spinner"
+ *   under no component:  "- [x] Button / Loading: spinner"  "- [x] Button: loading, spinner"
+ *                        "- Button, loading: covered|not covered|yes|no. note"   "- Button / loading (covered) note"
+ * A line Bridge cannot split keeps all its words as the state, so nothing is lost.
+ */
+function edgeCaseOf(raw: string, heading: string | null): EdgeCase | null {
+  let text = raw.trim();
+  let checked: boolean | null = null;
+  const c = CHECK.exec(text);
+  if (c) {
+    checked = c[1]!.toLowerCase() === 'x';
+    text = c[2]!.trim();
+  }
+  const mark = MARK.exec(text);
+  if (mark) {
+    checked ??= /✅|✔|☑/u.test(mark[1]!);
+    text = text.slice(mark[0].length).trim();
+  }
+  if (!text) return null;
+  let head: string;
+  let note: string | undefined;
+  let status: boolean | null = null;
+  // A checkbox already says it: the words after it are the state and its note, as Bridge writes them ("- [x] Empty: done").
+  const st = checked === null ? (PAREN_STATUS.exec(text) ?? COLON_STATUS.exec(text)) : null;
+  if (st) {
+    head = st[1]!.trim();
+    status = coveredWord(st[2]!);
+    note = st[3]!.trim() || undefined;
+  } else {
+    const sn = stateAndNote(text);
+    head = sn.state;
+    note = sn.note;
+  }
+  let component = heading ?? GENERAL;
+  let state = head;
+  const comma = /^(.+?)\s*,\s*(.+)$/.exec(head);
+  const slash = /^(.+?)\s*\/\s*(.+)$/.exec(head);
+  if (heading) {
+    // "- Button, loading: covered" under "### Button": the component said twice.
+    const named = comma ?? slash;
+    if (named && sameWords(unbold(named[1]!), heading)) state = named[2]!;
+  } else if (slash) [component, state] = [slash[1]!, slash[2]!];
+  else if (st && comma) [component, state] = [comma[1]!, comma[2]!];
+  else if (!st && checked !== null && note) {
+    // "- [x] Button: loading, spinner kept": the component, then the state and its note after a comma.
+    const sc = /^(.+?)\s*,\s*(.+)$/.exec(note);
+    [component, state, note] = sc ? [head, sc[1]!, sc[2]!] : [component, state, note];
+  }
+  component = unbold(component).replace(/:$/, '') || GENERAL;
+  state = unbold(state);
+  if (!state) return null;
+  return { component, state, covered: status ?? checked ?? false, ...(note?.trim() ? { note: note.trim() } : {}) };
+}
+
 /** The edge cases of the Edge cases section: "### Component" groups lines "- [x] State: note" ([ ] or none: not covered). */
 function edgeCasesOf(body: string): EdgeCase[] {
   const out: EdgeCase[] = [];
-  let component = GENERAL;
+  let heading: string | null = null;
   let last: EdgeCase | null = null;
+  let fence = false;
   for (const line of body.split('\n')) {
-    const h = H3.exec(line);
+    if (/^\s*(```|~~~)/.test(line)) {
+      fence = !fence;
+      continue;
+    }
+    const h = fence ? null : H3.exec(line);
     if (h) {
-      component = h[1]!.trim().replace(/:$/, '');
+      heading = unbold(h[1]!.trim().replace(/:$/, '')) || null;
       last = null;
       continue;
     }
-    const b = BULLET.exec(line);
+    if (!line.trim()) continue;
+    const b = fence ? null : BULLET.exec(line);
     if (b) {
-      const c = CHECK.exec(b[1]!.trim());
-      const text = (c ? c[2]! : b[1]!).trim();
-      if (!text) continue;
-      // "- Button / Loading: note" or "- Button, loading: note" under no component heading.
-      const sn = stateAndNote(text);
-      let comp = component;
-      let state = sn.state;
-      if (component === GENERAL) {
-        const slash = /^(.+?)\s*\/\s*(.+)$/.exec(sn.state);
-        if (slash) [comp, state] = [slash[1]!.trim(), slash[2]!.trim()];
-      }
-      last = { component: comp, state, covered: c ? c[1]!.toLowerCase() === 'x' : false, ...(sn.note ? { note: sn.note } : {}) };
-      out.push(last);
-    } else if (last && /^\s+\S/.test(line)) last.note = `${last.note ? `${last.note} ` : ''}${line.trim()}`;
-    else if (line.trim()) last = null;
+      last = edgeCaseOf(b[1]!, heading);
+      if (last) out.push(last);
+    } else if (last) {
+      // A line under a case (indented or not): more of its note, never dropped.
+      last.note = `${last.note ? `${last.note} ` : ''}${line.trim()}`;
+    } else {
+      // Text before any case: read as a case of its own, so it stays visible.
+      last = edgeCaseOf(line, heading);
+      if (last) out.push(last);
+    }
   }
   return out;
 }
 
-const textOf = (body: string) => body.trim();
+/** A text section (context, next step) without the list marks an AI tool may put in front of its lines. */
+const textOf = (body: string): string => {
+  let fence = false;
+  return body
+    .split('\n')
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+      return fence ? line : line.replace(/^\s{0,3}(?:[-*+]|\d{1,3}[.)])\s+(?:\[( |x|X)\]\s*)?/, '');
+    })
+    .join('\n')
+    .trim();
+};
+
 
 /** The notes of a note file, tolerant of old notes (only the marker text: every section empty) and of hand-written text. */
 export function parseExplorationNotes(md: string | null | undefined): ExplorationNotes {
@@ -286,32 +390,37 @@ function upsertEdgeCases(body: string, cases: readonly EdgeCase[]): string {
   for (const raw of cases) {
     const e: EdgeCase = { component: oneLine(raw.component) || GENERAL, state: oneLine(raw.state), covered: Boolean(raw.covered), ...(raw.note?.trim() ? { note: oneLine(raw.note) } : {}) };
     if (!e.state) continue;
-    let component = GENERAL;
+    let heading: string | null = null;
     let found = -1;
+    let foundUnder: string | null = null;
+    let prev: EdgeCase | null = null;
     let groupEnd = -1;
     for (let i = 0; i < lines.length; i++) {
       const h = H3.exec(lines[i]!);
       if (h) {
-        component = h[1]!.trim().replace(/:$/, '');
+        heading = unbold(h[1]!.trim().replace(/:$/, '')) || null;
         continue;
       }
-      if (!sameWords(component, e.component)) continue;
       const b = BULLET.exec(lines[i]!);
       if (!b) continue;
-      groupEnd = i;
-      const c = CHECK.exec(b[1]!.trim());
-      const sn = stateAndNote((c ? c[2]! : b[1]!).trim());
-      if (sameWords(sn.state, e.state)) {
+      const ec = edgeCaseOf(b[1]!, heading);
+      if (!ec || !sameWords(ec.component, e.component)) continue;
+      // New lines only join a "### Component" group: under no heading they would read as General.
+      if (heading) groupEnd = i;
+      if (sameWords(ec.state, e.state)) {
         found = i;
+        foundUnder = heading;
+        prev = ec;
         break;
       }
     }
     if (found >= 0) {
       // A note left out keeps the one written before.
-      const prev = edgeCasesOf(`### ${e.component}\n${lines[found]}`)[0];
       let end = found + 1;
       while (end < lines.length && /^\s+\S/.test(lines[end]!) && !BULLET.test(lines[end]!)) end++;
-      lines.splice(found, end - found, edgeCaseLine({ ...e, note: e.note ?? prev?.note }));
+      const block = edgeCasesOf([...(foundUnder ? [`### ${foundUnder}`] : []), ...lines.slice(found, end)].join('\n'))[0] ?? prev;
+      const line = edgeCaseLine({ ...e, note: e.note ?? block?.note });
+      lines.splice(found, end - found, foundUnder ? line : line.replace(/^(- \[.\] )/, `$1${e.component} / `));
     } else if (groupEnd >= 0) {
       let at = groupEnd + 1;
       while (at < lines.length && /^\s+\S/.test(lines[at]!) && !BULLET.test(lines[at]!)) at++;
@@ -371,6 +480,38 @@ export function mergeExplorationNotes(md: string | null | undefined, update: Not
   // A section emptied by the update keeps its heading only while a person's own text is elsewhere in it: an empty one goes.
   f.sections = f.sections.filter((s) => !s.key || s.body.trim() || !named(updateOf(update, s.key)));
   return join(f);
+}
+
+/**
+ * The note file rewritten in Bridge's own format, for a note file an AI tool or a person wrote by hand (numbered
+ * lists, "Component, state: covered" lines, "Open question" headings...): the five sections get their own headings
+ * and one line per item, edge cases grouped under "### Component" as "- [x] State: note". Everything else stays as
+ * written: the title, the purpose and Bridge's marker text above the sections, sections Bridge does not know. Every
+ * word of the five sections is kept (parseExplorationNotes never drops text). Writing it twice changes nothing more.
+ * `previous`: the note file before; when the new one starts straight with the sections, its title, purpose and
+ * Bridge's marker text are kept on top.
+ */
+export function normalizeExplorationNotes(md: string | null | undefined, opts: { previous?: string | null | undefined } = {}): string {
+  const f = split(md ?? '');
+  if (!f.sections.some((s) => s.key)) return md ?? '';
+  if (!f.preamble.trim() && opts.previous) f.preamble = split(opts.previous).preamble;
+  const n = parseExplorationNotes(md);
+  const bodies: Record<NoteSection, string> = {
+    context: trimBlank(clean(n.context).trim()),
+    decisions: listBody(n.decisions),
+    edgeCases: edgeCasesBody(n.edgeCases),
+    openQuestions: listBody(n.openQuestions),
+    nextStep: trimBlank(clean(n.nextStep).trim()),
+  };
+  const canonical = NOTE_SECTIONS.filter((k) => bodies[k]).map((k): RawSection => ({ heading: `## ${NOTE_HEADINGS[k]}`, key: k, body: bodies[k] }));
+  // The five fill the places they held, in the stable order; sections Bridge does not know stay where they were.
+  const out: RawSection[] = [];
+  let next = 0;
+  for (const s of f.sections) {
+    if (!s.key) out.push(s);
+    else if (next < canonical.length) out.push(canonical[next++]!);
+  }
+  return join({ preamble: f.preamble, sections: out });
 }
 
 const updateOf = (u: NotesUpdate, key: NoteSection): unknown => (key === 'openQuestions' ? (u.openQuestions ?? (u.answeredQuestions?.length ? [] : undefined)) : u[key]);

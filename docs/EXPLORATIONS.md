@@ -238,7 +238,11 @@ are replaced, `answeredQuestions` takes questions out of Open questions.
 
 - **Claude.** `bridge_save_exploration` takes an optional `notes` (any of `context`, `decisions`, `edgeCases`,
   `openQuestions`, `answeredQuestions`, `nextStep`) merged into the note file in the same commit; `files` may be left
-  out to save notes alone. Its description tells Claude to update the notes with each save, in plain words.
+  out to save notes alone. Its description tells Claude to update the notes with each save, in plain words, and
+  never to write the note file itself. When an AI tool sends the note file in `files` anyway, Bridge parses it
+  (numbered or `*` lists, heading words singular or plural, "Component, state: covered. note" lines and the other
+  common forms, never dropping a word) and rewrites it in the format above in the same commit, title and marker text
+  kept, `notes` merged in when given too.
   `bridge_continue_exploration` returns `notes` (the five sections, their counts, `empty`) and tells Claude to read them
   first, keep the decisions taken and start from the next step. On the hosted connector this works for email members
   with Can edit too: the note file is a design file in the library and a sandbox file in a design copy, on their own
