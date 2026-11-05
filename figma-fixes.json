@@ -89,6 +89,15 @@
         }
       },
       "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "Form",
+      "height": 302,
+      "id": "form-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The form is 302 px tall in code where Figma draws it 284 px tall."
     }
   ]
 }
