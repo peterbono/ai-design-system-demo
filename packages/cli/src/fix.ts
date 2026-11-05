@@ -92,6 +92,8 @@ export async function fixLoop(ctx: BridgeContext, a: { component: string; ask: F
   const f = a.files ?? {};
   const kase = await figmaFixes.getGapCaseOp(ctx, { component: a.component, ...f });
   const gap: GapCase = kase.gap;
+  // The file was not pulled from the measure: no fix would reach it, the sentence says what to do instead.
+  if (kase.status === 'other-source') return { status: 'nothing-to-fix' as const, summary: kase.say ?? gap.summary, rounds: [] as FixLoopRound[] };
   if (!gap.variants.length) return { status: 'nothing-to-fix' as const, summary: gap.summary, rounds: [] as FixLoopRound[] };
   const files = await figmaFixes.loadFixFiles(ctx, f);
   const input = { component: a.component, measured: files.measured, fixes: files.fixes, run: files.run };

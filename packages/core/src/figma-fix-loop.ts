@@ -37,6 +37,21 @@ export interface FigmaFidelityRun {
   figmaRenders?: Record<string, Record<string, string>> | undefined;
   /** measuredAt of the measured-specs.json the pull drew from. */
   measuredAt?: string | undefined;
+  /**
+   * The spec source the file's sets were pulled from. Only `measured-only` draws them from the measure with
+   * figma-fixes.json, as the gap case rebuilds them; undefined: a run saved before the plugin recorded it.
+   */
+  specSource?: 'static' | 'measured' | 'measured-only' | undefined;
+}
+
+/**
+ * A run from a file whose sets were not built from the measure (Spec source Static, or Measured over the static spec):
+ * the gap case would compare the measure's parts with layers drawn from component-specs.json, and figma-fixes.json
+ * does not reach that file. The sentence says so and how the designer moves the file onto the measure.
+ */
+export function runSourceNote(run: FigmaFidelityRun | undefined): string | undefined {
+  if (!run?.specSource || run.specSource === 'measured-only') return undefined;
+  return `This Figma file was pulled from component-specs.json (Spec source ${run.specSource === 'static' ? 'Static' : 'Static, with measured values'}), not from the measure: figma-fixes.json does not change it, and parts the static spec names differently read as missing. Do not propose fixes for it yet. In the DS Bridge Figma plugin, set Spec source to Automatic (Settings, For developers), Check for updates, then Compare with code again.`;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);

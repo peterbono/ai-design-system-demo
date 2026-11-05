@@ -137,7 +137,7 @@ test('spec source measured: the static specs with the measure laid on, and what 
   assert.equal(loaded.path, SPECS_PATH);
   assert.equal(loaded.measured?.matched, 1);
   const plain = await specSource().load(client, treeSha, config);
-  assert.deepEqual(plain, await loadComponentSpecs(client, treeSha, config));
+  assert.deepEqual(plain, { ...(await loadComponentSpecs(client, treeSha, config))!, source: 'static' });
   assert.equal(plain?.measured, undefined);
 });
 
@@ -169,7 +169,7 @@ test('the measure the automatic measure published on bridge-requests: read when 
   assert.equal((await readMeasure(own.client, own.treeSha))?.ref, undefined);
 });
 
-test('the setting: static stores nothing, measured round-trips, and turning it off clears it', () => {
+test('the setting: Automatic stores nothing, a choice round-trips, Static included', () => {
   const data = new Map<string, string>();
   const root: SharedStore = { get: (k) => data.get(k) ?? '', set: (k, v) => void data.set(k, v), keys: () => [...data.keys()] };
   const base = { repo: 'acme/ds', branch: 'main', tokensPath: 'tokens' };
@@ -179,6 +179,8 @@ test('the setting: static stores nothing, measured round-trips, and turning it o
   saveSettings(root, { ...base, specSource: 'measured' });
   assert.equal(sharedSettings(root).specSource, 'measured');
   saveSettings(root, { ...base, specSource: 'static' });
+  assert.equal(sharedSettings(root).specSource, 'static');
+  saveSettings(root, base);
   assert.equal(sharedSettings(root).specSource, undefined);
 });
 

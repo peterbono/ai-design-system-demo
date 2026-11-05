@@ -133,7 +133,7 @@ test('the spec source is static by default and reads what loadComponentSpecs rea
   const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
   const source = specSource();
   assert.equal(source.kind, 'static');
-  assert.deepEqual(await source.load(client, a.headFiles.treeSha, a.headFiles.config), await loadComponentSpecs(client, a.headFiles.treeSha, a.headFiles.config));
+  assert.deepEqual(await source.load(client, a.headFiles.treeSha, a.headFiles.config), { ...(await loadComponentSpecs(client, a.headFiles.treeSha, a.headFiles.config))!, source: 'static' });
 });
 
 test('bridge.config.json with components.specs of the wrong type: a readable error, not a crash', async () => {

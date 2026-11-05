@@ -23,6 +23,7 @@ import {
   FigmaFixesError,
   gapCaseFor,
   parseFidelityRun,
+  runSourceNote,
   parseFigmaFixes,
   parseMeasuredSpecsFile,
   protectedBranchesOf,
@@ -139,6 +140,8 @@ export async function figmaGapsOp(ctx: BridgeContext, a: FixFilesArgs = {}) {
   const fixed = files.fixes ? applyFixes(files.measured, files.fixes).file : files.measured;
   const gaps = figmaGaps(fixed, files.run);
   const differs = gaps.filter((g) => g.status === 'differs').length;
+  const sourceNote = runSourceNote(files.run);
+  if (sourceNote) return { referee: 'shots', report: files.runFrom, measured: files.measuredFrom, status: 'other-source', say: sourceNote, gaps, next: sourceNote };
   return {
     referee: files.run ? 'shots' : 'values',
     ...(files.runFrom ? { report: files.runFrom, checkedAt: files.run!.report.checkedAt || undefined } : { note: NO_RUN }),
@@ -180,7 +183,10 @@ export async function getGapCaseOp(ctx: BridgeContext, a: FixFilesArgs & { compo
   const used = roundsOf(ctx).get(lc(a.component)) ?? 0;
   // Parts missing in Figma: no fix draws them. The designer only sees what Bridge records, so the component ends with a
   // status fix that says so, never with a sentence in the chat alone.
-  const missing = missingParts(gap);
+  // A file pulled from another source than the measure: its layers are not what the case rebuilds, so no part reads as
+  // missing and no fix is asked for. The sentence says how the designer moves the file onto the measure.
+  const sourceNote = runSourceNote(files.run);
+  const missing = sourceNote ? [] : missingParts(gap);
   const statusFix = `{ "id": "${lc(gap.component)}-draw", "kind": "status", "component": "${gap.component}", "status": "differs", "reason": "${missingPartsReason(missing)}" }`;
   const drawNote = missing.length
     ? say(
@@ -191,13 +197,16 @@ export async function getGapCaseOp(ctx: BridgeContext, a: FixFilesArgs & { compo
     : '';
   return {
     gap,
+    ...(sourceNote ? { status: 'other-source' as const, say: sourceNote } : {}),
     ...(files.runFrom ? { report: files.runFrom } : { note: NO_RUN }),
     schema: FIX_SCHEMA_SUMMARY,
     docs: 'docs/FIGMA-FIXES.md',
     rounds: { used, max: FIX_LOOP_MAX_ROUNDS },
     /** Ids already in figma-fixes.json: a new fix takes another id, or the same id to replace that fix. */
     fixIds: (files.fixes?.fixes ?? []).map((f) => f.id),
-    next: gap.variants.length
+    next: sourceNote
+      ? sourceNote
+      : gap.variants.length
       ? say(
           ctx,
           `Write fixes for ${gap.component} only, from the part ids and deltas above, then bridge_try_figma_fix { component, fixes }. Keep a fix only when the try says closer; after ${FIX_LOOP_MAX_ROUNDS} rounds without closer, propose a status fix (Differs or Can't check, with the reason) instead.${drawNote}`,
