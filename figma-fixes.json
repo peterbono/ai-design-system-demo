@@ -229,6 +229,15 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "AccordionItem",
+      "height": "fixed",
+      "id": "accordionitem-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The closed item is 48 px tall in code, Figma reserved room for the panel below the header."
     }
   ]
 }
