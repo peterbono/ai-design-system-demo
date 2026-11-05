@@ -93,6 +93,22 @@ describe('bridge_get_gap_case', () => {
     expect(r.next).not.toMatch(/missing part/);
   });
 
+  it('a run from a file pulled from the static spec: says so, no fixes and no missing parts claimed', async () => {
+    const run = { ...JSON.parse(RUN), specSource: 'static' };
+    const { ro } = setup({ 'measured-specs.json': MEASURED_WITH_BOXES, 'figma-fidelity.json': JSON.stringify(run) });
+    const ctx = await ro();
+    const r = await figmaFixes.getGapCaseOp(ctx, { component: 'TextInput' });
+    expect(r).toMatchObject({ status: 'other-source' });
+    expect(r.next).toMatch(/^This Figma file was pulled from component-specs\.json \(Spec source Static\), not from the measure: figma-fixes\.json does not change it/);
+    expect(r.next).toMatch(/set Spec source to Automatic \(Settings, For developers\), Check for updates, then Compare with code again\.$/);
+    expect(r.next).not.toMatch(/bridge_try_figma_fix|missing part/);
+    const gaps = await figmaFixes.figmaGapsOp(ctx);
+    expect(gaps).toMatchObject({ status: 'other-source' });
+    // A run from a measured-only file reads as before.
+    const measuredRun = setup({ 'measured-specs.json': MEASURED_WITH_BOXES, 'figma-fidelity.json': JSON.stringify({ ...run, specSource: 'measured-only' }) });
+    expect((await figmaFixes.getGapCaseOp(await measuredRun.ro(), { component: 'TextInput' })).next).toMatch(/bridge_try_figma_fix/);
+  });
+
   it('parts missing in Figma: no fix draws them, the component ends with a status fix that says so', () => {
     const gap = { variants: [{ differences: [{ property: 'presence', actual: 'missing', partName: 'dot' }, { property: 'height', actual: 12, partName: 'component' }] }, { differences: [{ property: 'presence', actual: 'missing', partName: 'mark' }, { property: 'presence', actual: 'hidden', partName: 'label' }] }] };
     const parts = figmaFixes.missingParts(gap as never);

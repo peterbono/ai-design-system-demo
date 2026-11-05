@@ -77,6 +77,8 @@ interface PullState {
   measured?: MeasuredOverlayReport | undefined;
   /** Spec source Measured only: the sets built from the stories. */
   measuredOnly?: MeasuredOnlyReport | undefined;
+  /** The source the components were read from (Automatic resolved, or the developer's choice). */
+  specSource?: LoadedSpecs['source'];
   /** Measured only with screenshots: Check fidelity compares with the stories' renders (LoadedSpecs.shots). */
   shots?: LoadedSpecs['shots'];
   /** Measured only: figma-fixes.json laid on the measure (LoadedSpecs.fixes), and the measure the sets came from. */
@@ -847,9 +849,11 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   let fixes: LoadedSpecs['fixes'];
   let measure: LoadedSpecs['measure'];
   let specs: LoadedSpecs['specs'] | undefined;
+  let pulledFrom: LoadedSpecs['source'];
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
-    const loaded = await specSource(state.init!.settings.specSource).load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config, analysis.head);
+    const loaded = await specSource(state.init!.settings.specSource ?? 'auto').load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config, analysis.head);
+    pulledFrom = loaded?.source;
     measured = loaded?.measured;
     measuredOnly = loaded?.measuredOnly;
     shots = loaded?.shots;
@@ -862,7 +866,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
       const numbers = pushedNumbers(generated);
       const statuses = numbers.length ? await figmaPushStatusesOnGitHub(getClient(), numbers) : new Map<number, FigmaPushStatus>();
       inReview = pushedInReview(generated, statuses);
-      components = buildComponentPlan(loaded.specs, loaded.path, generated, analysis.head, { pushed: statuses });
+      components = buildComponentPlan(loaded.specs, loaded.path, generated, analysis.head, { pushed: statuses, specSource: loaded.source, unmarkedSource: state.init!.settings.specSource ?? 'static' });
     }
     const updated = components?.components.filter((c) => c.status === 'updated' && c.nodeId) ?? [];
     if (components && updated.length) {
@@ -899,6 +903,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     ...(fixes ? { fixes } : {}),
     ...(measure ? { measure } : {}),
     ...(specs ? { specs } : {}),
+    ...(pulledFrom ? { specSource: pulledFrom } : {}),
     before,
     after: prev?.after ?? {},
     done: prev?.done ?? new Map(),
@@ -2347,11 +2352,25 @@ function watchDrawings(): void {
   waiting.forEach((el) => drawObserver!.observe(el));
 }
 
+/** What the Spec source setting reads as. Undefined: no choice saved, Automatic. */
+function specSourceLabel(source: RepoSettings['specSource']): string {
+  return source === 'measured' ? 'Static, with measured values' : source === 'measured-only' ? 'Measured in Storybook only' : source === 'static' ? 'Static' : 'Automatic (measured when available)';
+}
+
+/** The sentence the update list says once when the file moves from the static spec to the measure. */
+const FOLLOWS_CODE_TEXT = 'Components now follow how they look in code, measured in Storybook.';
+
+/** Updates that move sets onto the measure (Automatic found one): the list says it once, not per row. */
+const followsCodeNow = (p: PullState) => p.components?.components.some((c) => c.status === 'updated' && c.sourceChanged?.to === 'measured-only') ?? false;
+
 /** Figma's "Review updates": one card per changed set, before and after, what changes, and "Update" on its own. */
 function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Component updates'): HTMLElement {
   const rows = reviews.map((r) => {
     const done = p.done.has(r.componentId);
-    const variants = [r.addedVariants.length ? `${r.addedVariants.length} new ${r.addedVariants.length === 1 ? 'variant' : 'variants'}` : '', r.removedVariants.length ? `${r.removedVariants.length} removed in code` : ''].filter(Boolean).join(', ');
+    // A set moving onto the measure renames its variants (the stories' axes): counting them as new and removed in code
+    // would say the code changed when it did not. The list's one sentence says what happens.
+    const moved = !!p.components?.components.find((c) => c.componentId === r.componentId)?.sourceChanged;
+    const variants = moved ? '' : [r.addedVariants.length ? `${r.addedVariants.length} new ${r.addedVariants.length === 1 ? 'variant' : 'variants'}` : '', r.removedVariants.length ? `${r.removedVariants.length} removed in code` : ''].filter(Boolean).join(', ');
     return h(
       'li',
       { class: 'row review' },
@@ -2374,7 +2393,11 @@ function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Componen
     title,
     reviews.length,
     null,
-    title === 'Component updates' ? 'Changed in code since your last pull. Update one at a time, or all of them with Update all. Instances keep their overrides.' : 'Updated in place: same layers, so instances keep their overrides.',
+    title === 'Component updates'
+      ? followsCodeNow(p)
+        ? `${FOLLOWS_CODE_TEXT} Update one at a time, or all of them with Update all. Layers you added stay.`
+        : 'Changed in code since your last pull. Update one at a time, or all of them with Update all. Instances keep their overrides.'
+      : 'Updated in place: same layers, so instances keep their overrides.',
     rowList(`review-${title}`, rows, 10),
   );
 }
@@ -2410,7 +2433,7 @@ function componentsGroup(p: PullState): Child {
       fresh.length
         ? `${plural(fresh.length, 'component')} to add, on a "Components" page, using these variables.`
         : reviews.length
-          ? `${plural(reviews.length, 'component')} changed in code${upToDate.length ? `, ${upToDate.length} up to date` : ''}.`
+          ? `${plural(reviews.length, 'component')} ${followsCodeNow(p) ? 'to update' : 'changed in code'}${upToDate.length ? `, ${upToDate.length} up to date` : ''}.`
           : `${plural(plan.components.length, 'component')}, all up to date with the code.`,
       [
         cov.missing.length
@@ -2703,6 +2726,8 @@ async function writeCurrentRun(p: PullState): Promise<void> {
     ...(f.built ? { built: f.built } : {}),
     figmaRenders: Object.fromEntries(f.outcome.items.filter((it) => it.result.status === 'differs').map((it) => [it.name, Object.fromEntries(it.result.variants.map((v) => [v.key, it.nodeId]))])),
     ...(p.measure?.measuredAt ? { measuredAt: p.measure.measuredAt } : {}),
+    // The gap case rebuilds each set from the measure: it says so when the file's sets came from another source.
+    ...(p.specSource ? { specSource: p.specSource } : {}),
   };
   await writeFidelityRun(getClient(), run, state.init!.settings.branch);
   writtenRunAt = at;
@@ -4930,7 +4955,7 @@ function connectedView(): View {
             ['Repository', init.settings.repo],
             ['Branch', init.settings.branch],
             ['Tokens folder', init.settings.tokensPath],
-            ['Spec source', init.settings.specSource === 'measured' ? 'Static, with measured values' : init.settings.specSource === 'measured-only' ? 'Measured in Storybook only' : 'Static'],
+            ['Spec source', specSourceLabel(init.settings.specSource)],
             ['GitHub token', bridge ? 'From the Bridge sign-in, on this computer only' : 'Pasted, on this computer only'],
           ] as [string, string][]).map(([k, v]) => [h('dt', null, k), h('dd', { class: 'mono' }, breakable(v))]),
         ),
@@ -5000,12 +5025,19 @@ function viewSettings(): View {
                 h('span', null, 'Spec source'),
                 h(
                   'select',
-                  { onChange: (e: Event) => (d.specSource = (e.target as HTMLSelectElement).value as NonNullable<RepoSettings['specSource']>) },
-                  h('option', { value: 'static', selected: !d.specSource || d.specSource === 'static' }, 'component-specs.json (static)'),
+                  {
+                    onChange: (e: Event) => {
+                      const v = (e.target as HTMLSelectElement).value;
+                      if (v) d.specSource = v as NonNullable<RepoSettings['specSource']>;
+                      else delete d.specSource;
+                    },
+                  },
+                  h('option', { value: '', selected: !d.specSource }, specSourceLabel(undefined)),
+                  h('option', { value: 'static', selected: d.specSource === 'static' }, 'component-specs.json (static)'),
                   h('option', { value: 'measured', selected: d.specSource === 'measured' }, 'Static, with measured values'),
                   h('option', { value: 'measured-only', selected: d.specSource === 'measured-only' }, 'Measured in Storybook only'),
                 ),
-                h('small', null, `Measured comes from ${MEASURED_SPECS_FILE} (bridge specs --measure --variants), in the repo or on the bridge-requests branch where the automatic measure publishes it. "Measured only" builds every set from the stories, for a design system without component-specs.json.`),
+                h('small', null, `Measured comes from ${MEASURED_SPECS_FILE} (bridge specs --measure --variants), in the repo or on the bridge-requests branch where the automatic measure publishes it. "Measured only" builds every set from the stories, with the fixes approved in figma-fixes.json. Automatic uses it whenever the measure exists, else component-specs.json.`),
               ),
             ),
             init.settings.repo
@@ -5021,7 +5053,7 @@ function viewSettings(): View {
               h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'Design system'), h('small', { class: 'mono-line' }, init.settings.repo)),
               unsure ? null : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
-            forDevelopers([['Branch', init.settings.branch], ['Tokens folder', init.settings.tokensPath], ['Spec source', init.settings.specSource === 'measured' ? 'Static, with measured values' : init.settings.specSource === 'measured-only' ? 'Measured in Storybook only' : undefined]]),
+            forDevelopers([['Branch', init.settings.branch], ['Tokens folder', init.settings.tokensPath], ['Spec source', init.settings.specSource ? specSourceLabel(init.settings.specSource) : undefined]]),
             h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': 'repo-edit', onClick: () => { state.expanded.add('repo-edit'); render(); } }, 'Edit')),
           ),
       // A saved token is a state, not a question: one row with "Connected" (or "Stopped working") and its actions.

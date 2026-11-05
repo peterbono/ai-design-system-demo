@@ -32,10 +32,12 @@ export function sharedSettings(store: SharedStore): RepoSettings {
     repo: store.get('repo') || legacy || DEFAULT_SETTINGS.repo,
     branch: store.get('branch') || DEFAULT_SETTINGS.branch,
     tokensPath: store.get('tokensPath') || DEFAULT_SETTINGS.tokensPath,
-    ...(store.get('specSource') === 'measured' || store.get('specSource') === 'measured-only' ? { specSource: store.get('specSource') as 'measured' | 'measured-only' } : {}),
+    ...(isSpecSource(store.get('specSource')) ? { specSource: store.get('specSource') as NonNullable<RepoSettings['specSource']> } : {}),
     ...(store.get('dsName') ? { name: store.get('dsName') } : {}),
   };
 }
+
+const isSpecSource = (v: unknown): v is NonNullable<RepoSettings['specSource']> => v === 'static' || v === 'measured' || v === 'measured-only';
 
 /** The file's sync state, with this user's open change. Without a known user, no open change: never someone else's. */
 export function sharedSync(store: SharedStore, userId: string | undefined): SyncState {
@@ -71,9 +73,10 @@ export function saveSettings(store: SharedStore, settings: RepoSettings): RepoSe
   store.set('repo', settings.repo.trim());
   store.set('branch', settings.branch.trim());
   store.set('tokensPath', settings.tokensPath.trim().replace(/^\/+|\/+$/g, ''));
-  // Static is the default: nothing stored until a developer turns Measured on.
-  const measured = settings.specSource === 'measured' || settings.specSource === 'measured-only' ? settings.specSource : '';
-  if (measured || store.get('specSource')) store.set('specSource', measured);
+  // Automatic is the default (nothing stored): the measure when the team has one, else the static spec. A developer's
+  // choice, Static included, is kept.
+  const source = isSpecSource(settings.specSource) ? settings.specSource : '';
+  if (source || store.get('specSource')) store.set('specSource', source);
   // The name belongs to the repository: another repository forgets it until its own config is read.
   const name = (settings.name ?? (settings.repo.trim() === before.repo ? before.name : undefined) ?? '').trim();
   if (name || store.get('dsName')) store.set('dsName', name);

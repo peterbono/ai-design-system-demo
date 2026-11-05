@@ -53,6 +53,36 @@ variant no story renders says how to fix that (measure it, or a `story` fix).
 The case carries `summary` (one sentence for a designer) and `detail` (lines for a developer or Claude), plus
 `differences[]` with `part`, `property`, `expected`, `actual` and `delta` (px) for a fix to be written from.
 
+## Spec source: the measure by default
+
+Fixes reach a file only when its sets are built from the measure. The plugin's Spec source (Settings, For developers)
+is **Automatic** until a developer picks one: measured-only (sets from `measured-specs.json` with `figma-fixes.json`
+laid on) whenever the team has a measure, in the repo or on `bridge-requests`, else `component-specs.json` (static).
+A developer's choice is kept, Static included. A measure the plugin cannot read leaves an Automatic file on the static
+spec rather than stopping the pull.
+
+Each set records the source it was built from (shared plugin data `specSource`; sets built before that count as built
+from the developer's choice of the time, else static). A set built from another source than the pull's is an update
+even when its hash did not move, so a file pulled from the static spec moves onto the measure on its next Check for
+updates. The update list says it once: "Components now follow how they look in code, measured in Storybook." The rows
+do not count renamed variants as new or removed in code. The update is in place, as any update:
+
+- same sets, same variants (renamed with the stories' axes, matched as on any axis change); no set is added twice;
+- a part whose id changed takes over the old layer in the same parent with the same name and kind, or, for the one text
+  of a parent, the one old text there (the static Switch "Label" becomes the measure's "Text text"): the same layer,
+  so instances keep their overrides and properties bound to it;
+- layers Bridge drew for parts the measure does not have go (the static Button's icon slots, the Checkbox's two icon
+  instances, replaced by the measure's drawn mark), unless the designer put a layer of their own inside;
+- component properties no layer uses any more go (the Button's Show icon / Icon swap properties);
+- variants the stories do not render are flagged "[orphan]" like a variant removed in code (Checkbox Disabled while
+  not checked by default), never deleted;
+- the designer's own layers stay.
+
+Compare with code records the source in the run it saves (`figma-fidelity.json`, `specSource`). For a run from a file
+not built from the measure, `bridge_figma_gaps` and `bridge_get_gap_case` answer `status: "other-source"` with the
+sentence to set Spec source to Automatic and Check for updates, and claim no missing part: the layers there come from
+`component-specs.json`, so the case's rebuilt set and `figma-fixes.json` do not apply to them.
+
 ## figma-fixes.json
 
 A versioned file at the repo root, next to `bridge.config.json` and `measured-specs.json`. Every pull applies it to a

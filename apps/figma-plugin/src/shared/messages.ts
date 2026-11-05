@@ -128,7 +128,10 @@ export interface RepoSettings {
   repo: string;
   branch: string;
   tokensPath: string;
-  /** Where the pull reads component values (sync/component-pull.ts specSource). Static unless a developer turns it on. */
+  /**
+   * Where the pull reads component values (sync/component-pull.ts specSource), as a developer chose it in Settings.
+   * Undefined: Automatic, measured-only when the team has a measure, else static.
+   */
   specSource?: 'static' | 'measured' | 'measured-only' | undefined;
   /**
    * The design system's own name (its bridge.config.json "name"), kept with the file once read, so the plugin shows one

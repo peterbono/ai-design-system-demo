@@ -71,6 +71,8 @@ export interface GeneratedSet {
   pushed?: PushedMark | undefined;
   /** Figma holds the set in error (left by an older Bridge): the pull rebuilds it even when its spec did not change. */
   inError?: boolean | undefined;
+  /** The spec source the set was last built from; undefined for sets built before it was stored (the static spec). */
+  specSource?: SpecSourceKind | undefined;
 }
 
 /** Where a set's change from Figma went: its library branch (a token change or a branch a developer builds with Claude). */
@@ -283,6 +285,10 @@ export interface PlannedComponent {
    * from the reviewed code, so Figma never diverges from it.
    */
   fromFigma?: { number: number; url: string; status: FigmaPushStatus } | undefined;
+  /** The spec source this plan builds the set from: stored on the set once built (GeneratedSet.specSource). */
+  specSource?: SpecSourceKind | undefined;
+  /** The set was built from another source (the static spec, before the file followed the measure): it is rebuilt. */
+  sourceChanged?: { from: SpecSourceKind; to: SpecSourceKind } | undefined;
 }
 
 export interface ComponentProblem {
@@ -392,20 +398,25 @@ export interface LoadedSpecs {
   fixes?: { lines: string[]; problems?: string[] | undefined; hints: Record<string, FigmaHints> } | undefined;
   /** Measured-only source: the measure the sets were drawn from (fixes applied), for the gap cases after Check fidelity. */
   measure?: FixedMeasuredSpecsFile | undefined;
+  /** The source these specs came from: what Automatic resolved to, or the developer's choice. */
+  source?: SpecSourceKind | undefined;
 }
 
 /**
  * Sources of component specs. `static`: component-specs.json, generated from the CSS source (npm run specs).
  * `measured`: the same, with the values `bridge specs --measure` read in Storybook laid on (measured-specs.ts).
+ * `measured-only`: the sets built from the measure alone, with the team's figma-fixes.json.
  */
 export type SpecSourceKind = 'static' | 'measured' | 'measured-only';
+/** No choice saved: measured-only when the team has a measure (the repo or the measure branch), else static. */
+export type SpecSourceChoice = SpecSourceKind | 'auto';
 
 /**
  * Where the pull reads what code draws. Every source returns the same shape (ComponentSpecsFile), so planning and
  * building never depend on where a spec came from: a spec measured from Storybook can replace the static one.
  */
 export interface SpecSource {
-  readonly kind: SpecSourceKind;
+  readonly kind: SpecSourceChoice;
   /** `head`: the library's tokens, for a source that must tell its tokens from literals (measured only). */
   load(client: MeasureClient, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined>;
 }
@@ -465,16 +476,39 @@ export async function loadMeasureForFixes(client: MeasureClient, treeSha: string
   return { measure, ...(found.ref ? { ref: found.ref } : {}) };
 }
 
-/** The source the pull uses: static unless asked otherwise. */
-export function specSource(kind: SpecSourceKind = 'static'): SpecSource {
+/**
+ * The source the pull uses. A developer's choice in Settings is kept; with none saved (`auto`, the default), the sets
+ * follow the measure when the team has one, so the fixes Claude proposes and the team approves reach the file.
+ */
+export function specSource(kind: SpecSourceChoice = 'static'): SpecSource {
   switch (kind) {
     case 'static':
-      return { kind, load: loadComponentSpecs };
+      return { kind, load: async (...a: Parameters<typeof loadComponentSpecs>) => withSource(await loadComponentSpecs(...a), 'static') };
     case 'measured':
-      return { kind, load: loadMeasuredSpecs };
+      return { kind, load: async (client, treeSha, config) => withSource(await loadMeasuredSpecs(client, treeSha, config), 'measured') };
     case 'measured-only':
-      return { kind, load: loadMeasuredOnlySpecs };
+      return { kind, load: async (client, treeSha, config, head) => withSource(await loadMeasuredOnlySpecs(client, treeSha, config, head), 'measured-only') };
+    case 'auto':
+      return { kind, load: loadAutoSpecs };
   }
+}
+
+const withSource = (loaded: LoadedSpecs | undefined, source: SpecSourceKind): LoadedSpecs | undefined => (loaded ? { ...loaded, source } : undefined);
+
+/**
+ * Automatic: the measure when the team has one, else component-specs.json. A measure Bridge cannot read leaves the
+ * file on the static spec rather than stopping the pull: nobody chose it, and a developer sees it in the measure's own run.
+ */
+async function loadAutoSpecs(client: MeasureClient, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined> {
+  const found = await readMeasure(client, treeSha);
+  if (found) {
+    try {
+      return withSource(await loadMeasuredOnlySpecs(client, treeSha, config, head, found), 'measured-only');
+    } catch {
+      /* unreadable measure: the static spec below */
+    }
+  }
+  return withSource(await loadComponentSpecs(client, treeSha, config), 'static');
 }
 
 /**
@@ -482,8 +516,8 @@ export function specSource(kind: SpecSourceKind = 'static'): SpecSource {
  * without a static spec. When the repo also has component-specs.json, each set keeps the static set's hash as its code
  * version, so Check fidelity compares it with the code images of that version.
  */
-async function loadMeasuredOnlySpecs(client: MeasureClient, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined> {
-  const found = await readMeasure(client, treeSha);
+async function loadMeasuredOnlySpecs(client: MeasureClient, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>, measure?: PulledMeasure): Promise<LoadedSpecs | undefined> {
+  const found = measure ?? (await readMeasure(client, treeSha));
   if (!found) throw new Error(measureMissing('Measured only'));
   const { entries } = await client.getTree(treeSha, true);
   const measured = parseMeasuredSpecs(found.text);
@@ -766,7 +800,16 @@ export function buildComponentPlan(
   source: string,
   generated: GeneratedSet[],
   head: TokenSet,
-  opts: { pushed?: ReadonlyMap<number, FigmaPushStatus> | undefined } = {},
+  opts: {
+    pushed?: ReadonlyMap<number, FigmaPushStatus> | undefined;
+    /** The source the specs came from (LoadedSpecs.source): a set built from another one is rebuilt from this one. */
+    specSource?: SpecSourceKind | undefined;
+    /**
+     * What a set built before the source was stored on sets came from: the developer's choice then, else static (the
+     * only default before Automatic).
+     */
+    unmarkedSource?: SpecSourceKind | undefined;
+  } = {},
 ): ComponentPullPlan {
   const problems: ComponentProblem[] = [];
   // Entries of the wrong shape are left out (or trimmed) with their reason before anything is planned.
@@ -937,7 +980,11 @@ export function buildComponentPlan(
     // Pushed from Figma and shipped (or closed): rebuilt from the reviewed code even when the spec did not change.
     const shipped = existing?.pushed ? opts.pushed?.get(existing.pushed.number) : undefined;
     const fromFigma = existing?.pushed && shipped?.rebuild ? { number: existing.pushed.number, url: existing.pushed.url, status: shipped } : undefined;
-    const status: ComponentStatus = !existing ? 'new' : existing.specHash === hash && !addedVariants.length && !removedVariants.length && !fromFigma && !existing.inError ? 'unchanged' : 'updated';
+    // Built from another source: a measured-only set can keep the static set's hash (its code version), so the hash
+    // alone would leave the set as the static spec drew it.
+    const builtFrom = existing ? (existing.specSource ?? opts.unmarkedSource ?? 'static') : undefined;
+    const sourceChanged = opts.specSource && builtFrom && builtFrom !== opts.specSource ? { from: builtFrom, to: opts.specSource } : undefined;
+    const status: ComponentStatus = !existing ? 'new' : existing.specHash === hash && !addedVariants.length && !removedVariants.length && !fromFigma && !existing.inError && !sourceChanged ? 'unchanged' : 'updated';
     const pins: NonNullable<PlannedComponent['pins']> = {};
     for (const part of spec.parts) if (part.pin) pins[part.id] = pinPixels(part.id, part.pin);
     components.push({
@@ -947,6 +994,8 @@ export function buildComponentPlan(
       ...(spec.component ? { component: spec.component } : {}),
       ...(spec.drafted ? { drafted: spec.drafted } : {}),
       ...(fromFigma ? { fromFigma } : {}),
+      ...(opts.specSource ? { specSource: opts.specSource } : {}),
+      ...(sourceChanged ? { sourceChanged } : {}),
       hash,
       codeHash: spec.hash || hash,
       status,

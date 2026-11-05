@@ -124,8 +124,8 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
       sync = { baseSha: data.headSha, lastPullAt: '2026-10-25T09:12:00.000Z' };
       return { created: 812, updated: 0, orphaned: 0, layout: 'single-collection', errors: [] };
     },
-    'apply-components': (m: { plan: { components: { componentId: string; name: string; hash: string; codeHash: string; variants: { key: string }[] }[] } }) => {
-      generated = m.plan.components.map((c, i) => ({ componentId: c.componentId, nodeId: `n${i}`, name: c.name, specHash: c.hash, codeHash: c.codeHash, variants: c.variants.map((v) => v.key) }));
+    'apply-components': (m: { plan: { components: { componentId: string; name: string; hash: string; codeHash: string; specSource?: string; variants: { key: string }[] }[] } }) => {
+      generated = m.plan.components.map((c, i) => ({ componentId: c.componentId, nodeId: `n${i}`, name: c.name, specHash: c.hash, codeHash: c.codeHash, ...(c.specSource ? { specSource: c.specSource } : {}), variants: c.variants.map((v) => v.key) }));
       return { created: generated.length, updated: 0, unchanged: 0, orphaned: 0, page: 'Components', problems: [], nodeIds: generated.map((x) => (x as { nodeId: string }).nodeId), total: generated.length };
     },
     'scan-components': () => ({ components: [] }),

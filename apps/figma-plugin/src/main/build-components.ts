@@ -137,6 +137,10 @@ export async function scanGenerated(): Promise<GeneratedSet[]> {
       return pushed ? { pushed } : {};
     })(),
     ...(inError(s) ? { inError: true } : {}),
+    ...(() => {
+      const source = s.getSharedPluginData(NS, 'specSource');
+      return source === 'static' || source === 'measured' || source === 'measured-only' ? { specSource: source as GeneratedSet['specSource'] } : {};
+    })(),
   }));
 }
 
@@ -541,6 +545,63 @@ function findPart(variant: ComponentNode, id: string): SceneNode | undefined {
   return variant.findOne((n) => n.getSharedPluginData(NS, 'part') === id) ?? undefined;
 }
 
+const sameName = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9]/g, '') === b.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Parts new to the set (another spec source names its parts differently: the static spec's "text" is the measure's
+ * "label") take over the layers Bridge drew for parts the spec no longer has, in the same parent, before new layers
+ * are drawn: the same layer, so instances keep their overrides (a button's label text). By name and kind first; then a
+ * lone new text takes the lone old text of its parent (the static Switch's "Label" is the measure's "Text text").
+ * Never a layer the designer added (it has no part mark). The layers taken carry their new part id.
+ */
+function adoptStaleParts(variant: ComponentNode, parts: readonly SpecPart[]): void {
+  const ids = new Set(parts.map((p) => p.id));
+  const isStale = (n: SceneNode) => {
+    const id = n.getSharedPluginData(NS, 'part');
+    return !!id && !ids.has(id);
+  };
+  const fits = (part: SpecPart, n: SceneNode) => (part.kind === 'text' ? n.type === 'TEXT' : part.swap || part.icon ? n.type === 'INSTANCE' : n.type === 'FRAME');
+  const missing = parts.filter((p) => p.id !== 'root' && !findPart(variant, p.id));
+  if (!missing.length) return;
+  const claimed = new Map<string, SceneNode>();
+  const taken = new Set<SceneNode>();
+  const boxOf = (p: SpecPart): Box | undefined => {
+    const node = claimed.get(p.parent ?? 'root') ?? findPart(variant, p.parent ?? 'root');
+    return node && 'children' in node ? (node as Box) : undefined;
+  };
+  const staleIn = (box: Box | undefined) => (box ? box.children.filter((n) => isStale(n) && !taken.has(n)) : []);
+  const claim = (p: SpecPart, n: SceneNode | undefined) => {
+    if (!n) return;
+    claimed.set(p.id, n);
+    taken.add(n);
+  };
+  for (const p of missing) claim(p, staleIn(boxOf(p)).find((n) => sameName(n.name, p.name) && fits(p, n)));
+  const lone = new Map<Box, SpecPart[]>();
+  for (const p of missing) {
+    const box = boxOf(p);
+    if (claimed.has(p.id) || p.kind !== 'text' || !box) continue;
+    lone.set(box, [...(lone.get(box) ?? []), p]);
+  }
+  for (const [box, texts] of lone) {
+    const old = staleIn(box).filter((n) => n.type === 'TEXT');
+    if (texts.length === 1 && old.length === 1) claim(texts[0]!, old[0]);
+  }
+  for (const [id, node] of claimed) {
+    node.setSharedPluginData(NS, 'part', id);
+    // A vector part redraws its shapes from its own SVG.
+    if (node.getSharedPluginData(NS, 'svgHash')) node.setSharedPluginData(NS, 'svgHash', '');
+  }
+}
+
+/**
+ * Whether a layer holds one the designer added: a layer without Bridge's part mark, outside an instance (its layers
+ * are its component's) and outside a drawn vector (its shapes are the SVG's).
+ */
+function holdsDesignerLayer(node: SceneNode): boolean {
+  if (node.type === 'INSTANCE' || !('children' in node) || node.getSharedPluginData(NS, 'svgHash')) return false;
+  return (node as FrameNode).children.some((c) => !c.getSharedPluginData(NS, 'part') || holdsDesignerLayer(c));
+}
+
 function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout, sized = true): void {
   const l = layout ?? part.layout ?? { direction: 'HORIZONTAL', primary: 'MIN', counter: 'MIN' };
   node.layoutMode = l.direction;
@@ -639,13 +700,14 @@ function placeParts(variant: ComponentNode, comp: PlannedComponent, nodes: Map<s
       if ((box as Box).children[i] !== kid) (box as Box).insertChild(i, kid);
     });
   }
-  // Layers Bridge generated for parts code no longer has (a wrapper merged into the root): removed once empty.
+  // Layers Bridge generated for parts code no longer has (a wrapper merged into the root, an icon the static spec drew
+  // and the measure does not): removed, unless the designer put a layer of theirs inside.
   const ids = new Set(comp.parts.map((p) => p.id));
   const stale = variant.findAll((n) => {
     const id = n.getSharedPluginData(NS, 'part');
     return !!id && !ids.has(id);
   });
-  for (const n of stale.reverse()) if (!('children' in n) || !(n as FrameNode).children.length) n.remove();
+  for (const n of stale.reverse()) if (!n.removed && !holdsDesignerLayer(n)) n.remove();
 }
 
 function createPart(part: SpecPart): SceneNode {
@@ -693,6 +755,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     const anchored = parts.some((c) => c.parent === part.id && (c.kind === 'text' || !!c.icon || !!c.swap || (pv.parts[c.id] ?? []).some((f) => f.field === 'height')));
     if (hasHeight || fills || anchored) tall.add(part.id);
   }
+  adoptStaleParts(variant, parts);
   for (const part of parts) {
     let node = findPart(variant, part.id);
     const parent = ((part.parent ? nodes.get(part.parent) : variant) ?? variant) as Box;
@@ -936,6 +999,25 @@ function swapKeysInUse(set: ComponentSetNode): Set<string> {
     if (key) out.add(key);
   }
   return out;
+}
+
+/**
+ * After a set moved to another spec source (the static spec to the measure): the properties the old source defined
+ * and no layer uses any more (the static Button's icon slots) go, so the set shows only what it now has. A property a
+ * layer uses stays (a designer's own, or one an orphan variant still shows).
+ */
+function dropUnusedProperties(set: ComponentSetNode, keep: ReadonlyMap<string, string>, ctx: Ctx, name: string): void {
+  const used = new Set<string>(keep.values());
+  for (const n of [set, ...set.findAll()]) for (const key of Object.values((n as SceneNode & { componentPropertyReferences?: Record<string, string> | null }).componentPropertyReferences ?? {})) used.add(key);
+  const defs = set.componentPropertyDefinitions;
+  for (const k of Object.keys(defs)) {
+    if (defs[k]!.type === 'VARIANT' || used.has(k)) continue;
+    try {
+      set.deleteComponentProperty(k);
+    } catch (err) {
+      ctx.problems.push(`${name}, property ${k.replace(/#[^#]*$/, '')}: ${errorText(err)}`);
+    }
+  }
 }
 
 function ensureProperties(set: ComponentSetNode, comp: PlannedComponent, ctx: Ctx): Map<string, string> {
@@ -1642,6 +1724,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       await breathe();
     }
     if (set.removed || failed.length === comp.variants.length) throw new NotBuilt(failed[0]?.reason ?? 'Figma removed the set');
+    if (comp.sourceChanged && !isNew && !failed.length) dropUnusedProperties(set, propKeys, ctx, comp.name);
     await breathe();
     // Interactions are extra: when Figma refuses them, this set is still built and the pull goes on.
     try {
@@ -1676,6 +1759,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     } else {
       set.setSharedPluginData(NS, 'specHash', comp.hash);
       set.setSharedPluginData(NS, 'codeHash', comp.codeHash);
+      if (comp.specSource) set.setSharedPluginData(NS, 'specSource', comp.specSource);
       // Rebuilt from the code: a change pushed from Figma is now the reviewed code (or gone), so its mark goes.
       if (set.getSharedPluginData(NS, PUSHED_KEY)) set.setSharedPluginData(NS, PUSHED_KEY, '');
     }
