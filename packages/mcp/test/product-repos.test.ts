@@ -57,7 +57,8 @@ describe('explorations in a product repository', () => {
     // Where connections live: bridge_list_products says which product repository Bridge reaches.
     const products = await branches.listProducts(await ro());
     const by = Object.fromEntries(products.products.map((p: any) => [p.key, p]));
-    expect(by.shop).toMatchObject({ repo: 'acme/shop', connection: 'read-only' });
+    expect(by.shop).toMatchObject({ repo: 'acme/shop', connection: 'read-only', access: branches.PRODUCT_ACCESS_WORDS.readOnly('Shop') });
+    expect(by.gone.access).toBeUndefined();
     expect(by.gone).toMatchObject({ repo: 'acme/gone', connection: 'not-connected' });
     expect(by.gone.connect).toMatch(/Install the Bridge GitHub App on acme\/gone/);
     expect(by.library.connection).toBeUndefined();
@@ -228,6 +229,20 @@ describe('explorations in a product repository', () => {
       expect(ok.copy.refs.get('explore/orders-empty-state')).toBeTruthy();
       expect(ok.code.refs.has('explore/orders-empty-state')).toBe(false);
     }
+    // bridge_list_products says the same, per person: Can edit and Admin explore (the developers' code stays read only).
+    for (const role of ['Can edit', 'Admin'] as const) {
+      const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 'bridge-email-member', fetch: make().fetch, identity: who(role) });
+      const shop = (await branches.listProducts(ctx)).products.find((p: any) => p.key === 'shop') as any;
+      expect(shop, role).toMatchObject({ designCopy: 'acme/shop-design', connection: 'connected', access: branches.PRODUCT_ACCESS_WORDS.exploreInCopy('Shop') });
+      expect(shop.access).toMatch(/start and save explorations of Shop/);
+      expect(shop.access).toMatch(/developers' code stays read only/);
+      expect(shop.access).not.toMatch(/—|repository|GitHub|branch/);
+    }
+    const rlist = (await branches.listProducts(await BridgeContext.create({ repo: 'acme/ds', token: 'bridge-email-member', fetch: make().fetch, identity: who('Reader') }))).products.find((p: any) => p.key === 'shop') as any;
+    expect(rlist).toMatchObject({ connection: 'read-only', access: branches.PRODUCT_ACCESS_WORDS.askForEdit('Shop') });
+    const llist = (await branches.listProducts(await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: make().fetch }))).products.find((p: any) => p.key === 'shop') as any;
+    expect(llist).toMatchObject({ connection: 'read-only', access: branches.PRODUCT_ACCESS_WORDS.readOnly('Shop') });
+
     const reader = make();
     const rctx = await BridgeContext.create({ repo: 'acme/ds', token: 'bridge-email-member', fetch: reader.fetch, identity: who('Reader') });
     await expect(explorations.startExploration(rctx, { name: 'Orders empty state', product: 'shop', source: 'mcp' })).rejects.toThrow(/not create branches/);

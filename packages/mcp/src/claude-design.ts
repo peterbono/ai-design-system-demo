@@ -70,6 +70,7 @@ export const CLAUDE_DESIGN_WORDS = {
   badUrl: 'That is not the address of a Claude artifact. Use the link of the Design System artifact, like https://claude.ai/artifact/AbC123.',
   notAllowed: 'Only admins and leads of this team save where its Library lives in Claude Design.',
   noSetting: 'This Bridge server does not keep team settings. Connect Bridge in Claude (the Bridge connector) to remember the address for the team.',
+  settingUnreadable: 'Bridge could not read where the team keeps its Library in Claude Design. Try again in a minute; do not create a new artifact meanwhile.',
   // MCP only: these tools have no CLI command.
   oldVersion: (asked: string, served: string) => `Bridge serves the Library ${served} now, not ${asked}. Call bridge_get_claude_design_system again and publish ${served}.`,
 } as const;
@@ -120,17 +121,37 @@ export function diffFiles(manifest: ClaudeDesignManifest, published: Record<stri
   };
 }
 
-export type ClaudeDesignAction = 'create' | 'update' | 'none';
+/**
+ * create: the team has none yet (the person may add it); update / none: the team's artifact is known; ask: the team has
+ * none yet and only an admin or lead may add it; unknown: this server keeps no team settings (the local server), so it
+ * cannot tell whether the team already has one.
+ */
+export type ClaudeDesignAction = 'create' | 'update' | 'none' | 'ask' | 'unknown';
 
 /** The steps for the team's Claude, in a few sentences. */
 export function instructionsFor(x: { action: ClaudeDesignAction; version: string; artifact: string | null; changedKnown: boolean; name: string }): string {
+  const useNow = `To build an artifact now, load the ${x.name} from the base URL (its CSS and components); that needs nothing in Claude Design.`;
+  if (x.action === 'unknown')
+    return [
+      `This Bridge connection does not keep the team's settings, so it cannot tell whether the team already has the ${x.name} in Claude Design.`,
+      `Ask the person for the link of the team's Design System artifact and update that one; never create a second one.`,
+      `To add or update it for the team, use the Bridge connector in Claude, which remembers it.`,
+      useNow,
+    ].join(' ');
+  if (x.action === 'ask')
+    return [
+      `The team has not added the ${x.name} to Claude Design yet, and only its admins and leads add it, so the whole team shares one.`,
+      `Do not create one: ask an admin or lead of the team to add it from Claude with the Bridge connector.`,
+      useNow,
+    ].join(' ');
   const fetchStep = `Download each file from its url (keep the path) and check its sha256 against the manifest before publishing.`;
   const order = `Publish the files under exactly the manifest paths (project/...), project/design-system.json last.`;
   const canvases = `Then, in every Claude Design canvas that installs the ${x.name}, re-run its install at version ${x.version} (the Design canvas rules), so the canvas loads the new bundle.`;
   if (x.action === 'none') return `The team's ${x.name} in Claude Design (${x.artifact}) is already ${x.version}: nothing to publish. If a canvas still shows an older version, re-run its install at version ${x.version}.`;
   if (x.action === 'create')
     return [
-      `The team has no ${x.name} in Claude Design yet. Create it once: start a new artifact from the Design System type titled "${x.name}".`,
+      `Bridge has no ${x.name} in Claude Design on record for the team. If the person already made one, ask for its link and update that artifact instead (then save it as below); never make a second one.`,
+      `Otherwise create it once: start a new artifact from the Design System type titled "${x.name}".`,
       fetchStep,
       order,
       // MCP only
@@ -163,6 +184,8 @@ export interface ClaudeDesignAnswer {
   manifest: { url: string; count: number; bytes: number; files: (ClaudeDesignFile & { url: string })[] };
   team: { url: string; version: string; at: string } | null;
   action: ClaudeDesignAction;
+  /** False where the server keeps no team settings (the local server): `team` null then means "not known", not "none". */
+  teamKnown: boolean;
   /** Paths to republish (update with a known artifact), null when Bridge does not know what the artifact holds. */
   changed: string[] | null;
   removed: string[] | null;
@@ -175,10 +198,25 @@ export interface ClaudeDesignAnswer {
 export async function getClaudeDesignSystem(ctx: BridgeContext, args: GetClaudeDesignArgs = {}): Promise<ClaudeDesignAnswer> {
   const { manifest, site } = await readManifest(ctx);
   const host = hostOf(ctx);
-  const team = host.read ? await host.read().catch(() => null) : null;
+  // A failed read is said, never taken for "the team has none" (that would ask for a second artifact).
+  const team = host.read
+    ? await host.read().catch(() => {
+        throw new Error(CLAUDE_DESIGN_WORDS.settingUnreadable);
+      })
+    : null;
   const base = `${site}${manifest.base}`;
   const diff = team ? diffFiles(manifest, team.files) : null;
-  const action: ClaudeDesignAction = !team ? 'create' : team.version === manifest.version && diff && !diff.changed.length && !diff.removed.length ? 'none' : 'update';
+  // None kept yet: only someone who may save it is asked to create it (a second artifact nobody remembers otherwise).
+  const mayAdd = !team && host.read && host.save ? CAN_SET_ROLES.includes((await whoami(ctx).catch(() => null))?.role ?? 'Reader') : false;
+  const action: ClaudeDesignAction = !host.read
+    ? 'unknown'
+    : !team
+      ? mayAdd
+        ? 'create'
+        : 'ask'
+      : team.version === manifest.version && diff && !diff.changed.length && !diff.removed.length
+        ? 'none'
+        : 'update';
   const answer: ClaudeDesignAnswer = {
     name: manifest.name,
     package: manifest.package,
@@ -188,6 +226,7 @@ export async function getClaudeDesignSystem(ctx: BridgeContext, args: GetClaudeD
     manifest: { url: `${site}${MANIFEST_PATH}`, count: manifest.count, bytes: manifest.bytes, files: manifest.files.map((f) => ({ ...f, url: `${base}${f.path}` })) },
     team: team ? { url: team.url, version: team.version, at: team.at } : null,
     action,
+    teamKnown: Boolean(host.read),
     changed: action === 'create' ? manifest.files.map((f) => f.path) : diff ? diff.changed : null,
     removed: action === 'create' ? [] : diff ? diff.removed : null,
     instructions: instructionsFor({ action, version: manifest.version, artifact: team?.url ?? null, changedKnown: Boolean(diff), name: manifest.name }),
