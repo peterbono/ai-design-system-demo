@@ -89,6 +89,35 @@
         }
       },
       "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "Kbd",
+      "height": 19,
+      "id": "kbd-sm-size",
+      "kind": "part",
+      "part": "root",
+      "reason": "The small key combination is 54 by 19 px in code where Figma draws it 55 by 18 px.",
+      "where": {
+        "args": {
+          "size": "sm"
+        }
+      },
+      "width": 54
+    },
+    {
+      "by": "claude",
+      "component": "Kbd",
+      "id": "kbd-md-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The medium key combination is 62 px wide in code where Figma draws it 63 px wide.",
+      "where": {
+        "args": {
+          "size": "md"
+        }
+      },
+      "width": 62
     }
   ]
 }
