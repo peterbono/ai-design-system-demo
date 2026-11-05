@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Switch",
+      "id": "switch-draw",
+      "kind": "status",
+      "reason": "The description is missing in Figma on the start placement, and the small end placement differs in pixels only: draw the description in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
