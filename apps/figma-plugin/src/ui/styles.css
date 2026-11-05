@@ -259,6 +259,14 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 .claude-steps li .icon { width: 14px; height: 14px; flex: none; }
 .claude-steps li[data-step="done"] .icon { color: var(--ok); }
 .claude-steps li[data-step="failed"] .icon { color: var(--warn); }
+/* Claude's fixes: the head's dot sits in the icon's 16px box, so the head, the hint, the steps and the actions share one
+   left edge (a ghost button's label lines up with the text, not its padding). */
+.activity-box { flex: none; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; }
+.claude-run > details { padding-left: 24px; }
+.claude-run > .inline-actions > .btn.ghost:first-child { margin-left: calc(-1 * var(--s2)); }
+.claude-line { display: flex; gap: var(--s2); align-items: flex-start; margin: 0; }
+.claude-line .icon { flex: none; width: 16px; height: 16px; color: var(--ok); }
+.claude-line.muted .icon { color: var(--text-2); }
 
 /* New brand card: a Brand mode with no file in Git */
 .brand-card { border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--s3); }
@@ -454,3 +462,5 @@ details.command pre { margin: var(--s1) 0 0; padding: var(--s2); border-radius: 
 .dev-list dt { color: var(--text-3); }
 .dev-list dd { margin: 0; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; min-width: 0; }
 .dev-details .field { margin-top: var(--s2); }
+/* Claude's finished fixes, folded: the same rows as the list above, not a nested note list. */
+details.notes[data-block="claude-done"] > ul.rows { padding-left: 0; color: inherit; }

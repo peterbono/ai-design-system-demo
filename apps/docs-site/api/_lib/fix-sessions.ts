@@ -7,6 +7,9 @@
 //   bridge_try_figma_fix       "Claude tried a fix (round n): closer | no change | further away"
 //   bridge_propose_figma_fixes "Claude opened its fix for review"         ready, with the pull request and the review link
 //                              "Claude stopped: <reason>"                 a status fix (no fix came closer): stopped
+//   bridge_get_gap_case failed  "Claude stopped: Bridge hasn't measured..." no measure of the component: stopped, never a wait
+//   quiet after a read only     stopped, "The <parts> are missing in Figma: draw them..." when the gap case said parts are
+//                               missing (no fix can draw them); otherwise "Claude went quiet"
 //                              "Bridge did not open it: <reason>"         the referee refused it: still working
 //
 // Keys (Upstash Redis; repository lower case, component as letters and digits):
@@ -30,6 +33,8 @@ export interface FixStep {
   verdict?: 'closer' | 'same' | 'worse' | 'invalid';
   /** read: how many differences. */
   differences?: number;
+  /** read: the parts the gap case says are missing in Figma (no fix can draw them), in words. */
+  missing?: string[];
   /** proposed: the draft pull request, and where Studio reviews it (a path under the team's Studio). */
   pr?: { number: number; url: string };
   review?: string;
@@ -67,6 +72,18 @@ export const STEP_WORDS = {
   stopped: (why: string) => `Claude stopped: ${why}`,
   quiet: 'Claude went quiet',
 } as const;
+
+/** Why Claude cannot fix a component, in designer words (the plugin adds "Claude can't fix this one: "). */
+export const CANT_FIX_WORDS = {
+  noMeasure: "Bridge hasn't measured it in code yet, so there is nothing to compare it with. A developer measures it once.",
+  missing: (parts: string[]) => {
+    const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
+    return `The ${list} ${parts.length === 1 ? 'is' : 'are'} missing in Figma: draw ${parts.length === 1 ? 'it' : 'them'} in the component, then compare with code again.`;
+  },
+} as const;
+
+/** A failed gap case read that says the component has no measure (MeasureMissingError, or no measured story of it). */
+const NO_MEASURE = /No measured story of|hasn't measured your components/i;
 
 function parse(raw: unknown): FixSession | null {
   if (typeof raw !== 'string') return null;
@@ -119,6 +136,13 @@ export function sessionView(s: FixSession | null, component: string, now: number
   if (!s) return { component, state: 'waiting', startedAt: null, updatedAt: null, elapsed: 0, steps: [], quiet: false, maxRounds: MAX_ROUNDS };
   const last = Date.parse(s.updatedAt);
   const start = Date.parse(s.startedAt);
+  // Silent right after a read that found parts missing in Figma: no fix can draw them, which is why nothing followed.
+  // Said as that reason (a fact from the gap case), never as Claude going quiet.
+  const end0 = s.steps.at(-1);
+  if (!s.ended && now - last > QUIET_AFTER_MS && end0?.kind === 'read' && end0.missing?.length) {
+    const reason = CANT_FIX_WORDS.missing(end0.missing);
+    return sessionView({ ...s, steps: [...s.steps, { kind: 'stopped', text: STEP_WORDS.stopped(reason), at: end0.at, by: end0.by, reason }], ended: 'stopped' }, component, now);
+  }
   const quiet = !s.ended && now - last > QUIET_AFTER_MS;
   const raw: FixStep[] = quiet ? [...s.steps, { kind: 'quiet', text: STEP_WORDS.quiet, at: new Date(last + QUIET_AFTER_MS).toISOString(), by: s.steps.at(-1)?.by ?? '' }] : s.steps;
   const failed = (x: FixStep) => x.kind === 'refused' || x.kind === 'quiet' || x.kind === 'stopped' || x.verdict === 'invalid';
@@ -162,6 +186,8 @@ export interface ToolCallRecord {
   args: Record<string, unknown>;
   /** The tool's JSON result (the text content parsed), or null when the call failed. */
   result: Record<string, unknown> | null;
+  /** The failed call's message (a gap case without a measure ends the session with that reason). */
+  error?: string | undefined;
   by: string;
   now: number;
 }
@@ -172,12 +198,19 @@ export const recordsSteps = (tool: string) => FIX_TOOLS.has(tool);
 /** The step one call adds, or null (a failed call, another tool). Pure: tests read it. */
 export function stepOf(c: ToolCallRecord, session: FixSession | null): FixStep | null {
   const r = c.result;
-  if (!r || !recordsSteps(c.tool)) return null;
+  if (!recordsSteps(c.tool)) return null;
   const at = new Date(c.now).toISOString();
+  if (!r) {
+    // Claude cannot read a component Bridge never measured: the session ends with that reason, not an endless wait.
+    if (c.tool === 'bridge_get_gap_case' && c.error && NO_MEASURE.test(c.error)) return { kind: 'stopped', text: STEP_WORDS.stopped(CANT_FIX_WORDS.noMeasure), at, by: c.by, reason: CANT_FIX_WORDS.noMeasure };
+    return null;
+  }
   if (c.tool === 'bridge_get_gap_case') {
-    const variants = Array.isArray((r.gap as { variants?: unknown })?.variants) ? ((r.gap as { variants: { differences?: unknown[] }[] }).variants) : [];
-    const n = variants.reduce((k, v) => k + (Array.isArray(v.differences) ? v.differences.length : 0), 0);
-    return { kind: 'read', text: STEP_WORDS.read(n), at, by: c.by, differences: n };
+    type Diff = { property?: unknown; actual?: unknown; partName?: unknown } | null;
+    const variants = Array.isArray((r.gap as { variants?: unknown })?.variants) ? ((r.gap as { variants: { differences?: Diff[] }[] }).variants) : [];
+    const diffs = variants.flatMap((v) => (Array.isArray(v.differences) ? v.differences : []));
+    const missing = [...new Set(diffs.flatMap((d) => (d && d.property === 'presence' && d.actual === 'missing' && typeof d.partName === 'string' ? [d.partName] : [])))];
+    return { kind: 'read', text: STEP_WORDS.read(diffs.length), at, by: c.by, differences: diffs.length, ...(missing.length ? { missing } : {}) };
   }
   if (c.tool === 'bridge_try_figma_fix') {
     const round = (session && !session.ended ? session.steps.filter((s) => s.kind === 'try').length : 0) + 1;
@@ -209,7 +242,7 @@ export function stepOf(c: ToolCallRecord, session: FixSession | null): FixStep |
 export async function recordToolCall(redis: Redis, c: ToolCallRecord): Promise<FixSession | null> {
   try {
     const component = typeof c.args.component === 'string' ? c.args.component.trim() : '';
-    if (!component || !recordsSteps(c.tool) || !c.result) return null;
+    if (!component || !recordsSteps(c.tool) || (!c.result && !c.error)) return null;
     const prev = await getSession(redis, c.repo, component);
     // A gap case read after Claude went quiet starts over; read again mid-session, it is one more step.
     const quiet = prev ? c.now - Date.parse(prev.updatedAt) > QUIET_AFTER_MS : false;

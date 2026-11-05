@@ -103,8 +103,97 @@ export function elapsedText(seconds: number): string {
 export function sessionHead(s: FixSession | undefined, component: string): { kind: 'waiting' | 'working' | 'ready' | 'stopped' | 'quiet'; text: string } {
   if (!s || s.state === 'waiting' || (s.state === 'working' && !s.steps.length && !s.quiet)) return { kind: 'waiting', text: 'Waiting for Claude' };
   if (s.state === 'ready') return { kind: 'ready', text: "Claude's fix is ready" };
-  if (s.state === 'stopped') return { kind: 'stopped', text: `Claude stopped: ${s.reason ?? 'it found no fix that brings it closer to the code'}` };
-  if (s.quiet) return { kind: 'quiet', text: 'Claude went quiet' };
+  if (s.state === 'stopped') return { kind: 'stopped', text: `${FIX_ROW_WORDS.cantFix}${s.reason ?? FIX_ROW_WORDS.noCloser}` };
+  // Claude did something, then nothing more reached Bridge: its last reply is in the chat. Not "went quiet": that is
+  // for an ask nothing ever came back from.
+  if (s.quiet) return { kind: 'quiet', text: FIX_ROW_WORDS.unfinished };
   const round = s.round ? `, round ${s.round} of up to ${s.maxRounds}` : '';
   return { kind: 'working', text: `Claude is working on ${component} · ${elapsedText(s.elapsed)}${round}` };
+}
+
+/** An ask nothing came back from for this long (no step at all): "Claude went quiet", not an endless wait. */
+export const NOTHING_BACK_MS = 30 * 60 * 1000;
+
+export const FIX_ROW_WORDS = {
+  cantFix: "Claude can't fix this one: ",
+  noCloser: 'no fix brought it closer to the code.',
+  unfinished: "Claude didn't finish this one",
+  unfinishedHint: 'Its last reply is in your Claude chat. Open Claude again to pick it up.',
+  quiet: 'Claude went quiet',
+  quietHint: 'Nothing came back from Claude for this one.',
+  cantFixHead: "Claude can't fix this one",
+  noMeasure: "Claude can't fix this one yet",
+  noMeasureHint: "Bridge hasn't measured it in code. A developer measures it once, then Claude can compare it.",
+  inFile: "Claude's fix is in this file. Compare with code to check it.",
+  approved: "Claude's fix is approved. Check for updates brings it into this file.",
+  notKept: "Claude's fix was not kept. Nothing changes in this file.",
+} as const;
+
+/**
+ * Where one row of Claude's fixes stands, one status: from the session Bridge recorded, Claude's fix on GitHub and what
+ * became of it (approved and brought into this file, approved, not kept), and the measure.
+ */
+export type FixRowKind = 'waiting' | 'working' | 'ready' | 'quiet' | 'unfinished' | 'cant-fix' | 'no-measure' | 'approved' | 'in-file' | 'not-kept';
+
+export interface FixRowInput {
+  session?: FixSession | undefined;
+  /** Claude's fix, open for review on GitHub. */
+  openPr?: { number: number; url: string } | undefined;
+  /** What became of the fix's pull request once closed: merged (approved) or closed without merging (not kept). */
+  outcome?: { state: 'merged' | 'closed'; mergedAt?: string | undefined } | undefined;
+  /** When this file last brought in the design system (Check for updates, applied). */
+  lastPullAt?: string | undefined;
+  askedAt?: string | undefined;
+  /** false: the measure the plugin read has no story of this component; undefined: not known. */
+  measured?: boolean | undefined;
+  now: number;
+}
+
+/** Finished: nothing left to do for this row in Claude (the row stays one calm line). */
+export const FINISHED_ROWS: readonly FixRowKind[] = ['in-file', 'not-kept'];
+
+export function fixRow(component: string, i: FixRowInput): { kind: FixRowKind; text: string; hint?: string } {
+  const s = i.session;
+  // Bridge recorded that it has no measure of it (the gap case could not be read): said the plugin's way, with its step.
+  if (s?.state === 'stopped' && /hasn't measured/i.test(s.reason ?? '')) return { kind: 'no-measure', text: FIX_ROW_WORDS.noMeasure, hint: FIX_ROW_WORDS.noMeasureHint };
+  // The head says it in a few words; Claude's reason, the designer's next step, reads under it.
+  if (s?.state === 'stopped') {
+    const why = s.reason ?? FIX_ROW_WORDS.noCloser;
+    return { kind: 'cant-fix', text: FIX_ROW_WORDS.cantFixHead, hint: why.charAt(0).toUpperCase() + why.slice(1) };
+  }
+  if (i.outcome?.state === 'merged') {
+    const inFile = !!i.lastPullAt && !!i.outcome.mergedAt && Date.parse(i.lastPullAt) >= Date.parse(i.outcome.mergedAt);
+    return inFile ? { kind: 'in-file', text: FIX_ROW_WORDS.inFile } : { kind: 'approved', text: FIX_ROW_WORDS.approved };
+  }
+  if (i.outcome?.state === 'closed') return { kind: 'not-kept', text: FIX_ROW_WORDS.notKept };
+  if (i.openPr || s?.state === 'ready') return { kind: 'ready', text: "Claude's fix is ready" };
+  const started = s && s.state === 'working' && (s.steps.length > 0 || s.quiet);
+  if (!started && i.measured === false) return { kind: 'no-measure', text: FIX_ROW_WORDS.noMeasure, hint: FIX_ROW_WORDS.noMeasureHint };
+  if (started && s.quiet) return { kind: 'unfinished', text: FIX_ROW_WORDS.unfinished, hint: FIX_ROW_WORDS.unfinishedHint };
+  if (started) return { kind: 'working', text: sessionHead(s, component).text };
+  if (i.askedAt && i.now - Date.parse(i.askedAt) > NOTHING_BACK_MS) return { kind: 'quiet', text: FIX_ROW_WORDS.quiet, hint: FIX_ROW_WORDS.quietHint };
+  return { kind: 'waiting', text: 'Waiting for Claude' };
+}
+
+/** The section's summary, in one sentence: "9 fixes in this file, 10 need drawing in Figma, 8 waiting." */
+type SummaryRow = { kind: FixRowKind; text: string; hint?: string | undefined };
+export function fixRowsSummary(rows: readonly SummaryRow[]): string {
+  const count = (f: (r: SummaryRow) => boolean) => rows.filter(f).length;
+  const drawing = (r: SummaryRow) => r.kind === 'cant-fix' && /missing in Figma/i.test(r.hint ?? '');
+  const parts: [number, string][] = [
+    [count((r) => r.kind === 'ready'), 'ready for review'],
+    [count((r) => r.kind === 'approved'), 'approved'],
+    [count((r) => r.kind === 'in-file'), ''],
+    [count(drawing), 'drawing'],
+    [count((r) => r.kind === 'cant-fix' && !drawing(r)), "Claude can't fix"],
+    [count((r) => r.kind === 'no-measure'), 'not measured yet'],
+    [count((r) => r.kind === 'working'), 'in progress'],
+    [count((r) => r.kind === 'waiting'), 'waiting'],
+    [count((r) => r.kind === 'quiet' || r.kind === 'unfinished'), "didn't finish"],
+    [count((r) => r.kind === 'not-kept'), 'not kept'],
+  ];
+  const words = parts
+    .filter(([k]) => k > 0)
+    .map(([k, w]) => (w === '' ? `${k} ${k === 1 ? 'fix' : 'fixes'} in this file` : w === 'drawing' ? `${k} ${k === 1 ? 'needs' : 'need'} drawing in Figma` : `${k} ${w}`));
+  return words.length ? `${words.join(', ')}.` : '';
 }

@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, type ClaudeDesignHost } from '@bridge-ds/mcp';
 import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/account';
-import { QUIET_AFTER_MS, stepOf, STEP_WORDS } from '../../api/_lib/fix-sessions';
+import { CANT_FIX_WORDS, QUIET_AFTER_MS, stepOf, STEP_WORDS } from '../../api/_lib/fix-sessions';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { putTeamClaudeDesign } from '../../api/_lib/teams';
@@ -286,6 +286,26 @@ describe('fix sessions: real steps from tool calls, never a percentage', () => {
     s = (await r.json()).session;
     expect(s).toMatchObject({ state: 'stopped', reason: 'No fix brought Tabs closer in 3 rounds.', pr: { number: 12, url: 'https://github.com/acme/design/pull/12' } });
     expect(s.steps.at(-1).status).toBe('failed');
+  });
+
+  it('a gap case Bridge cannot read for want of a measure ends the session with that reason, never a wait', async () => {
+    const step = stepOf({ repo: 'r', tool: 'bridge_get_gap_case', args: { component: 'AlertDialog' }, result: null, error: 'Error: No measured story of AlertDialog in measured-specs.json.', by: 'D', now: 0 }, null)!;
+    expect(step).toMatchObject({ kind: 'stopped', reason: CANT_FIX_WORDS.noMeasure });
+    // Any other failure records nothing, as before.
+    expect(stepOf({ repo: 'r', tool: 'bridge_get_gap_case', args: { component: 'X' }, result: null, error: 'Error: GitHub answered 500', by: 'D', now: 0 }, null)).toBeNull();
+    const w = world();
+    const { clientId, to } = await signIn(w);
+    const { access_token } = (await tokens(w, clientId, to.searchParams.get('code')!)).body;
+    const plugin = { authorization: 'Bearer ghu_user_token_9_0000000000' };
+    w.toolAnswers.bridge_get_gap_case = { gap: { variants: [{ differences: [{ property: 'presence', actual: 'missing', partName: 'indicator' }, { property: 'height', actual: 12 }] }] } };
+    await mcpPost(w, access_token, rpc(1, 'bridge_get_gap_case', { component: 'Spinner' }));
+    const read = async () => (await (await w.call('/api/mcp?view=session&repo=acme/design&component=Spinner', { headers: plugin })).json()).session;
+    expect((await read()).state).toBe('working');
+    // Nothing after a read that found parts missing in Figma: said as that reason, not as Claude going quiet.
+    w.tick(QUIET_AFTER_MS + 1000);
+    const s = await read();
+    expect(s).toMatchObject({ state: 'stopped', quiet: false, reason: CANT_FIX_WORDS.missing(['indicator']) });
+    expect(s.reason).toBe('The indicator is missing in Figma: draw it in the component, then compare with code again.');
   });
 
   it('only people on the team read sessions; CORS is open for the plugin', async () => {

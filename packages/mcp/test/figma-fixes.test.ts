@@ -89,6 +89,16 @@ describe('bridge_get_gap_case', () => {
     expect(r.rounds).toEqual({ used: 0, max: 3 });
     expect(r.next).toMatch(/bridge_try_figma_fix/);
     await expect(figmaFixes.getGapCaseOp(await ro(), { component: 'Nope' })).rejects.toThrow(/No measured story of Nope/);
+    // Nothing missing in Figma here: no word about drawing.
+    expect(r.next).not.toMatch(/missing part/);
+  });
+
+  it('parts missing in Figma: no fix draws them, the component ends with a status fix that says so', () => {
+    const gap = { variants: [{ differences: [{ property: 'presence', actual: 'missing', partName: 'dot' }, { property: 'height', actual: 12, partName: 'component' }] }, { differences: [{ property: 'presence', actual: 'missing', partName: 'mark' }, { property: 'presence', actual: 'hidden', partName: 'label' }] }] };
+    const parts = figmaFixes.missingParts(gap as never);
+    expect(parts).toEqual(['dot', 'mark']);
+    expect(figmaFixes.missingPartsReason(parts)).toBe('The dot and mark are missing in Figma: draw them in the component, then compare with code again.');
+    expect(figmaFixes.missingPartsReason(['indicator'])).toBe('The indicator is missing in Figma: draw it in the component, then compare with code again.');
   });
 });
 

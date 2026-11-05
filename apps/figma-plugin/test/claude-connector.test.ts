@@ -88,11 +88,12 @@ test('a fix session matches the contract: only designer words survive, the head 
   assert.deepEqual(sessionHead(s, 'IconButton'), { kind: 'working', text: 'Claude is working on IconButton · 10 min, round 1 of up to 3' });
   assert.equal(sessionHead(undefined, 'IconButton').text, 'Waiting for Claude');
   assert.equal(sessionHead(parseSession({ ...view, state: 'waiting', startedAt: null, updatedAt: null, elapsed: 0, steps: [] }), 'IconButton').text, 'Waiting for Claude');
-  // Quiet is the server's flag on a working session: never a stop, never "Claude stopped: Claude went quiet".
+  // Quiet is the server's flag on a working session that did something: never a stop, and not "went quiet" either
+  // (that is for an ask nothing came back from): Claude's last reply is in the chat.
   const quiet = parseSession({ ...view, quiet: true })!;
-  assert.deepEqual(sessionHead(quiet, 'IconButton'), { kind: 'quiet', text: 'Claude went quiet' });
-  assert.equal(sessionHead(parseSession({ ...view, state: 'stopped', reason: 'no closer fix' }), 'IconButton').text, 'Claude stopped: no closer fix');
-  assert.equal(sessionHead(parseSession({ ...view, state: 'stopped', reason: 'Claude stopped: no closer fix' }), 'IconButton').text, 'Claude stopped: no closer fix');
+  assert.deepEqual(sessionHead(quiet, 'IconButton'), { kind: 'quiet', text: "Claude didn't finish this one" });
+  assert.equal(sessionHead(parseSession({ ...view, state: 'stopped', reason: 'no closer fix' }), 'IconButton').text, "Claude can't fix this one: no closer fix");
+  assert.equal(sessionHead(parseSession({ ...view, state: 'stopped', reason: 'Claude stopped: no closer fix' }), 'IconButton').text, "Claude can't fix this one: no closer fix");
   assert.equal(sessionHead(parseSession({ ...view, state: 'ready' }), 'IconButton').text, "Claude's fix is ready");
   assert.equal(sessionHead(parseSession({ ...view, elapsed: 3900 }), 'IconButton').text, 'Claude is working on IconButton · 1 h 5 min, round 1 of up to 3');
   assert.equal(parseSession({ component: 'X', state: 'nope' }), undefined);

@@ -475,16 +475,23 @@ function toolCalls(body: unknown): { id: string | number; name: string; args: Re
   );
 }
 
-/** The JSON a tool answered (its text content), by request id; null for an error or a non-JSON answer. */
-function toolResults(body: unknown): Map<string | number, Record<string, unknown> | null> {
-  const out = new Map<string | number, Record<string, unknown> | null>();
+/**
+ * What a tool answered, by request id: its JSON (the text content parsed; null for an error or a non-JSON answer) and,
+ * for an error, its message (a gap case without a measure ends the session with that reason).
+ */
+function toolResults(body: unknown): Map<string | number, { result: Record<string, unknown> | null; error?: string }> {
+  const out = new Map<string | number, { result: Record<string, unknown> | null; error?: string }>();
   for (const m of (Array.isArray(body) ? body : [body]) as { id?: string | number; result?: { isError?: boolean; content?: { type?: string; text?: string }[] } }[]) {
     if (!m || (typeof m.id !== 'string' && typeof m.id !== 'number')) continue;
-    const text = m.result && !m.result.isError ? m.result.content?.find((c) => c.type === 'text')?.text : undefined;
+    const raw = m.result?.content?.find((c) => c.type === 'text')?.text;
+    if (m.result?.isError) {
+      out.set(m.id, { result: null, ...(raw ? { error: raw.slice(0, 500) } : {}) });
+      continue;
+    }
     try {
-      out.set(m.id, text ? (JSON.parse(text) as Record<string, unknown>) : null);
+      out.set(m.id, { result: raw ? (JSON.parse(raw) as Record<string, unknown>) : null });
     } catch {
-      out.set(m.id, null);
+      out.set(m.id, { result: null });
     }
   }
   return out;
@@ -575,7 +582,10 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
     answer = null;
   }
   const results = toolResults(answer);
-  for (const c of calls) await recordToolCall(svc.redis, { repo: grant.repo, tool: c.name, args: c.args, result: results.get(c.id) ?? null, by: grant.name, now });
+  for (const c of calls) {
+    const r = results.get(c.id);
+    await recordToolCall(svc.redis, { repo: grant.repo, tool: c.name, args: c.args, result: r?.result ?? null, ...(r?.error ? { error: r.error } : {}), by: grant.name, now });
+  }
   return new Response(text, { status: res.status, headers: res.headers });
 }
 
