@@ -105,7 +105,7 @@ export default function FigmaFileSetting({ prefix, protectedBranches }: FigmaFil
             </div>
             {editable ? (
               <>
-                <div className="set-row-value">
+                <div className="set-row-value set-row-value-fill">
                   <Input
                     id="set-figma-file"
                     label={FIGMA_FILE_WORDS.label}
