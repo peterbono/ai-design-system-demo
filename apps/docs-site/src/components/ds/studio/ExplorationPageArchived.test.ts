@@ -98,7 +98,10 @@ describe('leaving the page', () => {
     document.body.append(el);
     paintExplorationPage(el, base);
     el.innerHTML = '<p>Loading exploration #3</p>';
+    // React reports the nodes it could not remove (they are gone): expected here, kept out of the test output.
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect(() => unmountExplorationPage()).not.toThrow();
+    error.mockRestore();
     el.remove();
   });
 });

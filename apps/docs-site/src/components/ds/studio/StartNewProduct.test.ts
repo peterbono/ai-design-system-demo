@@ -62,6 +62,12 @@ const openForm = async (card: string = A.fresh) => {
   await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(W.name)));
 };
 
+/**
+ * A create runs on after the dialog closes (the product is on GitHub by then): a test that starts one waits for its
+ * page to open, or its last steps would land in the next test (its start, its add, its page opened).
+ */
+const flowDone = () => waitFor(() => expect(gh.opened).toEqual([`/studio/products/${NEW.name}/`]));
+
 const create = (name: string) => {
   fireEvent.change(screen.getByLabelText(W.name), { target: { value: name } });
   fireEvent.click(screen.getByRole('button', { name: W.create }));
@@ -99,6 +105,7 @@ describe('Add a product: a new product (B)', () => {
     await openForm();
     create('Data pilot');
     await waitFor(() => expect(gh.start).toHaveBeenCalledWith(expect.objectContaining({ owner: 'the-bridge-company', slug: 'data-pilot' })));
+    await flowDone();
   });
 
   it("no product yet: goes to the team's own account (the library's owner)", async () => {
@@ -107,6 +114,7 @@ describe('Add a product: a new product (B)', () => {
     await openForm();
     create('Data pilot');
     await waitFor(() => expect(gh.start).toHaveBeenCalledWith(expect.objectContaining({ owner: 'acme', slug: 'data-pilot' })));
+    await flowDone();
   });
 
   it('starts the code, adds it with the copy on, closes and opens its page', async () => {
@@ -170,6 +178,7 @@ describe('Add a product: a new product (B)', () => {
     expect(gh.opened).toEqual([]);
     fireEvent.click(add);
     await waitFor(() => expect(gh.add).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Art print shop', repo: 'acme/art-print-shop' })));
+    await waitFor(() => expect(gh.opened).toEqual(['/studio/products/art-print-shop/']));
   });
 });
 
@@ -230,5 +239,6 @@ describe('Add a product: only its address (D2)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(A.refused);
     fireEvent.click(screen.getByRole('button', { name: A.addLabel('Poster studio') }));
     await waitFor(() => expect(gh.add).toHaveBeenLastCalledWith(expect.objectContaining({ repo: 'acme/poster-studio', address: 'https://posterstudio.com' })));
+    await waitFor(() => expect(gh.opened).toEqual(['/studio/products/poster-studio/']));
   });
 });

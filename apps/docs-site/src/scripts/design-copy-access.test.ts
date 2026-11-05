@@ -92,7 +92,12 @@ describe('Make my copy and what Bridge may open', () => {
   });
 
   it('GitHub could not say what Bridge sees: on as before, never a step for nothing', async () => {
+    // No answer for the installations (no route for it here): the read fails, the page says so in the console only.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     expect(await makeCopy(SHOP, { sleep: nap })).toBe('ready');
+    expect(s.gets).toEqual(['/user/installations?per_page=100']);
+    expect(warn).toHaveBeenCalledWith('Bridge: could not check that Bridge can open the copy.', expect.objectContaining({ message: 'no route /user/installations?per_page=100' }));
+    warn.mockRestore();
   });
 
   it('copyVisible reads every page of the list', async () => {
