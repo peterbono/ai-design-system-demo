@@ -3,7 +3,7 @@
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { ExplorationPage, type ExplorationPageProps } from './ExplorationPage';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { userEvent } from '@testing-library/user-event';
@@ -398,6 +398,12 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
   });
 
   it('shows the preview capture with when it was taken, and the plate again when the image does not load', () => {
+    // Mid-afternoon, local time: "3 h ago" stays the same day whenever the suite runs (after midnight it said "yesterday").
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 4, 15, 0, 0));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const capturedAt = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
     handed({}, { thumb: 'https://raw.githubusercontent.com/o/r/bridge-shots/o/p/2.webp?v=abc1234', thumbCapturedAt: capturedAt });
     const img = screen.getByRole('img', { name: 'The latest captured screen of this exploration' });

@@ -4,15 +4,22 @@
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BranchThumb } from './BranchThumb';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
-const shot = { kind: 'screen' as const, src: 'https://raw.githubusercontent.com/o/r/bridge-shots/o/p/2.webp?v=abc1234', capturedAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), product: 'Product admin', screen: 'Dashboard', seed: 'admin-app#2' };
+// Mid-afternoon, local time: "2 h ago" stays the same day whenever the suite runs (after midnight it said "yesterday").
+const NOW = new Date(2026, 10, 4, 15, 0, 0).getTime();
+const shot = { kind: 'screen' as const, src: 'https://raw.githubusercontent.com/o/r/bridge-shots/o/p/2.webp?v=abc1234', capturedAt: new Date(NOW - 2 * 3600 * 1000).toISOString(), product: 'Product admin', screen: 'Dashboard', seed: 'admin-app#2' };
 
 describe('BranchThumb, explored screens', () => {
   it('shows the capture and when it was taken on a card', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
     const { container } = render(createElement(BranchThumb, { spec: shot, size: 'card' }));
     expect(container.querySelector('img.bt-screen')?.getAttribute('src')).toBe(shot.src);
     expect(container.querySelector('.bt-captured')?.textContent).toBe('Captured 2 h ago');
