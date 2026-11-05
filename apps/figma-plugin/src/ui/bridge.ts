@@ -1,9 +1,9 @@
 // UI side of the typed message protocol: request() resolves with the main thread's response.
 
-import { type RequestMap, type RequestType, type SelectionInfo, isProgress, isResponse } from '../shared/messages';
+import { type ProgressFn, type RequestMap, type RequestType, type SelectionInfo, isProgress, isResponse } from '../shared/messages';
 
-let progressListener: ((message: string) => void) | undefined;
-export const onProgress = (fn: (message: string) => void) => (progressListener = fn);
+let progressListener: ProgressFn | undefined;
+export const onProgress = (fn: ProgressFn) => (progressListener = fn);
 
 export type Selection = SelectionInfo | null;
 let selectionListener: ((s: Selection) => void) | undefined;
@@ -15,7 +15,7 @@ const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Err
 window.addEventListener('message', (event: MessageEvent) => {
   const msg = (event.data as { pluginMessage?: unknown } | undefined)?.pluginMessage;
   if (isProgress(msg)) {
-    progressListener?.(msg.message);
+    progressListener?.(msg.message, msg.done, msg.total);
     return;
   }
   // A turn the main thread gives Figma through this window during a long build: answered at once, with whether the

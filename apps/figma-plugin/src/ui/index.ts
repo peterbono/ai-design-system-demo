@@ -36,6 +36,7 @@ import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
+import { Estimator, type ProgressInfo, batchRemainingMs, progressView } from './progress';
 import { blockerLines } from '../sync/blockers';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
 import type { MeasuredOnlyReport } from '@bridge-ds/core';
@@ -108,6 +109,8 @@ interface PullState {
   fidelity?:
     | {
         running?: string | undefined;
+        /** Variants compared of all, while it runs: the bar's percentage and time left. */
+        progress?: { done: number; total: number } | undefined;
         outcome?: FidelityOutcome | undefined;
         error?: string | undefined;
         copied?: boolean | undefined;
@@ -267,6 +270,8 @@ interface State {
   tab: Tab;
   init?: InitPayload | undefined;
   busy?: string | undefined;
+  /** The busy job's items done of total, when the work can count them: a bar with a percentage and the time left. */
+  progress?: { done: number; total: number } | undefined;
   /** While a long build runs: "Stop" in the action bar calls it. */
   cancel?: (() => void) | undefined;
   /** `problem`: the failure was about the token (rejected, or a missing permission named with its GitHub link). */
@@ -349,12 +354,24 @@ window.addEventListener('online', () => {
   else render();
 });
 
-onProgress((message) => {
+/** The time left of the busy job (one job at a time): reset when a job starts and ends. */
+const busyEstimate = new Estimator();
+
+/** A step of the busy job: its words and, when it can count, items done of total. Redraws only the bar. */
+function busyStep(message: string, done?: number, total?: number): void {
   if (!state.busy) return;
   state.busy = message;
-  const el = document.getElementById('busy-text');
-  if (el) el.textContent = message;
-});
+  state.progress = total ? { done: done ?? 0, total } : undefined;
+  busyEstimate.observe(done, total, Date.now());
+  document.querySelector('[data-progress="busy"]')?.replaceWith(busyProgress());
+}
+
+onProgress(busyStep);
+
+/** The busy job's bar, in the action bar next to Stop. */
+function busyProgress(): HTMLElement {
+  return progressView({ label: state.busy ?? '', done: state.progress?.done, total: state.progress?.total, remainingMs: busyEstimate.remainingMs(Date.now()) }, 'busy');
+}
 
 // ---------------------------------------------------------------------------------------------
 // Helpers
@@ -373,6 +390,8 @@ function getClient(): GitHubClient {
 async function run(label: string, task: () => Promise<void>, retry?: () => void): Promise<void> {
   if (state.busy) return;
   state.busy = label;
+  state.progress = undefined;
+  busyEstimate.reset();
   state.error = undefined;
   render();
   try {
@@ -383,6 +402,8 @@ async function run(label: string, task: () => Promise<void>, retry?: () => void)
     state.error = { message: problem?.text ?? f.text, detail: problem ? undefined : f.detail, retry, problem, offline: isOffline(err) };
   } finally {
     state.busy = undefined;
+    state.progress = undefined;
+    busyEstimate.reset();
     render();
   }
 }
@@ -1199,6 +1220,7 @@ function submitPush(): void {
         lines: new Map((r.components?.changed ?? []).flatMap((c) => { const l = claudeLine(r, c); return l ? [[c.nodeId, l] as [string, string]] : []; })),
         titles: new Map((r.components?.changed ?? []).flatMap((c) => { const t = claudeTitle(r, c); return t ? [[c.nodeId, t] as [string, string]] : []; })),
         title: r.title,
+        progress: busyStep,
         fileName: state.init!.fileName,
         fileKey: r.fileKey,
         appendTo: !toExploration && mode === 'direct' && r.appendToOpen ? r.openPr : undefined,
@@ -2513,10 +2535,14 @@ function compareBlock(): Child {
   );
 }
 
+/** The time left of Compare with code (it runs beside the busy job, so it has its own). */
+const compareEstimate = new Estimator();
+
 /** "Compare with code": exports each generated set's variants and compares them with the code images. Read only. */
 async function checkFidelity(p: PullState): Promise<void> {
   if (p.fidelity?.running) return;
   p.fidelity = { running: p.shots ? 'Reading the renders of the stories' : 'Reading the images of the code' };
+  compareEstimate.reset();
   render();
   try {
     const outcome = await runFidelityCheck({
@@ -2525,8 +2551,12 @@ async function checkFidelity(p: PullState): Promise<void> {
       exportVariants: (nodeId, keys, scale) => request('fidelity-export', { nodeId, keys, scale }),
       decode: decodePng,
       encode: encodePng,
-      progress: (m) => {
-        if (p.fidelity) p.fidelity.running = m;
+      progress: (m, done, total) => {
+        if (p.fidelity) {
+          p.fidelity.running = m;
+          p.fidelity.progress = total ? { done: done ?? 0, total } : undefined;
+        }
+        compareEstimate.observe(done, total, Date.now());
         render();
       },
       ...(state.init?.fileName ? { fileName: state.init.fileName } : {}),
@@ -3012,6 +3042,39 @@ function claudePanel(component: string): Child {
   );
 }
 
+/**
+ * "Ask Claude to fix all N" while Claude works through the list: the components asked together (the latest ask naming
+ * two or more), how many Claude finished (ready, can't fix, not kept...), and the time left from the ones it finished.
+ * Undefined for a single ask, and once every component of the list is finished.
+ */
+function claudeBatch(): ProgressInfo | undefined {
+  const asked = parseAsked(state.init?.sync.claudeAsked);
+  const latest = Object.values(asked).sort().at(-1);
+  const batch = latest ? Object.keys(asked).filter((c) => asked[c] === latest) : [];
+  if (batch.length < 2) return undefined;
+  const kinds = batch.map((c) => claudeRow(c)?.kind);
+  const done = kinds.filter((k) => k !== 'working' && k !== 'waiting').length;
+  if (done >= batch.length) return undefined;
+  const current = batch.find((_, i) => kinds[i] === 'working');
+  const finished = batch.flatMap((c) => {
+    const x = claudeSessions.get(c);
+    return x && (x.state === 'ready' || x.state === 'stopped') ? [x.elapsed] : [];
+  });
+  return {
+    label: current ? `Claude is fixing ${current}, ${done + 1} of ${batch.length}` : `Waiting for Claude, ${done} of ${batch.length} finished`,
+    done,
+    total: batch.length,
+    remainingMs: batchRemainingMs(finished, batch.length - done, current ? claudeSessions.get(current)?.elapsed : 0),
+    unit: 'components',
+  };
+}
+
+/** The list's bar, above its rows. */
+function claudeBatchBar(): Child {
+  const b = claudeBatch();
+  return b ? progressView(b, 'claude') : null;
+}
+
 /** The order rows of Claude's fixes show in: what the designer acts on first, finished ones last. */
 const ROW_ORDER: Record<FixRowKind, number> = { ready: 0, approved: 1, 'cant-fix': 2, 'no-measure': 3, unfinished: 4, quiet: 5, working: 6, waiting: 7, 'in-file': 8, 'not-kept': 9 };
 
@@ -3041,6 +3104,7 @@ function claudeRunsGroup(): Child {
     fixRowsSummary(rows, { approver: approver() }),
     [
       approveNote(),
+      claudeBatchBar(),
       open.length ? rowList('claude-fixes', open.map(item), 8) : null,
       done.length
         ? h(
@@ -3153,7 +3217,8 @@ function fidelityGroup(p: PullState): Child {
   let lede: Child = COMPARE_LEDE;
   let content: Child = null;
   if (f?.running) {
-    lede = h('span', { class: 'loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), f.running);
+    // The bar sits where the result will appear, under the sentence that says what the comparison does.
+    content = progressView({ label: f.running, done: f.progress?.done, total: f.progress?.total, remainingMs: compareEstimate.remainingMs(Date.now()), unit: 'variants' }, 'compare');
   }
   else if (f?.error) content = h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not compare'), h('p', null, f.error));
   else if (outcome?.kind === 'no-references') {
@@ -3237,6 +3302,7 @@ function fidelityGroup(p: PullState): Child {
         : null,
       approveNote(),
       fixAllPanel(p),
+      claudeBatchBar(),
       // The headline counts every set, not compared ones too: the list names what it holds.
       rowList('fidelity', rows, 10, 'compared'),
       notCompared.length
@@ -5126,7 +5192,7 @@ function actionBar(bar: ActionBar | undefined): Child {
       'div',
       { class: 'bar-status', 'aria-live': 'polite' },
       state.busy
-        ? [h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', { id: 'busy-text' }, state.busy)]
+        ? busyProgress()
         : [
             bar?.toggle
               ? h(

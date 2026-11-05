@@ -271,10 +271,24 @@ export type ResponseEnvelope =
   | { kind: 'response'; reqId: number; ok: true; payload: unknown }
   | { kind: 'response'; reqId: number; ok: false; error: string };
 
-/** Unsolicited progress update from the main thread during long operations. */
+/**
+ * Unsolicited progress update from the main thread during long operations: what is happening in words ("Building
+ * Button, 12 of 62") and, when the work can count its items, how many are done of how many. Without `total` the plugin
+ * shows the words with a bar that moves without a percentage.
+ */
 export interface ProgressEnvelope {
   kind: 'progress';
   message: string;
+  done?: number | undefined;
+  total?: number | undefined;
+}
+
+/** How long work reports its progress: the words, and items done of total when it knows them. */
+export type ProgressFn = (message: string, done?: number, total?: number) => void;
+
+/** The envelope for a progress call: `done`/`total` only when the total is known. */
+export function progressEnvelope(message: string, done?: number, total?: number): ProgressEnvelope {
+  return total && total > 0 ? { kind: 'progress', message, done: Math.max(0, Math.min(done ?? 0, total)), total } : { kind: 'progress', message };
 }
 
 export function isProgress(msg: unknown): msg is ProgressEnvelope {

@@ -21,7 +21,7 @@ import { type ChangesMode, type DiffEntry, type GitHubClient, type PullRequest, 
 import { type ComponentPush, libraryTokens, pushPairs } from './component-push';
 import type { FigmaSnapshot } from '../shared/messages';
 import { type ComponentChangeItem, type RequestDraft, suggestLine, suggestSummary, suggestTitle, toRequest } from './components';
-import type { VariableTag } from '../shared/messages';
+import type { ProgressFn, VariableTag } from '../shared/messages';
 import { type Analysis, type ExplorationTarget, type PushProposal, type PushResult, commitToExploration, openPullRequest, sendSuggestion } from './flows';
 import { sendComponentRequest, uploadImages, uploadImagesIfAllowed } from './requests';
 import { type TokenProblem, errorText, tokenProblem } from './token-health';
@@ -195,6 +195,8 @@ export interface PublishInput {
   pushes?: ComponentPush[] | undefined;
   /** GitHub login of the designer, for the "From Figma" line. */
   requestedBy?: string | undefined;
+  /** How far the send is: the variable changes count as one item, then each component (counts only from two items). */
+  progress?: ProgressFn | undefined;
   /**
    * How the repo takes changes (changesModeOf: bridge.config.json "changes"). "direct" (the default here, so existing
    * callers keep their behaviour): branches and pull requests. "suggest": the variable edits and every component change
@@ -270,6 +272,13 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
   const mode = input.mode ?? 'direct';
   if (mode === 'suggest' && input.exploration) throw new Error('This repo takes changes as suggestions, and an exploration is a separate copy of the library: send it for review as a suggestion instead.');
   const out: PublishResult = { requests: [], branches: [], suggestions: [], held: [], failed: [], outcomes: [], ...(input.exploration ? { exploration: { branch: input.exploration.branch, pr: input.exploration.pr, unchanged: false } } : {}) };
+  const total = (prFiles ? 1 : 0) + drafts.length;
+  let step = 0;
+  const say = (what: string) => {
+    if (total > 1) input.progress?.(`Sending ${what}, ${step + 1} of ${total}`, step, total);
+    step++;
+  };
+  if (prFiles) say('your variable changes');
   if (prFiles && input.exploration) {
     const res = await commitToExploration(client, input.analysis, input.proposal, { target: input.exploration, title: input.title, notes: input.description, ...(input.now ? { now: input.now } : {}) });
     out.pr = res;
@@ -288,6 +297,7 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
     });
   }
   for (const d of drafts) {
+    say(d.component);
     const planned = input.pushes?.find((p) => p.nodeId === d.nodeId);
     // An exact token change sent to an exploration is written there (no AI needed), so trying the exploration shows it.
     if (input.exploration && planned && planned.plan.route === 'token-change' && !planned.blocked) {

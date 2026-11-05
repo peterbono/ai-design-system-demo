@@ -13,7 +13,7 @@ import { variantKeyOf } from '@bridge-ds/core';
 import { familyKey } from '../sync/mapping';
 import type { CssShadow, SpecField, SpecLayout, SpecPart } from '@bridge-ds/core';
 import { figmaPropName, matchVariants, parsePushedMark, propsOfKey } from '../sync/component-pull';
-import { PUSHED_KEY } from '../shared/messages';
+import { PUSHED_KEY, type ProgressFn } from '../shared/messages';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedIcon, PlannedSlot, PlannedValue, PlannedVariant } from '../sync/component-pull';
 import { buildSignature } from '../sync/components';
 import { readComponent } from './components';
@@ -32,7 +32,7 @@ const ICON_COLUMNS = 8;
 const GAP = 24;
 const SET_GAP = 96;
 
-type Progress = (message: string) => void;
+type Progress = ProgressFn;
 type Box = FrameNode | ComponentNode;
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -1211,6 +1211,7 @@ async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentA
     const page = await pageFor(ICONS_PAGE, 'icons');
     for (let i = 0; i < plan.icons.length; i++) {
       const icon = plan.icons[i]!;
+      if (i % 10 === 0) progress(`Drawing icons, ${i + 1} of ${plan.icons.length}`, i, plan.icons.length);
       const mark = created.mark();
       let comp = icons.get(icon.name);
       const isNew = !comp;
@@ -1786,7 +1787,7 @@ async function buildAll(plan: ComponentPullPlan, progress: Progress, opts: Apply
         report.unchanged++;
         continue;
       }
-      progress(`Building ${i + 1} of ${todo}: ${comp.name}`);
+      progress(`Building ${comp.name}, ${i + 1} of ${todo}`, i, todo);
       try {
         await buildSet(comp, existing.get(comp.componentId), ctx, report, place, interactionsFailed);
       } catch (err) {
