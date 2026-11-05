@@ -375,6 +375,15 @@
       "kind": "status",
       "reason": "The badge hugs its text in code and the stories use longer labels than the Figma placeholder, so the badge is 27 to 53 px narrower in Figma: set the Figma label to the story text, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Banner",
+      "height": "fixed",
+      "id": "banner-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "Figma hugs the title and lead so the banner height changes with text wrapping, while code renders a taller banner."
     }
   ]
 }
