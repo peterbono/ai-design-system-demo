@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Table",
+      "id": "table-pixel-status",
+      "kind": "status",
+      "reason": "All three states match the code on every measured value but 6 to 7 percent of pixels differ, likely the cell text, the sort icons, the selection checkboxes or the row hover fill: compare the shots with the Figma render by eye.",
+      "status": "differs"
     }
   ]
 }
