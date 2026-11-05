@@ -34,6 +34,8 @@ export interface ComponentViewProps {
   playground?: ReactNode;
   /** "Figma is ahead" while build requests for this component are open (FigmaAhead), by the hero. */
   ahead?: ReactNode;
+  /** "In Figma: <name>" from the component map, or "Not linked to Figma yet" for leads (FigmaLink), by the hero. */
+  figma?: ReactNode;
 }
 
 const tokenLink = (data: LibraryData, path: string) => pageHref(data, `tokens/?t=${encodeURIComponent(path)}`);
@@ -89,7 +91,7 @@ function StoryPane({ storybook, storyId, theme, name, className }: { storybook: 
   );
 }
 
-export default function ComponentView({ data, component: c, Example, heroTools, playground, ahead }: ComponentViewProps) {
+export default function ComponentView({ data, component: c, Example, heroTools, playground, ahead, figma }: ComponentViewProps) {
   const { model, extras } = data;
   const d = readableDocs(c.docs);
   const status = statusOf(c);
@@ -173,6 +175,7 @@ export default function ComponentView({ data, component: c, Example, heroTools, 
           </div>
         </div>
         <div data-le-rail-narrow=""></div>
+        {figma}
         {ahead}
 
         {story && storybook && <StoryMissing name={c.name} code={exampleCode(c.name, spec?.children)} />}

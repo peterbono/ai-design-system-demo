@@ -9,6 +9,7 @@
 // Pure: no I/O, runs in a browser, a plugin sandbox or Node. GitHub calls live in suggestions-github.ts.
 
 import { CONFIG_FILE, tokensPath, type BridgeConfig } from './config';
+import { COMPONENT_MAP_FILE } from './component-map';
 import { EXPLORATION_LABEL } from './explorations';
 import { FROM_FIGMA_LABEL } from './figma-push';
 import type { LayeredChange } from './layered-review';
@@ -845,7 +846,7 @@ export function suggestionAllowedRoots(kind: SuggestionKind, config: Pick<Bridge
     case 'brand':
       return [tokenRoot, ...changesets, CONFIG_FILE];
     case 'config':
-      return [CONFIG_FILE];
+      return [CONFIG_FILE, COMPONENT_MAP_FILE];
     case 'revert':
       return undefined;
   }

@@ -128,7 +128,7 @@ export const HOSTED_REFUSED_WORDS = 'Claude does not merge through Bridge: a per
 
 /**
  * The tools a member who joined with their email cannot use through Claude: they need GitHub powers (reviews, merges,
- * code in the library, Figma fixes, product package changes) or a lead's (the library's own explorations). Neither
+ * code in the library, Figma fixes, product package changes) or a lead's (the library's own explorations, its Figma links). Neither
  * listed nor run; a call gets EMAIL_REFUSED_WORDS (or LIBRARY_LEADS_WORDS) in plain words.
  */
 export const EMAIL_REFUSED_TOOLS: readonly string[] = [
@@ -145,10 +145,13 @@ export const EMAIL_REFUSED_TOOLS: readonly string[] = [
   'bridge_switch_to_published',
   'bridge_use_library_preview',
   'bridge_open_library_branch',
+  'bridge_propose_component_map',
 ];
 export const EMAIL_REFUSED_WORDS = 'You joined this team with your email, so Bridge does not do this for you. Ask a reviewer or an admin of your team.';
 export const USAGE_ADMINS_ONLY = 'Only admins of this team see its GitHub usage.';
 export const LIBRARY_LEADS_WORDS = 'The design system leads change the library. Ask them for what you need, or explore one of your products.';
+/** Refused to an email member with LIBRARY_LEADS_WORDS: library changes only its leads make (a library branch, its Figma links). */
+const LIBRARY_LEADS_TOOLS: readonly string[] = ['bridge_open_library_branch', 'bridge_propose_component_map'];
 
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 const SEAL_PURPOSE = 'mcp-connector-github-tokens';
@@ -536,7 +539,7 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
   const refusedCall = messages.find((m) => m && m.method === 'tools/call' && typeof m.params?.name === 'string' && refused.includes(m.params.name));
   if (refusedCall) {
     const name = refusedCall.params!.name as string;
-    const words = HOSTED_REFUSED_TOOLS.includes(name) ? HOSTED_REFUSED_WORDS : name === 'bridge_open_library_branch' ? LIBRARY_LEADS_WORDS : EMAIL_REFUSED_WORDS;
+    const words = HOSTED_REFUSED_TOOLS.includes(name) ? HOSTED_REFUSED_WORDS : LIBRARY_LEADS_TOOLS.includes(name) ? LIBRARY_LEADS_WORDS : EMAIL_REFUSED_WORDS;
     const errors = messages.filter((m) => m && (typeof m.id === 'string' || typeof m.id === 'number')).map((m) => ({ jsonrpc: '2.0', id: m.id, error: { code: -32602, message: words } }));
     return json(200, Array.isArray(body) ? errors : (errors[0] ?? { jsonrpc: '2.0', id: null, error: { code: -32602, message: words } }), NO_STORE);
   }

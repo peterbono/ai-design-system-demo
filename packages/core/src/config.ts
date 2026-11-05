@@ -21,6 +21,7 @@ import { normalizeRights, rightsProblems, visualImpactProblems, type Rights, typ
 import { ownerEntryProblems } from './teams';
 import { DEFAULT_PRODUCTS, productProblems, sameProducts, type ProductConfig } from './products';
 import { toolingProblems, type ToolingConfig } from './tooling';
+import { parseFigmaFile } from './figma-file';
 
 /** File name Bridge looks for at the repository root. */
 export const CONFIG_FILE = 'bridge.config.json';
@@ -49,6 +50,12 @@ export interface DemoConfig {
   viewer: string;
   /** What they do: "DS lead". */
   role?: string;
+}
+
+/** The team's Figma file: where its design system lives in Figma (see figma-file.ts and docs/COMPONENT-MAP.md). */
+export interface FigmaConfig {
+  /** A link to the file, or its key. Read it through figmaFileOf(). */
+  file: string;
 }
 
 /** The team's hosted Library (/library/<owner>/<repo>/). */
@@ -229,6 +236,8 @@ export interface BridgeConfig {
   library?: LibraryConfig | undefined;
   /** A public demo's persona (see DemoConfig). */
   demo?: DemoConfig | undefined;
+  /** The team's Figma file (Settings > Figma file). Read it through figmaFileOf(). */
+  figma?: FigmaConfig | undefined;
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -269,6 +278,7 @@ export interface BridgeConfigInput {
   storybook?: { url: string };
   library?: LibraryConfig;
   demo?: DemoConfig;
+  figma?: FigmaConfig;
 }
 
 /** Longest team display name bridge.config.json accepts. */
@@ -445,6 +455,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
     ...(input.storybook?.url ? { storybook: { url: input.storybook.url.trim().replace(/\/+$/, '') } } : {}),
     ...(input.library?.public === true ? { library: { public: true } } : {}),
     ...(input.demo?.viewer?.trim() ? { demo: { viewer: input.demo.viewer.trim(), ...(input.demo.role?.trim() ? { role: input.demo.role.trim() } : {}) } } : {}),
+    ...(input.figma?.file?.trim() ? { figma: { file: input.figma.file.trim() } } : {}),
     ...(input.audit ? { audit: { ...input.audit } } : {}),
     ...(input.visualImpact ? { visualImpact: { mode: input.visualImpact.mode === 'on-demand' ? 'on-demand' : 'auto' } } : {}),
     ...(input.integrations ? { integrations: { ...input.integrations } } : {}),
@@ -603,6 +614,14 @@ export function loadConfig(source: string | unknown): BridgeConfig {
       for (const k of Object.keys(demo)) if (k !== 'viewer' && k !== 'role') problems.push(`"demo.${k}" is not a known key`);
     }
   }
+  const figma = d.figma;
+  if (figma !== undefined) {
+    if (!isObj(figma) || !isStr(figma.file)) problems.push('"figma" must be { "file" } with the link of the team\'s Figma file');
+    else {
+      if (!parseFigmaFile(figma.file)) problems.push('"figma.file" must be a Figma file link (https://www.figma.com/design/<key>/...) or its key');
+      for (const k of Object.keys(figma)) if (k !== 'file') problems.push(`"figma.${k}" is not a known key`);
+    }
+  }
   problems.push(...productProblems(d.products));
   problems.push(...toolingProblems(d.tooling));
   const audit = d.audit;
@@ -662,6 +681,9 @@ export function storybookUrl(config: Pick<BridgeConfig, 'storybook' | 'previews'
  * default: a Library page under the Bridge domain shows content Bridge does not control, so it is noindex unless the
  * team asks.
  */
+/** The team's Figma file (key and link), from `figma.file`; null when the config names none. */
+export const figmaFileOf = (config: Pick<BridgeConfig, 'figma'> | null | undefined) => parseFigmaFile(config?.figma?.file);
+
 export const libraryIsPublic = (config: Pick<BridgeConfig, 'library'> | null | undefined): boolean => config?.library?.public === true;
 
 /** Plain-JSON form of a config, in the canonical shape (what `bridge init` writes). */
@@ -686,6 +708,7 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     ...(config.storybook ? { storybook: config.storybook } : {}),
     ...(config.library ? { library: config.library } : {}),
     ...(config.demo ? { demo: config.demo } : {}),
+    ...(config.figma ? { figma: config.figma } : {}),
     ...(config.products && !sameProducts(config.products, DEFAULT_PRODUCTS) ? { products: config.products } : {}),
     ...(config.tooling ? { tooling: config.tooling } : {}),
   };

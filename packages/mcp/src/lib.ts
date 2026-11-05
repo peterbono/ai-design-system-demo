@@ -26,6 +26,7 @@ export * as studio from './studio.js';
 export * as pieces from './pieces.js';
 export * as figma from './figma.js';
 export * as figmaFixes from './figma-fixes.js';
+export * as componentMap from './component-map.js';
 export * as suggestions from './suggestions.js';
 export * as claudeDesign from './claude-design.js';
 export type { ClaudeDesignHost, ClaudeDesignManifest, TeamClaudeDesign } from './claude-design.js';

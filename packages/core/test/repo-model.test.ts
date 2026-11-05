@@ -143,8 +143,8 @@ test('onProgress: tokens, then components, then docs, with an exact total from t
   const model = await loadRepoModel(memorySource(TEAM), { onProgress: (p) => seen.push(p) });
   assert.equal(model.components?.list.length, 1);
   const total = seen[0]!.filesTotal;
-  // 7 token files + pairs + notes; Button.tsx, its CSS, the index and the specs; one docs file.
-  assert.equal(total, 9 + 4 + 1);
+  // 7 token files + pairs + notes; Button.tsx, its CSS, the index, the specs and the component map; one docs file.
+  assert.equal(total, 9 + 5 + 1);
   assert.ok(seen.every((p) => p.filesTotal === total), 'the total never moves');
   assert.deepEqual([...new Set(seen.map((p) => p.phase))], ['tokens', 'components', 'docs']);
   const done = seen.map((p) => p.filesDone);
@@ -154,7 +154,7 @@ test('onProgress: tokens, then components, then docs, with an exact total from t
     seen.filter((p) => p.done === p.total).map((p) => [p.phase, p.total]),
     [
       ['tokens', 9],
-      ['components', 4],
+      ['components', 5],
       ['docs', 1],
     ],
   );
@@ -254,6 +254,7 @@ test('this repo: the model is the same through the local, memory and GitHub sour
     ...(await fs.list(fromFs.config.components!.dir)),
     fromFs.config.components!.index!,
     fromFs.specs.path,
+    'bridge.components.json',
     ...Object.keys(fromFs.styles.vars),
   ];
   const bodies = await readRepoTexts(fs, paths);

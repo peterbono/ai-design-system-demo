@@ -124,6 +124,9 @@ the same token logic a CLI or an MCP server can use). Repo paths come from `brid
 4. **Review gates.** The PR goes through CI and CODEOWNERS like any Tier 3 change (`docs/GOVERNANCE.md`).
    A human merges it; the next pull brings Figma back in line with what shipped.
 
+Components link to their Figma components through `bridge.components.json`, a reviewed repository file, and the
+team's Figma file is `figma.file` in `bridge.config.json` (see [COMPONENT-MAP.md](COMPONENT-MAP.md)).
+
 Brand theme overrides (`brands/ocean.{light,dark}.tokens.json`) have no Figma equivalent, since a
 variable has one value per mode of one collection and an override depends on brand and theme at once.
 They stay code-only: never written by a pull or a push, listed as a warning, and still used for

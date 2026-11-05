@@ -15,6 +15,7 @@ import { getToken, ghGet, prefersSignIn, readRepo, readSignInConfig, sessionMode
 import { ghAction } from '../lib/gh-wording';
 import { canEditReviewRules, canProposeSettings, changesProposal, GITHUB_WRITE_ONLY, RULES_ADMIN_ONLY, RULES_NEED_REVIEW, withChanges, type AppPermissions } from '../lib/settings-view';
 import { teamNameProposal, withTeamName } from '../lib/team-name';
+import { figmaFileProposal, withFigmaFile } from '../lib/figma-file';
 import { productNameProposal, withProductName } from '../lib/product-name';
 import { addProductProposal, withNewProduct } from '../lib/add-product';
 import { removeProductProposal, withoutProduct } from '../lib/remove-product';
@@ -278,6 +279,15 @@ export function proposeTeamName(name: string, opts: { prefix?: string; protected
   return proposeConfig(
     (current) => withTeamName(current, name),
     (tierLabel) => teamNameProposal(name, { date: new Date(), prefix: opts.prefix, tierLabel }),
+    opts,
+  );
+}
+
+/** Opens the pull request that sets the team's Figma file, `figma.file` in bridge.config.json (Settings > Figma file). */
+export function proposeFigmaFile(file: string, opts: { prefix?: string; protectedBranches?: string[] } = {}): Promise<{ number: number; url: string }> {
+  return proposeConfig(
+    (current) => withFigmaFile(current, file),
+    (tierLabel) => figmaFileProposal(file, { date: new Date(), prefix: opts.prefix, tierLabel }),
     opts,
   );
 }

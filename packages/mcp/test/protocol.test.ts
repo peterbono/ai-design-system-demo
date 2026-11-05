@@ -64,6 +64,7 @@ const TOOLS = [
   'bridge_product_branch',
   'bridge_promote_exploration',
   'bridge_propose_brand',
+  'bridge_propose_component_map',
   'bridge_propose_figma_fixes',
   'bridge_propose_revert',
   'bridge_propose_token_change',

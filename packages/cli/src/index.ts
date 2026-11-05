@@ -26,7 +26,7 @@ import { defaultIO } from './request.js';
 import { chooseToken, cliContext, needsWriteToken, WRITE_TOKEN_HOW, type Access } from './auth.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
 import { rolesReport, type RolesReport } from './roles.js';
-import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, type BridgeConfig } from '@bridge-ds/mcp';
+import { brand, BridgeContext, componentMap, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, type BridgeConfig } from '@bridge-ds/mcp';
 
 declare const __BRIDGE_CLI_VERSION__: string | undefined;
 /** This package's version, set at build time (build.mjs). Audit reports and snapshots record it: the CLI produces them. */
@@ -48,8 +48,9 @@ Usage:
                                       validate tokens + contrast gate, and say whether the library is
                                       protected (reviewed pull requests only) and who is in the GitHub
                                       teams named as owners, reporting teams it cannot read (neither
-                                      changes the exit code; --offline skips both). Exit 0 ok, 1 failures,
-                                      2 setup error
+                                      changes the exit code; --offline skips both), and which components
+                                      bridge.components.json links to Figma (an invalid file fails, a
+                                      component not linked yet does not). Exit 0 ok, 1 failures, 2 setup error
   bridge tokens <query> [--limit 20] [--json]
                                       search tokens by name, description or value (the best 20 first,
                                       and how many more match)
@@ -294,11 +295,13 @@ async function check(a: Args, root: string): Promise<number> {
   const v = await ops.validateTokens(ctx, { includeWarnings: true });
   const c = await ops.checkContrast(ctx, {});
   const warnings = 'warnings' in v ? (v.warnings ?? []) : [];
-  const failed = !v.valid || ('failing' in c && (c.failing ?? 0) > 0) || (has(a, 'strict') && warnings.length > 0);
+  // bridge.components.json: an invalid file fails; components not linked to Figma yet never change the exit code.
+  const map = await componentMap.componentMapCheck(ctx);
+  const failed = !v.valid || ('failing' in c && (c.failing ?? 0) > 0) || (has(a, 'strict') && warnings.length > 0) || map.problems.length > 0;
   const protection = await protectionOf(a, root, ctx);
   const roles = await rolesOf(a, root, ctx);
   if (has(a, 'json')) {
-    print(JSON.stringify({ ok: !failed, validation: v, contrast: c, ...(protection ? { protection: protection.state } : {}), ...(roles?.teams.length ? { teams: roles.teams } : {}) }, null, 2));
+    print(JSON.stringify({ ok: !failed, validation: v, contrast: c, componentMap: map, ...(protection ? { protection: protection.state } : {}), ...(roles?.teams.length ? { teams: roles.teams } : {}) }, null, 2));
     return failed ? 1 : 0;
   }
   print(`tokens: ${v.tokens} in ${v.files} files, ${v.modeCombinations} mode combinations`);
@@ -310,6 +313,7 @@ async function check(a: Args, root: string): Promise<number> {
     const tight = c.tightest?.[0];
     if (tight) print(`  tightest: ${tight.pair} [${tight.modes}] ${tight.ratio}:1 (min ${tight.min})`);
   } else print(`contrast: ${c.message}`);
+  for (const line of componentMap.componentMapLines(map)) print(line);
   for (const line of protection?.lines ?? []) print(line);
   for (const line of roles?.lines ?? []) print(line);
   print(failed ? 'FAIL' : 'OK');

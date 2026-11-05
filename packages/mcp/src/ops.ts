@@ -14,6 +14,7 @@ import { explorationContext, explorationRules, writeToExploration } from './expl
 import { addableBranch, branchNumber, productMarks, resolveProduct, viewerOf } from './branches.js';
 import { appliedNext, changesFor, noSuggestionAccess, suggestionBase } from './suggestions.js';
 import { BridgeContext } from './context.js';
+import { figmaFieldOf, readMap } from './component-map.js';
 import { addToken, readOnlyPreview, say, sourceOf, toolName, toolTag } from './say.js';
 
 const prefixPath = (set: TokenSet, f: string) => set.repoPath(f);
@@ -232,8 +233,8 @@ export async function validateTokens(ctx: BridgeContext, a: { edits?: TokenEdit[
 export async function listComponentsOp(ctx: BridgeContext, a: { withSummaries?: boolean; family?: string }) {
   const { config } = await ctx.config();
   if (!config.components) return { components: [], message: 'No components.dir in bridge.config.json.' };
-  const list = await listComponents(ctx.source, config, a.withSummaries ?? ctx.mode === 'local');
-  const filtered = a.family ? list.filter((c) => c.family?.toLowerCase() === a.family!.toLowerCase()) : list;
+  const [list, { map }] = await Promise.all([listComponents(ctx.source, config, a.withSummaries ?? ctx.mode === 'local'), readMap(ctx)]);
+  const filtered = (a.family ? list.filter((c) => c.family?.toLowerCase() === a.family!.toLowerCase()) : list).map((c) => ({ ...c, figma: figmaFieldOf(map, c.name) }));
   return { dir: config.components.dir, total: filtered.length, components: filtered };
 }
 
@@ -241,12 +242,12 @@ export async function getComponentOp(ctx: BridgeContext, a: { name: string; incl
   const { config } = await ctx.config();
   if (!config.components) throw new Error('No components.dir in bridge.config.json.');
   const set = await ctx.tokens();
-  const c = await getComponent(ctx.source, config, set, a.name, ctx);
+  const [c, { map }] = await Promise.all([getComponent(ctx.source, config, set, a.name, ctx), readMap(ctx)]);
   if (a.include?.length && c.docs) {
     const keep = new Set(a.include);
     c.docs = Object.fromEntries(Object.entries(c.docs).filter(([k]) => keep.has(k)));
   }
-  return c;
+  return { ...c, figma: figmaFieldOf(map, c.name) };
 }
 
 const NATIVE_ELEMENTS: Record<string, string> = { Button: 'button', Input: 'input', Span: 'span', Div: 'div', Anchor: 'a', TextArea: 'textarea', Select: 'select', UList: 'ul', Paragraph: 'p', Heading: 'h2', Label: 'label', Image: 'img' };

@@ -6,6 +6,7 @@
 // Members (who is in the team, who asks to join, invites and roles, MembersSection.tsx) reads the team from the address
 // and GitHub; the team's rules (how changes reach the code, review rules, safety) render read only, in designer words,
 // from its repository model in the browser (components/ds/studio/TeamSettings.tsx), each with a "For developers" fold.
+// Figma: the team's Figma file (FigmaFileSetting.tsx), set by a lead or an admin, read by everyone else.
 // Products (TeamProducts.tsx), for leads and admins only: the team's products and Add a product.
 // On the demo, that is the demo's sample team. Appearance (light or dark) is this browser's own choice, there for
 // everyone whatever the team read gives (AppearanceSetting.tsx).
@@ -20,6 +21,8 @@ import TeamProducts from '../../../components/ds/studio/TeamProducts';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import AiToolsSetting from '../../../components/ds/studio/AiToolsSetting';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
+import FigmaFileSetting from '../../../components/ds/studio/FigmaFileSetting';
+import { FIGMA_FILE_WORDS } from '../../../lib/figma-file';
 import DeleteTeamBand from '../../../components/ds/studio/DeleteTeam';
 import { TEAM_NAME_WORDS } from '../../../lib/team-name';
 ---
@@ -38,6 +41,11 @@ import { TEAM_NAME_WORDS } from '../../../lib/team-name';
   </section>
   <section class="ts-band" id="team-claude" aria-labelledby="set-claude">
     <ClaudeConnector client:only="react" />
+  </section>
+  <section class="ts-band" id="figma" aria-labelledby="ts-figma">
+    <h2 id="ts-figma" class="ts-h">{FIGMA_FILE_WORDS.bandTitle}</h2>
+    <p class="ts-intro">{FIGMA_FILE_WORDS.bandIntro}</p>
+    <FigmaFileSetting client:only="react" />
   </section>
   <TeamProducts client:only="react" />
   <TeamSettings client:load />

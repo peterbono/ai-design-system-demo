@@ -148,6 +148,15 @@
   max-width: 65ch;
 }
 
+/* A field that fills the value column (Figma file: a long link), up to the column's 65ch; Save stays at the right. */
+.set-row-value-fill {
+  justify-items: stretch;
+}
+
+.set-row-value-fill > * {
+  inline-size: 100%;
+}
+
 /* Settings, GitHub usage (admins): the meter spans the value column. */
 .set-usage-meter {
   justify-self: stretch;
