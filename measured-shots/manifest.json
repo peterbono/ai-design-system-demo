@@ -1,7 +1,7 @@
 {
   "version": 1,
   "tool": "@bridge-ds/cli",
-  "createdAt": "2026-11-04T12:34:08.011Z",
+  "createdAt": "2026-11-05T13:23:45.451Z",
   "storybook": "https://bridge-storybook.floriangouloubi.com",
   "scale": 2,
   "components": {
@@ -4780,6 +4780,194 @@
         }
       }
     },
+    "Progress/Linear": {
+      "variants": {
+        "Size=md, Tone=signal": {
+          "file": "feedback-progress-linear.png",
+          "width": 400,
+          "height": 35,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "linear",
+            "size": "md",
+            "tone": "signal",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        },
+        "Size=sm, Tone=signal": {
+          "file": "feedback-progress-linear__variant-linear__size-sm__tone-signal.png",
+          "width": 400,
+          "height": 33,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "linear",
+            "size": "sm",
+            "tone": "signal",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        },
+        "Size=lg, Tone=signal": {
+          "file": "feedback-progress-linear__variant-linear__size-lg__tone-signal.png",
+          "width": 400,
+          "height": 37,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "linear",
+            "size": "lg",
+            "tone": "signal",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        },
+        "Size=md, Tone=success": {
+          "file": "feedback-progress-linear__variant-linear__size-md__tone-success.png",
+          "width": 400,
+          "height": 35,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "linear",
+            "size": "md",
+            "tone": "success",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        },
+        "Size=md, Tone=warning": {
+          "file": "feedback-progress-linear__variant-linear__size-md__tone-warning.png",
+          "width": 400,
+          "height": 35,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "linear",
+            "size": "md",
+            "tone": "warning",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        },
+        "Size=md, Tone=danger": {
+          "file": "feedback-progress-linear__variant-linear__size-md__tone-danger.png",
+          "width": 400,
+          "height": 35,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "linear",
+            "size": "md",
+            "tone": "danger",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        }
+      }
+    },
+    "Progress/Circular": {
+      "variants": {
+        "Size=lg, Tone=signal": {
+          "file": "feedback-progress-circular.png",
+          "width": 400,
+          "height": 56,
+          "story": "feedback-progress--circular",
+          "props": {
+            "variant": "circular",
+            "size": "lg",
+            "tone": "signal",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Contrast checks"
+          }
+        },
+        "Size=md, Tone=signal": {
+          "file": "feedback-progress-linear__variant-circular__size-md__tone-signal.png",
+          "width": 400,
+          "height": 32,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "circular",
+            "size": "md",
+            "tone": "signal",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        },
+        "Size=sm, Tone=signal": {
+          "file": "feedback-progress-circular__variant-circular__size-sm__tone-signal.png",
+          "width": 400,
+          "height": 21,
+          "story": "feedback-progress--circular",
+          "props": {
+            "variant": "circular",
+            "size": "sm",
+            "tone": "signal",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Contrast checks"
+          }
+        },
+        "Size=md, Tone=success": {
+          "file": "feedback-progress-linear__variant-circular__size-md__tone-success.png",
+          "width": 400,
+          "height": 32,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "circular",
+            "size": "md",
+            "tone": "success",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        },
+        "Size=md, Tone=warning": {
+          "file": "feedback-progress-linear__variant-circular__size-md__tone-warning.png",
+          "width": 400,
+          "height": 32,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "circular",
+            "size": "md",
+            "tone": "warning",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        },
+        "Size=md, Tone=danger": {
+          "file": "feedback-progress-linear__variant-circular__size-md__tone-danger.png",
+          "width": 400,
+          "height": 32,
+          "story": "feedback-progress--linear",
+          "props": {
+            "variant": "circular",
+            "size": "md",
+            "tone": "danger",
+            "min": 0,
+            "max": 100,
+            "value": 64,
+            "label": "Publishing tokens"
+          }
+        }
+      }
+    },
     "Skeleton": {
       "variants": {
         "Variant=text": {
@@ -6200,6 +6388,27 @@
         }
       }
     },
+    "Combobox/Popup": {
+      "variants": {
+        "story=forms-combobox--default": {
+          "file": "forms-combobox-default__part-combobox-popup.png",
+          "width": 360,
+          "height": 394,
+          "story": "forms-combobox--default",
+          "props": {
+            "multiple": false,
+            "loading": false,
+            "loadingMessage": "Loading results",
+            "emptyMessage": "No matches. Try another name.",
+            "size": "md",
+            "label": "Component",
+            "placeholder": "Search components",
+            "hint": "Type to filter 20 components.",
+            "disabled": false
+          }
+        }
+      }
+    },
     "Field": {
       "variants": {
         "State=Default": {
@@ -7153,6 +7362,23 @@
             "label": "Theme",
             "hint": "Applies to the preview only.",
             "disabled": true
+          }
+        }
+      }
+    },
+    "Select/Popup": {
+      "variants": {
+        "story=forms-select--default": {
+          "file": "forms-select-default__part-select-popup.png",
+          "width": 320,
+          "height": 161.08,
+          "story": "forms-select--default",
+          "props": {
+            "placeholder": "No theme",
+            "size": "md",
+            "label": "Theme",
+            "hint": "Applies to the preview only.",
+            "disabled": false
           }
         }
       }
@@ -8774,6 +9000,250 @@
         }
       }
     },
+    "Pagination/Full": {
+      "variants": {
+        "Size=md, State=Default": {
+          "file": "navigation-pagination-default.png",
+          "width": 400,
+          "height": 92,
+          "story": "navigation-pagination--default",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "full",
+            "size": "md",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          }
+        },
+        "Size=md, State=Hover": {
+          "file": "navigation-pagination-default__variant-full__size-md__state-hover.png",
+          "width": 400,
+          "height": 92,
+          "story": "navigation-pagination--default",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "full",
+            "size": "md",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          },
+          "state": "hover"
+        },
+        "Size=md, State=Pressed": {
+          "file": "navigation-pagination-default__variant-full__size-md__state-active.png",
+          "width": 400,
+          "height": 92,
+          "story": "navigation-pagination--default",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "full",
+            "size": "md",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          },
+          "state": "active"
+        },
+        "story=navigation-pagination--default, variant=full, size=md, disabled=true": {
+          "file": "navigation-pagination-default__variant-full__size-md__disabled-true.png",
+          "width": 400,
+          "height": 92,
+          "story": "navigation-pagination--default",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "full",
+            "size": "md",
+            "aria-label": "Pagination",
+            "pageCount": 12,
+            "disabled": true
+          }
+        },
+        "Size=sm, State=Default": {
+          "file": "navigation-pagination-default__variant-full__size-sm.png",
+          "width": 400,
+          "height": 68,
+          "story": "navigation-pagination--default",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "full",
+            "size": "sm",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          }
+        },
+        "Size=sm, State=Hover": {
+          "file": "navigation-pagination-default__variant-full__size-sm__state-hover.png",
+          "width": 400,
+          "height": 68,
+          "story": "navigation-pagination--default",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "full",
+            "size": "sm",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          },
+          "state": "hover"
+        },
+        "Size=sm, State=Pressed": {
+          "file": "navigation-pagination-default__variant-full__size-sm__state-active.png",
+          "width": 400,
+          "height": 68,
+          "story": "navigation-pagination--default",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "full",
+            "size": "sm",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          },
+          "state": "active"
+        },
+        "story=navigation-pagination--default, variant=full, size=sm, disabled=true": {
+          "file": "navigation-pagination-default__variant-full__size-sm__disabled-true.png",
+          "width": 400,
+          "height": 68,
+          "story": "navigation-pagination--default",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "full",
+            "size": "sm",
+            "aria-label": "Pagination",
+            "pageCount": 12,
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Pagination/Compact": {
+      "variants": {
+        "Size=md, State=Default": {
+          "file": "navigation-pagination-compact.png",
+          "width": 400,
+          "height": 44,
+          "story": "navigation-pagination--compact",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "compact",
+            "size": "md",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          }
+        },
+        "Size=md, State=Hover": {
+          "file": "navigation-pagination-compact__variant-compact__size-md__state-hover.png",
+          "width": 400,
+          "height": 44,
+          "story": "navigation-pagination--compact",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "compact",
+            "size": "md",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          },
+          "state": "hover"
+        },
+        "Size=md, State=Pressed": {
+          "file": "navigation-pagination-compact__variant-compact__size-md__state-active.png",
+          "width": 400,
+          "height": 44,
+          "story": "navigation-pagination--compact",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "compact",
+            "size": "md",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          },
+          "state": "active"
+        },
+        "story=navigation-pagination--compact, variant=compact, size=md, disabled=true": {
+          "file": "navigation-pagination-compact__variant-compact__size-md__disabled-true.png",
+          "width": 400,
+          "height": 44,
+          "story": "navigation-pagination--compact",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "compact",
+            "size": "md",
+            "aria-label": "Pagination",
+            "pageCount": 12,
+            "disabled": true
+          }
+        },
+        "Size=sm, State=Default": {
+          "file": "navigation-pagination-compact__variant-compact__size-sm.png",
+          "width": 400,
+          "height": 32,
+          "story": "navigation-pagination--compact",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "compact",
+            "size": "sm",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          }
+        },
+        "Size=sm, State=Hover": {
+          "file": "navigation-pagination-compact__variant-compact__size-sm__state-hover.png",
+          "width": 400,
+          "height": 32,
+          "story": "navigation-pagination--compact",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "compact",
+            "size": "sm",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          },
+          "state": "hover"
+        },
+        "Size=sm, State=Pressed": {
+          "file": "navigation-pagination-compact__variant-compact__size-sm__state-active.png",
+          "width": 400,
+          "height": 32,
+          "story": "navigation-pagination--compact",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "compact",
+            "size": "sm",
+            "aria-label": "Pagination",
+            "pageCount": 12
+          },
+          "state": "active"
+        },
+        "story=navigation-pagination--compact, variant=compact, size=sm, disabled=true": {
+          "file": "navigation-pagination-compact__variant-compact__size-sm__disabled-true.png",
+          "width": 400,
+          "height": 32,
+          "story": "navigation-pagination--compact",
+          "props": {
+            "defaultPage": 6,
+            "siblingCount": 1,
+            "variant": "compact",
+            "size": "sm",
+            "aria-label": "Pagination",
+            "pageCount": 12,
+            "disabled": true
+          }
+        }
+      }
+    },
     "SidebarNav": {
       "variants": {
         "State=Default": {
@@ -9352,6 +9822,63 @@
         }
       }
     },
+    "AlertDialog/Popup": {
+      "variants": {
+        "story=overlays-alertdialog--destructive": {
+          "file": "overlays-alertdialog-destructive.png",
+          "width": 384,
+          "height": 180,
+          "story": "overlays-alertdialog--destructive",
+          "props": {}
+        },
+        "story=overlays-alertdialog--consequential": {
+          "file": "overlays-alertdialog-consequential.png",
+          "width": 384,
+          "height": 180,
+          "story": "overlays-alertdialog--consequential",
+          "props": {}
+        },
+        "story=overlays-alertdialog--async-confirm": {
+          "file": "overlays-alertdialog-async-confirm.png",
+          "width": 384,
+          "height": 180,
+          "story": "overlays-alertdialog--async-confirm",
+          "props": {}
+        },
+        "story=overlays-alertdialog--all-states": {
+          "file": "overlays-alertdialog-all-states.png",
+          "width": 384,
+          "height": 258,
+          "story": "overlays-alertdialog--all-states",
+          "props": {}
+        },
+        "story=overlays-alertdialog--destructive, , state=hover": {
+          "file": "overlays-alertdialog-destructive__state-hover.png",
+          "width": 384,
+          "height": 180,
+          "story": "overlays-alertdialog--destructive",
+          "props": {},
+          "state": "hover"
+        },
+        "story=overlays-alertdialog--destructive, , state=active": {
+          "file": "overlays-alertdialog-destructive__state-active.png",
+          "width": 384,
+          "height": 180,
+          "story": "overlays-alertdialog--destructive",
+          "props": {},
+          "state": "active"
+        },
+        "story=overlays-alertdialog--destructive, disabled=true": {
+          "file": "overlays-alertdialog-destructive__disabled-true.png",
+          "width": 384,
+          "height": 180,
+          "story": "overlays-alertdialog--destructive",
+          "props": {
+            "disabled": true
+          }
+        }
+      }
+    },
     "Dialog": {
       "variants": {
         "story=overlays-dialog--default": {
@@ -9418,6 +9945,40 @@
           "props": {
             "disablePointerDismissal": false,
             "disabled": true
+          }
+        }
+      }
+    },
+    "Dialog/Popup": {
+      "variants": {
+        "Size=md": {
+          "file": "overlays-dialog-default.png",
+          "width": 560,
+          "height": 268.89,
+          "story": "overlays-dialog--default",
+          "props": {
+            "disablePointerDismissal": false,
+            "size": "md"
+          }
+        },
+        "Size=lg": {
+          "file": "overlays-dialog-long-content.png",
+          "width": 720,
+          "height": 752,
+          "story": "overlays-dialog--long-content",
+          "props": {
+            "disablePointerDismissal": false,
+            "size": "lg"
+          }
+        },
+        "Size=sm": {
+          "file": "overlays-dialog-controlled.png",
+          "width": 384,
+          "height": 269.89,
+          "story": "overlays-dialog--controlled",
+          "props": {
+            "disablePointerDismissal": false,
+            "size": "sm"
           }
         }
       }
@@ -9605,6 +10166,21 @@
         }
       }
     },
+    "Drawer/Popup": {
+      "variants": {
+        "Size=md": {
+          "file": "overlays-drawer-end.png",
+          "width": 480,
+          "height": 800,
+          "story": "overlays-drawer--end",
+          "props": {
+            "side": "end",
+            "disablePointerDismissal": false,
+            "size": "md"
+          }
+        }
+      }
+    },
     "Menu": {
       "variants": {
         "story=overlays-menu--actions": {
@@ -9783,6 +10359,85 @@
         }
       }
     },
+    "Menu/Popup": {
+      "variants": {
+        "story=overlays-menu--actions": {
+          "file": "overlays-menu-actions.png",
+          "width": 240,
+          "height": 199,
+          "story": "overlays-menu--actions",
+          "props": {
+            "loopFocus": true
+          }
+        },
+        "story=overlays-menu--row-overflow": {
+          "file": "overlays-menu-row-overflow.png",
+          "width": 240,
+          "height": 127,
+          "story": "overlays-menu--row-overflow",
+          "props": {
+            "loopFocus": true
+          }
+        },
+        "story=overlays-menu--checkable-items": {
+          "file": "overlays-menu-checkable-items.png",
+          "width": 240,
+          "height": 287.38,
+          "story": "overlays-menu--checkable-items",
+          "props": {
+            "loopFocus": true
+          }
+        },
+        "story=overlays-menu--all-states": {
+          "file": "overlays-menu-all-states.png",
+          "width": 240,
+          "height": 199,
+          "story": "overlays-menu--all-states",
+          "props": {
+            "loopFocus": true
+          }
+        },
+        "story=overlays-menu--all-states-checkable": {
+          "file": "overlays-menu-all-states-checkable.png",
+          "width": 240,
+          "height": 287.38,
+          "story": "overlays-menu--all-states-checkable",
+          "props": {
+            "loopFocus": true
+          }
+        },
+        "story=overlays-menu--actions, , state=hover": {
+          "file": "overlays-menu-actions__state-hover.png",
+          "width": 240,
+          "height": 199,
+          "story": "overlays-menu--actions",
+          "props": {
+            "loopFocus": true
+          },
+          "state": "hover"
+        },
+        "story=overlays-menu--actions, , state=active": {
+          "file": "overlays-menu-actions__state-active.png",
+          "width": 240,
+          "height": 199,
+          "story": "overlays-menu--actions",
+          "props": {
+            "loopFocus": true
+          },
+          "state": "active"
+        },
+        "story=overlays-menu--actions, disabled=true": {
+          "file": "overlays-menu-actions__disabled-true.png",
+          "width": 240,
+          "height": 199,
+          "story": "overlays-menu--actions",
+          "props": {
+            "loopFocus": true,
+            "disabled": true
+          }
+        }
+      }
+    },
     "Popover": {
       "variants": {
         "story=overlays-popover--default": {
@@ -9845,6 +10500,72 @@
       }
     },
     "Tooltip": {
+      "variants": {
+        "story=overlays-tooltip--default": {
+          "file": "overlays-tooltip-default.png",
+          "width": 115.66,
+          "height": 24.19,
+          "story": "overlays-tooltip--default",
+          "props": {
+            "side": "top",
+            "align": "center",
+            "disabled": false,
+            "content": "Copy token name"
+          }
+        },
+        "story=overlays-tooltip--toolbar": {
+          "file": "overlays-tooltip-toolbar.png",
+          "width": 73.63,
+          "height": 24.19,
+          "story": "overlays-tooltip--toolbar",
+          "props": {
+            "side": "top",
+            "align": "center",
+            "disabled": false,
+            "content": "Copy token name"
+          }
+        },
+        "story=overlays-tooltip--all-states": {
+          "file": "overlays-tooltip-all-states.png",
+          "width": 288,
+          "height": 40.38,
+          "story": "overlays-tooltip--all-states",
+          "props": {
+            "side": "top",
+            "align": "center",
+            "disabled": false,
+            "content": "Copy token name"
+          }
+        },
+        "story=overlays-tooltip--default, , state=hover": {
+          "file": "overlays-tooltip-default__state-hover.png",
+          "width": 115.66,
+          "height": 24.19,
+          "story": "overlays-tooltip--default",
+          "props": {
+            "side": "top",
+            "align": "center",
+            "disabled": false,
+            "content": "Copy token name"
+          },
+          "state": "hover"
+        },
+        "story=overlays-tooltip--default, , state=active": {
+          "file": "overlays-tooltip-default__state-active.png",
+          "width": 115.66,
+          "height": 24.19,
+          "story": "overlays-tooltip--default",
+          "props": {
+            "side": "top",
+            "align": "center",
+            "disabled": false,
+            "content": "Copy token name"
+          },
+          "state": "active"
+        }
+      }
+    },
+    "Tooltip/Popup": {
       "variants": {
         "story=overlays-tooltip--default": {
           "file": "overlays-tooltip-default.png",
