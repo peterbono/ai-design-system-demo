@@ -141,3 +141,41 @@ test('Check for updates on a file pulled from the static spec: the same sets mov
   const again = buildComponentPlan(measured, MEASURED_SPECS_FILE, await scanGenerated(), a.head, { specSource: 'measured-only' });
   assert.deepEqual(again.components.map((c) => c.status), ['unchanged', 'unchanged', 'unchanged']);
 });
+
+test('a part the new source draws as another kind of layer gets a new layer: a text or an instance can hold no parts', async () => {
+  const sim = new SimFigma();
+  sim.install();
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${DEFAULT_SETTINGS.tokensPath}/${rel}`] = text;
+  files[`${DEFAULT_SETTINGS.tokensPath}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  const a = await analyze(new FakeGitHub(files).client(), DEFAULT_SETTINGS, {}, await takeSnapshot());
+  await applyPullPlan(buildPull(a, new Map()).plan);
+  const first = await applyComponentPlan(writablePlan(buildComponentPlan(parseComponentSpecs(staticText()), SPECS_PATH, await scanGenerated(), a.head)));
+  assert.deepEqual(first.failed, []);
+
+  // The same part ids, now boxes holding a part of their own: what the measure gives for a label with a span inside
+  // (ChoiceCard, Form) and for an indicator the static spec drew as an icon instance (Checklist).
+  const next = JSON.parse(staticText());
+  const button = next.components.find((c: { name: string }) => c.name === 'Button');
+  const text = button.parts.find((p: { kind: string }) => p.kind === 'text');
+  const icon = button.parts.find((p: { swap?: unknown; icon?: unknown }) => p.swap || p.icon);
+  const box = (p: Record<string, unknown>) => {
+    p.kind = 'frame';
+    delete p.swap;
+    delete p.text;
+    delete p.visible;
+  };
+  box(text);
+  box(icon);
+  button.parts.push({ id: 'in-text', name: 'In text', kind: 'text', parent: text.id }, { id: 'in-icon', name: 'In icon', kind: 'text', parent: icon.id });
+  const report = await applyComponentPlan(writablePlan(buildComponentPlan(parseComponentSpecs(JSON.stringify(next)), SPECS_PATH, await scanGenerated(), a.head)));
+  assert.deepEqual(report.failed, []);
+  assert.deepEqual(report.partial ?? [], []);
+  const set = sim.sets().find((s) => s.name === 'Button')!;
+  const part = (id: string) => set.children[0]!.findOne((n) => n.getSharedPluginData('dsbridge', 'part') === id)!;
+  assert.equal(part(text.id).type, 'FRAME');
+  assert.equal(part('in-text').parent, part(text.id));
+  assert.equal(part(icon.id).type, 'FRAME');
+  assert.equal(part('in-icon').parent, part(icon.id));
+});
