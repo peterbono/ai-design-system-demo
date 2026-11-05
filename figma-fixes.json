@@ -89,6 +89,20 @@
         }
       },
       "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "Avatar",
+      "height": 21,
+      "id": "avatar-xs-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The xs avatar is 21 px tall in code where Figma draws it 20 px tall.",
+      "where": {
+        "args": {
+          "size": "xs"
+        }
+      }
     }
   ]
 }
