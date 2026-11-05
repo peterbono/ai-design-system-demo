@@ -342,6 +342,20 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Pagination",
+      "id": "pagination-sm-compact-variant-status",
+      "kind": "status",
+      "reason": "The small compact variant is drawn in Figma as page number buttons with an icon, where code shows a page status text cell about 95 px wide and 21 px tall between the previous and next buttons: redraw that variant with the status text and buttons the code renders, then compare with code again.",
+      "status": "differs",
+      "where": {
+        "args": {
+          "size": "sm",
+          "variant": "compact"
+        }
+      }
     }
   ]
 }
