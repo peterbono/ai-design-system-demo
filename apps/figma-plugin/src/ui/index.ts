@@ -48,7 +48,7 @@ import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 import { focusFirstItem, menuKeys } from './menu';
 import { ASK_TTL_MS, type Asked, CLAUDE_NEW_CHAT, CONNECTOR_WORDS, WATCH_MS, askAllText, askText, canAskClaude, claudeUrl, claudeUrlForAll, findFix, fixAllEligible, parseAsked } from '../sync/claude-connector';
-import { FINISHED_ROWS, type FixRowKind, type FixSession, fixRow, fixRowsSummary, readFixSession } from '../sync/fix-session';
+import { ASK_AGAIN_ROWS, FINISHED_ROWS, type FixRowKind, type FixSession, fixRow, fixRowsSummary, readFixSession } from '../sync/fix-session';
 import { PREVIEW_WORDS, RENDER_CAP_MS, type UpdatePreview, codeImageSource, previewKey } from '../sync/update-preview';
 import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
 
@@ -3060,7 +3060,8 @@ function fidelityGroup(p: PullState): Child {
         const gap = r.status === 'differs' ? f?.gaps?.find((g) => g.component === it.name)?.summary : undefined;
         // Asked (now or before: the watch resumes), or Claude's fix found: the row shows that, not the button again.
         const claude = r.status === 'differs' ? claudePanel(it.name) : null;
-        const finished = r.status === 'differs' && FINISHED_ROWS.includes(claudeRow(it.name)?.kind ?? 'waiting');
+        const rowKind = claudeRow(it.name)?.kind ?? 'waiting';
+        const finished = r.status === 'differs' && (FINISHED_ROWS.includes(rowKind) || ASK_AGAIN_ROWS.includes(rowKind));
         const asked = (f?.fix?.component === it.name && f.fix.status !== 'error' && f.fix.status !== 'connect') || (!!claude && !finished);
         askRows.push({ name: it.name, differs: r.status === 'differs', asked });
         return h(

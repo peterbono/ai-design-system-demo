@@ -151,6 +151,8 @@ export interface FixRowInput {
 
 /** Finished: nothing left to do for this row in Claude (the row stays one calm line). */
 export const FINISHED_ROWS: readonly FixRowKind[] = ['in-file', 'not-kept'];
+/** Rows Claude left without an answer: Ask Claude to fix all asks them again. */
+export const ASK_AGAIN_ROWS: readonly FixRowKind[] = ['unfinished', 'quiet'];
 
 export function fixRow(component: string, i: FixRowInput): { kind: FixRowKind; text: string; hint?: string } {
   const s = i.session;
