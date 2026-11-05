@@ -123,6 +123,9 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toMatch(/Bridge never writes to the default branch/);
     // Explorations mark what they change, so the Bridge toolbar can point at it.
     expect(client.getInstructions()).toContain('data-bridge-change="<short plain label>"');
+    // "Ask Claude to fix all N" in the plugin: one request, every component worked through, each proposed as it goes.
+    expect(client.getInstructions()).toMatch(/several components .* work through them one at a time, proposing each component's fixes before starting the next .* do not stop after the first/);
+    expect(client.getInstructions()).not.toMatch(/\u2014/);
   });
 
   it('speaks to any MCP client (Claude, GitHub Copilot in VS Code, others): the client-agnostic text does not assume Claude', async () => {

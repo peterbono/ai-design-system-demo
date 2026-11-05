@@ -2,13 +2,58 @@
 // GitHub, and what a fix session says.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CLAUDE_NEW_CHAT, askText, claudeUrl, findFix, fixBranchStem, parseAsked } from '../src/sync/claude-connector';
+import { CLAUDE_NEW_CHAT, CONNECTOR_WORDS, PREFILL_MAX_URL, askAllText, askText, canAskClaude, claudeUrl, claudeUrlForAll, findFix, fixAllEligible, fixBranchStem, parseAsked } from '../src/sync/claude-connector';
+import { FIX_EVERY_PHRASE, fixRequestForDeveloper } from '../src/sync/fix-with-claude';
 import { parseSession, sessionHead } from '../src/sync/fix-session';
 
 test('the request and where Claude opens: a new chat with it written (not sent)', () => {
   assert.equal(askText('IconButton'), 'Fix IconButton in Figma with Bridge');
   assert.deepEqual(claudeUrl('IconButton'), { url: 'https://claude.ai/new?q=Fix%20IconButton%20in%20Figma%20with%20Bridge', prefilled: true });
   void CLAUDE_NEW_CHAT;
+});
+
+test('Ask Claude to fix all N: one request naming every component, in the order of the list', () => {
+  const names = ['AccordionItem', 'AlertDialog/Popup', 'Button'];
+  assert.equal(askAllText(names), 'Fix these 3 components in Figma with Bridge: AccordionItem, AlertDialog/Popup, Button');
+  assert.equal(askAllText(['Button']), 'Fix Button in Figma with Bridge', 'one is the single request');
+  assert.deepEqual(claudeUrlForAll(names), { url: `https://claude.ai/new?q=${encodeURIComponent(askAllText(names))}`, prefilled: true });
+  assert.equal(CONNECTOR_WORDS.fixAll(31), 'Ask Claude to fix all 31');
+  for (const t of [askAllText(names), FIX_EVERY_PHRASE, CONNECTOR_WORDS.fixAll(31), CONNECTOR_WORDS.prefilledAll]) assert.doesNotMatch(t, /\u2014|MCP|API|npx|branch/);
+});
+
+test('Ask Claude to fix all N: a list too long for Claude\'s address opens on "Fix every component that differs"', () => {
+  const many = Array.from({ length: 200 }, (_, i) => `Component${i}/Part`);
+  const open = claudeUrlForAll(many);
+  assert.equal(open.url, `https://claude.ai/new?q=${encodeURIComponent(FIX_EVERY_PHRASE)}`);
+  assert.equal(open.prefilled, true);
+  assert.ok(`https://claude.ai/new?q=${encodeURIComponent(askAllText(many))}`.length > PREFILL_MAX_URL);
+  // The copied request still names them all.
+  assert.match(askAllText(many), /^Fix these 200 components in Figma with Bridge: Component0\/Part, .*Component199\/Part$/);
+  // 31 components of a real library fit.
+  const real = Array.from({ length: 31 }, (_, i) => `AlertDialog/Popup${i}`);
+  assert.ok(claudeUrlForAll(real).url.includes('AlertDialog'));
+});
+
+test('Ask Claude to fix all N: the rows that would show their own button, shown from two', () => {
+  const rows = [
+    { name: 'A', differs: true, asked: false },
+    { name: 'B', differs: true, asked: true },
+    { name: 'C', differs: false, asked: false },
+    { name: 'D', differs: true, asked: false },
+  ];
+  assert.deepEqual(fixAllEligible(rows, true), ['A', 'D']);
+  assert.deepEqual(fixAllEligible(rows, false), [], 'no measure: Claude cannot help, each row hands off instead');
+  assert.deepEqual(fixAllEligible(rows.slice(0, 3), true), [], 'one left: its own button is the one action');
+  for (const r of rows) assert.equal(canAskClaude(r, true), fixAllEligible([r, { ...r, name: 'twin' }], true).length === 2);
+});
+
+test('Copy for your developer after Ask Claude to fix all N: the request and one command per component', () => {
+  const req = fixRequestForDeveloper(['Button', 'TextInput'], 'acme/ds');
+  assert.match(req, /^Could you ask Claude to fix these 2 components in Figma\?/);
+  assert.match(req, /say: "Fix these 2 components in Figma with Bridge: Button, TextInput"/);
+  assert.match(req, /npx @bridge-ds\/cli fix Button --with-claude\n {2}npx @bridge-ds\/cli fix TextInput --with-claude/);
+  assert.equal(fixRequestForDeveloper(['Button'], 'acme/ds'), fixRequestForDeveloper('Button', 'acme/ds'));
+  assert.doesNotMatch(req, /\u2014/);
 });
 
 test('Claude\'s fix: open, labelled figma-fixes, on the component\'s branch or a numbered one; nothing else', () => {

@@ -4,7 +4,7 @@
 // labelled figma-fixes (docs/FIGMA-FIXES.md). When it appears, the row says "Claude's fix is ready". Pure: no DOM.
 
 import type { PullRequestSummary } from '@bridge-ds/core';
-import { fixPhrase } from './fix-with-claude';
+import { FIX_EVERY_PHRASE, fixAllPhrase, fixPhrase } from './fix-with-claude';
 
 /**
  * A claude.ai address that opens a new chat with the request already written, not sent (confirmed 2026-10-25: claude.ai
@@ -21,8 +21,39 @@ export function claudeUrl(component: string): { url: string; prefilled: boolean 
   return CLAUDE_PREFILL_URL ? { url: `${CLAUDE_PREFILL_URL}${encodeURIComponent(askText(component))}`, prefilled: true } : { url: CLAUDE_NEW_CHAT, prefilled: false };
 }
 
+/** The longest claude.ai address Bridge opens with a request written in it; past it, the request without the names. */
+export const PREFILL_MAX_URL = 2000;
+
+/** "Ask Claude to fix all N": the full request, every component named. It is what the designer finds copied. */
+export const askAllText = (components: readonly string[]) => fixAllPhrase(components);
+
+/**
+ * Where "Ask Claude to fix all N" sends the designer: the full request written in Claude when the address stays short
+ * enough, else "Fix every component that differs" (Claude lists them with bridge_figma_gaps). The full request is
+ * copied either way.
+ */
+export function claudeUrlForAll(components: readonly string[]): { url: string; prefilled: boolean } {
+  if (!CLAUDE_PREFILL_URL) return { url: CLAUDE_NEW_CHAT, prefilled: false };
+  const full = `${CLAUDE_PREFILL_URL}${encodeURIComponent(askAllText(components))}`;
+  return { url: full.length <= PREFILL_MAX_URL ? full : `${CLAUDE_PREFILL_URL}${encodeURIComponent(FIX_EVERY_PHRASE)}`, prefilled: true };
+}
+
+/** A row Claude can be asked about: it differs, Bridge measured the stories, and it is not asked already (or fixed). */
+export const canAskClaude = (row: { differs: boolean; asked: boolean }, measured: boolean) => row.differs && measured && !row.asked;
+
+/** One ask for several rows is worth a button from two on; under that the row's own button is the one action. */
+export const FIX_ALL_MIN = 2;
+
+/** The components "Ask Claude to fix all N" asks about, in the list's order: none when fewer than FIX_ALL_MIN. */
+export function fixAllEligible(rows: readonly { name: string; differs: boolean; asked: boolean }[], measured: boolean): string[] {
+  const names = rows.filter((r) => canAskClaude(r, measured)).map((r) => r.name);
+  return names.length >= FIX_ALL_MIN ? names : [];
+}
+
 export const CONNECTOR_WORDS = {
   firstTime: "Add Bridge to your team's Claude once, then ask it to fix components.",
+  fixAll: (n: number) => `Ask Claude to fix all ${n}`,
+  prefilledAll: 'Claude opened with the request written: send it there. Claude fixes them one by one; each row shows its fix when it is ready.',
   howToConnect: 'How to connect',
   connected: 'Bridge is in our Claude',
   pasted: 'The request is copied. Paste it in Claude.',

@@ -47,7 +47,7 @@ import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 import { focusFirstItem, menuKeys } from './menu';
-import { ASK_TTL_MS, type Asked, CLAUDE_NEW_CHAT, CONNECTOR_WORDS, WATCH_MS, askText, claudeUrl, findFix, parseAsked } from '../sync/claude-connector';
+import { ASK_TTL_MS, type Asked, CLAUDE_NEW_CHAT, CONNECTOR_WORDS, WATCH_MS, askAllText, askText, canAskClaude, claudeUrl, claudeUrlForAll, findFix, fixAllEligible, parseAsked } from '../sync/claude-connector';
 import { type FixSession, readFixSession, sessionHead } from '../sync/fix-session';
 import { PREVIEW_WORDS, RENDER_CAP_MS, type UpdatePreview, codeImageSource, previewKey } from '../sync/update-preview';
 import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
@@ -115,11 +115,21 @@ interface PullState {
         built?: Record<string, Record<string, GapBuiltVariant>> | undefined;
         /** `refused`: Bridge would not start a run (Claude not connected for the team, the hourly limit): its sentence. */
         /** `connect`: the first time in this file, how to add Bridge to the team's Claude. `asked`: Claude is open with it. */
-        fix?: { component: string; status: 'connect' | 'writing' | 'asked' | 'error'; error?: string | undefined; copied?: boolean | undefined; prefilled?: boolean | undefined } | undefined;
+        fix?: (FixAsk & { component: string }) | undefined;
+        /** "Ask Claude to fix all N": the same states, once for the whole list (`components`, in the list's order). */
+        fixAll?: (FixAsk & { components: string[] }) | undefined;
         /** "Copy for your developer" copied, by component (or "references"): the button says Copied. */
         handedOff?: Set<string> | undefined;
       }
     | undefined;
+}
+
+/** Where an ask to Claude stands, for one row or for "fix all". */
+interface FixAsk {
+  status: 'connect' | 'writing' | 'asked' | 'error';
+  error?: string | undefined;
+  copied?: boolean | undefined;
+  prefilled?: boolean | undefined;
 }
 
 /** Thumbnail width in the review, CSS pixels (two side by side in the 480px plugin). */
@@ -2586,7 +2596,9 @@ async function gapCases(p: PullState, items: Extract<FidelityOutcome, { kind: 'd
  */
 async function fixWithClaude(p: PullState, component: string, connected = !!state.init?.sync.claudeConnector): Promise<void> {
   const f = p.fidelity;
-  if (!f || f.outcome?.kind !== 'done' || f.fix?.status === 'writing') return;
+  if (!f || f.outcome?.kind !== 'done' || askWriting(p)) return;
+  // One sentence at a time about connecting: the row's, not also the list's.
+  if (f.fixAll?.status === 'connect') f.fixAll = undefined;
   if (!connected) {
     f.fix = { component, status: 'connect' };
     render();
@@ -2607,6 +2619,40 @@ async function fixWithClaude(p: PullState, component: string, connected = !!stat
   }
   render();
 }
+
+/**
+ * "Ask Claude to fix all N": the same as each row's "Ask Claude to fix it", once for the list. The run is written once,
+ * Claude opens once with one request naming them all (or, when the names would not fit in Claude's address, "Fix every
+ * component that differs", which Claude lists through Bridge; the full request is copied either way), and every row
+ * then waits for its own fix: Claude proposes them one by one, and the watch finds each as it lands.
+ */
+async function fixAllWithClaude(p: PullState, components: string[], connected = !!state.init?.sync.claudeConnector): Promise<void> {
+  const f = p.fidelity;
+  if (!f || f.outcome?.kind !== 'done' || askWriting(p) || !components.length) return;
+  // The row's own sentence gives way to the list's.
+  f.fix = undefined;
+  if (!connected) {
+    f.fixAll = { components, status: 'connect' };
+    render();
+    return;
+  }
+  f.fixAll = { components, status: 'writing' };
+  render();
+  try {
+    await writeCurrentRun(p);
+    const open = claudeUrlForAll(components);
+    await copyText(askAllText(components));
+    void request('open-url', { url: open.url });
+    markAsked(...components);
+    f.fixAll = { components, status: 'asked', prefilled: open.prefilled };
+  } catch (err) {
+    f.fixAll = { components, status: 'error', error: inlineError(err) ?? 'Bridge could not save the request. Check your connection, then try again.' };
+  }
+  render();
+}
+
+/** An ask to Claude is being written (a row's or the list's): the other ask buttons wait. */
+const askWriting = (p: PullState) => p.fidelity?.fix?.status === 'writing' || p.fidelity?.fixAll?.status === 'writing';
 
 /** The checkedAt of the Compare with code run last written to the requests branch from this plugin session. */
 let writtenRunAt: string | undefined;
@@ -2654,8 +2700,9 @@ function markConnector(): void {
 }
 
 /** The components asked about, kept with the file so the watch resumes when the plugin opens again. */
-function markAsked(component: string): void {
-  const asked = { ...parseAsked(state.init!.sync.claudeAsked), [component]: new Date().toISOString() };
+function markAsked(...components: string[]): void {
+  const at = new Date().toISOString();
+  const asked = { ...parseAsked(state.init!.sync.claudeAsked), ...Object.fromEntries(components.map((c) => [c, at])) };
   saveAsked(asked);
   watchFixes();
 }
@@ -2812,10 +2859,22 @@ function claudeRunsGroup(): Child {
 function fixPanel(p: PullState, component: string): Child {
   const fix = p.fidelity?.fix;
   if (!fix || fix.component !== component) return null;
+  return askPanel(fix, component, [component], () => void fixWithClaude(p, component, true));
+}
+
+/** The same once for "Ask Claude to fix all N", under the summary: the rows below each wait for their own fix. */
+function fixAllPanel(p: PullState): Child {
+  const fix = p.fidelity?.fixAll;
+  if (!fix) return null;
+  return askPanel(fix, 'all', fix.components, () => void fixAllWithClaude(p, fix.components, true));
+}
+
+/** One ask's sentence: getting ready, could not, connect once (then `retry`), or what to do in Claude. */
+function askPanel(fix: FixAsk, key: string, components: string[], retry: () => void): Child {
   if (fix.status === 'writing') return h('p', { class: 'muted loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Getting the request ready');
   if (fix.status === 'error') return h('div', { class: 'callout warn', role: 'alert' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not ask Claude'), h('p', null, fix.error));
-  const text = fixRequestForDeveloper(component, state.init?.settings.repo ?? '');
-  const copyForDeveloper = h('button', { class: 'btn ghost', 'data-focus-id': `fix-copy-${component}`, onClick: () => void copyText(text).then((ok) => { if (p.fidelity?.fix && ok) p.fidelity.fix.copied = true; render(); }) }, icon(fix.copied ? 'check' : 'copy'), fix.copied ? 'Copied' : 'Copy for your developer');
+  const text = fixRequestForDeveloper(components, state.init?.settings.repo ?? '');
+  const copyForDeveloper = h('button', { class: 'btn ghost', 'data-focus-id': `fix-copy-${key}`, onClick: () => void copyText(text).then((ok) => { if (ok) fix.copied = true; render(); }) }, icon(fix.copied ? 'check' : 'copy'), fix.copied ? 'Copied' : 'Copy for your developer');
   if (fix.status === 'connect') {
     const team = studioTeamUrl(state.init!.settings.repo);
     return h(
@@ -2825,8 +2884,8 @@ function fixPanel(p: PullState, component: string): Child {
       h(
         'div',
         { class: 'inline-actions' },
-        team ? h('button', { class: 'btn', 'data-focus-id': `connect-${component}`, onClick: () => void request('open-url', { url: `${team}settings/#claude` }) }, icon('external'), CONNECTOR_WORDS.howToConnect) : null,
-        h('button', { class: 'btn ghost', 'data-focus-id': `connected-${component}`, onClick: () => { markConnector(); void fixWithClaude(p, component, true); } }, CONNECTOR_WORDS.connected),
+        team ? h('button', { class: 'btn', 'data-focus-id': `connect-${key}`, onClick: () => void request('open-url', { url: `${team}settings/#claude` }) }, icon('external'), CONNECTOR_WORDS.howToConnect) : null,
+        h('button', { class: 'btn ghost', 'data-focus-id': `connected-${key}`, onClick: () => { markConnector(); retry(); } }, CONNECTOR_WORDS.connected),
         copyForDeveloper,
       ),
     );
@@ -2835,12 +2894,12 @@ function fixPanel(p: PullState, component: string): Child {
   return h(
     'div',
     { class: 'callout', role: 'status', 'data-claude': 'asked' },
-    h('p', null, fix.prefilled ? CONNECTOR_WORDS.prefilled : CONNECTOR_WORDS.pasted),
+    h('p', null, fix.prefilled ? (components.length > 1 ? CONNECTOR_WORDS.prefilledAll : CONNECTOR_WORDS.prefilled) : CONNECTOR_WORDS.pasted),
     fix.prefilled ? h('small', null, CONNECTOR_WORDS.emptyHint) : null,
     h(
       'div',
       { class: 'inline-actions' },
-      fix.prefilled ? null : h('button', { class: 'btn', 'data-focus-id': `open-claude-${component}`, onClick: () => void request('open-url', { url: CLAUDE_NEW_CHAT }) }, icon('external'), CONNECTOR_WORDS.openClaude),
+      fix.prefilled ? null : h('button', { class: 'btn', 'data-focus-id': `open-claude-${key}`, onClick: () => void request('open-url', { url: CLAUDE_NEW_CHAT }) }, icon('external'), CONNECTOR_WORDS.openClaude),
       copyForDeveloper,
     ),
   );
@@ -2909,6 +2968,8 @@ function fidelityGroup(p: PullState): Child {
     const order = { differs: 0, matches: 1, 'not-checked': 2 } as const;
     // Not compared: one folded line with each reason, after the rows a designer can act on (FID-2).
     const notCompared = outcome.items.filter((it) => it.result.status === 'not-checked');
+    // Each row's ask state, for "Ask Claude to fix all N": the rows that would show their own button.
+    const askRows: { name: string; differs: boolean; asked: boolean }[] = [];
     const rows = [...outcome.items]
       .filter((it) => it.result.status !== 'not-checked')
       .sort((a, b) => order[a.result.status] - order[b.result.status])
@@ -2923,13 +2984,14 @@ function fidelityGroup(p: PullState): Child {
         // Asked (now or before: the watch resumes), or Claude's fix found: the row shows that, not the button again.
         const claude = r.status === 'differs' ? claudePanel(it.name) : null;
         const asked = (f?.fix?.component === it.name && f.fix.status !== 'error' && f.fix.status !== 'connect') || !!claude;
+        askRows.push({ name: it.name, differs: r.status === 'differs', asked });
         return h(
           'li',
           { class: 'row review' },
           h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, it.name), kind),
           gap ? h('p', null, gap) : h('p', { class: r.status === 'differs' ? '' : 'muted' }, r.status === 'differs' ? differsSentence(r) : fidelityComponentLine(r)),
-          r.status === 'differs' && p.measure && !asked
-            ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `fix-${it.name}`, disabled: f?.fix?.status === 'writing' || !!state.busy, onClick: () => void fixWithClaude(p, it.name) }, 'Ask Claude to fix it'))
+          canAskClaude({ differs: r.status === 'differs', asked }, !!p.measure)
+            ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `fix-${it.name}`, disabled: askWriting(p) || !!state.busy, onClick: () => void fixWithClaude(p, it.name) }, 'Ask Claude to fix it'))
             : null,
           // Claude cannot help without a measure of the stories: the designer still has one thing to do (no dead end).
           r.status === 'differs' && !p.measure
@@ -2953,7 +3015,17 @@ function fidelityGroup(p: PullState): Child {
       });
     // For developers triaging the differences: every component and variant as JSON, without the images.
     const report = outcome.report;
+    // One ask for the whole list, under the summary, from two rows Claude can fix; each row keeps its own button.
+    const fixable = fixAllEligible(askRows, !!p.measure);
     content = [
+      fixable.length
+        ? h(
+            'div',
+            { class: 'inline-actions' },
+            h('button', { class: 'btn primary', 'data-focus-id': 'fix-all', disabled: askWriting(p) || !!state.busy, onClick: () => void fixAllWithClaude(p, fixable) }, CONNECTOR_WORDS.fixAll(fixable.length)),
+          )
+        : null,
+      fixAllPanel(p),
       // The headline counts every set, not compared ones too: the list names what it holds.
       rowList('fidelity', rows, 10, 'compared'),
       notCompared.length
