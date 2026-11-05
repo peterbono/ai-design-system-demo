@@ -398,12 +398,10 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
   });
 
   it('shows the preview capture with when it was taken, and the plate again when the image does not load', () => {
-    // Mid-afternoon, local time: "3 h ago" stays the same day whenever the suite runs (after midnight it said "yesterday").
+    // Midday: "3 h ago" never crosses midnight (it reads "yesterday" then, as CI found at 00:05).
     vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date(2026, 10, 4, 15, 0, 0));
-    onTestFinished(() => {
-      vi.useRealTimers();
-    });
+    vi.setSystemTime(new Date(2026, 10, 5, 12, 0));
+    onTestFinished(() => void vi.useRealTimers());
     const capturedAt = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
     handed({}, { thumb: 'https://raw.githubusercontent.com/o/r/bridge-shots/o/p/2.webp?v=abc1234', thumbCapturedAt: capturedAt });
     const img = screen.getByRole('img', { name: 'The latest captured screen of this exploration' });

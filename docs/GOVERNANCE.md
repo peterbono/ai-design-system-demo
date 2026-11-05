@@ -182,6 +182,16 @@ GitHub, as it already does for code owners. Bridge stores no membership: it read
   (paginated `GET /orgs/{org}/teams/{slug}/members`, `GET /orgs/{org}/teams/{slug}/memberships/{user}` for one
   person, cached for five minutes), returning a typed "cannot read" state with its reason.
 
+### Explorations for everyone who can edit
+
+A team member with Can edit or Admin, including someone who joined with their email, may start an exploration of a
+product and save prototype code on it through Bridge, in the product's design copy (or where that product's
+explorations normally go). Bridge writes for them with its app, only on `explore/` branches: never the default branch
+or any other branch, never a merge or a force push, never CI (`.github`), hosting settings (`vercel.json`, `.vercel`)
+or `node_modules`, within the usual size limits. The role is checked on the server for every write; Readers (Can
+view) write nothing. The design system repository's own explorations and changes stay with its leads: there, members
+who joined with their email save design files only (tokens, docs, assets).
+
 ## Visual before and after
 
 `.github/workflows/visual-impact.yml` screenshots what a pull request changes, before and after. When it runs is

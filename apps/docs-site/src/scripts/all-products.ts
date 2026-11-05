@@ -3,9 +3,15 @@
 // product repository's open ones), so opening it after Home costs no new list read. Only what the rows say: one status
 // line per product (lib/product-page.ts folderLine) and which ones the viewer explores in (lib/nav-products.ts).
 // No display names, no screens. Signed out on a private team, nothing is read: the rows keep their names.
+// The one status (lib/exploration-state): a design copy exploration handed to developers says what its task says, as on
+// Home and the product page (the same cached task reads, scripts/design-task.ts), so a task closed as done is Shipped
+// here too, never "waiting to be picked up". The counts are the whole team's, which the page's summary says
+// (lib/nav-products allProductsLine); Home's sentence counts only the viewer's own.
 import { configuredProducts } from './product-repos';
 import { currentContributor, currentViewer, ghGet, readRepo } from './github-session';
 import { repoContext } from './repo-context';
+import { designTaskStages, taskUrlOf } from './design-task';
+import type { LifecycleStage } from '../lib/review-state';
 import { homeExplorations, type ExplorationCard, type ExplorationPull } from '../lib/home-explorations';
 import { CLAUDE } from '../lib/home-model';
 import { mineFromCards, noteMine } from '../lib/nav-products';
@@ -51,7 +57,13 @@ export async function readAllProducts(): Promise<AllProductsRead | null> {
   const viewer = currentViewer()?.login ?? null;
   const viewerRef = currentContributor()?.ref ?? null;
   const pulls = [...open, ...inProducts, ...closed].map((p) => ({ ...p, user: p.user ?? { login: 'unknown' } }));
-  const cards = homeExplorations(pulls, { products, viewer, viewerRef, author: () => CLAUDE });
+  // The developers' tasks of the handed-off design copy explorations: Home's read, cached for a minute.
+  const stages = await designTaskStages(inProducts).catch(() => new Map<string, LifecycleStage>());
+  const taskStage = (p: ExplorationPull) => {
+    const u = taskUrlOf(p.body);
+    return u ? (stages.get(u) ?? null) : null;
+  };
+  const cards = homeExplorations(pulls, { products, viewer, viewerRef, taskStage, author: () => CLAUDE });
   // Signed in, what the viewer explores in is known now: the side nav lists those first from the next page on.
   if (viewer || viewerRef) {
     const r = repoContext();

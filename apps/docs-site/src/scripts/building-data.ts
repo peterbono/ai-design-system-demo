@@ -26,6 +26,7 @@ import { teamMember } from '../lib/developers-message';
 import { previewShotOf } from './preview-shots';
 import { knownNames, lookUpNames } from './people';
 import { siteConfig } from './repo-context';
+import { isHosted } from '../lib/team-path';
 
 export interface BuildData {
   views: (BuildRequestView & LifecycleExtra)[];
@@ -135,6 +136,10 @@ async function read(): Promise<BuildData> {
       jiraBase: null,
     };
   }
+  // A team shell knows the team's settings (its products and their repositories, the approvers, Jira) once the team is
+  // read. Opened directly, no other page read them first: read them here (the one memoized team load), or the product
+  // repositories are unknown and their explorations handed to developers never show.
+  await teamSettings();
   const R = `/repos/${repo}`;
   const issuePath = (label: string) => `${R}/issues?labels=${encodeURIComponent(label)}&state=all&per_page=100&sort=created&direction=desc`;
   // Loaded on demand, as the home does: the product repositories' reads and the site's products.
@@ -212,6 +217,12 @@ async function read(): Promise<BuildData> {
     pulls: fixPulls,
     explorations: explorationBuildRows(explored, { products, now, approvers: approversNow(), ...lifecycle, task, member, shot: (k) => shots.get(k) ?? null }),
   };
+}
+
+/** On a team shell, the team's settings read (scripts/team-data, memoized per page); a failed read keeps the defaults. */
+async function teamSettings(): Promise<void> {
+  if (!isHosted()) return;
+  await import('./team-data').then((m) => m.loadTeamData()).catch(() => null);
 }
 
 /** The fix pull requests the list did not return, read at once; one GitHub refuses is left out (the row stays In review). */
