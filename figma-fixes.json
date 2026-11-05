@@ -342,6 +342,19 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Pagination/Compact",
+      "id": "pagination-compact-sm-status",
+      "kind": "status",
+      "reason": "The small size matches the code on every measured value but 3 percent of pixels differ in all states, likely the page status text rendering or the chevron icons: compare the shot with the Figma render by eye.",
+      "status": "differs",
+      "where": {
+        "args": {
+          "size": "sm"
+        }
+      }
     }
   ]
 }
