@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Card",
+      "id": "card-content-status",
+      "kind": "status",
+      "reason": "Sizes match the code on all 4 variants but 6 to 16 percent of pixels differ, worst with no padding, likely the placeholder content, text style or border inside the card: compare the story shots with the Figma render and align the content and fill.",
+      "status": "differs"
     }
   ]
 }
