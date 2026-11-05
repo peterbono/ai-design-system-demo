@@ -13,6 +13,7 @@ import {
   buildGapCase,
   parseFigmaFixes,
   parseMeasuredSpecsFile,
+  storiesOfComponent,
   validateFigmaFixes,
   type ComponentSpec,
   type FidelityComponentResult,
@@ -178,7 +179,7 @@ export async function runGap(a: RequestArgs, root: string, io: RequestIO = defau
     if (entry) shots = Object.fromEntries(Object.entries(entry.variants).map(([k, v]) => [k, { file: relative(dirname(inAbs), join(dirname(manifestPath), v.file)) }]));
   } else if (flag(a, 'shots')) throw new RequestUsageError(`Shot manifest not found: ${flag(a, 'shots')}`);
 
-  if (!measured.stories.some((s) => lc(s.title.split('/').at(-1)!) === lc(component))) {
+  if (!storiesOfComponent(measured, component).length) {
     io.error(`bridge: no measured story of ${component} in ${relative(root, inAbs)}. Measure it with bridge specs --measure --only ${component}.`);
     return 1;
   }

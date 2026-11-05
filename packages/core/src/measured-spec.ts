@@ -503,6 +503,11 @@ export interface MeasuredSpecsStory {
   shot?: { file: string; width: number; height: number } | undefined;
   /** Popup stories: how the popup came to show. */
   opened?: 'already' | 'click' | 'hover' | 'focus' | 'none' | undefined;
+  /**
+   * The Figma set this entry stands for when its name is not the last segment of the title: a set drawn from the
+   * component under its folder (Dialog/Popup, the popup drawn open; Pagination/Full, a fixed prop). See measuredSetName.
+   */
+  set?: string | undefined;
 }
 
 /** Per Storybook component (title): its prop list, from the first story measured. */
@@ -518,6 +523,61 @@ export interface MeasuredSpecsComponent {
   variantPlan?: { axes: string[]; ignored?: Record<string, string> | undefined; combos: number; capped?: boolean | undefined } | undefined;
   /** Token path -> its value in the measured page (colors `rgb()`, lengths px): the tokens the Figma side names. */
   resolved?: Record<string, string> | undefined;
+  /** The Figma set this entry stands for, when it is not the last segment of the title (Dialog/Popup). */
+  set?: string | undefined;
+}
+
+/**
+ * The Figma set a measured story or component entry stands for: its `set` (a set drawn under the component's folder,
+ * like Dialog/Popup or Pagination/Full), else the last segment of its title ("Figma variants/Radio" is Radio).
+ */
+export function measuredSetName(entry: { title: string; set?: string | undefined }): string {
+  return entry.set ?? entry.title.split('/').at(-1)!.trim();
+}
+
+/** A set the static generator draws from a component under its folder (component-specs.json): Dialog/Popup, Pagination/Full. */
+export interface FolderSetRef {
+  name: string;
+  /** Props the set fixes (Pagination/Full is variant=full). */
+  fixed?: Record<string, string> | undefined;
+  /** `popup`: the popup drawn open. */
+  view?: string | undefined;
+  axes: { name: string; prop?: string | undefined; values: string[]; default?: string | undefined }[];
+  /** The local classes of the set's root (`popup` for Dialog.module.css .popup). */
+  rootClasses: string[];
+}
+
+const rootClassesOf = (spec: MeasuredSpec | undefined) => (spec?.parts.find((p) => !p.parent)?.source ?? '').split(/\s+/).filter(Boolean);
+
+/**
+ * A measured story as an entry of a folder set: its title extended with the set's last segment, `set` naming the set,
+ * and the set's axis props the story does not pass read from the root's classes (a DialogContent of size sm carries the
+ * class `sm`: CSS modules name a variant class after its value). Undefined when the story is not one of the set's: it
+ * does not render the set's fixed props, or (a popup) its root is not the set's root.
+ */
+export function asFolderSetStory(story: MeasuredSpecsStory, set: FolderSetRef): MeasuredSpecsStory | undefined {
+  if (!story.spec || story.error) return undefined;
+  const has = { ...(story.props ?? {}), ...(story.overrides ?? {}) } as Record<string, unknown>;
+  const lower = (v: unknown) => String(v ?? '').toLowerCase();
+  const classes = new Set(rootClassesOf(story.spec).map(lower));
+  if (set.fixed && Object.keys(set.fixed).length) {
+    if (!Object.entries(set.fixed).every(([k, v]) => lower(has[k]) === lower(v))) return undefined;
+  } else if (!set.rootClasses.length || !set.rootClasses.every((c) => classes.has(lower(c)))) return undefined;
+  const props = { ...(story.props ?? {}) };
+  for (const axis of set.axes) {
+    if (!axis.prop || has[axis.prop] !== undefined) continue;
+    const hit = axis.values.map(lower).filter((v) => classes.has(v));
+    if (hit.length === 1) props[axis.prop] = axis.values.find((v) => lower(v) === hit[0])!;
+  }
+  const suffix = set.name.split('/').slice(1).join('/');
+  return { ...story, title: `${story.title}/${suffix}`, set: set.name, ...(Object.keys(props).length ? { props } : {}) };
+}
+
+/** The component entry of a folder set: the component's props, plus the set's axis props the stories do not declare. */
+export function folderSetComponent(parent: MeasuredSpecsComponent | undefined, set: FolderSetRef, title: string): MeasuredSpecsComponent {
+  const argTypes: Record<string, MeasuredArgType> = { ...(parent?.argTypes ?? {}) };
+  for (const axis of set.axes) if (axis.prop && !argTypes[axis.prop]) argTypes[axis.prop] = { kind: 'enum', options: axis.values, ...(axis.default !== undefined ? { default: axis.default } : {}) };
+  return { title, set: set.name, name: set.name, argTypes, ...(parent?.component ? { component: parent.component } : {}), ...(parent?.resolved ? { resolved: parent.resolved } : {}) };
 }
 
 export interface MeasuredSpecsFile {

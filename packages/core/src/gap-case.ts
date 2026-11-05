@@ -6,7 +6,7 @@
 
 import { matchVariant, variantKeyOf, type ComponentSpec, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
 import { sizeGap, type FidelityComponentResult, type FidelityVariantResult, type Size } from './fidelity';
-import { compareSpecToMeasured, pairParts, withoutAddedWrappers, type MeasuredBox, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory, type MeasuredState } from './measured-spec';
+import { compareSpecToMeasured, measuredSetName, pairParts, withoutAddedWrappers, type MeasuredBox, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory, type MeasuredState } from './measured-spec';
 
 export const GAP_CASE_VERSION = 1;
 
@@ -118,11 +118,10 @@ export interface GapCaseInput {
 // Helpers
 
 const lc = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-const setNameOf = (title: string) => title.split('/').at(-1)!.trim();
 
 /** The stories of a set: the last title segment, case and punctuation ignored. */
 export function storiesOfComponent(file: Pick<MeasuredSpecsFile, 'stories'>, component: string): MeasuredSpecsStory[] {
-  return file.stories.filter((s) => lc(setNameOf(s.title)) === lc(component));
+  return file.stories.filter((s) => lc(measuredSetName(s)) === lc(component));
 }
 
 /** A story's state: its forced pseudo state, else disabled when the arg says so, else at rest. */
@@ -498,7 +497,7 @@ function agreeWords(percent: number | undefined): string {
 
 /** Fix ids figma-fixes.json applied to this component (applyFixes writes them on the component entry). */
 function fixesOf(file: MeasuredSpecsFile, component: string): string[] {
-  const entries = (file.components ?? []).filter((c) => lc(setNameOf(c.title)) === lc(component)) as { figma?: { fixes?: string[] } }[];
+  const entries = (file.components ?? []).filter((c) => lc(measuredSetName(c)) === lc(component)) as { figma?: { fixes?: string[] } }[];
   return [...new Set(entries.flatMap((c) => c.figma?.fixes ?? []))];
 }
 

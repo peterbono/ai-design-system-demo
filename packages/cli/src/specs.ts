@@ -7,7 +7,10 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import {
   CONFIG_FILE,
+  asFolderSetStory,
   componentStatus,
+  folderSetComponent,
+  measuredSetName,
   fetchStorybookIndex,
   normalizeStorybookUrl,
   boundedCombos,
@@ -20,6 +23,7 @@ import {
   type ComponentSpecsFile,
   type ComponentStatus,
   type FigmaComponentRef,
+  type FolderSetRef,
   type MeasuredArgType,
   type MeasuredSpec,
   type MeasuredSpecsComponent,
@@ -133,6 +137,16 @@ const defaultOpen: OpenPage = async (oo = {}) => {
         if (!box || box.width < 1 || box.height < 1) return null;
         await mkdir(dirname(file), { recursive: true });
         await el.screenshot({ path: file, animations: 'disabled', caret: 'hide' });
+        // The shot covers the whole CSS pixels around the box: a box on a fractional y (a 20 px badge centred in a
+        // 21 px line) comes out a pixel taller. Cut to the box, so the image is the size the measure read.
+        try {
+          const { decodePng, encodePng, cropPng } = await import('@bridge-ds/visual');
+          const png = decodePng(readFileSync(file));
+          const cut = shotCrop(box, png.width, png.height);
+          if (cut) writeFileSync(file, encodePng(cropPng(png, cut.x, cut.y, cut.width, cut.height)));
+        } catch {
+          // the uncut shot stays
+        }
         return { width: Math.round(box.width * 100) / 100, height: Math.round(box.height * 100) / 100 };
       },
     },
@@ -140,6 +154,24 @@ const defaultOpen: OpenPage = async (oo = {}) => {
     reset,
   };
 };
+
+/**
+ * The region of an element screenshot that is the element's box, in image pixels, or undefined when the image is the
+ * box already. The browser shoots the whole CSS pixels around the box (floor of its start to ceil of its end), so a box
+ * at y 39.44 and 20 tall comes out 21 tall: the cut starts at the fraction and keeps the box's size.
+ */
+export function shotCrop(box: { x: number; y: number; width: number; height: number }, imageWidth: number, imageHeight: number): { x: number; y: number; width: number; height: number } | undefined {
+  const cssWidth = Math.ceil(box.x + box.width) - Math.floor(box.x);
+  const cssHeight = Math.ceil(box.y + box.height) - Math.floor(box.y);
+  if (cssWidth <= 0 || cssHeight <= 0) return undefined;
+  const scale = imageWidth / cssWidth;
+  const x = Math.round((box.x - Math.floor(box.x)) * scale);
+  const y = Math.round((box.y - Math.floor(box.y)) * scale);
+  const width = Math.max(1, Math.min(imageWidth - x, Math.round(box.width * scale)));
+  const height = Math.max(1, Math.min(imageHeight - y, Math.round(box.height * scale)));
+  if (x === 0 && y === 0 && width === imageWidth && height === imageHeight) return undefined;
+  return { x, y, width, height };
+}
 
 const STATES = ['rest', 'hover', 'focus-visible', 'active', 'disabled'] as const;
 
@@ -282,7 +314,7 @@ async function writeShotManifest(book: ShotBook, file: MeasuredSpecsFile, refs: 
   const manifest: MeasuredShotManifest = { version: 1, tool: '@bridge-ds/cli', createdAt: new Date().toISOString(), storybook: file.storybook, scale: 2, components: {} };
   for (const s of file.stories) {
     if (!s.shot || !s.spec) continue;
-    const name = s.title.split('/').pop()!.trim();
+    const name = measuredSetName(s);
     const ref = refs?.get(name.toLowerCase());
     const argTypes = Object.assign({}, ...(file.components ?? []).filter((c) => c.title === s.title).map((c) => c.argTypes));
     const key = (ref && figmaKeyOf(ref, s, argTypes)) || `story=${s.id}${s.overrides ? `, ${Object.entries(s.overrides).map(([k, v]) => `${k}=${v}`).join(', ')}` : ''}${s.state ? `, state=${s.state}` : ''}`;
@@ -473,8 +505,59 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     await writeFile(outPath, `${JSON.stringify(file, null, 2)}\n`);
     if (book) await writeShotManifest(book, file, refs);
   };
+  /**
+   * Sets the Figma library draws from this component under its folder (component-specs.json): Pagination/Full (a fixed
+   * prop), Dialog/Popup (the popup drawn open). Written as `<title>/<suffix>` entries that name their set, so the fix
+   * loop, the pull and --check find them by the set's name: the component's measured stories that render the set (its
+   * fixed props, or the popup's root), else, for a popup the stories show closed (Select/Popup), the stories measured
+   * open until one shows it.
+   */
+  const measureFolderSets = async (title: string) => {
+    if (!specsFile || !refs) return;
+    const lname = title.split('/').pop()!.trim().toLowerCase();
+    const sets = specsFile.components.filter((c) => c.name.toLowerCase().startsWith(`${lname}/`));
+    const parent = file.components!.find((c) => c.title === title && !c.set);
+    const own = file.stories.filter((s) => s.title === title && !s.set);
+    for (const set of sets) {
+      const figmaRef = refs.get(set.name.toLowerCase());
+      const ref: FolderSetRef = { name: set.name, ...(set.fixed ? { fixed: set.fixed } : {}), ...(set.view ? { view: set.view } : {}), axes: set.axes, rootClasses: setClassesOf(figmaRef) };
+      const setTitle = `${title}/${set.name.split('/').slice(1).join('/')}`;
+      let entries = own.map((s) => asFolderSetStory(s, ref)).filter((s): s is MeasuredSpecsStory => !!s);
+      let resolved: Record<string, string> | undefined;
+      if (!entries.length && set.view === 'popup' && ref.rootClasses.length) {
+        const sel = classSelector(ref.rootClasses);
+        for (const s of picks.filter((x) => x.title === title)) {
+          try {
+            const m = await measureStory(browser.page, base, s.id, { within: sel, open: true, ...shotOpt(s.id, { part: set.name }) });
+            const e = m.root ? asFolderSetStory(storyEntry(s, m, tokenOf, {}, ref.rootClasses, book), ref) : undefined;
+            if (!e) continue;
+            entries = [e];
+            say(e, `${setTitle} / ${s.name}`);
+            // The tokens the set names, resolved in the page that shows it open.
+            if (figmaRef) resolved = await resolveTokenValues(browser.page, varsFor(figmaRef)).catch(() => undefined);
+            break;
+          } catch {
+            // the next story may show it
+          }
+        }
+      }
+      if (!file.components!.some((c) => c.set === set.name)) {
+        const comp = folderSetComponent(parent, ref, setTitle);
+        if (resolved) comp.resolved = { ...(comp.resolved ?? {}), ...resolved };
+        file.components!.push(comp);
+      }
+      if (entries.length) file.stories.push(...entries);
+      else file.stories.push({ id: own[0]?.id ?? picks.find((x) => x.title === title)?.id ?? title, title: setTitle, set: set.name, name: set.name, url: '', ms: 0, error: `no story of ${title} shows ${set.name}` });
+    }
+  };
   const finish = async (title: string | undefined) => {
     if (!title || file.done!.includes(title)) return;
+    try {
+      await measureFolderSets(title);
+    } catch (e) {
+      io.error(`bridge: the Figma sets drawn from ${title} stopped: ${(e as Error).message.split('\n')[0]}`);
+      await browser.reset?.();
+    }
     file.done!.push(title);
     await flush();
   };
@@ -666,22 +749,27 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
   if (has(a, 'check') && refs) {
     // One status per component name: its own stories ("Forms/ChoiceCard") and its Figma variant stories
     // ("Figma variants/ChoiceCard") together, their props merged.
-    const nameOf = (title: string) => title.split('/').pop()!.trim();
-    const names = [...new Set(file.stories.map((s) => nameOf(s.title)))];
+    const nameOf = (e: { title: string; set?: string | undefined }) => measuredSetName(e);
+    const names = [...new Set(file.stories.map(nameOf))];
+    // Folder sets measured as their own entries (Dialog/Popup, Pagination/Full) have their own status.
+    const measuredSets = new Set(file.stories.filter((s) => s.set).map((s) => s.set!.toLowerCase()));
     statuses = names.flatMap((name) => {
       // A part's entries ("Overlays/Menu/MenuItem") read the tokens and props of the component they were measured in.
       const parentTitle = (t: string) => t.split('/').slice(0, -1).join('/');
-      const partOf = file.stories.find((s) => nameOf(s.title) === name && file.components!.some((c) => c.title === parentTitle(s.title)));
-      const comps = file.components!.filter((c) => nameOf(c.title) === name || (partOf && c.title === parentTitle(partOf.title)));
+      const partOf = file.stories.find((s) => nameOf(s) === name && file.components!.some((c) => c.title === parentTitle(s.title)));
+      const comps = file.components!.filter((c) => nameOf(c) === name || (partOf && c.title === parentTitle(partOf.title)));
       const resolved = comps.reduce<Record<string, string> | undefined>((acc, c) => (c.resolved ? { ...(acc ?? {}), ...c.resolved } : acc), undefined);
-      const stories = file.stories.filter((s) => nameOf(s.title) === name);
+      const stories = file.stories.filter((s) => nameOf(s) === name);
       // Props a part entry read from its element (checked, disabled) are its props too.
       const readProps = Object.fromEntries(stories.flatMap((s) => Object.entries(s.props ?? {})).filter(([, v]) => typeof v === 'boolean').map(([k]) => [k, { kind: 'boolean' as const }]));
       const base = { argTypes: comps.length || Object.keys(readProps).length ? Object.assign({}, readProps, ...comps.map((c) => c.argTypes)) : undefined, ...(resolved ? { resolve: (path: string) => resolved[path] } : {}) };
       const own = refs?.get(name.toLowerCase());
       // Sets drawn from this component under its folder: one per fixed prop (Progress/Linear is variant=linear), and
       // popups drawn open (Dialog/Popup), compared only when measured open.
-      const folder = own ? [] : (specsFile?.components ?? []).filter((c) => c.name.toLowerCase().startsWith(`${name.toLowerCase()}/`));
+      const drawn = own ? [] : (specsFile?.components ?? []).filter((c) => c.name.toLowerCase().startsWith(`${name.toLowerCase()}/`));
+      const folder = drawn.filter((c) => !measuredSets.has(c.name.toLowerCase()));
+      // Every set drawn from it is measured as its own entry: the component itself has no Figma set to compare.
+      if (drawn.length && !folder.length) return [];
       const fixedSets = folder.filter((c) => c.fixed && Object.keys(c.fixed).length && c.view !== 'popup');
       if (fixedSets.length)
         return fixedSets.map((set) =>

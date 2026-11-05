@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { runSpecs, type MeasuredSpecsFile, type OpenPage } from '../src/specs.js';
+import { runSpecs, shotCrop, type MeasuredSpecsFile, type OpenPage } from '../src/specs.js';
 import type { RequestArgs, RequestIO } from '../src/request.js';
 
 const INDEX = {
@@ -16,7 +16,7 @@ const INDEX = {
   },
 };
 
-const io = () => {
+const io = (index: object = INDEX) => {
   const lines: string[] = [];
   const errors: string[] = [];
   const value: RequestIO = {
@@ -25,7 +25,7 @@ const io = () => {
     env: {},
     fetch: (async (url: string) => {
       const found = String(url).endsWith('/index.json');
-      return { ok: found, status: found ? 200 : 404, headers: { get: () => 'application/json' }, text: async () => JSON.stringify(INDEX) };
+      return { ok: found, status: found ? 200 : 404, headers: { get: () => 'application/json' }, text: async () => JSON.stringify(index) };
     }) as unknown as typeof fetch,
     ghToken: () => undefined,
     hasClaude: () => false,
@@ -189,5 +189,37 @@ describe('bridge specs --measure --shots: a gallery', () => {
     const png = decodePng(readFileSync(join(dir, story.shot!.file)));
     expect([png.width, png.height]).toEqual([384, 112]);
     expect([...png.data.subarray(png.data.length - 4)]).toEqual([255, 0, 0, 255]);
+  });
+});
+
+describe('bridge specs --measure --check: sets drawn under a folder', () => {
+  it('writes Dialog/Popup as its own entries from the stories that show the popup, and checks it', async () => {
+    const index = { v: 5, entries: { 'overlays-dialog--default': { id: 'overlays-dialog--default', title: 'Overlays/Dialog', name: 'Default', type: 'story', importPath: 'd' } } };
+    // The story shows the popup (portaled, opened by the measure): a DialogContent of size md.
+    const result = { root: { tag: 'div', kind: 'frame', classes: ['_popup_1a2b3_1', '_md_1a2b3_2'], box: { x: 0, y: 0, width: 560, height: 148 }, style: { display: 'flex', 'flex-direction': 'column', 'background-color': 'rgb(1, 2, 3)' }, tokens: { 'background-color': { via: 'declared', chain: ['--dialog-bg'], exact: true } }, children: [{ tag: 'h2', kind: 'text', text: 'Title', box: { x: 20, y: 20, width: 100, height: 28 }, style: {}, tokens: {}, children: [] }] }, portals: [], wrappers: 0, nodes: 2, rules: 1, sheets: { read: 1, blocked: 0 }, rootVariables: 1, viewport: { width: 1200, height: 800 } };
+    const open: OpenPage = async () => ({ page: { goto: async () => undefined, evaluate: async <T>(expr: string) => (expr.includes('async () =>') ? 'rendered' : result) as T }, close: async () => undefined });
+    const dir = mkdtempSync(join(tmpdir(), 'bridge-test-folder-'));
+    const popup = { name: 'Dialog/Popup', component: 'Dialog', view: 'popup', axes: [{ name: 'Size', prop: 'size', values: ['sm', 'md', 'lg'], default: 'md' }], properties: [], parts: [{ id: 'root', name: 'Root', kind: 'frame', source: 'Dialog.module.css .popup, Dialog.module.css .md' }], variants: ['sm', 'md', 'lg'].map((v) => ({ props: { Size: v }, values: { root: {} } })) };
+    writeFileSync(join(dir, 'specs.json'), JSON.stringify({ components: [popup] }));
+    const o = io(index);
+    expect(await runSpecs(args('--measure', '--storybook', 'https://sb.example.com', '--check', '--specs', 'specs.json', '--out', 'm.json'), dir, o.value, open)).toBe(0);
+    const file = JSON.parse(readFileSync(join(dir, 'm.json'), 'utf8')) as MeasuredSpecsFile;
+    const entry = file.stories.find((s) => s.set === 'Dialog/Popup');
+    expect(entry).toMatchObject({ id: 'overlays-dialog--default', title: 'Overlays/Dialog/Popup', props: { size: 'md' } });
+    expect(file.components!.find((c) => c.set === 'Dialog/Popup')).toMatchObject({ title: 'Overlays/Dialog/Popup', argTypes: { size: { kind: 'enum' } } });
+    // The popup has its own status; the component itself, which Figma has no set of, has none.
+    expect(file.statuses!.map((s) => s.name)).toEqual(['Dialog/Popup']);
+    expect(file.statuses![0]!.variants.find((v) => v.key === 'Size=md')).toMatchObject({ story: 'overlays-dialog--default' });
+  });
+});
+
+describe('shotCrop: the shot is the measured box, not the whole pixels around it', () => {
+  it('cuts a 20 px badge on y 39.44 out of its 21 px tall shot (2x)', () => {
+    expect(shotCrop({ x: 10, y: 39.44, width: 20, height: 20 }, 40, 42)).toEqual({ x: 0, y: 1, width: 40, height: 40 });
+    expect(shotCrop({ x: 10.5, y: 39.44, width: 18, height: 18 }, 38, 38)).toEqual({ x: 1, y: 1, width: 36, height: 36 });
+  });
+
+  it('leaves a box on whole pixels as it is', () => {
+    expect(shotCrop({ x: 0, y: 8, width: 96, height: 36 }, 192, 72)).toBeUndefined();
   });
 });

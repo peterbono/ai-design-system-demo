@@ -553,9 +553,11 @@ export function pickStoriesToMeasure(index: StorybookIndex, o: PickStoriesOption
     });
   }
   const want = (o.only ?? []).map((x) => x.trim().toLowerCase()).filter(Boolean);
+  // A Figma set drawn under its component's folder (Dialog/Popup, Pagination/Full) is measured with its component.
+  const folders = want.filter((x) => x.includes('/')).map((x) => x.split('/')[0]!.trim());
   const per = o.perComponent ?? 3;
   return index.components
-    .filter((c) => c.stories.length && (!want.length || want.includes(c.name.toLowerCase()) || want.includes(c.title.toLowerCase())))
+    .filter((c) => c.stories.length && (!want.length || want.includes(c.name.toLowerCase()) || want.includes(c.title.toLowerCase()) || folders.includes(c.name.toLowerCase())))
     .flatMap((c) => c.stories.slice(0, per).map((e) => ({ id: e.id, title: c.title, name: e.name })));
 }
 

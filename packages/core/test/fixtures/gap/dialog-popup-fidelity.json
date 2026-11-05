@@ -1,0 +1,299 @@
+{
+ "version": 1,
+ "report": {
+  "version": 1,
+  "checkedAt": "2026-11-05T12:01:12.060Z",
+  "file": "Untitled",
+  "reference": {
+   "sha": "0a716b8671027f8b17bddc5f30b65503f7757a49",
+   "createdAt": "2026-11-04T12:05:11.218Z"
+  },
+  "options": {
+   "scale": 2,
+   "threshold": 0.1,
+   "radius": 2,
+   "maxPercent": 3,
+   "sizeTolerance": 1
+  },
+  "components": [
+   {
+    "component": "Dialog/Popup",
+    "status": "differs",
+    "checked": 2,
+    "differing": 2,
+    "skipped": 0,
+    "worst": {
+     "key": "Size=sm",
+     "percent": 9.63,
+     "size": {
+      "figma": {
+       "width": 384,
+       "height": 179
+      },
+      "code": {
+       "width": 384,
+       "height": 148
+      }
+     }
+    },
+    "variants": [
+     {
+      "key": "Size=sm",
+      "status": "differs",
+      "percent": 9.63,
+      "size": {
+       "figma": {
+        "width": 384,
+        "height": 179
+       },
+       "code": {
+        "width": 384,
+        "height": 148
+       }
+      }
+     },
+     {
+      "key": "Size=md",
+      "status": "differs",
+      "percent": 8.18,
+      "size": {
+       "figma": {
+        "width": 560,
+        "height": 179
+       },
+       "code": {
+        "width": 560,
+        "height": 148
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "summary": {
+   "components": 1,
+   "matches": 0,
+   "differs": 1,
+   "notChecked": 0,
+   "variantsChecked": 2,
+   "variantsSkipped": 0
+  }
+ },
+ "built": {
+  "Dialog/Popup": {
+   "Size=sm": {
+    "boxes": {
+     "root": {
+      "x": 0,
+      "y": 0,
+      "width": 384,
+      "height": 179
+     },
+     "header": {
+      "x": 1,
+      "y": 1,
+      "width": 382,
+      "height": 60
+     },
+     "heading": {
+      "x": 21,
+      "y": 21,
+      "width": 310,
+      "height": 28
+     },
+     "title": {
+      "x": 21,
+      "y": 21,
+      "width": 310,
+      "height": 28
+     },
+     "title-text": {
+      "x": 21,
+      "y": 21,
+      "width": 310,
+      "height": 28
+     },
+     "body": {
+      "x": 1,
+      "y": 61,
+      "width": 382,
+      "height": 117
+     },
+     "field": {
+      "x": 21,
+      "y": 65,
+      "width": 342,
+      "height": 93
+     },
+     "label": {
+      "x": 21,
+      "y": 65,
+      "width": 342,
+      "height": 19
+     },
+     "text": {
+      "x": 21,
+      "y": 65,
+      "width": 342,
+      "height": 19
+     },
+     "description-2": {
+      "x": 21,
+      "y": 90,
+      "width": 342,
+      "height": 18
+     },
+     "text-2": {
+      "x": 21,
+      "y": 90,
+      "width": 342,
+      "height": 18
+     },
+     "control": {
+      "x": 21,
+      "y": 114,
+      "width": 342,
+      "height": 44
+     },
+     "input": {
+      "x": 38,
+      "y": 115,
+      "width": 308,
+      "height": 42
+     },
+     "text-3": {
+      "x": 38,
+      "y": 125.5,
+      "width": 121,
+      "height": 21
+     },
+     "button": {
+      "x": -10,
+      "y": 16,
+      "width": 382,
+      "height": 32
+     },
+     "icon": {
+      "x": 173,
+      "y": 24,
+      "width": 16,
+      "height": 16
+     }
+    },
+    "hidden": [
+     "description",
+     "description-text",
+     "footer",
+     "footer-text"
+    ]
+   },
+   "Size=md": {
+    "boxes": {
+     "root": {
+      "x": 0,
+      "y": 0,
+      "width": 560,
+      "height": 179
+     },
+     "header": {
+      "x": 1,
+      "y": 1,
+      "width": 558,
+      "height": 60
+     },
+     "heading": {
+      "x": 21,
+      "y": 21,
+      "width": 486,
+      "height": 28
+     },
+     "title": {
+      "x": 21,
+      "y": 21,
+      "width": 486,
+      "height": 28
+     },
+     "title-text": {
+      "x": 21,
+      "y": 21,
+      "width": 486,
+      "height": 28
+     },
+     "body": {
+      "x": 1,
+      "y": 61,
+      "width": 558,
+      "height": 117
+     },
+     "field": {
+      "x": 21,
+      "y": 65,
+      "width": 518,
+      "height": 93
+     },
+     "label": {
+      "x": 21,
+      "y": 65,
+      "width": 518,
+      "height": 19
+     },
+     "text": {
+      "x": 21,
+      "y": 65,
+      "width": 518,
+      "height": 19
+     },
+     "description-2": {
+      "x": 21,
+      "y": 90,
+      "width": 518,
+      "height": 18
+     },
+     "text-2": {
+      "x": 21,
+      "y": 90,
+      "width": 518,
+      "height": 18
+     },
+     "control": {
+      "x": 21,
+      "y": 114,
+      "width": 518,
+      "height": 44
+     },
+     "input": {
+      "x": 38,
+      "y": 115,
+      "width": 484,
+      "height": 42
+     },
+     "text-3": {
+      "x": 38,
+      "y": 125.5,
+      "width": 121,
+      "height": 21
+     },
+     "button": {
+      "x": -10,
+      "y": 16,
+      "width": 558,
+      "height": 32
+     },
+     "icon": {
+      "x": 261,
+      "y": 24,
+      "width": 16,
+      "height": 16
+     }
+    },
+    "hidden": [
+     "description",
+     "description-text",
+     "footer",
+     "footer-text"
+    ]
+   }
+  }
+ },
+ "measuredAt": "2026-11-04T12:05:53.674Z"
+}

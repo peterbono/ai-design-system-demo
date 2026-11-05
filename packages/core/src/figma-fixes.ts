@@ -12,7 +12,7 @@
 // Pure and browser safe: the Figma plugin applies them to measured-specs.json before it builds, the CLI checks them.
 
 import { COLOR_FIELDS, SPEC_FIELDS, type SpecField, type SpecLayout, type SpecPart, type SpecValue } from './component-spec';
-import type { MeasuredArgType, MeasuredSpec, MeasuredSpecsComponent, MeasuredSpecsFile, MeasuredSpecsStory } from './measured-spec';
+import { measuredSetName, type MeasuredArgType, type MeasuredSpec, type MeasuredSpecsComponent, type MeasuredSpecsFile, type MeasuredSpecsStory } from './measured-spec';
 import { storyState, type GapState } from './gap-case';
 import { boxSized } from './measured-only';
 
@@ -307,7 +307,6 @@ export type FixedMeasuredSpecsFile = Omit<MeasuredSpecsFile, 'stories' | 'compon
 };
 
 const lc = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-const setNameOf = (title: string) => title.split('/').at(-1)!.trim();
 const propsOf = (s: MeasuredSpecsStory) => ({ ...(s.props ?? {}), ...(s.overrides ?? {}) }) as Record<string, FixArgValue>;
 const sameArg = (a: unknown, b: unknown) => a === b || (a !== undefined && b !== undefined && String(a).toLowerCase() === String(b).toLowerCase());
 
@@ -449,7 +448,7 @@ export function applyFixes(measured: MeasuredSpecsFile | FixedMeasuredSpecsFile,
   const file = clone(measured) as FixedMeasuredSpecsFile;
   const before = new Set((file.figmaFixes?.applied ?? []).filter((a) => a.result === 'applied').map((a) => a.id));
   const applied: AppliedFix[] = [];
-  const entryOf = (component: string): FixedComponent | undefined => (file.components ?? []).find((c) => lc(setNameOf(c.title)) === lc(component));
+  const entryOf = (component: string): FixedComponent | undefined => (file.components ?? []).find((c) => lc(measuredSetName(c)) === lc(component));
   const hints = (component: string): FigmaHints | undefined => {
     const c = entryOf(component);
     return c ? (c.figma ??= {}) : undefined;
@@ -464,7 +463,7 @@ export function applyFixes(measured: MeasuredSpecsFile | FixedMeasuredSpecsFile,
       record('already', 0, 'already applied to this file');
       continue;
     }
-    const mine = () => file.stories.filter((s) => lc(setNameOf(s.title)) === lc(fix.component));
+    const mine = () => file.stories.filter((s) => lc(measuredSetName(s)) === lc(fix.component));
     if (!mine().length) {
       record('not-found', 0, `no measured story of ${fix.component}`);
       continue;
@@ -551,7 +550,12 @@ export function applyFixes(measured: MeasuredSpecsFile | FixedMeasuredSpecsFile,
       if (target.state && target.state !== 'rest' && target.state !== 'disabled') copy.state = target.state;
       else if (target.state) delete copy.state;
       // A story of another component (a richer demo) is drawn in this set.
-      if (lc(setNameOf(copy.title)) !== lc(fix.component)) copy.title = copy.title.split('/').slice(0, -1).concat(fix.component).join('/');
+      if (lc(measuredSetName(copy)) !== lc(fix.component)) {
+        // A set under a folder (Dialog/Popup) is named by `set`: the title keeps one segment per level.
+        copy.title = copy.title.split('/').slice(0, -1).concat(fix.component.split('/').at(-1)!).join('/');
+        if (fix.component.includes('/')) copy.set = fix.component;
+        else delete copy.set;
+      }
       mark(copy, fix.id);
       // In place of the first story it replaces, so the pull meets it where it met them.
       let placed = false;
