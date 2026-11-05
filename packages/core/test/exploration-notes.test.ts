@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { explorationNote, mergeExplorationNotes, noteFileOf, notesCounts, notesEmpty, notesSpec, parseExplorationNotes, updateEmpty } from '../src';
+import { explorationNote, mergeExplorationNotes, normalizeExplorationNotes, noteFileOf, notesCounts, notesEmpty, notesSpec, parseExplorationNotes, updateEmpty } from '../src';
 
 const OLD = explorationNote({ name: 'Pill buttons', purpose: 'Do rounder buttons feel friendlier?', slug: 'pill-buttons', startedAt: '2026-11-01T10:00:00Z', author: 'ana' });
 
@@ -164,5 +164,186 @@ describe('exploration notes: spec for developers and the note file', () => {
     expect(noteFileOf(['src/a.tsx', '.bridge/explorations/pill.md'])).toBe('.bridge/explorations/pill.md');
     expect(noteFileOf(['.bridge/figma/x.json'])).toBeNull();
     expect(noteFileOf(null)).toBeNull();
+  });
+});
+
+// The note file Claude (Opus, claude.ai) wrote itself on admin-app#8 on 2026-11-05, instead of sending notes.
+const REAL = [
+  '## Context',
+  '',
+  'A test of exploration notes. File: `src/explorations/notes-test/OrdersEmptyPage.tsx`.',
+  '',
+  '## Decisions',
+  '',
+  '1. EmptyState at size lg with headingLevel 2: it fills the whole page, so its title is the page heading.',
+  '2. One primary Button, "Add a print", size lg with a Plus icon: the one action of the page.',
+  '',
+  '## Edge cases',
+  '',
+  '- EmptyState, title or description in a long language (German, Finnish): covered. The text column wraps and the page grows.',
+  '- Button, "Add a print" while the catalog is being created (slow network): not covered. The button has no loading state yet, so a second tap creates two prints.',
+  '',
+  '## Open question',
+  '',
+  '- Should "Add a print" open a dialog on this page or take the shop owner to the catalog? The dialog keeps the context.',
+  '',
+  '## Next step',
+  '',
+  '- Wire `loading` on the Button to the create call, then check the page in the preview at phone width.',
+  '',
+].join('\n');
+
+describe('exploration notes: tolerant of what AI tools write', () => {
+  it('reads the real file Claude wrote: 2 decisions, EmptyState covered, Button not covered, 1 question, a clean next step', () => {
+    const n = parseExplorationNotes(REAL);
+    expect(n.context).toBe('A test of exploration notes. File: `src/explorations/notes-test/OrdersEmptyPage.tsx`.');
+    expect(n.decisions).toEqual([
+      'EmptyState at size lg with headingLevel 2: it fills the whole page, so its title is the page heading.',
+      'One primary Button, "Add a print", size lg with a Plus icon: the one action of the page.',
+    ]);
+    expect(n.edgeCases).toEqual([
+      { component: 'EmptyState', state: 'title or description in a long language (German, Finnish)', covered: true, note: 'The text column wraps and the page grows.' },
+      { component: 'Button', state: '"Add a print" while the catalog is being created (slow network)', covered: false, note: 'The button has no loading state yet, so a second tap creates two prints.' },
+    ]);
+    expect(n.openQuestions).toEqual(['Should "Add a print" open a dialog on this page or take the shop owner to the catalog? The dialog keeps the context.']);
+    expect(n.nextStep).toBe('Wire `loading` on the Button to the create call, then check the page in the preview at phone width.');
+    expect(notesCounts(n)).toEqual({ decisions: 2, edgeCases: 2, covered: 1, open: 1, questions: 1 });
+  });
+
+  it('reads numbered and "*" lists, and heading words in any case, singular or plural', () => {
+    const n = parseExplorationNotes('## DECISION\n\n1) One\n2) Two\n* Three\n\n## open Questions:\n\n* Why?\n\n## Edge Case\n\n### Toast\n\n1. [x] Long text: wraps\n\n## Next Steps\n\n1. Try the cart.\n\n## context\n\n* Checkout.\n');
+    expect(n.decisions).toEqual(['One', 'Two', 'Three']);
+    expect(n.openQuestions).toEqual(['Why?']);
+    expect(n.edgeCases).toEqual([{ component: 'Toast', state: 'Long text', covered: true, note: 'wraps' }]);
+    expect(n.nextStep).toBe('Try the cart.');
+    expect(n.context).toBe('Checkout.');
+  });
+
+  it('reads every edge case form', () => {
+    const md = [
+      '## Edge cases',
+      '',
+      '- [x] Button / Loading: spinner',
+      '- [x] Toast: long text, wraps on two lines',
+      '- Table, empty: yes. illustration',
+      '- Table, error: no',
+      '- Dialog / Small screen (covered) full height',
+      '- Dialog / Escape (not covered)',
+      '- ✅ Menu / Keyboard: arrows move',
+      '',
+      '### Input',
+      '',
+      '- [ ] Invalid: red border',
+      '- Input, disabled: covered',
+      '- Long label: not covered - truncates',
+      '- Loading: no spinner yet',
+    ].join('\n');
+    expect(parseExplorationNotes(md).edgeCases).toEqual([
+      { component: 'Button', state: 'Loading', covered: true, note: 'spinner' },
+      { component: 'Toast', state: 'long text', covered: true, note: 'wraps on two lines' },
+      { component: 'Table', state: 'empty', covered: true, note: 'illustration' },
+      { component: 'Table', state: 'error', covered: false },
+      { component: 'Dialog', state: 'Small screen', covered: true, note: 'full height' },
+      { component: 'Dialog', state: 'Escape', covered: false },
+      { component: 'Menu', state: 'Keyboard', covered: true, note: 'arrows move' },
+      { component: 'Input', state: 'Invalid', covered: false, note: 'red border' },
+      { component: 'Input', state: 'disabled', covered: true },
+      { component: 'Input', state: 'Long label', covered: false, note: 'truncates' },
+      { component: 'Input', state: 'Loading', covered: false, note: 'no spinner yet' },
+    ]);
+  });
+
+  it('never loses text: a stray line becomes a case or the note of the one above, a subheading in a list stays a line', () => {
+    const n = parseExplorationNotes('## Edge cases\n\nChecked at phone width.\n\n### Button\n\n- [x] Loading: spinner\n\nAlso on dark.\n\n## Decisions\n\n### Visual\n\n- Pill radius\n');
+    expect(n.edgeCases).toEqual([
+      { component: 'General', state: 'Checked at phone width.', covered: false },
+      { component: 'Button', state: 'Loading', covered: true, note: 'spinner Also on dark.' },
+    ]);
+    expect(n.decisions).toEqual(['Visual', 'Pill radius']);
+  });
+});
+
+describe('exploration notes: normalize (a note file written by hand, rewritten in Bridge format)', () => {
+  it('rewrites the real file in the canonical format, which parses the same', () => {
+    const md = normalizeExplorationNotes(REAL);
+    expect(md).toBe(
+      [
+        '## Context',
+        '',
+        'A test of exploration notes. File: `src/explorations/notes-test/OrdersEmptyPage.tsx`.',
+        '',
+        '## Decisions',
+        '',
+        '- EmptyState at size lg with headingLevel 2: it fills the whole page, so its title is the page heading.',
+        '- One primary Button, "Add a print", size lg with a Plus icon: the one action of the page.',
+        '',
+        '## Edge cases',
+        '',
+        '### EmptyState',
+        '',
+        '- [x] title or description in a long language (German, Finnish): The text column wraps and the page grows.',
+        '',
+        '### Button',
+        '',
+        '- [ ] "Add a print" while the catalog is being created (slow network): The button has no loading state yet, so a second tap creates two prints.',
+        '',
+        '## Open questions',
+        '',
+        '- Should "Add a print" open a dialog on this page or take the shop owner to the catalog? The dialog keeps the context.',
+        '',
+        '## Next step',
+        '',
+        'Wire `loading` on the Button to the create call, then check the page in the preview at phone width.',
+        '',
+      ].join('\n'),
+    );
+    expect(parseExplorationNotes(md)).toEqual(parseExplorationNotes(REAL));
+    expect(normalizeExplorationNotes(md)).toBe(md);
+  });
+
+  it("leaves the writer's own output byte for byte, and keeps the preamble and unknown sections in place", () => {
+    const written = mergeExplorationNotes(OLD, {
+      context: 'Friendlier checkout.',
+      decisions: ['Pill on primary', 'Secondary keeps its radius'],
+      edgeCases: [
+        { component: 'Button', state: 'Loading', covered: true, note: 'spinner, width kept' },
+        { component: 'Button', state: 'Error', covered: false },
+        { component: 'Toast', state: 'Long text', covered: false, note: 'wraps badly' },
+      ],
+      openQuestions: ['Dark mode?'],
+      nextStep: 'Try the cart.',
+    });
+    expect(normalizeExplorationNotes(written)).toBe(written);
+    const hand = `${OLD.trim()}\n\n## Decision\n\n1. A\n\n## Notes from Ana\n\nKeep me.\n\n## Context\n\n- Why\n`;
+    const md = normalizeExplorationNotes(hand);
+    expect(md).toBe(`${OLD.trim()}\n\n## Context\n\nWhy\n\n## Notes from Ana\n\nKeep me.\n\n## Decisions\n\n- A\n`);
+    expect(parseExplorationNotes(md)).toEqual(parseExplorationNotes(hand));
+    // A file without any of the five is left alone.
+    expect(normalizeExplorationNotes(OLD)).toBe(OLD);
+  });
+
+  it('round-trips: what the writer writes parses back as given, even notes that look like status words', () => {
+    const update = {
+      context: 'Why we look at it.',
+      decisions: ['1 radius for all', 'Keep: the old icon'],
+      edgeCases: [
+        { component: 'Button', state: 'Loading', covered: true, note: 'done' },
+        { component: 'Button', state: 'Empty', covered: false, note: 'no. Needs a design' },
+        { component: 'Table', state: 'Error (network)', covered: true, note: 'covered, by a toast' },
+        { component: 'General', state: 'Phone width', covered: false },
+      ],
+      openQuestions: ['Dark mode?'],
+      nextStep: 'Try the cart.',
+    };
+    const md = mergeExplorationNotes('', update);
+    const n = parseExplorationNotes(md);
+    expect(n).toEqual({ context: update.context, decisions: update.decisions, edgeCases: update.edgeCases.map((e) => ({ ...e })), openQuestions: update.openQuestions, nextStep: update.nextStep });
+    expect(normalizeExplorationNotes(md)).toBe(md);
+  });
+
+  it('merges an update into a normalized hand-written file', () => {
+    const md = mergeExplorationNotes(normalizeExplorationNotes(REAL), { edgeCases: [{ component: 'Button', state: '"Add a print" while the catalog is being created (slow network)', covered: true }] });
+    expect(parseExplorationNotes(md).edgeCases.map((e) => e.covered)).toEqual([true, true]);
+    expect(parseExplorationNotes(md).edgeCases[1]!.note).toContain('no loading state yet');
   });
 });

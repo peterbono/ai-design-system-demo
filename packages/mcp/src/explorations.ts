@@ -67,6 +67,8 @@ import {
   explorationSlugFromBranch,
   mergeExplorationNotes,
   explorationNotePathOf,
+  noteFileOf,
+  normalizeExplorationNotes,
   notesCounts,
   notesEmpty,
   parseExplorationNotes,
@@ -692,19 +694,32 @@ export async function saveExploration(ctx: BridgeContext, a: { ref: string; mess
   if (!isExplorationBranch(p.headRef)) throw new Error(`${p.headRef} is not an exploration branch: Bridge only saves on explore/ branches.`);
   // MCP only: the tool is Claude's, the CLI has no save command.
   if (p.state !== 'open') throw new Error(`This exploration is closed, so nothing is saved on it. Start a new one with bridge_start_exploration.`);
-  // The notes merged into the note file, in the same commit: section by section, what a person wrote stays.
+  // A note file sent as a file (an AI tool writing it itself instead of using notes): rewritten in Bridge's format in
+  // the same commit, every word kept, so Studio and the next person read a clean file.
   let notes: ExplorationNotes | null = null;
+  const e = parseExplorationBody(p.body);
+  const freshNote = () => explorationNote({ name: e?.name ?? p.title.replace(/^Exploration:\s*/i, ''), purpose: e?.purpose ?? '', slug: explorationSlugFromBranch(p.headRef) ?? undefined });
+  const sentNoteFiles = files.filter((f) => f.content !== null && noteFileOf([f.path]));
+  for (const f of sentNoteFiles) {
+    const text = f.encoding === 'base64' ? Buffer.from(f.content!, 'base64').toString('utf8') : f.content!;
+    // Its title and Bridge's marker text come back on top when the file sent starts straight with the sections.
+    const previous = (await at.gh.getFileText(f.path, p.headRef).catch(() => null)) ?? freshNote();
+    f.content = normalizeExplorationNotes(text, { previous });
+    delete f.encoding;
+  }
+  // The notes merged into the note file, in the same commit: section by section, what a person wrote stays.
   if (withNotes) {
     const prFiles = await at.gh.listPullRequestFiles(p.number).then((f) => f.map((x) => x.filename)).catch(() => null);
     const path = explorationNotePathOf(prFiles, p.headRef);
-    if (files.some((f) => f.path === path)) throw new Error(`${path} holds the exploration's notes: send them in notes, not as a file.`);
+    const sent = files.find((f) => f.path === path);
+    if (sent && sent.content === null) throw new Error(`${path} holds the exploration's notes: Bridge removes it on Done exploring, never in a save.`);
     const before = await at.gh.getFileText(path, p.headRef);
-    const e = parseExplorationBody(p.body);
-    const base = before ?? explorationNote({ name: e?.name ?? p.title.replace(/^Exploration:\s*/i, ''), purpose: e?.purpose ?? '', slug: explorationSlugFromBranch(p.headRef) ?? undefined });
+    const base = sent?.content ?? before ?? freshNote();
     const md = mergeExplorationNotes(base, a.notes!);
     notes = parseExplorationNotes(md);
-    if (md !== before) files.push({ path, content: md });
-  }
+    if (sent) sent.content = md;
+    else if (md !== before) files.push({ path, content: md });
+  } else if (sentNoteFiles.length) notes = parseExplorationNotes(sentNoteFiles[0]!.content);
   if (!files.length) throw new Error('Nothing changed: the notes already say this, and no file was sent.');
   const res = await at.gh.withBranchPrefix(EXPLORATION_PREFIX).commitToBranch({ branch: p.headRef, message, files });
   const ref = explorationRefLabel({ number: p.number, product: at.product?.key, repo: at.repo });
@@ -720,7 +735,7 @@ export async function saveExploration(ctx: BridgeContext, a: { ref: string; mess
     url: p.url,
     preview,
     ...(notes ? { notes: notesOut(notes) } : {}),
-    next: `Saved on ${ref}. ${preview ? `The preview updates in a few minutes: ${preview}` : 'Its previews rebuild in a few minutes.'} Tell the designer in one plain sentence what changed and where to look; nothing reached the developers or the library.${notes ? '' : ' Next save, update the notes too (notes: decisions taken, edge cases covered or open, the next step), so whoever carries on knows where it stands.'}`,
+    next: `Saved on ${ref}. ${preview ? `The preview updates in a few minutes: ${preview}` : 'Its previews rebuild in a few minutes.'} Tell the designer in one plain sentence what changed and where to look; nothing reached the developers or the library.${sentNoteFiles.length ? ` You wrote the note file yourself: Bridge rewrote it in its format. Next save, pass the notes in notes (decisions, edgeCases, nextStep...), never as ${sentNoteFiles[0]!.path} in files.` : notes ? '' : ' Next save, update the notes too (notes: decisions taken, edge cases covered or open, the next step), so whoever carries on knows where it stands.'}`,
   };
 }
 

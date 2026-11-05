@@ -121,14 +121,62 @@ describe('bridge_save_exploration', () => {
     expect(r.next).not.toContain('update the notes too');
   });
 
-  it('saves notes alone, refuses the note file sent as a file, and says when nothing changed', async () => {
+  it('rewrites a note file Claude wrote itself in Bridge format, in the same commit, title and marker kept', async () => {
+    const { shop, rw } = setup();
+    const ctx = await rw();
+    const path = '.bridge/explorations/order-toast.md';
+    const written = [
+      '## Context',
+      '',
+      'Orders get a toast when they ship.',
+      '',
+      '## Decisions',
+      '',
+      '1. Toast at the bottom on phones.',
+      '2. It stays 5 s.',
+      '',
+      '## Edge cases',
+      '',
+      '- Toast, long order name: covered. It wraps on two lines.',
+      '- Toast, two orders at once: not covered. They overlap.',
+      '',
+      '## Open question',
+      '',
+      '- Sound or not?',
+      '',
+      '## Next step',
+      '',
+      '- Stack two toasts.',
+    ].join('\n');
+    const commits = () => shop.log.filter((l) => l.method === 'POST' && l.path === '/git/commits').length;
+    const before = commits();
+    const r = (await explorations.saveExploration(ctx, { ref: 'shop#1', message: 'Toast', files: [{ path: 'src/t.tsx', content: 't' }, { path, content: written }] })) as any;
+    expect(commits()).toBe(before + 1);
+    const md = shop.fileAt('explore/order-toast', path)!;
+    expect(md.startsWith('# Exploration\n')).toBe(true);
+    expect(md).toContain('## Decisions\n\n- Toast at the bottom on phones.\n- It stays 5 s.');
+    expect(md).toContain('### Toast\n\n- [x] long order name: It wraps on two lines.\n- [ ] two orders at once: They overlap.');
+    expect(md).toContain('## Open questions\n\n- Sound or not?');
+    expect(md).toContain('## Next step\n\nStack two toasts.');
+    expect(r.notes).toMatchObject({ counts: { decisions: 2, edgeCases: 2, covered: 1, questions: 1 }, nextStep: 'Stack two toasts.' });
+    expect(r.next).toContain('pass the notes in notes');
+    // Sent with notes too: the notes merge into the rewritten file.
+    await explorations.saveExploration(ctx, { ref: 'shop#1', message: 'Toast 2', files: [{ path, content: written }], notes: { answeredQuestions: ['Sound or not?'], decisions: ['No sound.'] } });
+    const n = (await explorations.continueExploration(ctx, { ref: 'shop#1', checkout: false })).notes as any;
+    expect(n.decisions).toEqual(['Toast at the bottom on phones.', 'It stays 5 s.', 'No sound.']);
+    expect(n.openQuestions).toEqual([]);
+    await expect(explorations.saveExploration(ctx, { ref: 'shop#1', message: 'x', files: [{ path, delete: true }], notes: { nextStep: 'y' } })).rejects.toThrow(/Done exploring/);
+  });
+
+  it('saves notes alone, takes the note file sent as a file, and says when nothing changed', async () => {
     const { shop, rw } = setup();
     const ctx = await rw();
     const r = (await explorations.saveExploration(ctx, { ref: 'shop#1', message: 'Notes: next step', notes: { nextStep: 'Try the empty state.' } })) as any;
     expect(r).toMatchObject({ status: 'saved', saved: 1 });
     expect(shop.fileAt('explore/order-toast', '.bridge/explorations/order-toast.md')).toContain('## Next step\n\nTry the empty state.');
     await expect(explorations.saveExploration(ctx, { ref: 'shop#1', message: 'x', notes: { nextStep: 'Try the empty state.' } })).rejects.toThrow(/Nothing changed/);
-    await expect(explorations.saveExploration(ctx, { ref: 'shop#1', message: 'x', files: [{ path: '.bridge/explorations/order-toast.md', content: '' }], notes: { nextStep: 'y' } })).rejects.toThrow(/send them in notes/);
+    await explorations.saveExploration(ctx, { ref: 'shop#1', message: 'x', files: [{ path: '.bridge/explorations/order-toast.md', content: '## Next step\n\n- y' }], notes: { decisions: ['z'] } });
+    expect(shop.fileAt('explore/order-toast', '.bridge/explorations/order-toast.md')).toMatch(/^# Exploration\n\n## Decisions\n\n- z\n\n## Next step\n\ny\n$/);
     await expect(explorations.saveExploration(ctx, { ref: 'shop#1', message: 'x', files: [] })).rejects.toThrow(/Nothing to save/);
     // A save without notes reminds Claude to keep them.
     const plain = (await explorations.saveExploration(ctx, { ref: 'shop#1', message: 'x', files: [{ path: 'src/a.ts', content: 'a' }] })) as any;
