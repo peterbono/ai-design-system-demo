@@ -89,6 +89,34 @@
         }
       },
       "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "CheckboxGroup",
+      "height": 115,
+      "id": "checkboxgroup-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The vertical group is 115 px tall in code, with its description shown.",
+      "where": {
+        "args": {
+          "orientation": "vertical"
+        }
+      }
+    },
+    {
+      "by": "claude",
+      "component": "CheckboxGroup",
+      "height": 83,
+      "id": "checkboxgroup-horizontal-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The horizontal group is 83 px tall in code, with its description shown.",
+      "where": {
+        "args": {
+          "orientation": "horizontal"
+        }
+      }
     }
   ]
 }
