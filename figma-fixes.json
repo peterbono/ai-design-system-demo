@@ -229,6 +229,28 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Avatar",
+      "height": 21,
+      "id": "avatar-xs-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The extra small avatar is 21 px tall in code where Figma draws it 20 px tall.",
+      "where": {
+        "args": {
+          "size": "xs"
+        }
+      }
+    },
+    {
+      "by": "claude",
+      "component": "Avatar",
+      "id": "avatar-draw",
+      "kind": "status",
+      "reason": "The mark and fallback are missing in Figma: draw them in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
