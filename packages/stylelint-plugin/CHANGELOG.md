@@ -1,5 +1,22 @@
 # @bridge-ds/stylelint-plugin
 
+## 0.2.27
+
+### Patch Changes
+
+- 3ce0cd9: Bridge's repository moved to the the-bridge-company organization: package repository, homepage, issues, docs and schema links point at the-bridge-company/ai-design-system-demo.
+- Updated dependencies [441e1d7]
+- Updated dependencies [0a716b8]
+- Updated dependencies [9dfb5e9]
+- Updated dependencies [84d0c83]
+- Updated dependencies [f0a5dfa]
+- Updated dependencies [014e784]
+- Updated dependencies [0cf2d87]
+- Updated dependencies [686834c]
+- Updated dependencies [3ce0cd9]
+- Updated dependencies [c33cbfd]
+  - @bridge-ds/core@0.29.0
+
 ## 0.2.26
 
 ### Patch Changes

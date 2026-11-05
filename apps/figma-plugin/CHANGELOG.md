@@ -1,5 +1,52 @@
 # @bridge-ds/figma-plugin
 
+## 0.9.0
+
+### Minor Changes
+
+- 3993118: Leads approve Claude's fixes from the Figma plugin. In "Claude's fixes", a lead (a repository admin, a design approver who can write, or an email Admin through Studio) sees "Approve all N" and "Approve" on each ready row; one click approves and runs Check for updates, so the fixes come into the file. Everyone else reads "Waiting for approval". The Bridge site checks each fix again with its GitHub App (figma-fixes.json only, `bridge fixes check`, nothing changed underneath, no failing check) and lands them in one push: one merge for one fix, one merge commit holding their union for several, so GitHub marks each pull request merged. A fix Bridge refuses says why on its row.
+- c519769: Compare with code: "Ask Claude to fix all N" under the summary, when two or more components that differ can go to
+  Claude. One click writes the comparison once, opens the team's Claude once with one request naming them all ("Fix
+  these 31 components in Figma with Bridge: AccordionItem, AlertDialog/Popup, ..."; a list too long for Claude's address
+  opens on "Fix every component that differs in Figma with Bridge", the full request is copied either way) and every row
+  then waits for its own fix. Each row keeps its own "Ask Claude to fix it". The first time in a file, the connect
+  sentence shows once for the list. The Bridge MCP server's instructions say a request naming several components means
+  all of them, one at a time, each proposed before the next. The box that says Claude opened with the request no longer
+  leaves an empty icon slot: its text lines up with the "Waiting for Claude" box below.
+- 1723bc8: One progress bar for every long job in the plugin. Check for updates and Update (building component sets), Compare
+  with code, Send my edits and Claude working through "Ask Claude to fix all N" each show a bar where their result will
+  appear: the step in words ("Building Button, 12 of 62"), the percentage and the time left ("about 3 min left", "less
+  than a minute left") when the work can count its items, or a bar that moves without a percentage, with what is
+  happening in words, when it cannot. The time left comes from the observed pace, smoothed, shown only after a few steps
+  and never jumping around; for Claude's list it comes from the fixes Claude already finished. The bar is a progressbar
+  for screen readers (value, maximum and the same words as text) and stands still with reduced motion. The main thread
+  now sends items done of total with its progress (variables written, components read, icons drawn, sets built).
+
+### Patch Changes
+
+- 9dfb5e9: Parts only some variants render are built, not left for the designer to draw. A set built from the measure now has the parts of every variant's story, not the default story's alone: a check mark only a checked story renders, a dot only a selected one, a description only one placement shows. Each is drawn from its own story (size, place, colors bound to the tokens, its SVG), and hidden in the variants that do not render it. A set drawn before gets them on the next Check for updates, in place, and the designer's own layers stay. The gap case Claude reads says a part is missing in Figma only when the file has no layer for it (a hidden one is "hidden in Figma, shown in code"), so Claude no longer asks the designer to draw a check mark, dot or fallback the component already has. The status fixes that did so (Avatar, Checkbox, ChoiceCard, Radio) are removed, and those of Button, RadioGroup and Switch no longer ask to draw.
+- 014e784: The measure now writes the Figma sets drawn under a component's folder as their own entries, so Claude can fix them:
+  popups drawn open (Dialog/Popup, AlertDialog/Popup, Drawer/Popup, Menu/Popup, Popover/Popup, Tooltip/Popup, and
+  Select/Popup or Combobox/Popup, measured open when the stories show them closed) and sets that fix a prop
+  (Pagination/Full, Pagination/Compact, Progress/Linear). Each entry names its set (`set`), its axis props read from the
+  root's classes when the story does not pass them (a DialogContent of size sm), and `--check` gives the set its own
+  status instead of "measure it open with --open". The fix loop (bridge_get_gap_case, bridge_try_figma_fix, `bridge fix`),
+  figma-fixes.json and the plugin's overlay find them by the set's name (measuredSetName); `--only Dialog/Popup` measures
+  Dialog. Measured shots are cut to the measured box: a box on a fractional y (a 20 px badge centred in a 21 px line) no
+  longer comes out a pixel taller than the size the measure read.
+- 3888ab3: Ask Claude to fix all asks again the components Claude left unfinished or went quiet on.
+- Updated dependencies [441e1d7]
+- Updated dependencies [0a716b8]
+- Updated dependencies [9dfb5e9]
+- Updated dependencies [84d0c83]
+- Updated dependencies [f0a5dfa]
+- Updated dependencies [014e784]
+- Updated dependencies [0cf2d87]
+- Updated dependencies [686834c]
+- Updated dependencies [3ce0cd9]
+- Updated dependencies [c33cbfd]
+  - @bridge-ds/core@0.29.0
+
 ## 0.8.1
 
 ### Patch Changes

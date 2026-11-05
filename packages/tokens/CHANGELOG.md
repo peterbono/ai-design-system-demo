@@ -1,5 +1,11 @@
 # @bridge-ds/tokens
 
+## 1.8.5
+
+### Patch Changes
+
+- 3ce0cd9: Bridge's repository moved to the the-bridge-company organization: package repository, homepage, issues, docs and schema links point at the-bridge-company/ai-design-system-demo.
+
 ## 1.6.0
 
 ### Patch Changes
