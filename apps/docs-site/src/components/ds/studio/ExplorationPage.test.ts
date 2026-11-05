@@ -70,7 +70,8 @@ describe('the Continue panel shows only the viewer\'s own AI tools', () => {
     const onCopy = vi.fn(async () => {});
     paint({ onCopy, copilotSetup: { label: "Needs this once, in the product's folder:", command: 'npx @bridge-ds/cli connect --ds acme/design --tool copilot' } });
     await screen.findByText('Paste this in Copilot Chat');
-    expect(screen.queryByRole('radio')).toBeNull();
+    // The viewer's tools are read after the first paint: wait for the panel to settle on them.
+    await waitFor(() => expect(screen.queryAllByRole('radio')).toHaveLength(0));
     expect(screen.queryByRole('button', { name: 'Use another AI tool?' })).toBeNull();
     expect(screen.getByText('npx @bridge-ds/cli connect --ds acme/design --tool copilot')).toBeTruthy();
     expect(screen.queryByRole('link', { name: /Continue in Claude/ })).toBeNull();
@@ -85,7 +86,7 @@ describe('the Continue panel shows only the viewer\'s own AI tools', () => {
     localStorage.setItem('bridge.ai-tools', '["claude-app","copilot"]');
     paint();
     await screen.findByRole('radio', { name: /^VS Code/ });
-    expect(screen.queryByRole('radio', { name: 'Terminal' })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('radio', { name: 'Terminal' })).toBeNull());
     await act(async () => {
       fireEvent.click(screen.getByRole('radio', { name: /^VS Code/ }));
     });

@@ -41,6 +41,7 @@ function setup(opts: { figma?: boolean; map?: boolean; identity?: () => Promise<
     { key: 'library', name: 'Library', default: true },
   ];
   if (opts.figma !== false) cfg.figma = { file: `https://www.figma.com/design/${FILE}/Library` };
+  else delete cfg.figma;
   const files: Record<string, string> = { ...tree, 'bridge.config.json': `${JSON.stringify(cfg, null, 2)}\n` };
   if (opts.map !== false) files['bridge.components.json'] = `${JSON.stringify(MAP, null, 2)}\n`;
   const ds = fakeGitHub('acme', 'ds', files);
