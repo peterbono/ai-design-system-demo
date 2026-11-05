@@ -384,6 +384,81 @@
       "kind": "part",
       "part": "root",
       "reason": "Figma hugs the title and lead so the banner height changes with text wrapping, while code renders a taller banner."
+    },
+    {
+      "by": "claude",
+      "component": "EmptyState",
+      "height": "fixed",
+      "id": "emptystate-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The description wraps onto a different number of lines in Figma, so the root keeps the height the code measures for each story."
+    },
+    {
+      "by": "claude",
+      "component": "Kbd",
+      "id": "kbd-status",
+      "kind": "status",
+      "reason": "Sizes match the code on both variants but about 5 percent of pixels differ, so check the key label glyphs, font weight, text color, border color and corner radius against the Combination story.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Progress/Circular",
+      "height": "fixed",
+      "id": "progress-circular-lg-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The large circular progress is 56 px tall in code but 100 px in Figma, so the root keeps the measured height.",
+      "where": {
+        "args": {
+          "size": "lg"
+        }
+      }
+    },
+    {
+      "by": "claude",
+      "component": "Progress/Circular",
+      "id": "progress-circular-pixel-status",
+      "kind": "status",
+      "reason": "The sm and md variants match the code on every measured value but 8 to 12 percent of pixels differ, likely the ring stroke, arc length or the label text: compare the shots with the Figma render by eye.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Table",
+      "id": "table-pixel-status",
+      "kind": "status",
+      "reason": "All three states match the code on every measured value but 6 to 7 percent of pixels differ, likely the cell text, the sort icons, the selection checkboxes or the row hover fill: compare the shots with the Figma render by eye.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "TokenValue",
+      "id": "tokenvalue-sm-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The small token value is 397 px wide in code where Figma draws it 405 px wide.",
+      "where": {
+        "args": {
+          "size": "sm"
+        }
+      },
+      "width": 397
+    },
+    {
+      "by": "claude",
+      "component": "TokenValue",
+      "id": "tokenvalue-md-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The medium token value is 459 px wide in code where Figma draws it 464 px wide.",
+      "where": {
+        "args": {
+          "size": "md"
+        }
+      },
+      "width": 459
     }
   ]
 }
