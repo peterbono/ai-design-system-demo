@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Kbd",
+      "id": "kbd-status",
+      "kind": "status",
+      "reason": "Sizes match the code on both variants but about 5 percent of pixels differ, so check the key label glyphs, font weight, text color, border color and corner radius against the Combination story.",
+      "status": "differs"
     }
   ]
 }
