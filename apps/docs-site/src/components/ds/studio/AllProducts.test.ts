@@ -24,7 +24,7 @@ describe('All products', () => {
     const rows = allProductsRows(many, cards, { mine: { checkout: 2 }, opened: {} });
     const { container } = render(createElement(AllProductsView, { rows, products: many }));
     expect(screen.getByRole('heading', { level: 1, name: 'All products' })).toBeTruthy();
-    expect(screen.getByText('15 products. Yours come first.')).toBeTruthy();
+    expect(screen.getByText("15 products, with the whole team's explorations. Yours come first.")).toBeTruthy();
     expect(rowNames()).toEqual(['Checkout', 'Admin console', 'Art print shop', 'Billing', 'Email kit', 'Help center', 'Kiosk', 'Marketing site']);
     expect(rowNames()).not.toContain('Library');
     const first = screen.getAllByRole('listitem')[0]!;
@@ -62,7 +62,7 @@ describe('All products', () => {
     render(createElement(AllProductsView, { rows: allProductsRows(two, null, { mine: {}, opened: {} }), products: two }));
     expect(screen.queryByRole('searchbox')).toBeNull();
     expect(screen.queryByRole('button', { name: /more/ })).toBeNull();
-    expect(screen.getByText('2 products. Yours come first.')).toBeTruthy();
+    expect(screen.getByText("2 products, with the whole team's explorations. Yours come first.")).toBeTruthy();
     expect(screen.getAllByRole('listitem')[0]!.textContent).toBe('Checkout');
   });
 });
