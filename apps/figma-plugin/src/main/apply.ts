@@ -9,6 +9,7 @@ import {
   type PlannedCollection,
   type PlannedValue,
   type PlannedVariable,
+  type ProgressFn,
   type PullPlan,
   modeDisplayName,
   splitCollectionName,
@@ -152,7 +153,7 @@ function sameValue(current: VariableValue | undefined, next: VariableValue): boo
   return false;
 }
 
-export async function applyPullPlan(plan: PullPlan, progress: (message: string) => void = () => undefined): Promise<ApplyReport> {
+export async function applyPullPlan(plan: PullPlan, progress: ProgressFn = () => undefined): Promise<ApplyReport> {
   renamed = [];
   const errors: string[] = [];
   const local = (await figma.variables.getLocalVariableCollectionsAsync()).filter((c) => !c.remote);
@@ -229,7 +230,7 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
         errors.push(`${planned.path}: ${errorText(err)}`);
       }
       if (++ops % BATCH === 0) {
-        progress(`Writing variables: ${created + changed.size} of ${plan.variables.length}`);
+        progress(`Writing variables, ${created + changed.size} of ${plan.variables.length}`, created + changed.size, plan.variables.length);
         await breathe();
       }
     }

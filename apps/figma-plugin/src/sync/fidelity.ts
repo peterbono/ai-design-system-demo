@@ -32,7 +32,8 @@ export interface FidelityDeps {
   decode: (pngBase64: string) => Promise<RgbaImage>;
   /** RGBA -> PNG data URL for the diff overlay. */
   encode: (img: RgbaImage) => Promise<string>;
-  progress?: (message: string) => void;
+  /** How far the run is: the set it compares, and variants done of all the sets' variants (a skipped set counts as done). */
+  progress?: ((message: string, done?: number, total?: number) => void) | undefined;
   fileName?: string;
   options?: CompareOptions;
   now?: Date;
@@ -74,8 +75,13 @@ export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome
   if (!manifest) return { kind: 'no-references' };
   const options: CompareOptions = { ...d.options, scale: manifest.scale };
   const items: FidelityItem[] = [];
+  // The bar counts variants: exporting and comparing them is the slow part, and sets differ a lot in size.
+  const weight = (set: (typeof d.sets)[number]) => Math.max(1, set.variants.length);
+  const total = d.sets.reduce((n, set) => n + weight(set), 0);
+  let done = 0;
   for (const [i, set] of d.sets.entries()) {
     const entry = manifest.components[set.componentId];
+    if (i > 0) done += weight(d.sets[i - 1]!);
     if (!entry) {
       items.push({ nodeId: set.nodeId, name: set.name, result: summarizeComponent(set.componentId, [], 'no image of its code yet, it is new or not drawn from code') });
       continue;
@@ -90,7 +96,7 @@ export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome
       continue;
     }
     // A run takes minutes on a full library: say how far it is.
-    d.progress?.(`Comparing ${set.name}, ${i + 1} of ${d.sets.length}`);
+    d.progress?.(`Comparing ${set.name}, ${i + 1} of ${d.sets.length}`, done, total);
     const comparable = set.variants.filter((k) => entry.variants[k] && 'file' in entry.variants[k]!);
     const exports = comparable.length ? await d.exportVariants(set.nodeId, comparable, manifest.scale) : {};
     const variants: FidelityVariantResult[] = [];

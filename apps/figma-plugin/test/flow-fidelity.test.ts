@@ -24,7 +24,11 @@ test('Check fidelity from the end of a pull: progress first, then the result as 
   await p.until(() => p.headline() === 'Comparing with the code');
   const buttons = () => [...p.document.querySelectorAll('button')].map((b) => b.textContent?.trim());
   assert.ok(!buttons().includes('Check again'), 'no Check again while it runs');
-  assert.ok(p.document.querySelector('.group .loading[role="status"]'), 'a progress row under the headline');
+  // Nothing counted yet (the code images are being read): a bar without a percentage, and the words.
+  const bar = p.document.querySelector('.group [data-progress="compare"] [role="progressbar"]');
+  assert.ok(bar, 'a progress bar under the headline');
+  assert.equal(bar!.getAttribute('aria-valuenow'), null);
+  assert.equal(bar!.getAttribute('aria-valuetext'), 'Reading the images of the code');
   release();
   await p.until(() => p.headline() === "Can't compare yet");
   assert.doesNotMatch(p.headline(), /up to date/i);

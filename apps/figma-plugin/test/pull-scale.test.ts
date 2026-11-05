@@ -71,6 +71,7 @@ test('big DS: 300 sets and ~5000 variants build within budget, with progress, yi
   const planMs = performance.now() - t0;
 
   const messages: string[] = [];
+  const counts: [number | undefined, number | undefined][] = [];
   // The longest stretch without giving Figma a turn (a timer), in ms: what freezes the file.
   let longest = 0;
   let where = '';
@@ -86,7 +87,7 @@ test('big DS: 300 sets and ~5000 variants build within budget, with progress, yi
   setTimeout(watch, 0);
   const ops0 = sim.ops;
   const t1 = performance.now();
-  const report = await applyComponentPlan(writablePlan(plan), (m) => messages.push(m));
+  const report = await applyComponentPlan(writablePlan(plan), (m, done, total) => (messages.push(m), counts.push([done, total])));
   const buildMs = performance.now() - t1;
   stop = true;
   const ops = sim.ops - ops0;
@@ -95,7 +96,10 @@ test('big DS: 300 sets and ~5000 variants build within budget, with progress, yi
   assert.equal(report.created, 300);
   assert.equal(sim.sets().length, 300);
   assert.deepEqual(sim.loose(), []);
-  assert.ok(messages.filter((m) => /^Building \d+ of 300: /.test(m)).length === 300, 'progress for every set');
+  assert.ok(messages.filter((m) => /^Building .+, \d+ of 300$/.test(m)).length === 300, 'progress for every set');
+  // Each set's step counts the sets done before it, of 300: the plugin's bar and time left.
+  const sets = counts.filter(([, total]) => total === 300).map(([done]) => done);
+  assert.deepEqual(sets, Array.from({ length: 300 }, (_, i) => i));
   assert.ok(sim.fontLoads <= 16, `each font loaded once (${sim.fontLoads})`);
   // Budget. The fake is faster than Figma: these catch work that grows faster than the file (searches inside loops).
   const perVariant = ops / variants;

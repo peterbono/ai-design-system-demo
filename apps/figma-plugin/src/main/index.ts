@@ -1,7 +1,7 @@
 // Main thread: owns figma.* (variables, storage, plugin data). No network access here; the UI
 // iframe does GitHub calls and sends typed requests (src/shared/messages.ts).
 
-import { type RequestMap, type RequestType, type ResponseEnvelope, STUDIO_ORIGIN, isRequest } from '../shared/messages';
+import { type RequestMap, type RequestType, type ResponseEnvelope, STUDIO_ORIGIN, isRequest, progressEnvelope } from '../shared/messages';
 import { applyPullPlan } from './apply';
 import { applyComponentPlan, renderIncoming, scanGenerated } from './build-components';
 import { exportVariants, readBuilt } from './fidelity';
@@ -14,6 +14,9 @@ import { enableUiTurns, isTurnReply, turnReply } from './turns';
 const NS = 'dsbridge';
 /** Set by "Stop" in the plugin: the component build stops after the set in progress. */
 let cancelBuild = false;
+
+/** Long work tells the plugin how far it is: the words, and items done of total when it can count them. */
+const postProgress = (message: string, done?: number, total?: number) => figma.ui.postMessage(progressEnvelope(message, done, total));
 
 figma.showUI(__html__, { width: 480, height: 640, themeColors: true, title: 'Bridge' });
 enableUiTurns();
@@ -63,7 +66,7 @@ const handlers: Handlers = {
     return takeSnapshot();
   },
   async 'apply-pull'({ plan }) {
-    const report = await applyPullPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }));
+    const report = await applyPullPlan(plan, postProgress);
     writeSync(store, { baseSha: plan.headSha, lastPullAt: new Date().toISOString() }, userId());
     // Renamed in code, renamed here: component baselines follow, so a Push does not read the bindings as edits.
     if (report.renamed?.length) await renameInBaselines(report.renamed);
@@ -96,7 +99,7 @@ const handlers: Handlers = {
     return { resized: true };
   },
   async 'scan-components'(scope) {
-    return scanComponents((message) => figma.ui.postMessage({ kind: 'progress', message }), scope);
+    return scanComponents(postProgress, scope);
   },
   async 'save-signatures'({ items }) {
     return { saved: await saveSignatures(items) };
@@ -136,7 +139,7 @@ const handlers: Handlers = {
   },
   async 'apply-components'({ plan }) {
     cancelBuild = false;
-    return applyComponentPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }), { cancelled: () => cancelBuild });
+    return applyComponentPlan(plan, postProgress, { cancelled: () => cancelBuild });
   },
   // Answered while the build runs: the build yields between sets, so this message gets through.
   async 'cancel-components'() {

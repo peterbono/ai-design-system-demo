@@ -2,7 +2,7 @@
 // shared plugin data, and exports PNGs to attach to requests. No network. The diff logic is in src/sync/components.ts.
 
 import { RENDER_VERSION, type ComponentSignature, type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, newRawValues, parseSignature, propName, rawKey, variantKey } from '../sync/components';
-import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScanComponentsRequest, type ScannedComponentsPayload, type SelectionInfo } from '../shared/messages';
+import { EXPERIMENTAL_KEY, PUSHED_KEY, type ProgressFn, type ScanComponentsRequest, type ScannedComponentsPayload, type SelectionInfo } from '../shared/messages';
 import { keyOfVariant } from './build-components';
 import { variantKeyOf } from '@bridge-ds/core';
 import { LONE_VARIANT, isRemovedValue, propsOfKey } from '../sync/component-pull';
@@ -17,7 +17,7 @@ const BASELINE_IMAGE_KEY = 'baselineImage';
 const BASELINE_IMAGE_WIDTH = 400;
 const BASELINE_IMAGE_MAX = 90000;
 
-type Progress = (message: string) => void;
+type Progress = ProgressFn;
 
 function isAlias(x: unknown): x is VariableAlias {
   return !!x && typeof x === 'object' && (x as { type?: unknown }).type === 'VARIABLE_ALIAS' && typeof (x as { id?: unknown }).id === 'string';
@@ -487,7 +487,7 @@ export async function scanComponents(progress: Progress, scope: ScanComponentsRe
   const components: ScannedComponentsPayload['components'] = [];
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]!;
-    if (i % 5 === 0) progress(`Reading components (${i + 1} of ${nodes.length})`);
+    if (i % 5 === 0) progress(`Reading components, ${i + 1} of ${nodes.length}`, i, nodes.length);
     const raw = await readComponent(node, reader);
     const experimental = node.getSharedPluginData(NS, EXPERIMENTAL_KEY) === 'true';
     const signature = buildSignature(raw);

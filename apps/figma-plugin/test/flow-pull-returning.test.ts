@@ -33,7 +33,7 @@ test('returning: How updates work folded, Compare with code its own block with t
     return [];
   };
   await p.click('See the differences');
-  await p.until(() => !!p.document.querySelector('[role="status"].loading'));
+  await p.until(() => !!p.document.querySelector('[data-progress="compare"] [role="progressbar"]'));
   release();
   await p.until(() => /No component set from code in this file yet/.test(p.text()));
 });
