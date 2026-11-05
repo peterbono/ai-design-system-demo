@@ -28,7 +28,8 @@ import { studioHref } from '../../../lib/team-path';
 import { setPageSummary } from '../../../lib/page-summary';
 import { libraryHref } from '../../../lib/library-shells';
 import { readWorkspace, onWorkspaceChange } from '../../../scripts/workspace';
-import { loadTeamProductUsage, type TeamData } from '../../../scripts/team-data';
+import { loadTeamProductUsage, teamLead, type TeamData } from '../../../scripts/team-data';
+import { FigmaLink, figmaLinkFor } from '../library/FigmaLink';
 
 const words = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
@@ -208,6 +209,8 @@ function ComponentDrawer({
               </p>
             )}
             {usedIn && <p className="tcm-muted">{usedInFact(usedIn)}</p>}
+            {/* The Library page's quiet Figma line: the link when the component map has it, else the next step for a lead. */}
+            <FigmaLink {...figmaLinkFor(data.model, row.name)} settingsHref={studioHref('settings/#figma')} canFix={teamLead(data)} />
             <p className="tcm-muted">
               {/* The list's words ("12 examples"); the folder is a developer's, behind More > Open the code on GitHub. */}
               {words(row.stories.length, 'example')} · {words(row.tokens, 'token')}

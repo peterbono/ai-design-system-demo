@@ -50,6 +50,24 @@ function write(m: MaintainerState | null) {
   }
 }
 
+/** Who reads the maintainer state as it changes (lead-only lines of Bridge's own Library, FigmaLinkSite). */
+const watchers = new Set<(maintainer: boolean) => void>();
+
+/**
+ * A maintainer reads this page now: the last check of this browser's GitHub token said it writes to the repository
+ * (<html data-maintainer>, painted at load by Layout.astro's head script from the same check).
+ */
+export const isMaintainer = (): boolean => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-maintainer');
+
+/**
+ * Calls `fn` each time the maintainer state is painted (the token's check, a sign-in or sign-out). Bridge's own Library
+ * never starts the Studio's GitHub session (scripts/shell.ts initStudio): this is its role source. Returns the unsubscribe.
+ */
+export function onMaintainer(fn: (maintainer: boolean) => void): () => void {
+  watchers.add(fn);
+  return () => void watchers.delete(fn);
+}
+
 function paint(m: MaintainerState | null) {
   const root = document.documentElement;
   root.toggleAttribute('data-signed-in', Boolean(m));
@@ -61,6 +79,7 @@ function paint(m: MaintainerState | null) {
     const label = a.querySelector('[data-team-avatar-label]');
     if (label && m) label.textContent = `Studio, signed in as ${m.login}`;
   });
+  watchers.forEach((fn) => fn(Boolean(m?.write)));
 }
 
 async function check(token: string): Promise<MaintainerState | null> {
