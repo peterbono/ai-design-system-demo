@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "NumberField",
+      "id": "numberfield-pressed-status",
+      "kind": "status",
+      "reason": "Every measured value matches the code, the pixel gaps sit in the pressed state of all sizes and the small size at rest, likely the stepper pressed styling and text rendering: compare the shots with the Figma render by eye.",
+      "status": "differs"
     }
   ]
 }
