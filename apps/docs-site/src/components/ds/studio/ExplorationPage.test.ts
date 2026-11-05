@@ -3,6 +3,7 @@
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { forgetAiToolsRead } from '../../../scripts/ai-tools';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { ExplorationPage, type ExplorationPageProps } from './ExplorationPage';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
@@ -47,8 +48,10 @@ const paint = (over: Partial<ExplorationPageProps> = {}) => render(createElement
 
 afterEach(() => {
   cleanup();
-  // The last tab and the AI tools are this browser's: each test starts without them.
+  // The last tab and the AI tools are this browser's: each test starts without them. The read of the tools is kept
+  // once per page: the one of an earlier test would otherwise answer here, with no tools.
   localStorage.clear();
+  forgetAiToolsRead();
 });
 
 describe('the Continue panel shows only the viewer\'s own AI tools', () => {
@@ -70,7 +73,8 @@ describe('the Continue panel shows only the viewer\'s own AI tools', () => {
     const onCopy = vi.fn(async () => {});
     paint({ onCopy, copilotSetup: { label: "Needs this once, in the product's folder:", command: 'npx @bridge-ds/cli connect --ds acme/design --tool copilot' } });
     await screen.findByText('Paste this in Copilot Chat');
-    expect(screen.queryByRole('radio')).toBeNull();
+    // The viewer's tools are read after the first paint: wait for the panel to settle on them.
+    await waitFor(() => expect(screen.queryAllByRole('radio')).toHaveLength(0));
     expect(screen.queryByRole('button', { name: 'Use another AI tool?' })).toBeNull();
     expect(screen.getByText('npx @bridge-ds/cli connect --ds acme/design --tool copilot')).toBeTruthy();
     expect(screen.queryByRole('link', { name: /Continue in Claude/ })).toBeNull();
@@ -85,7 +89,7 @@ describe('the Continue panel shows only the viewer\'s own AI tools', () => {
     localStorage.setItem('bridge.ai-tools', '["claude-app","copilot"]');
     paint();
     await screen.findByRole('radio', { name: /^VS Code/ });
-    expect(screen.queryByRole('radio', { name: 'Terminal' })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('radio', { name: 'Terminal' })).toBeNull());
     await act(async () => {
       fireEvent.click(screen.getByRole('radio', { name: /^VS Code/ }));
     });

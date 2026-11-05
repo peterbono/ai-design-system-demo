@@ -62,6 +62,11 @@ export function knownAiTools(): AiToolsState {
 
 let read: Promise<AiToolsState> | null = null;
 
+/** Forgets the server read of this page, for tests: each one is a new page. */
+export function forgetAiToolsRead(): void {
+  read = null;
+}
+
 /** The person's choice and the team default from the server (once per page), else what this browser keeps. */
 export function readAiTools(fresh = false): Promise<AiToolsState> {
   if (read && !fresh) return read;
