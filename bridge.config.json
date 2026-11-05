@@ -107,5 +107,6 @@
       "vitest.config.ts"
     ],
     "scopes": ["studio", "explorations", "toolbar", "cli", "core", "mcp", "config", "previews", "docs-site", "measure", "pieces", "figma-plugin"]
-  }
+  },
+  "figma": { "file": "https://www.figma.com/design/IEhO7sznq4yr6X5iLqZqzz/Untitled" }
 }
