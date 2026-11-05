@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Button",
+      "id": "button-draw",
+      "kind": "status",
+      "reason": "The link variant is missing its inner button part in Figma, and its width cannot be pinned because the link story fills its container in code: draw the part, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
