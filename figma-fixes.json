@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Select",
+      "id": "select-sm-status",
+      "kind": "status",
+      "reason": "The small select matches the code on every measured value, the 3 percent pixel gap is likely the placeholder text or chevron icon: compare the shot with the Figma render by eye.",
+      "status": "differs"
     }
   ]
 }
