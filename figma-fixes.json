@@ -229,6 +229,20 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "TokenValue",
+      "height": 23,
+      "id": "tokenvalue-sm-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The small token value is 23 px tall in code where Figma draws it 22 px tall.",
+      "where": {
+        "args": {
+          "size": "sm"
+        }
+      }
     }
   ]
 }
