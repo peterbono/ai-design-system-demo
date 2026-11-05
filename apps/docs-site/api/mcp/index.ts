@@ -44,7 +44,7 @@ import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/f
 import type { AppTokens } from '../_lib/github-app.js';
 import { clientIp, fail, HttpError, json, parseRepo, readBody, sameOrigin, type FetchLike } from '../_lib/http.js';
 import { meteredFromEnv, readUsage } from '../_lib/github-quota.js';
-import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
+import { memberStore, teamsInSet, type MemberStore } from '../_lib/members.js';
 import { getTeamClaudeDesign, getTeamNames, putTeamClaudeDesign } from '../_lib/teams.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
 import { isTeamKey } from '../../src/lib/team-path.js';
@@ -232,8 +232,9 @@ export async function grantIdentity(x: {
 
 /** The teams of a Bridge account that have a repository (a design system), by the name their settings gave. */
 async function teamsWithDesignSystem(redis: Redis, email: string): Promise<{ repo: string; name: string; email: true; role: 'admin' | 'edit' | 'view' }[]> {
-  const raw = await redis.cmd('SMEMBERS', accountTeamsKey(email));
-  const repos = (Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []).filter((r) => !isTeamKey(r) && /^[^/_][^/]*\/[^/]+$/.test(r)).sort();
+  // Each team once, by its current name (a set entry or a membership kept under a name from before a rename is the
+  // same team): the card never offers one team twice, and the grant is made for the name the team goes by now.
+  const repos = (await teamsInSet(redis, email)).filter((r) => !isTeamKey(r) && /^[^/_][^/]*\/[^/]+$/.test(r)).sort();
   const members = memberStore(redis);
   const live: { repo: string; role: 'admin' | 'edit' | 'view' }[] = [];
   for (const repo of repos) {

@@ -7,7 +7,7 @@
 // The pickers then check push on GitHub when the person confirms (the server does it again). Pure: tests read it.
 
 import { isSampleTeam } from './demo';
-import { isTeamKey } from './team-path';
+import { canonicalRepo, isTeamKey } from './team-path';
 
 export interface PickableTeam {
   /** owner/repo, or the key of a team made in Bridge (`_team/<id>`) when `needsRepository` is false. */
@@ -33,25 +33,53 @@ export interface TeamSources {
   needsRepository?: boolean;
 }
 
-const lc = (s: string) => s.trim().toLowerCase();
+// A team by its current name, lower case: a repository renamed or transferred is one team under its old and new names.
+const lc = (s: string) => canonicalRepo(s).toLowerCase();
 const repoPart = (repo: string) => repo.split('/')[1] ?? repo;
+
+// Higher is more: when one team comes from two sources (or two names), the row says the higher role.
+const roleRank = (role: string | null): number => {
+  const r = role?.trim().toLowerCase() ?? '';
+  if (!r) return -1;
+  if (r === 'admin' || r === 'owner') return 3;
+  if (r === 'reviewer') return 2;
+  if (r === 'can edit' || r === 'edit' || r === 'editor') return 1;
+  return 0;
+};
 
 /** The teams in the switcher's order: the site's own, the ones this browser opened, then the account's. No duplicates. */
 export function pickableTeams(x: TeamSources): PickableTeam[] {
   const out: PickableTeam[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, PickableTeam>();
+  // The noted roles and names by current name too (a map written before a rename may hold the old one).
+  const byName = (m: Readonly<Record<string, string>>) => {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(m)) if (out[lc(k)] === undefined || k.trim().toLowerCase() === lc(k)) out[lc(k)] = v;
+    return out;
+  };
+  const roles = byName(x.roles);
+  const names = byName(x.names);
   const accountName = (repo: string) => x.account.find((t) => lc(t.repo) === lc(repo))?.name?.trim();
-  const nameOf = (repo: string, given?: string | null) => given?.trim() || accountName(repo) || x.names[lc(repo)]?.trim() || repoPart(repo);
-  const add = (repo: string, role: string | null, name?: string | null) => {
+  const nameOf = (repo: string, given?: string | null) => given?.trim() || accountName(repo) || names[lc(repo)]?.trim() || repoPart(repo);
+  const add = (given: string, role: string | null, name?: string | null) => {
+    if (!given) return;
+    // Always the current name: a team kept under a name from before a rename is listed once, as it is called now.
+    const repo = canonicalRepo(given);
     const k = lc(repo);
-    if (!repo || seen.has(k) || isSampleTeam(repo)) return;
+    const had = seen.get(k);
+    if (had) {
+      if (roleRank(role) > roleRank(had.role)) had.role = role;
+      return;
+    }
+    if (isSampleTeam(repo)) return;
     if (x.needsRepository && (isTeamKey(repo) || !/^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/.test(repo))) return;
-    seen.add(k);
-    out.push({ repo, name: nameOf(repo, name), role });
+    const t = { repo, name: nameOf(repo, name), role };
+    seen.set(k, t);
+    out.push(t);
   };
   if (x.site?.role) add(x.site.repo, x.site.role, x.site.name);
   for (const t of x.recent) {
-    const role = x.roles[lc(t)];
+    const role = roles[lc(t)];
     if (role) add(t, role);
   }
   for (const t of x.account) add(t.repo, t.role ?? null, t.name);

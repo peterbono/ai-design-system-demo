@@ -5,6 +5,7 @@
 
 import type { RepoAccessState } from '@bridge-ds/core';
 import { teamDisplayName } from './demo';
+import { canonicalRepo } from './team-path';
 import { forgetsTeam, noteName, parseRecentTeams, parseTeamNames, pushRecentTeam, RECENT_TEAMS_KEY, remembersTeam, removeRecentTeam, TEAM_NAMES_KEY, TEAM_ROLES_KEY } from './access-view';
 
 export type RecentStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -124,14 +125,14 @@ export function noteAccountTeamNames(teams: readonly { repo: string; name?: stri
 export function forgetTeamEverywhere(team: string, store: RecentStore | null = browserStore()): void {
   forgetRecentTeam(team, store);
   if (!store) return;
-  const k = team.toLowerCase();
+  const k = canonicalRepo(team).toLowerCase();
   for (const key of [TEAM_NAMES_KEY, TEAM_ROLES_KEY, ACCOUNT_TEAM_NAMES_KEY]) {
     try {
       // The raw map: a team key (`_team/<id>`) is kept there even where the cleaned read leaves it out.
       const raw = store.getItem(key);
       const parsed: unknown = raw ? JSON.parse(raw) : null;
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
-      const map = Object.fromEntries(Object.entries(parsed as Record<string, unknown>).filter(([t]) => t.toLowerCase() !== k));
+      const map = Object.fromEntries(Object.entries(parsed as Record<string, unknown>).filter(([t]) => canonicalRepo(t).toLowerCase() !== k));
       if (Object.keys(map).length === Object.keys(parsed).length) continue;
       if (Object.keys(map).length) store.setItem(key, JSON.stringify(map));
       else store.removeItem(key);
@@ -143,7 +144,7 @@ export function forgetTeamEverywhere(team: string, store: RecentStore | null = b
 
 /** The name this browser already knows for `team`:the one its page last read, else the account's (server-kept). */
 export function knownTeamName(team: string, store: RecentStore | null = browserStore()): string | null {
-  const k = team.toLowerCase();
+  const k = canonicalRepo(team).toLowerCase();
   return loadMap(TEAM_NAMES_KEY, store)[k] ?? loadMap(ACCOUNT_TEAM_NAMES_KEY, store)[k] ?? null;
 }
 

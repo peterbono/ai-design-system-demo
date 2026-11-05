@@ -33,6 +33,7 @@ import { b64url, HttpError, sha256, type FetchLike } from './http.js';
 import type { Redis } from './redis.js';
 import { seal, unseal, type Sealed } from './sealed.js';
 import { canonicalEmail, emailSpellings } from './canonical-email.js';
+import { canonicalRepo, repoNames } from '../../src/lib/team-path.js';
 
 export const ACCESS_TTL_S = 60 * 60;
 export const REFRESH_TTL_S = 30 * 24 * 60 * 60;
@@ -376,6 +377,16 @@ export interface Grant {
 
 const grantKey = (id: string) => `bridge:oauth:grant:${id}`;
 const grantsKey = (repo: string) => `bridge:oauth:grants:${repo.toLowerCase()}`;
+/**
+ * The team's grant sets under every name it went by (src/lib/team-path.ts repoNames), its current name first: a grant
+ * made before a rename or a transfer sits in the set of the old name. Read through them all, write under the current one.
+ */
+const grantsKeys = (repo: string): string[] => {
+  const names = repoNames(repo);
+  return (names.includes(repo.toLowerCase()) ? names : [repo.toLowerCase(), ...names]).map(grantsKey);
+};
+/** A grant's team under its current name: one made before a rename keeps working, named as the team is now. */
+const currentRepo = (repo: string) => canonicalRepo(repo).toLowerCase();
 export const accountGrantsKey = (ref: string) => `bridge:oauth:account:${ref}`;
 /** How a grant names the Bridge account that made it: the SHA-256 of its canonical email, never the email itself. */
 export const accountRef = (email: string) => hash(`account:${canonicalEmail(email)}`);
@@ -402,7 +413,8 @@ export async function createGrant(
   const g: Grant = {
     v: 1,
     id,
-    repo: x.repo.toLowerCase(),
+    // Always the team's current name: a team picked by an old name (a link from before a rename) is that same team.
+    repo: currentRepo(x.repo),
     clientId: x.client.clientId,
     clientName: x.client.clientName,
     login: x.login,
@@ -456,12 +468,13 @@ export async function revokeAccountGrants(redis: Redis, who: { email: string; lo
 export async function revokeTeamGrants(redis: Redis, repo: string): Promise<number> {
   const list = await listGrants(redis, repo);
   for (const g of list) await revokeGrant(redis, g);
-  await redis.cmd('DEL', grantsKey(repo));
+  await redis.cmd('DEL', ...grantsKeys(repo));
   return list.length;
 }
 
 export async function getGrant(redis: Redis, id: string): Promise<Grant | null> {
-  return parse<Grant>(await redis.cmd('GET', grantKey(id)), isGrant);
+  const g = parse<Grant>(await redis.cmd('GET', grantKey(id)), isGrant);
+  return g && { ...g, repo: currentRepo(g.repo) };
 }
 
 export async function saveGrant(redis: Redis, g: Grant): Promise<void> {
@@ -481,19 +494,24 @@ export async function repointGrant(redis: Redis, g: Grant, account: string): Pro
 export async function revokeGrant(redis: Redis, g: Pick<Grant, 'id' | 'repo'>): Promise<void> {
   await redis.pipe([
     ['DEL', grantKey(g.id)],
-    ['SREM', grantsKey(g.repo), g.id],
+    ...grantsKeys(g.repo).map((k) => ['SREM', k, g.id]),
   ]);
 }
 
 /** The team's grants (people connected in Claude), newest use first; ended ones leave the index. */
 export async function listGrants(redis: Redis, repo: string): Promise<Grant[]> {
-  const raw = await redis.cmd('SMEMBERS', grantsKey(repo));
-  const ids = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
   const out: Grant[] = [];
-  for (const id of ids) {
-    const g = await getGrant(redis, id);
-    if (g) out.push(g);
-    else await redis.cmd('SREM', grantsKey(repo), id);
+  const seen = new Set<string>();
+  for (const key of grantsKeys(repo)) {
+    const raw = await redis.cmd('SMEMBERS', key);
+    const ids = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const g = await getGrant(redis, id);
+      if (g) out.push(g);
+      else await redis.cmd('SREM', key, id);
+    }
   }
   return out.sort((a, b) => b.lastUsedAt.localeCompare(a.lastUsedAt));
 }

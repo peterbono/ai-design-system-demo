@@ -40,7 +40,7 @@ import { shortName } from '../../../lib/home-model';
 import { isSampleTeam } from '../../../lib/demo';
 import { pickableTeams } from '../../../lib/pickable-teams';
 import { DEMO_HOME, MENU_WORDS, ownTeams, TEAM_HOME_WORDS, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, workspaceTeamKey, type StartFacts } from '../../../lib/start';
-import { isTeamKey, teamKeyId } from '../../../lib/team-path';
+import { isTeamKey, sameRepo, teamKeyId } from '../../../lib/team-path';
 import { linkedAccessState, strongerAccess } from '../../../lib/linked-role';
 
 export interface TeamChipProps {
@@ -263,7 +263,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     // The teams this browser opened with a role, then the account's teams it has not opened yet, each to its own space:
     // the same list the pickers of Connect Figma and Use Bridge in Claude offer (lib/pickable-teams.ts).
     for (const t of pickableTeams({ account: account?.teams ?? [], recent, roles, names })) {
-      if (rows.some((x) => x.key.toLowerCase() === t.repo.toLowerCase())) continue;
+      if (rows.some((x) => sameRepo(x.key, t.repo))) continue;
       const opened = recent.some((r) => r.toLowerCase() === t.repo.toLowerCase()) && roles[t.repo.toLowerCase()];
       const acc = account?.teams.find((x) => x.repo.toLowerCase() === t.repo.toLowerCase());
       if (opened || !acc) rows.push(teamRowOf(t.repo, false, t.role ?? undefined));
@@ -277,8 +277,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     if (team) return [{ ...teamRowOf(team, false), line: 'Your most recent team' }];
     return [{ key: 'ws', mark: wsMark, title: wsName, line: wsLine, href, current: false }];
   })();
-  const yourKeys = new Set(yours.map((y) => y.key.toLowerCase()));
-  const listed = recent.filter((t) => !yourKeys.has(t.toLowerCase()));
+  const listed = recent.filter((t) => !yours.some((y) => sameRepo(y.key, t)));
   const createItem = (
     // A dialog over the page: connect another design system by its repository, without leaving this one.
     <MenuItem icon={Plus} className="tc-create" onClick={() => setCreating(true)}>
