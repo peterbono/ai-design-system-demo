@@ -79,7 +79,7 @@ export function fixBranchStem(component: string, branchPrefix = 'bridge/'): stri
 }
 
 /** Claude's fix for a component among the open pull requests: labelled figma-fixes, on its branch (or a numbered one). */
-export function findFix(prs: readonly Pick<PullRequestSummary, 'headRef' | 'labels' | 'state' | 'number' | 'url' | 'draft'>[], component: string, branchPrefix?: string): Pick<PullRequestSummary, 'number' | 'url' | 'draft'> | undefined {
+export function findFix<T extends Pick<PullRequestSummary, 'headRef' | 'labels' | 'state' | 'number' | 'url' | 'draft'>>(prs: readonly T[], component: string, branchPrefix?: string): T | undefined {
   const stem = fixBranchStem(component, branchPrefix);
   const onStem = (ref: string) => ref === stem || new RegExp(`^${stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d+$`).test(ref);
   return prs.find((p) => p.state === 'open' && p.labels.includes('figma-fixes') && onStem(p.headRef));

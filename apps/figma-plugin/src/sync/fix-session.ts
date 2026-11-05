@@ -179,11 +179,12 @@ export function fixRow(component: string, i: FixRowInput): { kind: FixRowKind; t
 
 /** The section's summary, in one sentence: "9 fixes in this file, 10 need drawing in Figma, 8 waiting." */
 type SummaryRow = { kind: FixRowKind; text: string; hint?: string | undefined };
-export function fixRowsSummary(rows: readonly SummaryRow[]): string {
+export function fixRowsSummary(rows: readonly SummaryRow[], o: { approver?: boolean } = {}): string {
   const count = (f: (r: SummaryRow) => boolean) => rows.filter(f).length;
   const drawing = (r: SummaryRow) => r.kind === 'cant-fix' && /missing in Figma/i.test(r.hint ?? '');
   const parts: [number, string][] = [
-    [count((r) => r.kind === 'ready'), 'ready for review'],
+    // A lead approves them here; everyone else waits for a lead.
+    [count((r) => r.kind === 'ready'), o.approver ? 'ready to approve' : 'waiting for approval'],
     [count((r) => r.kind === 'approved'), 'approved'],
     [count((r) => r.kind === 'in-file'), ''],
     [count(drawing), 'drawing'],
