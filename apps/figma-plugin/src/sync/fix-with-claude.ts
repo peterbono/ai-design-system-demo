@@ -37,6 +37,16 @@ export function runNeedsWrite(current: string | undefined, written: string | und
 /** What the designer says to their Claude (Claude Desktop or Claude Code with the Bridge MCP server). */
 export const fixPhrase = (component: string) => `Fix ${component} in Figma with Bridge`;
 
+/**
+ * "Ask Claude to fix all N": one request naming every component, in the order of the list. Claude works through them
+ * one at a time (the Bridge MCP server's instructions say so) and proposes each one's fixes as it goes.
+ */
+export const fixAllPhrase = (components: readonly string[]) =>
+  components.length === 1 ? fixPhrase(components[0]!) : `Fix these ${components.length} components in Figma with Bridge: ${components.join(', ')}`;
+
+/** The same without the names, for a list too long to write in Claude's address: bridge_figma_gaps lists them. */
+export const FIX_EVERY_PHRASE = 'Fix every component that differs in Figma with Bridge';
+
 /** The same with the team's Anthropic API key, from the repo. */
 export const fixCommand = (component: string) => `npx @bridge-ds/cli fix ${component} --with-claude`;
 
@@ -86,13 +96,18 @@ export function referencesRequestForDeveloper(repo: string): string {
  * (Claude with the Bridge MCP server, or the CLI with the team's API key), which the plugin never displays. Bridge has
  * no server that runs Claude for the team (yet): a developer starts the run.
  */
-export function fixRequestForDeveloper(component: string, repo: string): string {
+export function fixRequestForDeveloper(component: string | readonly string[], repo: string): string {
+  const all = typeof component === 'string' ? [component] : component;
+  const one = all.length === 1;
   return [
-    `Could you ask Claude to fix ${component} in Figma? Compare with code in the Bridge plugin found differences with the code.`,
+    one
+      ? `Could you ask Claude to fix ${all[0]} in Figma? Compare with code in the Bridge plugin found differences with the code.`
+      : `Could you ask Claude to fix these ${all.length} components in Figma? Compare with code in the Bridge plugin found differences with the code.`,
     '',
     `The check is saved in ${DEFAULT_FIDELITY_RUN_FILE} on the ${REQUESTS_BRANCH} branch${repo ? ` of ${repo}` : ''}.`,
-    `- With Claude Code or Claude Desktop and the Bridge MCP server, say: "${fixPhrase(component)}"`,
-    `- Or in the repository, with the team's Anthropic API key: ${fixCommand(component)}`,
+    `- With Claude Code or Claude Desktop and the Bridge MCP server, say: "${fixAllPhrase(all)}"`,
+    one ? `- Or in the repository, with the team's Anthropic API key: ${fixCommand(all[0]!)}` : "- Or in the repository, with the team's Anthropic API key, one component at a time:",
+    ...(one ? [] : all.map((c) => `  ${fixCommand(c)}`)),
     '',
     'Claude opens its fixes (figma-fixes.json) for review. Once they are merged, my next pull lays them on.',
   ].join('\n');

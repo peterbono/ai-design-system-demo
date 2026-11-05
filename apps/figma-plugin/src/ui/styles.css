@@ -198,6 +198,8 @@ small { color: var(--text-3); font-size: 11px; }
 .callout ul { margin: 0; padding-left: 24px; display: flex; flex-direction: column; gap: 2px; }
 .callout p { padding-left: 24px; }
 .callout .inline-actions { padding-left: 24px; }
+/* No title, no icon slot: the text and buttons start at the callout's edge, like the callouts beside it. */
+.callout:not(:has(> .callout-title)) > :is(p, ul, .inline-actions) { padding-left: 0; }
 .callout.error { background: var(--danger-bg); }
 .callout.error .callout-title, .callout.error .icon { color: var(--danger); }
 .callout.warn { background: var(--warn-bg); }
