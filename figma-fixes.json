@@ -89,6 +89,34 @@
         }
       },
       "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "SegmentedControl",
+      "id": "segmentedcontrol-sm-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The small control is 166 px wide in code where Figma draws it 167 px wide.",
+      "where": {
+        "args": {
+          "size": "sm"
+        }
+      },
+      "width": 166
+    },
+    {
+      "by": "claude",
+      "component": "SegmentedControl",
+      "id": "segmentedcontrol-md-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The medium control is 204 px wide in code where Figma draws it 203 px wide.",
+      "where": {
+        "args": {
+          "size": "md"
+        }
+      },
+      "width": 204
     }
   ]
 }
