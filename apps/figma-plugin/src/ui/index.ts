@@ -48,7 +48,7 @@ import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 import { focusFirstItem, menuKeys } from './menu';
 import { ASK_TTL_MS, type Asked, CLAUDE_NEW_CHAT, CONNECTOR_WORDS, WATCH_MS, askAllText, askText, canAskClaude, claudeUrl, claudeUrlForAll, findFix, fixAllEligible, parseAsked } from '../sync/claude-connector';
-import { FINISHED_ROWS, type FixRowKind, type FixSession, fixRow, fixRowsSummary, readFixSession } from '../sync/fix-session';
+import { ASK_AGAIN_ROWS, FINISHED_ROWS, type FixRowKind, type FixSession, fixRow, fixRowsSummary, readFixSession } from '../sync/fix-session';
 import { PREVIEW_WORDS, RENDER_CAP_MS, type UpdatePreview, codeImageSource, previewKey } from '../sync/update-preview';
 import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
 
@@ -1992,7 +1992,7 @@ function viewPull(): View {
             ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
             : 'First time in this file: Bridge adds its variables and components.',
         art: 'tokens',
-      }), claudeRunsGroup(), howUpdatesWork(!!init.sync.baseSha), compareBlock(), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]])],
+      }), compareBlock(), claudeRunsGroup(), howUpdatesWork(!!init.sync.baseSha), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]])],
       // Pull is getting updates: its one action. Comparing with code is its own block, with its own button.
       bar: { label: 'Check for updates', onClick: checkPull },
     };
@@ -2910,10 +2910,14 @@ function claudeRunsGroup(): Child {
   const item = (r: (typeof rows)[number]) => h('li', { class: 'row review' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, r.name)), claudePanel(r.name));
   const open = rows.filter((r) => !FINISHED_ROWS.includes(r.kind));
   const done = rows.filter((r) => FINISHED_ROWS.includes(r.kind));
+  // Rows Claude left unfinished are asked again from the comparison, where Ask Claude to fix all lists them.
+  const again = rows.some((r) => ASK_AGAIN_ROWS.includes(r.kind))
+    ? h('button', { class: 'btn', 'data-focus-id': 'claude-ask-again', disabled: !!state.busy, onClick: () => void checkFidelityAnywhere() }, 'Compare and ask again')
+    : null;
   return group(
     "Claude's fixes",
     rows.length,
-    null,
+    again,
     fixRowsSummary(rows),
     [
       open.length ? rowList('claude-fixes', open.map(item), 8) : null,
@@ -3060,7 +3064,8 @@ function fidelityGroup(p: PullState): Child {
         const gap = r.status === 'differs' ? f?.gaps?.find((g) => g.component === it.name)?.summary : undefined;
         // Asked (now or before: the watch resumes), or Claude's fix found: the row shows that, not the button again.
         const claude = r.status === 'differs' ? claudePanel(it.name) : null;
-        const finished = r.status === 'differs' && FINISHED_ROWS.includes(claudeRow(it.name)?.kind ?? 'waiting');
+        const rowKind = claudeRow(it.name)?.kind ?? 'waiting';
+        const finished = r.status === 'differs' && (FINISHED_ROWS.includes(rowKind) || ASK_AGAIN_ROWS.includes(rowKind));
         const asked = (f?.fix?.component === it.name && f.fix.status !== 'error' && f.fix.status !== 'connect') || (!!claude && !finished);
         askRows.push({ name: it.name, differs: r.status === 'differs', asked });
         return h(
