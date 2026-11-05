@@ -89,6 +89,15 @@
         }
       },
       "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "RadioGroup",
+      "height": 132,
+      "id": "radiogroup-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The group is 132 px tall in code where Figma draws it 119 px tall."
     }
   ]
 }
