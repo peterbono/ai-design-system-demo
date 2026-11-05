@@ -92,11 +92,15 @@ export function filterProducts<P extends { name: string }>(products: readonly P[
   return products.filter((p) => fold(p.name).includes(q));
 }
 
-/** The All products page's summary: "15 products. Yours come first." */
+/**
+ * The All products page's summary: "15 products, with the whole team's explorations. Yours come first." The
+ * rows count everyone's explorations, where Home's sentence counts only the viewer's own ("1 of your explorations"):
+ * the summary says whose, so the two never read as a disagreement.
+ */
 export function allProductsLine(total: number): string {
   if (total === 0) return 'No products yet.';
-  if (total === 1) return '1 product.';
-  return `${total} products. Yours come first.`;
+  if (total === 1) return "1 product, with the whole team's explorations.";
+  return `${total} products, with the whole team's explorations. Yours come first.`;
 }
 
 /** The filter found nothing: what was typed, and the way back. */

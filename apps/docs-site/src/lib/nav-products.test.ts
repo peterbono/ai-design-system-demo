@@ -94,8 +94,8 @@ describe('All products', () => {
   });
 
   it('says how many and who comes first, in the Bridge voice', () => {
-    expect(allProductsLine(15)).toBe('15 products. Yours come first.');
-    expect(allProductsLine(1)).toBe('1 product.');
+    expect(allProductsLine(15)).toBe("15 products, with the whole team's explorations. Yours come first.");
+    expect(allProductsLine(1)).toBe("1 product, with the whole team's explorations.");
     expect(allProductsLine(0)).toBe('No products yet.');
     expect(moreLabel(7)).toBe('Show 7 more');
     expect(moreLabel(20)).toBe('Show 8 more');
