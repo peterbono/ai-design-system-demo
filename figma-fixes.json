@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "RadioGroup",
+      "id": "radiogroup-draw",
+      "kind": "status",
+      "reason": "The group is 13 px shorter in Figma from the spacing between options, and the horizontal group misses its dot: rework the option spacing and draw the dot in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
