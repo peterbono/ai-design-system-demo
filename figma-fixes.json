@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Badge",
+      "id": "badge-label-status",
+      "kind": "status",
+      "reason": "The badge hugs its text in code and the stories use longer labels than the Figma placeholder, so the badge is 27 to 53 px narrower in Figma: set the Figma label to the story text, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
