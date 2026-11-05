@@ -47,7 +47,12 @@ beforeEach(() => {
   );
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Signed out of GitHub, the page also reads the Bridge account's linked GitHub role (scripts/linked-role.ts), after
+  // a module import. It finishes here, inside its own test: left running, its GET /api/account would land on the next
+  // test's network. Nothing read yet: a stand-in with no network.
+  const { readLinkedRole } = await import('./linked-role');
+  await readLinkedRole('acme/ds', { account: async () => null });
   vi.unstubAllGlobals();
   document.documentElement.removeAttribute('data-hosted');
   document.documentElement.removeAttribute('data-email-contributor');

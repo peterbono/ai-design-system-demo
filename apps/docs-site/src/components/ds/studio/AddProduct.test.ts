@@ -104,6 +104,9 @@ const showGitHub = async (onSent = vi.fn(), onOpenChange = vi.fn()) => {
   return r;
 };
 
+/** Waits until `n` reads of GitHub's list have answered. */
+const readsDone = (n: number) => waitFor(() => expect(gh.poll.mock.settledResults.filter((r) => r.type !== 'incomplete')).toHaveLength(n));
+
 /** The way to GitHub: under the found products, or the footer's primary when Bridge found none. */
 const findButton = () => screen.findByRole('button', { name: W.findOnGitHub });
 const startWaiting = async () => {
@@ -315,6 +318,9 @@ describe('Add a product: a product Bridge cannot see yet', () => {
     await startWaiting();
     gh.poll.mockResolvedValueOnce([SHOP]).mockResolvedValue([SHOP, PRINT]);
     await act(() => vi.advanceTimersByTimeAsync(ACCESS_TICK_MS));
+    // The first read has answered before the next tick: a tick that comes while a read still runs is skipped (one read
+    // at a time), and a read first waits on a module import that takes real time on a slow runner.
+    await readsDone(1);
     expect(screen.getByText(W.waiting)).toBeInTheDocument();
     await act(() => vi.advanceTimersByTimeAsync(ACCESS_TICK_MS));
     expect(await screen.findByText(foundLine('Art print shop'))).toBeInTheDocument();
