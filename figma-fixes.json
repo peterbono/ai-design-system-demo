@@ -229,6 +229,151 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "AccordionItem",
+      "height": "fixed",
+      "id": "accordionitem-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The closed item is 48 px tall in code, Figma reserved room for the panel below the header."
+    },
+    {
+      "by": "claude",
+      "component": "Avatar",
+      "id": "avatar-draw",
+      "kind": "status",
+      "reason": "The mark and fallback are missing in Figma: draw them in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Breadcrumb",
+      "id": "breadcrumb-hover-status",
+      "kind": "status",
+      "reason": "On hover every measured value matches the code but 7 percent of pixels differ, likely the hover color or underline of a crumb: compare the shot with the Figma render by eye.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Button",
+      "id": "button-draw",
+      "kind": "status",
+      "reason": "The link variant is missing its inner button part in Figma, and its width cannot be pinned because the link story fills its container in code: draw the part, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Checkbox",
+      "id": "checkbox-draw",
+      "kind": "status",
+      "reason": "The indicator is missing in Figma: draw it in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "ChoiceCard",
+      "id": "choicecard-draw",
+      "kind": "status",
+      "reason": "The dot is missing in Figma: draw it in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Form",
+      "id": "form-draw",
+      "kind": "status",
+      "reason": "The form is 18 px shorter in Figma and the fields sit higher than in code, so a root height alone does not move it: rework the field spacing in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Link",
+      "id": "link-draw",
+      "kind": "status",
+      "reason": "Inline and subtle links are 3 px taller in Figma, likely from the text line height, and the standalone link lays its children side by side where code stacks them: adjust the text style and layout in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "NumberField",
+      "id": "numberfield-pressed-status",
+      "kind": "status",
+      "reason": "Every measured value matches the code, the pixel gaps sit in the pressed state of all sizes and the small size at rest, likely the stepper pressed styling and text rendering: compare the shots with the Figma render by eye.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Radio",
+      "id": "radio-draw",
+      "kind": "status",
+      "reason": "The dot is missing in Figma: draw it in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "RadioGroup",
+      "id": "radiogroup-draw",
+      "kind": "status",
+      "reason": "The group is 13 px shorter in Figma from the spacing between options, and the horizontal group misses its dot: rework the option spacing and draw the dot in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "SegmentedControl",
+      "id": "segmentedcontrol-draw",
+      "kind": "status",
+      "reason": "The strong stories show 4 to 7 segments in code where Figma draws only 2, and the 1 px width gaps follow the segment labels: draw the extra segments in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Select",
+      "id": "select-sm-status",
+      "kind": "status",
+      "reason": "The small select matches the code on every measured value, the 3 percent pixel gap is likely the placeholder text or chevron icon: compare the shot with the Figma render by eye.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "SidebarNavItem",
+      "id": "sidebarnavitem-pressed-status",
+      "kind": "status",
+      "reason": "The pressed item matches the code on every measured value, the 3 percent pixel gap is likely the pressed background or icon: compare the shot with the Figma render by eye.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Spinner",
+      "id": "spinner-arc-status",
+      "kind": "status",
+      "reason": "Every size matches the code, the 10 to 22 percent pixel gap is the arc itself, likely its length, stroke or the frame the animated story was shot on: compare the shots with the Figma render by eye.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Switch",
+      "id": "switch-draw",
+      "kind": "status",
+      "reason": "The description is missing in Figma on the start placement, and the small end placement differs in pixels only: draw the description in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "TableEmpty",
+      "id": "tableempty-draw",
+      "kind": "status",
+      "reason": "The empty state is 2 px taller in Figma from its inner spacing, a root height does not move it: adjust the padding or gap in the component, then compare with code again.",
+      "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Textarea",
+      "id": "textarea-draw",
+      "kind": "status",
+      "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
