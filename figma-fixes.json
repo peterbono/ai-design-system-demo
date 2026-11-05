@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Progress/Linear",
+      "id": "progress-linear-unmeasured-status",
+      "kind": "status",
+      "reason": "Every measured value matches the code but 62 to 66 percent of pixels differ on the success, warning, danger, small and large variants and 23 percent on medium signal, which points to a wrong fill or track color per tone, or a fill length other than 64 percent: check the tone colors and bar fill in Figma against the story shots.",
+      "status": "differs"
     }
   ]
 }
