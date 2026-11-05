@@ -89,6 +89,20 @@
         }
       },
       "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "Textarea",
+      "id": "textarea-inline-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The inline textarea is 336 px wide in code where Figma draws it 320 px wide.",
+      "where": {
+        "args": {
+          "appearance": "inline"
+        }
+      },
+      "width": 336
     }
   ]
 }
