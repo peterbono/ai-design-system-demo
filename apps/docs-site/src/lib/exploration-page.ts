@@ -140,6 +140,17 @@ export function reopenedOf(body: string | null | undefined): { at: string; by: s
 export const pageLines = continueLines;
 
 /**
+ * Who gets "Put in Figma": the team has a Figma file and the viewer can edit (a fact shows only to who can act on it):
+ * a member who joined with their email unless they only view, a designer Bridge writes for, a reviewer, or GitHub write
+ * access. Never on the sample team, an archived exploration or a shipped or closed one.
+ */
+export function canPutInFigma(v: { figmaFile: string | null | undefined; demo: boolean; archived: boolean; status: string; memberRole: string | null | undefined; designer: boolean; reviewer: boolean; write: boolean | null | undefined }): boolean {
+  if (!v.figmaFile?.trim() || v.demo || v.archived || v.status === 'shipped' || v.status === 'closed') return false;
+  if (v.memberRole) return v.memberRole !== 'view';
+  return v.designer || v.reviewer || v.write === true;
+}
+
+/**
  * Which preview a library exploration opens: the app its files change (the docs site, the admin demo), else the
  * Storybook for library components, else the docs site. Only apps the repository has previews for.
  */

@@ -66,6 +66,16 @@ export function continueLines(x: ContinueRef): { app: string; terminal: string }
   };
 }
 
+/** The phrase Claude recognizes to rebuild an exploration in the team's Figma file ("Put Bridge exploration #12 in Figma"). */
+export const FIGMA_PHRASE = 'Put Bridge exploration';
+
+/** The two lines a designer pastes to put an exploration in Figma: a sentence in the Claude app, the claude command in a terminal. */
+export function figmaLines(x: Pick<ContinueRef, 'number' | 'name' | 'product' | 'repo'>): { app: string; terminal: string } {
+  const ref = continueRef(x);
+  const name = x.name.replace(/"/g, "'").trim();
+  return { app: `${FIGMA_PHRASE} ${ref} "${name}" in Figma.`, terminal: `claude "${FIGMA_PHRASE} ${ref} in Figma"` };
+}
+
 /** Reads "Continue Bridge exploration #12" or "... shop#12" back into a ref ("#12", "shop#12"); null otherwise. */
 export function parseContinueLine(text: string): string | null {
   const m = /continue\s+bridge\s+exploration\s+((?:[a-z0-9][\w.-]*)?#\d+)/i.exec(text);

@@ -69,3 +69,25 @@ the leads change the library.
   1); a component not linked yet never does.
 - The repo model (`loadRepoModel`) reads the file as `componentMap`, so the hosted Library (from the team's snapshot)
   and Bridge's own Library show the same line on each component page.
+
+## Putting an exploration in Figma
+
+**For designers:** say "Put this exploration in Figma" to your Claude, or use Put in Figma on the exploration page in
+Studio (shown to people who can edit, when the team has a Figma file). Your Claude builds it in a new page of the
+team's Figma file with real components, then gives you the page link and says what it could not express.
+
+Bridge never writes to Figma and holds no Figma token: the designer's Claude does it with its own Figma connector.
+`bridge_exploration_to_figma` (read only, Can edit and Admin, email members included) takes a ref (`admin-app#1`) and
+returns the Figma file, the page name, the source of the changed screens, each Library component they use with its
+map entry (a part like `CardBody` counts as `Card`), the components with no link, the product's own components, the
+preview, the gaps and the recipe. No `figma.file`: one sentence pointing to Settings, Figma file.
+
+- **Ids and files.** A `node` works only inside the file that holds it. From another file a component needs its `key`
+  and a published Library; a link with neither is listed as not linked, never faked. So
+  `bridge_propose_component_map` should get keys whenever the connector gives them. Links already in the map keep
+  what they have.
+- **The preview is the visual reference.** Source alone misses the data, spacing and states on screen: Claude looks
+  at the preview when it can and says so when it cannot.
+- **The result.** While it is explored, Claude saves the page link with `bridge_save_exploration` (`notes.figmaPage`,
+  a `## In Figma` section of the note file) and Studio shows "See it in Figma". After Done exploring the notes have
+  gone to the developers, so the link stays in the conversation.
