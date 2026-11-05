@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "TableEmpty",
+      "id": "tableempty-draw",
+      "kind": "status",
+      "reason": "The empty state is 2 px taller in Figma from its inner spacing, a root height does not move it: adjust the padding or gap in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
