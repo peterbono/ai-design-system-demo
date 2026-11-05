@@ -17,6 +17,7 @@
 
 import type { Redis } from './redis.js';
 import { canonicalEmail, emailSpellings, legacyEmail } from './canonical-email.js';
+import { canonicalRepo, repoNames } from '../../src/lib/team-path.js';
 
 /** What an email member can be: Can view (read only), Can edit, or Admin (everything that does not need GitHub). */
 export type EmailRole = 'view' | 'edit' | 'admin';
@@ -52,27 +53,40 @@ export const memberKey = (repo: string, email: string) => `bridge:member:${repo.
 export const membersKey = (repo: string) => `bridge:members:${repo.toLowerCase()}`;
 /** The teams one email is a member of: the Bridge account of that email finds its memberships here. */
 export const accountTeamsKey = (email: string) => `bridge:account:teams:${canonicalEmail(email)}`;
-/** The keys a member of `email` may sit under, the spelling given first (see the note above). */
-const memberKeys = (repo: string, email: string) => emailSpellings(email).map((e) => `bridge:member:${repo.toLowerCase()}:${e}`);
+/** The keys a member of `email` may sit under, by one repository name, the spelling given first (see the note above). */
+const memberKeysAt = (repo: string, email: string) => emailSpellings(email).map((e) => `bridge:member:${repo.toLowerCase()}:${e}`);
+/**
+ * Every name the team went by (src/lib/team-path.ts repoNames: its current name first, then the ones before a rename or
+ * a transfer). A membership made before the move stays under its old key: reads find it under the team's current name.
+ */
+const namesOf = (repo: string): string[] => {
+  const names = repoNames(repo);
+  return names.includes(repo.toLowerCase()) ? names : [repo.toLowerCase(), ...names];
+};
 const accountTeamsKeys = (email: string) => emailSpellings(email).map((e) => `bridge:account:teams:${e}`);
 
-/** The teams an email is a member of, as its account sets list them (both spellings until merged). Not read again. */
+/**
+ * The teams an email is a member of, as its account sets list them (both spellings until merged). Not read again.
+ * Each team once, by its current name: a set entry kept under a name the repository had before a rename is the same team.
+ */
 export async function teamsInSet(redis: Redis, email: string): Promise<string[]> {
   const keys = accountTeamsKeys(email);
   const raw = await redis.pipe(keys.map((k) => ['SMEMBERS', k]));
   const out = new Set<string>();
-  for (const r of raw) if (Array.isArray(r)) for (const x of r) if (typeof x === 'string') out.add(x);
+  for (const r of raw) if (Array.isArray(r)) for (const x of r) if (typeof x === 'string') out.add(canonicalRepo(x).toLowerCase());
   return [...out];
 }
 
-/** Takes a team out of an email's account sets (a membership that is gone). */
+/** Takes a team out of an email's account sets (a membership that is gone), under every name it went by. */
 export async function dropTeamFromSet(redis: Redis, email: string, repo: string): Promise<void> {
-  await redis.pipe(accountTeamsKeys(email).map((k) => ['SREM', k, repo]));
+  const names = namesOf(repo);
+  await redis.pipe(accountTeamsKeys(email).map((k) => ['SREM', k, ...names]));
 }
 
-/** True when the email's account sets list the team. */
+/** True when the email's account sets list the team (under its current name or one it had before). */
 export async function teamInSet(redis: Redis, email: string, repo: string): Promise<boolean> {
-  const r = await redis.pipe(accountTeamsKeys(email).map((k) => ['SISMEMBER', k, repo.toLowerCase()]));
+  const names = namesOf(repo);
+  const r = await redis.pipe(accountTeamsKeys(email).flatMap((k) => names.map((n) => ['SISMEMBER', k, n])));
   return r.some((x) => Number(x) === 1);
 }
 
@@ -89,13 +103,19 @@ function parseMember(raw: unknown): EmailMember | null {
 export function memberStore(redis: Redis): MemberStore {
   return {
     async get(repo, email) {
-      const keys = memberKeys(repo, email);
+      // Under the team's current name and every name it had: one membership per name at most (the given spelling
+      // first), and the highest role when a person was added both before and after a rename.
+      const byName = namesOf(repo).map((n) => memberKeysAt(n, email));
+      const keys = byName.flat();
       const raw = keys.length === 1 ? [await redis.cmd('GET', keys[0]!)] : ((await redis.cmd('MGET', ...keys)) as unknown[] | null);
-      for (const r of raw ?? []) {
-        const m = parseMember(r);
-        if (m) return m;
+      let best: EmailMember | null = null;
+      let i = 0;
+      for (const group of byName) {
+        let found: EmailMember | null = null;
+        for (let j = 0; j < group.length; j++, i++) found ??= parseMember(raw?.[i]);
+        if (found && (!best || RANK[found.role] > RANK[best.role])) best = found;
       }
-      return null;
+      return best;
     },
     async put(repo, m) {
       // The record keeps the address as given; the keys and the set entries are canonical. A copy under the older
@@ -123,13 +143,15 @@ export function memberStore(redis: Redis): MemberStore {
       const mailbox = canonicalEmail(email);
       const others = Array.isArray(listed) ? listed.filter((x): x is string => typeof x === 'string' && canonicalEmail(x) === mailbox) : [];
       const spellings = [...new Set([...emailSpellings(email), ...others.map(legacyEmail)])];
-      const r = repo.toLowerCase();
+      // Under every name the team went by too: a membership kept under an old name never comes back through get.
+      const names = namesOf(repo);
+      const dels = names.flatMap((r) => spellings.map((e) => ['DEL', `bridge:member:${r}:${e}`]));
       const res = await redis.pipe([
-        ...spellings.map((e) => ['DEL', `bridge:member:${r}:${e}`]),
-        ['SREM', membersKey(repo), ...spellings],
-        ...spellings.map((e) => ['SREM', `bridge:account:teams:${e}`, r]),
+        ...dels,
+        ...names.map((r) => ['SREM', membersKey(r), ...spellings]),
+        ...spellings.map((e) => ['SREM', `bridge:account:teams:${e}`, ...names]),
       ]);
-      return res.slice(0, spellings.length).some((n) => Number(n) > 0);
+      return res.slice(0, dels.length).some((n) => Number(n) > 0);
     },
     async list(repo) {
       const emails = await redis.cmd('SMEMBERS', membersKey(repo));
@@ -139,7 +161,7 @@ export function memberStore(redis: Redis): MemberStore {
       const byMailbox = new Map<string, string[]>();
       for (const e of list) {
         const k = canonicalEmail(e);
-        byMailbox.set(k, [...new Set([...(byMailbox.get(k) ?? []), ...memberKeys(repo, e)])]);
+        byMailbox.set(k, [...new Set([...(byMailbox.get(k) ?? []), ...memberKeysAt(repo, e)])]);
       }
       const keys = [...byMailbox.values()].flat();
       const raw = (await redis.cmd('MGET', ...keys)) as unknown[] | null;

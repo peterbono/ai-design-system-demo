@@ -10,7 +10,7 @@ import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { isDemoRepo, isSampleTeam, SAMPLE_TEAM, teamDisplayName } from './demo';
 
 import { appSlugFrom, DIRECT_APP_SLUG } from './github-signin';
-import { canonicalOwner } from './team-path';
+import { canonicalOwner, canonicalRepo } from './team-path';
 
 /** The slug of Bridge's GitHub App (Bridge Direct) when nothing else is set (docs/SIGN-IN.md). */
 export const BRIDGE_APP_SLUG = DIRECT_APP_SLUG;
@@ -503,7 +503,9 @@ export function parseRecentTeams(text: string | null): string[] {
     if (!Array.isArray(v)) return [];
     const seen = new Set<string>();
     const out: string[] = [];
-    for (const x of v) {
+    for (const raw of v) {
+      // A team opened before its repository was renamed or transferred is that same team, under its current name.
+      const x = typeof raw === 'string' ? canonicalRepo(raw) : raw;
       if (typeof x !== 'string' || !isRecentTeamName(x) || seen.has(x.toLowerCase())) continue;
       seen.add(x.toLowerCase());
       out.push(x);
@@ -516,13 +518,15 @@ export function parseRecentTeams(text: string | null): string[] {
 
 /** The list with `team` first, once (GitHub names are case-insensitive), at most RECENT_TEAMS_MAX. */
 export function pushRecentTeam(list: readonly string[], team: string): string[] {
-  if (!isRecentTeamName(team)) return [...list];
-  return [team, ...list.filter((t) => t.toLowerCase() !== team.toLowerCase())].slice(0, RECENT_TEAMS_MAX);
+  const now = canonicalRepo(team);
+  if (!isRecentTeamName(now)) return [...list];
+  return [now, ...list.filter((t) => canonicalRepo(t).toLowerCase() !== now.toLowerCase())].slice(0, RECENT_TEAMS_MAX);
 }
 
-/** The list without `team` (case-insensitive). */
+/** The list without `team` (case-insensitive, under any name it went by). */
 export function removeRecentTeam(list: readonly string[], team: string): string[] {
-  return list.filter((t) => t.toLowerCase() !== team.toLowerCase());
+  const k = canonicalRepo(team).toLowerCase();
+  return list.filter((t) => canonicalRepo(t).toLowerCase() !== k);
 }
 
 /**
@@ -543,7 +547,13 @@ export function parseTeamNames(text: string | null): Record<string, string> {
     const v = JSON.parse(text) as unknown;
     if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
     const out: Record<string, string> = {};
-    for (const [k, n] of Object.entries(v)) if (isRecentTeamName(k) && typeof n === 'string' && n.trim() && n.trim().length <= 60) out[k.toLowerCase()] = n.trim();
+    // By the team's current name: what was noted under a name from before a rename is the same team's, and what was
+    // noted under its current name wins.
+    for (const [raw, n] of Object.entries(v)) {
+      const k = canonicalRepo(raw).toLowerCase();
+      if (!isRecentTeamName(k) || typeof n !== 'string' || !n.trim() || n.trim().length > 60) continue;
+      if (out[k] === undefined || raw.toLowerCase() === k) out[k] = n.trim();
+    }
     return out;
   } catch {
     return {};
@@ -552,10 +562,10 @@ export function parseTeamNames(text: string | null): Record<string, string> {
 
 /** The names with `team`'s set (or dropped when the team has none), only for the teams still listed in `keep`. */
 export function noteName(names: Record<string, string>, team: string, name: string | null | undefined, keep: readonly string[]): Record<string, string> {
-  const listed = new Set(keep.map((t) => t.toLowerCase()));
+  const listed = new Set(keep.map((t) => canonicalRepo(t).toLowerCase()));
   const next: Record<string, string> = {};
   for (const [k, n] of Object.entries(names)) if (listed.has(k)) next[k] = n;
-  const k = team.toLowerCase();
+  const k = canonicalRepo(team).toLowerCase();
   if (name?.trim() && listed.has(k)) next[k] = name.trim();
   else delete next[k];
   return next;

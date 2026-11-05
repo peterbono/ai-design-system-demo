@@ -92,7 +92,7 @@ import { deleteTeamRecord, forgetTeamKey, getTeamNames, getTeamRecord, removeAll
 import { inviteStoreOn } from '../invites/index.js';
 import { readCookie } from '../_lib/session.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
-import { isTeamKey, STUDIO_ROOT, teamHref, teamKeyId } from '../../src/lib/team-path.js';
+import { canonicalRepo, isTeamKey, STUDIO_ROOT, teamHref, teamKeyId } from '../../src/lib/team-path.js';
 
 export type { Account, FetchLike };
 
@@ -333,7 +333,10 @@ async function mergeMailbox(ctx: Ctx, email: string): Promise<void> {
   }
 }
 
-/** The email memberships of an account, each one read again (a removed membership is dropped from the set). */
+/**
+ * The email memberships of an account, each one read again (a removed membership is dropped from the set). Each team
+ * once, by its current name: teamsInSet and the member store read through the names a repository had before a rename.
+ */
 async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: string })[]> {
   const repos = (await teamsInSet(ctx.svc.redis, email)).sort();
   const out: (PublicTeam & { at: string })[] = [];
@@ -347,7 +350,8 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
   }
   // Local mode only: the teams this email was seeded admin of (api/_lib/local-admin.ts) say admin.
   const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.teamsOf(email) : [];
-  for (const repo of local) {
+  for (const seeded of local) {
+    const repo = canonicalRepo(seeded).toLowerCase();
     const t = out.find((x) => x.repo === repo);
     if (t) t.role = 'admin';
     else out.push({ repo, name: teamDisplayName(repo), role: 'admin', via: 'email', at: '' });

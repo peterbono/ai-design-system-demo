@@ -24,6 +24,7 @@
 import type { Redis } from './redis.js';
 import { canonicalEmail, emailSpellings, legacyEmail, sameEmail } from './canonical-email.js';
 import type { AiTool } from '../../src/lib/ai-tools.js';
+import { canonicalRepo } from '../../src/lib/team-path.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from './session.js';
 
 export interface Account {
@@ -210,10 +211,15 @@ export async function noteGithubTeam(redis: Redis, email: string, repo: string, 
 /** The repositories the linked GitHub account was found admin or editor of in the last 30 days, by repository. */
 export async function githubTeamsOf(redis: Redis, email: string, now: number): Promise<{ repo: string; role: GithubTeamRole }[]> {
   const all = await readGithubTeams(redis, email);
-  return Object.entries(all)
-    .filter(([repo, v]) => /^[^/\s]+\/[^/\s]+$/.test(repo) && (v?.role === 'admin' || v?.role === 'edit') && typeof v.at === 'number' && now - v.at < GITHUB_TEAMS_TTL_S * 1000)
-    .map(([repo, v]) => ({ repo, role: v.role }))
-    .sort((a, b) => a.repo.localeCompare(b.repo));
+  // Each repository once, by its current name (src/lib/team-path.ts): one read before a rename or a transfer and one
+  // after are the same team, with the higher role.
+  const out = new Map<string, GithubTeamRole>();
+  for (const [repo, v] of Object.entries(all)) {
+    if (!/^[^/\s]+\/[^/\s]+$/.test(repo) || !(v?.role === 'admin' || v?.role === 'edit') || typeof v.at !== 'number' || now - v.at >= GITHUB_TEAMS_TTL_S * 1000) continue;
+    const k = canonicalRepo(repo).toLowerCase();
+    if (out.get(k) !== 'admin') out.set(k, v.role);
+  }
+  return [...out].map(([repo, role]) => ({ repo, role })).sort((a, b) => a.repo.localeCompare(b.repo));
 }
 
 /**
