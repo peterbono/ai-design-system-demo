@@ -88,7 +88,147 @@
           "variant": "link"
         }
       },
-      "width": "fixed"
+      "width": 46
+    },
+    {
+      "by": "claude",
+      "component": "CheckboxGroup",
+      "height": 115,
+      "id": "checkboxgroup-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The vertical group is 115 px tall in code, with its description shown.",
+      "where": {
+        "args": {
+          "orientation": "vertical"
+        }
+      }
+    },
+    {
+      "by": "claude",
+      "component": "CheckboxGroup",
+      "height": 83,
+      "id": "checkboxgroup-horizontal-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The horizontal group is 83 px tall in code, with its description shown.",
+      "where": {
+        "args": {
+          "orientation": "horizontal"
+        }
+      }
+    },
+    {
+      "by": "claude",
+      "component": "CodeBlock",
+      "id": "codeblock-label-text",
+      "kind": "part",
+      "part": "word-2",
+      "reason": "The label is set in the caption style in code, where Figma draws it in the mono code style.",
+      "set": {
+        "fontFamily": "font.family.sans",
+        "fontSize": "typography.caption.size",
+        "fontWeight": "font.weight.medium",
+        "lineHeight": "typography.caption.line-height",
+        "textFill": "color.text.muted"
+      }
+    },
+    {
+      "by": "claude",
+      "component": "Form",
+      "height": 302,
+      "id": "form-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The form is 302 px tall in code where Figma draws it 284 px tall."
+    },
+    {
+      "by": "claude",
+      "component": "RadioGroup",
+      "height": 132,
+      "id": "radiogroup-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The group is 132 px tall in code where Figma draws it 119 px tall."
+    },
+    {
+      "by": "claude",
+      "component": "Textarea",
+      "id": "textarea-inline-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The inline textarea is 336 px wide in code where Figma draws it 320 px wide.",
+      "where": {
+        "args": {
+          "appearance": "inline"
+        }
+      },
+      "width": 336
+    },
+    {
+      "by": "claude",
+      "component": "TableEmpty",
+      "height": 83,
+      "id": "tableempty-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "The empty state is 83 px tall in code where Figma draws it 85 px tall."
+    },
+    {
+      "by": "claude",
+      "component": "Kbd",
+      "id": "kbd-sm-size",
+      "kind": "part",
+      "part": "root",
+      "reason": "The small key combination is 54 px wide in code where Figma draws it 55 px wide.",
+      "where": {
+        "args": {
+          "size": "sm"
+        }
+      },
+      "width": 54
+    },
+    {
+      "by": "claude",
+      "component": "Kbd",
+      "id": "kbd-md-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The medium key combination is 62 px wide in code where Figma draws it 63 px wide.",
+      "where": {
+        "args": {
+          "size": "md"
+        }
+      },
+      "width": 62
+    },
+    {
+      "by": "claude",
+      "component": "SegmentedControl",
+      "id": "segmentedcontrol-sm-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The small control is 166 px wide in code where Figma draws it 167 px wide.",
+      "where": {
+        "args": {
+          "size": "sm"
+        }
+      },
+      "width": 166
+    },
+    {
+      "by": "claude",
+      "component": "SegmentedControl",
+      "id": "segmentedcontrol-md-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The medium control is 204 px wide in code where Figma draws it 203 px wide.",
+      "where": {
+        "args": {
+          "size": "md"
+        }
+      },
+      "width": 204
     }
   ]
 }
