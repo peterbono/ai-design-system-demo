@@ -47,6 +47,7 @@ import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 import { focusFirstItem, menuKeys } from './menu';
+import { APPROVE_FIX_WORDS, approveFixes, canApproveFixes } from '../sync/approve-fixes';
 import { ASK_TTL_MS, type Asked, CLAUDE_NEW_CHAT, CONNECTOR_WORDS, WATCH_MS, askAllText, askText, canAskClaude, claudeUrl, claudeUrlForAll, findFix, fixAllEligible, parseAsked } from '../sync/claude-connector';
 import { ASK_AGAIN_ROWS, FINISHED_ROWS, type FixRowKind, type FixSession, fixRow, fixRowsSummary, readFixSession } from '../sync/fix-session';
 import { PREVIEW_WORDS, RENDER_CAP_MS, type UpdatePreview, codeImageSource, previewKey } from '../sync/update-preview';
@@ -2714,13 +2715,112 @@ function saveAsked(asked: Asked): void {
 }
 
 /** Claude's fixes found on GitHub, by component: the draft pull request to review. */
-const claudeFixes = new Map<string, Pick<PullRequestSummary, 'number' | 'url' | 'draft'>>();
+const claudeFixes = new Map<string, Pick<PullRequestSummary, 'number' | 'url' | 'draft'> & { headSha?: string | undefined }>();
 /** What Claude is doing, by component: the real steps Bridge records (when the Bridge site can say; else the PR watch). */
 const claudeSessions = new Map<string, FixSession>();
 /** What became of Claude's fixes no longer open, by pull request number: approved (merged) or not kept (closed). */
 const fixOutcomes = new Map<number, { state: 'merged' | 'closed'; mergedAt?: string | undefined }>();
 let fixWatch: ReturnType<typeof setTimeout> | undefined;
 let fixLooking = false;
+
+/**
+ * Approving Claude's fixes (sync/approve-fixes.ts): whether this sign-in may (asked once per team, Bridge decides),
+ * what is being approved, why a fix was not, and the one line the section says after.
+ */
+const approval: { repo?: string; can?: boolean; asking?: boolean; busy?: string; note?: { kind: 'ok' | 'error'; text: string } } = {};
+const approveRefused = new Map<string, string>();
+
+/** Whether this person approves Claude's fixes here; asks Bridge once per team, then renders again. */
+function approver(): boolean {
+  const init = state.init;
+  if (!init?.token || !connected()) return false;
+  const repo = init.settings.repo;
+  if (approval.repo !== repo) {
+    approval.repo = repo;
+    approval.can = undefined;
+    approval.asking = false;
+  }
+  if (approval.can === undefined && !approval.asking) {
+    approval.asking = true;
+    void canApproveFixes((url, i) => fetch(url, i), init.token, repo).then((can) => {
+      if (approval.repo !== repo) return;
+      approval.can = can;
+      approval.asking = false;
+      if (can) render();
+    });
+  }
+  return approval.can === true;
+}
+
+/** The pull request of each ready row: Claude's fix found on GitHub, else the one its session names. */
+function readyFix(component: string): { number: number; headSha?: string | undefined } | undefined {
+  const pr = claudeFixes.get(component);
+  if (pr) return { number: pr.number, headSha: pr.headSha };
+  const s = claudeSessions.get(component)?.pr;
+  return s ? { number: s.number } : undefined;
+}
+
+/**
+ * Approves Claude's fixes for these components (a lead: one row, or Approve all), then Check for updates brings them in.
+ * Bridge checks each fix again; one it refuses keeps its row, with the reason under it.
+ */
+async function approveClaudeFixes(components: string[], key: string): Promise<void> {
+  const init = state.init;
+  const items = components.flatMap((c) => {
+    const f = readyFix(c);
+    return f ? [{ component: c, ...f }] : [];
+  });
+  if (!init?.token || !items.length || approval.busy) return;
+  approval.busy = key;
+  approval.note = undefined;
+  render();
+  let landed = false;
+  try {
+    const heads = Object.fromEntries(items.flatMap((x) => (x.headSha && /^[0-9a-f]{40}$/i.test(x.headSha) ? [[x.number, x.headSha]] : [])));
+    const r = await approveFixes((url, i) => fetch(url, i), init.token, init.settings.repo, items.map((x) => x.number), heads);
+    const mergedAt = new Date().toISOString();
+    for (const x of items) {
+      if (r.approved.includes(x.number)) {
+        fixOutcomes.set(x.number, { state: 'merged', mergedAt });
+        approveRefused.delete(x.component);
+      }
+      const no = r.refused.find((y) => y.pr === x.number);
+      if (no) approveRefused.set(x.component, no.reason);
+    }
+    landed = r.landed && r.approved.length > 0;
+    const said = r.approved.length ? (r.landed ? APPROVE_FIX_WORDS.approved(r.approved.length) : APPROVE_FIX_WORDS.armed(r.approved.length)) : '';
+    approval.note = r.refused.length
+      ? { kind: r.approved.length ? 'ok' : 'error', text: [said, APPROVE_FIX_WORDS.someRefused(r.refused.length)].filter(Boolean).join(' ') }
+      : { kind: 'ok', text: said };
+  } catch (e) {
+    approval.note = { kind: 'error', text: e instanceof Error ? e.message : APPROVE_FIX_WORDS.unreachable };
+  } finally {
+    approval.busy = undefined;
+    render();
+  }
+  // Approved and on the library: Check for updates brings them into this file.
+  if (landed) checkPull();
+}
+
+/** "Approve all N", for a lead, from two ready fixes. */
+function approveAllButton(rows: readonly { name: string; kind: FixRowKind }[]): Child {
+  const ready = rows.filter((r) => r.kind === 'ready' && readyFix(r.name)).map((r) => r.name);
+  if (ready.length < 2 || !approver()) return null;
+  const busy = approval.busy === 'all';
+  return h(
+    'button',
+    { class: 'btn', 'data-focus-id': 'approve-all-fixes', 'aria-busy': busy ? 'true' : undefined, disabled: !!approval.busy || !!state.busy, onClick: () => void approveClaudeFixes(ready, 'all') },
+    busy ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : null,
+    busy ? APPROVE_FIX_WORDS.approving : APPROVE_FIX_WORDS.all(ready.length),
+  );
+}
+
+/** The line the section says after an approval. */
+function approveNote(): Child {
+  const n = approval.note;
+  if (!n?.text) return null;
+  return h('p', { class: n.kind === 'error' ? 'form-error' : 'assist-note', role: n.kind === 'error' ? 'alert' : 'status', 'data-approve-note': '' }, icon(n.kind === 'error' ? 'alert' : 'check'), n.text);
+}
 
 /** Asked, not finished (no fix found, Claude has not stopped), and not too old. */
 function waitingFor(): string[] {
@@ -2804,7 +2904,8 @@ function claudeRow(component: string): { kind: FixRowKind; text: string; hint?: 
   const session = claudeSessions.get(component);
   const askedAt = parseAsked(state.init?.sync.claudeAsked)[component];
   if (!pr && !session && !waitingFor().includes(component)) return null;
-  const number = pr ? undefined : session?.pr?.number;
+  // An approval this plugin just made counts for the pull request it found, as GitHub will say on the next look.
+  const number = pr?.number ?? session?.pr?.number;
   const row = fixRow(component, {
     session,
     openPr: pr ? { number: pr.number, url: pr.url } : undefined,
@@ -2842,9 +2943,22 @@ function claudePanel(component: string): Child {
   const reopen = h('button', { class: 'btn ghost', 'data-focus-id': `reopen-claude-${component}`, onClick: () => void reopenClaude(component) }, icon('external'), 'Open Claude again');
   // Parts to draw: the designer's own job, no developer to ask.
   const drawing = kind === 'cant-fix' && /missing in Figma/i.test(row.hint ?? '');
+  // A lead approves it right here; Claude's fix stays one click away.
+  const lead = kind === 'ready' && approver() && !!readyFix(component);
+  const busy = approval.busy === component;
+  const see = studio ? h('button', { class: lead ? 'btn ghost' : 'btn', 'data-focus-id': `see-fix-${component}`, onClick: () => void request('open-url', { url: studio }) }, icon('external'), CONNECTOR_WORDS.see) : null;
+  const approve = lead
+    ? h(
+        'button',
+        { class: 'btn', 'data-focus-id': `approve-fix-${component}`, 'aria-busy': busy ? 'true' : undefined, disabled: !!approval.busy || !!state.busy, onClick: () => void approveClaudeFixes([component], component) },
+        busy ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : icon('check'),
+        busy ? APPROVE_FIX_WORDS.approving : APPROVE_FIX_WORDS.one,
+      )
+    : null;
+  const refused = kind === 'ready' ? approveRefused.get(component) : undefined;
   const actions: Child[] =
-    kind === 'ready' && studio
-      ? [h('button', { class: 'btn', 'data-focus-id': `see-fix-${component}`, onClick: () => void request('open-url', { url: studio }) }, icon('external'), CONNECTOR_WORDS.see)]
+    kind === 'ready' && (approve || see)
+      ? [approve, see]
       : kind === 'waiting'
         ? [reopen]
         : kind === 'quiet' || kind === 'unfinished'
@@ -2863,7 +2977,13 @@ function claudePanel(component: string): Child {
       kind === 'working' || kind === 'waiting' ? h('span', { class: 'activity-box', 'aria-hidden': 'true' }, h('span', { class: 'activity' })) : icon(kind === 'ready' ? 'check' : 'alert'),
       h('span', { 'data-head': '' }, row.text),
     ),
-    row.hint ? h('p', { class: 'muted' }, row.hint) : kind === 'ready' ? h('p', { class: 'muted' }, CONNECTOR_WORDS.next) : null,
+    row.hint
+      ? h('p', { class: 'muted' }, row.hint)
+      : refused
+        ? h('p', { class: 'form-error', role: 'alert' }, icon('alert'), refused)
+        : kind === 'ready'
+          ? h('p', { class: 'muted' }, lead ? APPROVE_FIX_WORDS.leadHint : APPROVE_FIX_WORDS.waiting)
+          : null,
     // What Claude did: folded until the designer opens it.
     steps.length
       ? h(
@@ -2917,9 +3037,10 @@ function claudeRunsGroup(): Child {
   return group(
     "Claude's fixes",
     rows.length,
-    again,
-    fixRowsSummary(rows),
+    approveAllButton(rows) ?? again,
+    fixRowsSummary(rows, { approver: approver() }),
     [
+      approveNote(),
       open.length ? rowList('claude-fixes', open.map(item), 8) : null,
       done.length
         ? h(
@@ -3100,14 +3221,21 @@ function fidelityGroup(p: PullState): Child {
     const report = outcome.report;
     // One ask for the whole list, under the summary, from two rows Claude can fix; each row keeps its own button.
     const fixable = fixAllEligible(askRows, !!p.measure);
+    // Claude's fixes ready on their rows: a lead approves them all at once, next to the ask.
+    const approveAll = approveAllButton(outcome.items.flatMap((it) => {
+      const k = it.result.status === 'differs' ? claudeRow(it.name)?.kind : undefined;
+      return k ? [{ name: it.name, kind: k }] : [];
+    }));
     content = [
-      fixable.length
+      fixable.length || approveAll
         ? h(
             'div',
             { class: 'inline-actions' },
-            h('button', { class: 'btn primary', 'data-focus-id': 'fix-all', disabled: askWriting(p) || !!state.busy, onClick: () => void fixAllWithClaude(p, fixable) }, CONNECTOR_WORDS.fixAll(fixable.length)),
+            fixable.length ? h('button', { class: 'btn primary', 'data-focus-id': 'fix-all', disabled: askWriting(p) || !!state.busy, onClick: () => void fixAllWithClaude(p, fixable) }, CONNECTOR_WORDS.fixAll(fixable.length)) : null,
+            approveAll,
           )
         : null,
+      approveNote(),
       fixAllPanel(p),
       // The headline counts every set, not compared ones too: the list names what it holds.
       rowList('fidelity', rows, 10, 'compared'),

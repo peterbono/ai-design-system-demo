@@ -22,6 +22,9 @@
 //   Only with a GitHub token (Bearer) whose account is the author and has write access; the pull request open, to the
 //   default branch, from the repository itself, labelled as a push from Figma, and token values only at its head.
 //
+//   POST /api/ship  { repo: "owner/name", action: "can-approve-fixes" | "approve-fixes", prs?, heads? }
+//     Approving Claude's Figma fixes from the plugin, by the team's leads and admins: api/_lib/fixes-approve.ts.
+//
 // Who may ask: a GitHub token that can read the repository (`Authorization: Bearer`, the Figma plugin and the CLI; any
 // origin, no cookie, so CORS allows it), or an email member of the team signed in to Studio (the contribute cookie or
 // a Bridge account session; `X-Bridge-Contribute: 1` from a page of this site). Asking never widens anything: Bridge
@@ -78,6 +81,8 @@ import { isLead, isTier1, leadsPublishTier1On, tier1Domain, tier1PublishReviewBo
 import { memberCanWrite, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import { handleAddProduct } from '../_lib/product-add.js';
+import { APPROVE_ERROR_WORDS, APPROVE_PERMISSIONS, approveFixes, canApproveFixes, parseHeads, parsePrs } from '../_lib/fixes-approve.js';
+import { teamCaller } from '../_lib/team-caller.js';
 
 export type { FetchLike };
 
@@ -137,7 +142,8 @@ export interface ShipResult {
 /** The permissions of the token Bridge arms a merge with, and nothing more. */
 export const SHIP_PERMISSIONS = { contents: 'write', pull_requests: 'write' } as const;
 export const SHIP_READ_PERMISSIONS = { checks: 'read', statuses: 'read', pull_requests: 'read', contents: 'read' } as const;
-const MAX_BODY = 2048;
+// Approving Claude's fixes sends up to 50 numbers and their heads.
+const MAX_BODY = 8192;
 const API = 'https://api.github.com';
 const PR_NUMBER = /^[1-9]\d{0,9}$/;
 
@@ -630,8 +636,10 @@ export async function handleShip(req: Request, env: ContribEnv, deps: ShipDeps):
     const body = await readBody(req, MAX_BODY);
     const { owner, repo, full } = parseRepo(body.repo);
     // Adding a product (api/_lib/product-add.ts): its own rules, a GitHub sign-in of an admin or a lead only.
+    // Approving Claude's Figma fixes (api/_lib/fixes-approve.ts): the team's leads and admins only.
+    if (body.action === 'can-approve-fixes' || body.action === 'approve-fixes') return cors(await handleFixes(req, body, { owner, repo, full }, env, deps));
     if (body.action !== undefined) {
-      if (body.action !== 'add-product') return cors(fail(400, 'bad_request', 'Say what to do: "add-product", or leave it out.'));
+      if (body.action !== 'add-product') return cors(fail(400, 'bad_request', 'Say what to do: "add-product", "approve-fixes", or leave it out.'));
       const kvUrl = (env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL)?.trim();
       const kvToken = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
       const redis = deps.redis ?? (kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, 'Storage did not answer.') : null);
@@ -698,6 +706,31 @@ export async function handleShip(req: Request, env: ContribEnv, deps: ShipDeps):
     if (e instanceof HttpError) return cors(json(e.status, { error: e.code, message: e.message, ...e.extra }, e.headers));
     return cors(fail(502, 'unreachable', GITHUB_DOWN));
   }
+}
+
+/** can-approve-fixes and approve-fixes: who the caller is (team-caller.ts), whether they lead, then the approval. */
+async function handleFixes(req: Request, body: Record<string, unknown>, x: { owner: string; repo: string; full: string }, env: ContribEnv, deps: ShipDeps): Promise<Response> {
+  const asking = body.action === 'can-approve-fixes';
+  const prs = asking ? [] : parsePrs(body.prs);
+  const now = deps.now ?? Date.now;
+  const appId = env.GITHUB_APP_ID?.trim();
+  const pem = env.GITHUB_APP_PRIVATE_KEY?.trim();
+  const app = deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now, { permissions: { ...APPROVE_PERMISSIONS }, require: { ...APPROVE_PERMISSIONS }, userAgent: 'bridge-approve-fixes' }) : null);
+  const callerDeps = { fetch: deps.fetch, ...(deps.now ? { now: deps.now } : {}), ...(deps.redis ? { redis: deps.redis } : {}), ...(deps.members ? { members: deps.members } : {}), ...(app ? { app } : {}) };
+  let who;
+  try {
+    who = await teamCaller(req, { ...x, need: asking ? 'read' : 'edit' }, env, callerDeps);
+  } catch (e) {
+    // Reading whether one may approve never fails for someone on the team who cannot: the answer is no.
+    if (asking && e instanceof HttpError && e.status === 403) return json(200, { canApprove: false });
+    throw e;
+  }
+  const token = app ? await app.installationToken(x.owner, x.repo) : null;
+  if (!token) return asking ? json(200, { canApprove: false, code: 'app_missing' }) : fail(200, 'app_missing', APPROVE_ERROR_WORDS.appMissing, { approved: [], refused: [], landed: false });
+  const lead = await canApproveFixes(deps.fetch, token, x.owner, x.repo, who);
+  if (asking) return json(200, { canApprove: lead });
+  if (!lead) return fail(403, 'not_lead', APPROVE_ERROR_WORDS.notLead);
+  return json(200, await approveFixes(deps.fetch, token, x.owner, x.repo, prs, who.name, parseHeads(body.heads)));
 }
 
 const envFromProcess = (): ContribEnv => ({

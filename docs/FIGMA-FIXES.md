@@ -380,3 +380,31 @@ A fix is a change like any other: it lands through a pull request on `figma-fixe
 reason and the next Compare with code: the fix stays when the variant moved closer to its shot, and goes back to Claude
 with the new gap case when it did not (three attempts, then a `status` fix with the honest reason). The pull
 request says which fixes Claude drafted (`drafted-by-claude`) and the values referee's before and after.
+
+### Approve from Figma
+
+A lead approves Claude's fixes without leaving Figma. In the plugin's "Claude's fixes" section, a lead sees "Approve
+all N" next to the title (from two ready fixes) and "Approve" on each ready row; everyone else reads "Waiting for
+approval" on those rows and never sees the buttons. One click approves, then runs Check for updates, so the fixes come
+into the file.
+
+Bridge decides who is a lead, on the Bridge site (`POST /api/ship`, action `can-approve-fixes`): a GitHub sign-in that
+is an admin of the repository, or that can write and is a design approver in `bridge.config.json` on the default
+branch (`governance.owners` and `rights`, a team entry counting its active members), the Reviewer of design in Studio;
+or an email member signed in to Studio who is an Admin of the team. The plugin only asks; the answer never widens
+anything.
+
+Approving (`POST /api/ship`, action `approve-fixes`, `prs` and the `heads` the plugin showed) is checked again with the
+Bridge GitHub App, for each pull request: open, to the default branch, from the repository itself, labelled
+`figma-fixes` on a `figma-fixes-` branch; `figma-fixes.json` the only file it changes; its head the one shown; no
+automatic check failed or still running; `figma-fixes.json` at its head passes `bridge fixes check`; it only adds or
+changes fixes, and none it changes was changed on the default branch since. A fix that fails says why in one sentence
+on its row (for example "The library changed the same fix since Claude proposed it. Ask Claude to fix it again."); the
+others still land.
+
+They land in one push to the default branch, so one deployment whatever the count. One fix on an unchanged fixes file:
+GitHub merges its pull request. Otherwise one merge commit whose parents are the default branch and the head of every
+approved pull request, holding their fixes laid on the default branch's file by id, in the order asked, and checked
+again; GitHub then marks each pull request merged, and Studio lists them as shipped. When the branch rules refuse that
+push, the commit goes through one pull request Bridge merges with a merge commit, or arms to merge once the checks
+pass.
