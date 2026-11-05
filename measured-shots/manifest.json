@@ -1,7 +1,7 @@
 {
   "version": 1,
   "tool": "@bridge-ds/cli",
-  "createdAt": "2026-11-05T13:23:45.451Z",
+  "createdAt": "2026-11-05T14:12:56.916Z",
   "storybook": "https://bridge-storybook.floriangouloubi.com",
   "scale": 2,
   "components": {
@@ -10439,6 +10439,67 @@
       }
     },
     "Popover": {
+      "variants": {
+        "story=overlays-popover--default": {
+          "file": "overlays-popover-default.png",
+          "width": 320,
+          "height": 123.89,
+          "story": "overlays-popover--default",
+          "props": {
+            "modal": false
+          }
+        },
+        "story=overlays-popover--with-actions": {
+          "file": "overlays-popover-with-actions.png",
+          "width": 288.8,
+          "height": 127,
+          "story": "overlays-popover--with-actions",
+          "props": {
+            "modal": false
+          }
+        },
+        "story=overlays-popover--all-states": {
+          "file": "overlays-popover-all-states.png",
+          "width": 320,
+          "height": 108,
+          "story": "overlays-popover--all-states",
+          "props": {
+            "modal": false
+          }
+        },
+        "story=overlays-popover--default, , state=hover": {
+          "file": "overlays-popover-default__state-hover.png",
+          "width": 320,
+          "height": 123.89,
+          "story": "overlays-popover--default",
+          "props": {
+            "modal": false
+          },
+          "state": "hover"
+        },
+        "story=overlays-popover--default, , state=active": {
+          "file": "overlays-popover-default__state-active.png",
+          "width": 320,
+          "height": 123.89,
+          "story": "overlays-popover--default",
+          "props": {
+            "modal": false
+          },
+          "state": "active"
+        },
+        "story=overlays-popover--default, disabled=true": {
+          "file": "overlays-popover-default__disabled-true.png",
+          "width": 320,
+          "height": 123.89,
+          "story": "overlays-popover--default",
+          "props": {
+            "modal": false,
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Popover/Popup": {
       "variants": {
         "story=overlays-popover--default": {
           "file": "overlays-popover-default.png",
