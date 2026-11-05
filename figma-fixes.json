@@ -342,6 +342,34 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "TokenValue",
+      "id": "tokenvalue-sm-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The small token value is 397 px wide in code where Figma draws it 405 px wide.",
+      "where": {
+        "args": {
+          "size": "sm"
+        }
+      },
+      "width": 397
+    },
+    {
+      "by": "claude",
+      "component": "TokenValue",
+      "id": "tokenvalue-md-width",
+      "kind": "part",
+      "part": "root",
+      "reason": "The medium token value is 459 px wide in code where Figma draws it 464 px wide.",
+      "where": {
+        "args": {
+          "size": "md"
+        }
+      },
+      "width": 459
     }
   ]
 }
