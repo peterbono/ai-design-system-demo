@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Checkbox",
+      "id": "checkbox-draw",
+      "kind": "status",
+      "reason": "The indicator is missing in Figma: draw it in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
