@@ -10,8 +10,9 @@
 //   booleans the stories show both ways, a Checked axis from a `checked` prop (mixed from `indeterminate`), and a State
 //   axis from the forced states and `disabled`.
 // - A story stands for a variant only when its other booleans are at their defaults (a Loading story is not a variant).
-// - Parts: the default variant's rendered tree. The other variants pair their tree with it (core pairParts, as the bench
-//   does); a part a variant does not render is hidden there.
+// - Parts: the default variant's rendered tree, plus the parts only other variants render (a check mark when checked, a
+//   description in one placement), each from its own story. Every variant pairs its tree with them (core pairParts, as
+//   the bench does); a part a variant does not render is hidden there. So a set drawn before gets them on its next update.
 // - Sizes: a frame with content hugs it (its measured px are not kept); a leaf (an icon, a dot) keeps them, and so
 //   does the width of a root that fills its container (the measure lays it out at a set width).
 // - Variables are not built here: they come from the measure's token harvest (to come), or the repo's tokens.
@@ -222,7 +223,12 @@ function setOf(
   if (!byVariant.size) return undefined;
   const isDefault = (p: Record<string, string>) => axes.every((a) => p[a.name] === a.default);
   const base = [...byVariant.values()].find((v) => isDefault(v.props)) ?? [...byVariant.values()][0]!;
-  const baseSpec = base.story.spec!;
+  // The default variant's tree, with the parts only other variants render (a check mark when checked, a third segment).
+  const baseSpec = partsOfEveryVariant(
+    base.story.spec!,
+    [...byVariant.values()].filter((v) => v.story !== base.story).map((v) => v.story.spec!),
+  );
+  const baseIds = new Set(base.story.spec!.parts.map((p) => p.id));
   // A part the measure drew as an SVG (an icon, a check mark) is a vector part: the builder draws its markup.
   const parts: MeasuredPart[] = baseSpec.parts.map((p) => (baseSpec.vectors?.[p.id] ? { ...p, kind: 'vector' as const } : { ...p }));
   // An overlay (a popover, a badge, a focus ring) is out of the flow: absolute where the measure saw it, never sizing
@@ -264,7 +270,8 @@ function setOf(
   for (const { props, story } of byVariant.values()) {
     const m = story.spec!;
     // Paired on the measure's own parts: an icon made a vector here is still an icon there.
-    const pairs = story === base.story ? new Map(parts.map((p) => [p.id, p.id])) : pairParts(baseSpec.parts, m);
+    // The default story renders only its own parts: the ones another variant brought are hidden there.
+    const pairs = story === base.story ? new Map(parts.filter((p) => baseIds.has(p.id)).map((p) => [p.id, p.id])) : pairParts(baseSpec.parts, m);
     const values: SpecVariant['values'] = {};
     const vectors: NonNullable<SpecVariant['vectors']> = {};
     const pins: NonNullable<SpecVariant['pins']> = {};
@@ -317,6 +324,72 @@ function setOf(
     if (shot) shots[variantKeyOf(v.props)] = shot;
   });
   return { spec: { ...spec, hash: hashSpec(spec) }, shots };
+}
+
+/**
+ * The default variant's measured tree with every part only other variants render (a check mark only when checked, a dot
+ * only when selected, the segments a longer story adds), each under its paired parent and after its paired previous
+ * sibling, with that story's values, boxes and SVG. The set then has a layer for every part code draws, hidden in the
+ * variants that do not render it, so no designer draws one by hand. An id the tree already has gets a number ("label-2").
+ * Boxes are moved into the default story's frame of reference (same offset from the parent), so pins and sizes read
+ * from them stay right.
+ */
+export function partsOfEveryVariant(base: MeasuredSpec, others: readonly MeasuredSpec[]): MeasuredSpec {
+  const parts: MeasuredPart[] = base.parts.map((p) => ({ ...p }));
+  const out: MeasuredSpec = {
+    ...base,
+    parts,
+    values: { ...base.values },
+    raw: { ...base.raw },
+    tokens: { ...base.tokens },
+    boxes: { ...base.boxes },
+    vectors: { ...(base.vectors ?? {}) },
+    sized: { ...(base.sized ?? {}) },
+    spacers: { ...(base.spacers ?? {}) },
+  };
+  const ids = new Set(parts.map((p) => p.id));
+  for (const m of others) {
+    if (m === base) continue;
+    // Measured id -> the id in the tree.
+    const into = new Map<string, string>();
+    for (const [id, mid] of pairParts(parts, m)) into.set(mid, id);
+    const added: MeasuredPart[] = [];
+    for (const mp of m.parts) {
+      if (!mp.parent || into.has(mp.id)) continue;
+      const parent = into.get(mp.parent);
+      if (!parent) continue;
+      let id = mp.id;
+      for (let n = 2; ids.has(id); n++) id = `${mp.id}-${n}`;
+      ids.add(id);
+      into.set(mp.id, id);
+      const part: MeasuredPart = { ...mp, id, parent };
+      added.push(part);
+      // After the part its previous sibling in this story became, else first under its parent.
+      const siblings = m.parts.filter((x) => x.parent === mp.parent);
+      const before = siblings.slice(0, siblings.indexOf(mp)).reverse().map((x) => into.get(x.id)).find((x) => x !== undefined && x !== id);
+      const at = parts.findIndex((p) => p.id === (before ?? parent));
+      parts.splice(at + 1, 0, part);
+      const copy = <T>(from: Record<string, T> | undefined, to: Record<string, T>) => {
+        if (from?.[mp.id] !== undefined) to[id] = from[mp.id]!;
+      };
+      copy(m.values, out.values);
+      copy(m.raw, out.raw);
+      copy(m.tokens, out.tokens);
+      copy(m.vectors, out.vectors!);
+      copy(m.sized, out.sized!);
+      copy(m.spacers, out.spacers!);
+      const box = m.boxes?.[mp.id];
+      const from = m.boxes?.[mp.parent];
+      const to = out.boxes[parent];
+      if (box) out.boxes[id] = from && to ? { ...box, x: box.x - from.x + to.x, y: box.y - from.y + to.y } : { ...box };
+    }
+    // An added part's alignment names its children by their measured ids.
+    for (const p of added) {
+      if (!p.layout?.align) continue;
+      p.layout = { ...p.layout, align: Object.fromEntries(Object.entries(p.layout.align).map(([k, a]) => [into.get(k) ?? k, a])) };
+    }
+  }
+  return out;
 }
 
 const TEXT_FIELDS = new Set<SpecField>(['textFill', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textDecoration']);

@@ -39,6 +39,13 @@ when the plugin passes one, and the differences. `expected` is always the code (
 | `direction` | Children side by side in Figma, stacked in code (appearance) |
 | any field | Corner radius 0 in Figma vs full in code (toggle switch) |
 
+A part is missing in Figma only when the layers read back (`built[variant].boxes` and `hidden`) have no layer by that
+name: a layer the file has, shown, is not a difference, and a hidden one is "hidden in Figma, shown in code". The set the
+gap case compares with is the one the measured-only pull draws (`specsFromMeasure`): its parts are those of every
+variant's story, not the default story alone, so a check mark that only a checked story renders is a part of the set,
+hidden in the unchecked variants. A set drawn before the measure had such a part gets it on the next Check for updates,
+built from the measure like its other layers (the designer's own layers stay).
+
 Where the space goes needs the layer boxes (`built[variant].boxes`); without them the gap gives the size only. A
 variant whose shot differs while every measured value agrees says so ("compare the shot with the Figma render"), and a
 variant no story renders says how to fix that (measure it, or a `story` fix).
@@ -304,8 +311,9 @@ kept 7 days after its last step (`apps/docs-site/api/_lib/fix-sessions.ts`):
 | nothing for 10 minutes while working | Claude went quiet (`quiet: true`, the state stays working: a new step resumes it) |
 
 Every component Claude is asked about ends with `bridge_propose_figma_fixes`: its fixes, or a status fix whose reason
-tells the designer what to do. Parts missing in Figma are drawn by the designer, never by a fix: the gap case's `next`
-gives Claude the status fix to propose. The plugin shows only what Bridge records, so a reason said only in the chat
+tells the designer what to do. Parts the measure gives are built by the pull (above), so a part still missing in Figma
+is one the pull cannot draw (a spec source without it, story content such as extra segments): the designer draws it,
+never a fix, and the gap case's `next` gives Claude the status fix to propose. The plugin shows only what Bridge records, so a reason said only in the chat
 never reaches the designer.
 
 In the plugin, "Claude's fixes" opens with one sentence ("3 fixes in this file, 2 need drawing in Figma, 1 waiting.")

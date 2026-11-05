@@ -112,6 +112,18 @@ describe('gap case: Carbon Toggle', () => {
     expect(d).toEqual([{ text: 'The toggle switch before is missing in Figma', part: 'cds--toggle-switch-before', partName: 'toggle switch before', property: 'presence', expected: 'present', actual: 'missing' }]);
   });
 
+  it('a knob the file has is not missing: the layers read back decide (shown: nothing to say, hidden: hidden)', () => {
+    const spec = setFrom('Toggle', s);
+    spec.parts = spec.parts.filter((p) => p.id !== 'cds--toggle-switch-before');
+    const box = { x: 3, y: 3, width: 18, height: 18 };
+    const shown = variantDifferences({ parts: spec.parts, variant: spec.variants[0]!, measured: s.spec!, built: { boxes: { root: { x: 0, y: 0, width: 74, height: 58 }, 'cds--toggle-switch-before': box } } });
+    expect(shown.filter((x) => x.property === 'presence')).toEqual([]);
+    const hidden = variantDifferences({ parts: spec.parts, variant: spec.variants[0]!, measured: s.spec!, built: { boxes: { root: { x: 0, y: 0, width: 74, height: 58 } }, hidden: ['cds--toggle-switch-before'] } });
+    expect(hidden.filter((x) => x.property === 'presence')).toEqual([
+      { text: 'The toggle switch before is hidden in Figma, shown in code', part: 'cds--toggle-switch-before', partName: 'toggle switch before', property: 'presence', expected: 'present', actual: 'hidden' },
+    ]);
+  });
+
   it('finds the story of a variant by its axes', () => {
     const spec: Pick<ComponentSpec, 'axes'> = {
       axes: [
