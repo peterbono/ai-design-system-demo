@@ -91,6 +91,15 @@ export function referencesRequestForDeveloper(repo: string): string {
   ].join('\n');
 }
 
+/** "Copy for your developer" when Bridge has no measure of a component Claude was asked to fix. */
+export function measureRequestForDeveloper(component: string, repo: string): string {
+  return [
+    `Could you get ${component} measured for Bridge${repo ? ` in ${repo}` : ''}? Claude can't fix it in Figma until Bridge has measured its stories in code.`,
+    '',
+    `Check that ${component} has a story the measure reaches, then measure again (bridge specs --measure --variants --shots --only ${component}), or let the automatic measure run.`,
+  ].join('\n');
+}
+
 /**
  * "Copy for your developer": the request a designer pastes in Slack or an issue. It holds the ways to run the fix
  * (Claude with the Bridge MCP server, or the CLI with the team's API key), which the plugin never displays. Bridge has

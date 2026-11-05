@@ -8,7 +8,7 @@ import { type Analysis, type PullProposal, type PushBrand, type PushProposal, an
 import { type ChangesMode, GitHubClient, type PullRequest, type PullRequestSummary, changesMode, figmaPushNextLine, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { type FigmaFidelityRun, type GapBuiltVariant, type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
-import { DIFFERS_HANDOFF_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixRequestForDeveloper, referencesRequestForDeveloper, runNeedsWrite, writeFidelityRun } from '../sync/fix-with-claude';
+import { DIFFERS_HANDOFF_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixRequestForDeveloper, measureRequestForDeveloper, referencesRequestForDeveloper, runNeedsWrite, writeFidelityRun } from '../sync/fix-with-claude';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
@@ -48,7 +48,7 @@ import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 import { focusFirstItem, menuKeys } from './menu';
 import { ASK_TTL_MS, type Asked, CLAUDE_NEW_CHAT, CONNECTOR_WORDS, WATCH_MS, askAllText, askText, canAskClaude, claudeUrl, claudeUrlForAll, findFix, fixAllEligible, parseAsked } from '../sync/claude-connector';
-import { type FixSession, readFixSession, sessionHead } from '../sync/fix-session';
+import { FINISHED_ROWS, type FixRowKind, type FixSession, fixRow, fixRowsSummary, readFixSession } from '../sync/fix-session';
 import { PREVIEW_WORDS, RENDER_CAP_MS, type UpdatePreview, codeImageSource, previewKey } from '../sync/update-preview';
 import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
 
@@ -2717,6 +2717,8 @@ function saveAsked(asked: Asked): void {
 const claudeFixes = new Map<string, Pick<PullRequestSummary, 'number' | 'url' | 'draft'>>();
 /** What Claude is doing, by component: the real steps Bridge records (when the Bridge site can say; else the PR watch). */
 const claudeSessions = new Map<string, FixSession>();
+/** What became of Claude's fixes no longer open, by pull request number: approved (merged) or not kept (closed). */
+const fixOutcomes = new Map<number, { state: 'merged' | 'closed'; mergedAt?: string | undefined }>();
 let fixWatch: ReturnType<typeof setTimeout> | undefined;
 let fixLooking = false;
 
@@ -2748,7 +2750,9 @@ function watchFixes(): void {
           changed = true;
         }
       }
-      if (waitingFor().length) {
+      // Fixes Claude opened that this plugin has not seen settle yet: are they still open, approved or not kept?
+      const unsettled = () => [...claudeSessions.values()].flatMap((x) => (x.pr && !fixOutcomes.has(x.pr.number) ? [x.pr.number] : []));
+      if (waitingFor().length || unsettled().length) {
         const prs = await getClient().listPullRequests('open');
         const prefix = (state.pull?.analysis ?? state.push?.analysis)?.headFiles.config?.governance.branchPrefix;
         for (const component of Object.keys(parseAsked(state.init?.sync.claudeAsked))) {
@@ -2757,6 +2761,17 @@ function watchFixes(): void {
             claudeFixes.set(component, pr);
             changed = true;
           }
+        }
+        const open = new Set(prs.map((x) => x.number));
+        const settled = unsettled().filter((n) => !open.has(n));
+        if (settled.length) {
+          // One read of the recently closed ones (newest 50): merged is approved, closed without merging is not kept.
+          const closed = await getClient().listPullRequests('closed');
+          for (const x of closed)
+            if (settled.includes(x.number)) {
+              fixOutcomes.set(x.number, x.state === 'merged' || x.mergedAt ? { state: 'merged', mergedAt: x.mergedAt } : { state: 'closed' });
+              changed = true;
+            }
         }
       }
       // A working row shows its elapsed time: refreshed with each look.
@@ -2775,32 +2790,81 @@ function watchFixes(): void {
   void look();
 }
 
-/**
- * Where Claude's fix for a component stands, on its row. The head in one line ("Waiting for Claude", "Claude is
- * working on IconButton · 4 min, round 2 of up to 3", "Claude's fix is ready", "Claude stopped: …", "Claude went
- * quiet"); the steps below it, newest last, folded unless the designer opens them; the end's action.
- */
-function claudePanel(component: string): Child {
+/** The measure the plugin read says whether Bridge measured this component (undefined: not known here). */
+function measuredHas(component: string): boolean | undefined {
+  const m = state.pull?.measure as { stories?: { title?: string }[] } | undefined;
+  if (!m?.stories?.length) return undefined;
+  const key = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return m.stories.some((st) => key(String(st.title ?? '').split('/').at(-1) ?? '') === key(component));
+}
+
+/** Where Claude's fix for a component stands, as one status (fix-session.ts fixRow); null when nothing was asked. */
+function claudeRow(component: string): { kind: FixRowKind; text: string; hint?: string } | null {
   const pr = claudeFixes.get(component);
   const session = claudeSessions.get(component);
   const askedAt = parseAsked(state.init?.sync.claudeAsked)[component];
   if (!pr && !session && !waitingFor().includes(component)) return null;
-  const head = pr ? { kind: 'ready' as const, text: CONNECTOR_WORDS.ready } : sessionHead(session, component);
-  if (!pr && !askedAt && head.kind === 'waiting') return null;
+  const number = pr ? undefined : session?.pr?.number;
+  const row = fixRow(component, {
+    session,
+    openPr: pr ? { number: pr.number, url: pr.url } : undefined,
+    outcome: number !== undefined ? fixOutcomes.get(number) : undefined,
+    lastPullAt: state.init?.sync.lastPullAt,
+    askedAt,
+    measured: measuredHas(component),
+    now: Date.now(),
+  });
+  if (!pr && !askedAt && row.kind === 'waiting') return null;
+  return row;
+}
+
+/**
+ * Where Claude's fix for a component stands, on its row, as one status. Finished (in this file, approved, not kept):
+ * one calm line. Otherwise the head ("Waiting for Claude", "Claude is working on IconButton · 4 min, round 2 of up to
+ * 3", "Claude's fix is ready", "Claude can't fix this one: ..."), what Claude did folded, and the one way forward.
+ */
+function claudePanel(component: string): Child {
+  const row = claudeRow(component);
+  if (!row) return null;
+  const { kind } = row;
+  if (kind === 'in-file' || kind === 'approved' || kind === 'not-kept')
+    return h('p', { class: `claude-line${kind === 'not-kept' ? ' muted' : ''}`, role: 'status', 'data-claude': kind }, icon(kind === 'not-kept' ? 'info' : 'check'), h('span', { 'data-head': '' }, row.text));
+  const pr = claudeFixes.get(component);
+  const session = claudeSessions.get(component);
   const key = `claude-steps-${component}`;
   const steps = session?.steps ?? [];
   const reviewPr = pr ?? (session?.pr ? { number: session.pr.number, url: session.pr.url } : undefined);
   const studio = reviewPr ? (studioChangeUrl(state.init!.settings.repo, 'pr', reviewPr.number) ?? reviewPr.url) : undefined;
-  const developer = fixRequestForDeveloper(component, state.init?.settings.repo ?? '');
+  const repo = state.init?.settings.repo ?? '';
+  const copied = state.expanded.has(`copied-${component}`);
+  const copyFor = (text: string) =>
+    h('button', { class: 'btn ghost', 'data-focus-id': `stop-copy-${component}`, onClick: () => void copyText(text).then((ok) => { if (ok) state.expanded.add(`copied-${component}`); render(); }) }, icon(copied ? 'check' : 'copy'), copied ? 'Copied' : 'Copy for your developer');
+  const reopen = h('button', { class: 'btn ghost', 'data-focus-id': `reopen-claude-${component}`, onClick: () => void reopenClaude(component) }, icon('external'), 'Open Claude again');
+  // Parts to draw: the designer's own job, no developer to ask.
+  const drawing = kind === 'cant-fix' && /missing in Figma/i.test(row.hint ?? '');
+  const actions: Child[] =
+    kind === 'ready' && studio
+      ? [h('button', { class: 'btn', 'data-focus-id': `see-fix-${component}`, onClick: () => void request('open-url', { url: studio }) }, icon('external'), CONNECTOR_WORDS.see)]
+      : kind === 'waiting'
+        ? [reopen]
+        : kind === 'quiet' || kind === 'unfinished'
+          ? [reopen, copyFor(fixRequestForDeveloper(component, repo))]
+          : kind === 'no-measure'
+            ? [copyFor(measureRequestForDeveloper(component, repo))]
+            : kind === 'cant-fix' && !drawing
+              ? [copyFor(fixRequestForDeveloper(component, repo))]
+              : [];
   return h(
     'div',
-    { class: 'callout claude-run', role: 'status', 'data-claude': head.kind },
+    { class: 'callout claude-run', role: 'status', 'data-claude': kind },
     h(
       'div',
       { class: 'callout-title' },
-      head.kind === 'working' || head.kind === 'waiting' ? h('span', { class: 'activity', 'aria-hidden': 'true' }) : icon(head.kind === 'ready' ? 'check' : 'alert'),
-      h('span', { 'data-head': '' }, head.text),
+      kind === 'working' || kind === 'waiting' ? h('span', { class: 'activity-box', 'aria-hidden': 'true' }, h('span', { class: 'activity' })) : icon(kind === 'ready' ? 'check' : 'alert'),
+      h('span', { 'data-head': '' }, row.text),
     ),
+    row.hint ? h('p', { class: 'muted' }, row.hint) : kind === 'ready' ? h('p', { class: 'muted' }, CONNECTOR_WORDS.next) : null,
+    // What Claude did: folded until the designer opens it.
     steps.length
       ? h(
           'details',
@@ -2824,31 +2888,44 @@ function claudePanel(component: string): Child {
           ),
         )
       : null,
-    head.kind === 'ready' && studio
-      ? [
-          h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `see-fix-${component}`, onClick: () => void request('open-url', { url: studio }) }, icon('external'), CONNECTOR_WORDS.see)),
-          h('p', { class: 'muted' }, CONNECTOR_WORDS.next),
-        ]
-      : null,
-    head.kind === 'waiting' || head.kind === 'quiet'
-      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `reopen-claude-${component}`, onClick: () => void reopenClaude(component) }, icon('external'), 'Open Claude again'))
-      : null,
-    head.kind === 'stopped' || head.kind === 'quiet'
-      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `stop-copy-${component}`, onClick: () => void copyText(developer).then((ok) => { if (ok) state.expanded.add(`copied-${component}`); render(); }) }, icon(state.expanded.has(`copied-${component}`) ? 'check' : 'copy'), state.expanded.has(`copied-${component}`) ? 'Copied' : 'Copy for your developer'))
-      : null,
+    actions.length ? h('div', { class: 'inline-actions' }, actions) : null,
   );
 }
 
-/** Claude's fixes on the Pull screen when no comparison shows them on their rows: waited for, or ready to review. */
+/** The order rows of Claude's fixes show in: what the designer acts on first, finished ones last. */
+const ROW_ORDER: Record<FixRowKind, number> = { ready: 0, approved: 1, 'cant-fix': 2, 'no-measure': 3, unfinished: 4, quiet: 5, working: 6, waiting: 7, 'in-file': 8, 'not-kept': 9 };
+
+/**
+ * Claude's fixes on the Pull screen when no comparison shows them on their rows. One sentence counts where they stand
+ * ("9 fixes in this file, 10 need drawing in Figma, 8 waiting."); the rows to act on follow, finished ones folded.
+ */
 function claudeRunsGroup(): Child {
   const names = [...new Set([...claudeFixes.keys(), ...claudeSessions.keys(), ...waitingFor()])];
-  if (!names.length) return null;
+  const rows = names.flatMap((n) => {
+    const r = claudeRow(n);
+    return r ? [{ name: n, ...r }] : [];
+  });
+  if (!rows.length) return null;
+  rows.sort((a, b) => ROW_ORDER[a.kind] - ROW_ORDER[b.kind]);
+  const item = (r: (typeof rows)[number]) => h('li', { class: 'row review' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, r.name)), claudePanel(r.name));
+  const open = rows.filter((r) => !FINISHED_ROWS.includes(r.kind));
+  const done = rows.filter((r) => FINISHED_ROWS.includes(r.kind));
   return group(
     "Claude's fixes",
-    names.length,
+    rows.length,
     null,
-    'Your team\'s Claude works on these. Nothing changes in this file until a fix is approved.',
-    h('ul', { class: 'rows' }, names.map((n) => h('li', { class: 'row review' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, n)), claudePanel(n)))),
+    fixRowsSummary(rows),
+    [
+      open.length ? rowList('claude-fixes', open.map(item), 8) : null,
+      done.length
+        ? h(
+            'details',
+            { class: 'notes', 'data-block': 'claude-done', open: state.expanded.has('claude-done'), onToggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? state.expanded.add('claude-done') : state.expanded.delete('claude-done')) },
+            h('summary', null, `${done.length} finished`),
+            h('ul', { class: 'rows' }, done.map(item)),
+          )
+        : null,
+    ],
   );
 }
 
@@ -2983,7 +3060,8 @@ function fidelityGroup(p: PullState): Child {
         const gap = r.status === 'differs' ? f?.gaps?.find((g) => g.component === it.name)?.summary : undefined;
         // Asked (now or before: the watch resumes), or Claude's fix found: the row shows that, not the button again.
         const claude = r.status === 'differs' ? claudePanel(it.name) : null;
-        const asked = (f?.fix?.component === it.name && f.fix.status !== 'error' && f.fix.status !== 'connect') || !!claude;
+        const finished = r.status === 'differs' && FINISHED_ROWS.includes(claudeRow(it.name)?.kind ?? 'waiting');
+        const asked = (f?.fix?.component === it.name && f.fix.status !== 'error' && f.fix.status !== 'connect') || (!!claude && !finished);
         askRows.push({ name: it.name, differs: r.status === 'differs', asked });
         return h(
           'li',

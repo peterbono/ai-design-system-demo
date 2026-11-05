@@ -72,8 +72,10 @@ test('Ask Claude to fix all N: connect once, one request for the list, every row
   assert.equal(p.document.querySelectorAll('[data-claude="asked"]').length, 1, 'what to do in Claude, once');
   assert.match(p.document.querySelector('[data-claude="asked"]')!.textContent ?? '', /Claude fixes them one by one/);
 
-  // Every row waits for its own fix; no ask button is left.
-  await p.until(() => p.document.querySelectorAll('[data-claude="waiting"]').length === 3, 25000);
+  // Every row shows its own status; no ask button is left. The fixture's measure has only Button's stories, so Bridge
+  // already knows Claude cannot read these three: each says so instead of waiting for a fix that cannot come.
+  await p.until(() => p.document.querySelectorAll('[data-claude="no-measure"]').length === 3, 25000);
+  assert.match(p.document.querySelector('[data-claude="no-measure"]')!.textContent ?? '', /Bridge hasn't measured it in code/);
   assert.equal(rowButtons(), 0);
   assert.ok(!p.document.querySelector('[data-focus-id="fix-all"]'));
   assert.doesNotMatch(p.text(), /\u2014/);

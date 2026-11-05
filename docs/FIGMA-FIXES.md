@@ -299,7 +299,21 @@ kept 7 days after its last step (`apps/docs-site/api/_lib/fix-sessions.ts`):
 | `bridge_propose_figma_fixes`, a fix | Claude opened its fix for review (the pull request and its review in Studio): ready |
 | `bridge_propose_figma_fixes`, a status fix | Claude stopped: the reason Claude gave: stopped |
 | `bridge_propose_figma_fixes`, refused by the referee | Bridge did not open it: the reason (still working) |
+| `bridge_get_gap_case` failed: no measure of the component | Claude stopped: Bridge hasn't measured it in code yet: stopped (never an endless wait) |
+| nothing for 10 minutes right after a read that found parts missing in Figma | Claude stopped: The <parts> are missing in Figma: draw them in the component, then compare with code again: stopped |
 | nothing for 10 minutes while working | Claude went quiet (`quiet: true`, the state stays working: a new step resumes it) |
+
+Every component Claude is asked about ends with `bridge_propose_figma_fixes`: its fixes, or a status fix whose reason
+tells the designer what to do. Parts missing in Figma are drawn by the designer, never by a fix: the gap case's `next`
+gives Claude the status fix to propose. The plugin shows only what Bridge records, so a reason said only in the chat
+never reaches the designer.
+
+In the plugin, "Claude's fixes" opens with one sentence ("3 fixes in this file, 2 need drawing in Figma, 1 waiting.")
+and gives each row one status. A fix whose pull request was merged reads "Claude's fix is in this file. Compare with
+code to check it." once Check for updates brought it in (else "approved"); closed without merging, "Claude's fix was
+not kept"; both are folded under "N finished". A stopped session reads "Claude can't fix this one" with the reason under
+it; no measure, "Claude can't fix this one yet" with Copy for your developer. A quiet session reads "Claude didn't
+finish this one" (its reply is in the chat); "Claude went quiet" is only for an ask nothing came back from in 30 minutes.
 
 There is no percentage: rounds vary, so a session is its steps and the time since it started. In Studio, each session
 is one row of the Being built list (one queue, no section of its own), with the list's tags and filters: the component,

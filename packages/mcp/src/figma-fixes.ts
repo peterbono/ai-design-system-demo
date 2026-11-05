@@ -30,6 +30,7 @@ import {
   tryFigmaFixes,
   type BridgeConfig,
   type FigmaFidelityRun,
+  type GapCase,
   type FigmaFixesFile,
   type MeasuredSpecsFile,
 } from '@bridge-ds/core';
@@ -158,6 +159,17 @@ const roundsOf = (ctx: BridgeContext) => {
 };
 const lc = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+/** The parts a gap case says are missing in Figma, in words, once each: no fix can draw them, the designer does. */
+export function missingParts(gap: Pick<GapCase, 'variants'>): string[] {
+  return [...new Set(gap.variants.flatMap((v) => v.differences.filter((d) => d.property === 'presence' && d.actual === 'missing').map((d) => d.partName)))];
+}
+
+/** The status fix's reason for parts missing in Figma, in designer words (the plugin shows it after "Claude can't fix this one: "). */
+export function missingPartsReason(parts: readonly string[]): string {
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
+  return `The ${list} ${parts.length === 1 ? 'is' : 'are'} missing in Figma: draw ${parts.length === 1 ? 'it' : 'them'} in the component, then compare with code again.`;
+}
+
 /** bridge_get_gap_case / `bridge fix <component> --case`: one component's gap case and the fix schema. */
 export async function getGapCaseOp(ctx: BridgeContext, a: FixFilesArgs & { component: string }) {
   const files = await loadFixFiles(ctx, a);
@@ -165,6 +177,17 @@ export async function getGapCaseOp(ctx: BridgeContext, a: FixFilesArgs & { compo
   if (!spec && !files.measured.stories.some((s) => lc(s.title.split('/').at(-1)!) === lc(a.component)))
     throw new Error(`No measured story of ${a.component} in ${files.measuredFrom}. Measure it with \`bridge specs --measure --variants --shots --only ${a.component}\`.`);
   const used = roundsOf(ctx).get(lc(a.component)) ?? 0;
+  // Parts missing in Figma: no fix draws them. The designer only sees what Bridge records, so the component ends with a
+  // status fix that says so, never with a sentence in the chat alone.
+  const missing = missingParts(gap);
+  const statusFix = `{ "id": "${lc(gap.component)}-draw", "kind": "status", "component": "${gap.component}", "status": "differs", "reason": "${missingPartsReason(missing)}" }`;
+  const drawNote = missing.length
+    ? say(
+        ctx,
+        ` No fix can draw a missing part (${missing.join(', ')}): fix what else differs, then end with a status fix (only the status fix when nothing else differs), ${statusFix}, through bridge_propose_figma_fixes, before the next component.`,
+        ` No fix can draw a missing part (${missing.join(', ')}): fix what else differs, then propose a status fix (only the status fix when nothing else differs), ${statusFix}, with \`bridge fix ${gap.component} --propose <file> --summary "..."\`.`,
+      )
+    : '';
   return {
     gap,
     ...(files.runFrom ? { report: files.runFrom } : { note: NO_RUN }),
@@ -176,7 +199,7 @@ export async function getGapCaseOp(ctx: BridgeContext, a: FixFilesArgs & { compo
     next: gap.variants.length
       ? say(
           ctx,
-          `Write fixes for ${gap.component} only, from the part ids and deltas above, then bridge_try_figma_fix { component, fixes }. Keep a fix only when the try says closer; after ${FIX_LOOP_MAX_ROUNDS} rounds without closer, propose a status fix (Differs or Can't check, with the reason) instead.`,
+          `Write fixes for ${gap.component} only, from the part ids and deltas above, then bridge_try_figma_fix { component, fixes }. Keep a fix only when the try says closer; after ${FIX_LOOP_MAX_ROUNDS} rounds without closer, propose a status fix (Differs or Can't check, with the reason) instead.${drawNote}`,
           `Write the fixes to a JSON file, then \`bridge fix ${gap.component} --try fixes.json\`; or let Claude do the rounds: \`bridge fix ${gap.component} --with-claude\`.`,
         )
       : 'Nothing differs on this component: there is nothing to fix.',

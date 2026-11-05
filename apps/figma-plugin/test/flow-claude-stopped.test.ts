@@ -5,10 +5,11 @@ void fixPr;
 void minutesAgo;
 
 // Claude gave up: the honest reason in the head, and Copy for your developer.
-test('stopped: "Claude stopped: …" and Copy for your developer', async () => {
+test("stopped: \"Claude can't fix this one: ...\" and Copy for your developer", async () => {
   const p = await reopenWith({ session: { component: 'IconButton', state: 'stopped', reason: 'no fix brought it closer to the code in 3 rounds', startedAt: minutesAgo(9), updatedAt: minutesAgo(2), steps: [{ label: 'Tried a fix, round 3: further', status: 'failed', at: '' }] } });
-  await p.until(() => p.row()!.getAttribute('data-claude') === 'stopped');
-  assert.equal(p.row()!.querySelector('[data-head]')!.textContent, 'Claude stopped: no fix brought it closer to the code in 3 rounds');
+  await p.until(() => p.row()!.getAttribute('data-claude') === 'cant-fix');
+  assert.equal(p.row()!.querySelector('[data-head]')!.textContent, "Claude can't fix this one");
+  assert.match(p.row()!.textContent ?? '', /No fix brought it closer to the code in 3 rounds/);
   await p.click('Copy for your developer');
   assert.ok(p.copied.some((t) => /IconButton/.test(t)));
 });
