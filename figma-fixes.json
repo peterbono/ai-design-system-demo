@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "AccordionItem",
+      "id": "accordionitem-width-status",
+      "kind": "status",
+      "reason": "The item fills its container in code, so the story shows it at 400 px while Figma draws it 1122 px wide: set the item to 400 px or fill a 400 px frame in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
