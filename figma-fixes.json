@@ -342,6 +342,15 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Banner",
+      "height": "fixed",
+      "id": "banner-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "Figma hugs the title and lead so the banner height changes with text wrapping, while code renders a taller banner."
     }
   ]
 }
