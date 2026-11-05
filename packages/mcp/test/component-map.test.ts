@@ -1,6 +1,6 @@
 // The component map through the MCP ops: the figma field of bridge_list_components and bridge_get_component, the
 // `bridge check` report, and bridge_propose_component_map (dry run, local branch, draft pull request, suggestion).
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BridgeContext, componentMap, ops } from '../dist/lib.js';
@@ -23,6 +23,10 @@ let ctx: BridgeContext;
 
 beforeAll(async () => {
   dir = tempGitRepo(REPO, PATHS);
+  // A repo with no Figma file yet, whatever this repo's own config says.
+  const config = JSON.parse(readFileSync(join(dir, 'bridge.config.json'), 'utf8'));
+  delete config.figma;
+  writeFileSync(join(dir, 'bridge.config.json'), `${JSON.stringify(config, null, 2)}\n`);
   writeFileSync(join(dir, 'bridge.components.json'), `${JSON.stringify(LINKED, null, 2)}\n`);
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'map');
