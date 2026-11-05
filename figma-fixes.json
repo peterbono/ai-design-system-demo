@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Tooltip",
+      "id": "tooltip-root-height",
+      "kind": "status",
+      "reason": "The tooltip is 1 px taller in Figma because its text sets 2 px taller than in code, and a root height does not move it: set the label text line height to match the code style in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
