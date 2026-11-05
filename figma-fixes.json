@@ -342,6 +342,15 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Menu/Popup",
+      "height": "fixed",
+      "id": "menu-popup-root-height",
+      "kind": "part",
+      "part": "root",
+      "reason": "Figma hugs its items and adds 8 px below item 4 and the separator, while the code popup is 199 px tall."
     }
   ]
 }
