@@ -26,8 +26,7 @@ import { componentBySlug, componentSlugFromPath, mainStory, previewScopes } from
 import { httpsStorybook } from '../../../lib/team-components';
 import { libraryHref } from '../../../lib/library-shells';
 import { teamDisplayName } from '../../../lib/demo';
-import { loadTeamSnapshot, resetTeamData, type TeamData } from '../../../scripts/team-data';
-import { contributorFor } from '../../../scripts/contribute-session';
+import { loadTeamSnapshot, resetTeamData, teamLead, type TeamData } from '../../../scripts/team-data';
 import '../../../styles/component.css';
 import '../../../styles/library.css';
 import '../../../styles/team-components.css';
@@ -54,16 +53,6 @@ function componentData(data: TeamData, snap: RepoSnapshot | null): LibraryData {
       sourceBase: `https://github.com/${encodeURIComponent(data.owner)}/${encodeURIComponent(data.repo)}/blob/${encodeURIComponent(data.defaultBranch)}/`,
     },
   };
-}
-
-/**
- * A lead or an admin of the team, who can link a component to Figma: GitHub write access, or an email admin. An email
- * member who can edit is not a lead (lib/create-branch libraryLead).
- */
-function leadOf(data: TeamData): boolean {
-  if (!data.canEdit) return false;
-  const member = contributorFor(`${data.owner}/${data.repo}`);
-  return !member || member.role === 'admin';
 }
 
 /** Starts what Bridge's static page starts at load, once the view is in the page. */
@@ -143,7 +132,7 @@ function Ready({ page, data, refreshing }: { page: LibraryComponentsPage; data: 
         heroTools={scopes.brands.length > 1 || scopes.densities.length > 1 ? <ScopeMenu brands={scopes.brands} densities={scopes.densities} /> : undefined}
           playground={spec && story && storybook ? <PropsPlayground spec={spec} storybook={storybook} storyId={story.id} brands={scopes.brands} densities={scopes.densities} /> : undefined}
           ahead={<FigmaAhead component={c.name} href={studioLink(view, 'building/')} load={() => buildViewsFor(`${data.owner}/${data.repo}`, data.client)} />}
-          figma={<FigmaLink {...figmaLinkFor(data.model, c.name)} settingsHref={studioLink(view, 'settings/#figma')} canFix={leadOf(data)} />}
+          figma={<FigmaLink {...figmaLinkFor(data.model, c.name)} settingsHref={studioLink(view, 'settings/#figma')} canFix={teamLead(data)} />}
         />
       </div>
       {/* Edit mode (?edit=1): a reader who can write to the team edits its usage guidance in place, as on Bridge's own pages. */}

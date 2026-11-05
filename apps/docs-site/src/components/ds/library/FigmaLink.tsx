@@ -1,14 +1,15 @@
-// "In Figma: Button" on a component's Library page, under the hero, when the component map (bridge.components.json,
-// core component-map.ts) links it: everyone reads it and opens the component in the team's Figma file. When it is not
-// linked, only the people who can fix it (a lead or an admin, lib/create-branch libraryLead) read "Not linked to Figma
-// yet." with the next step: ask Claude to link it, or add the team's Figma file in Settings first. Everyone else sees
-// nothing. Bridge's own page and a team's Library both pass what the model says (figmaLinkFor).
-import { useEffect, useState } from 'react';
+// "In Figma: Button" on a component's Library page, under the hero, and in the Studio Components drawer, when the
+// component map (bridge.components.json, core component-map.ts) links it: everyone reads it and opens the component in
+// the team's Figma file. When it is not linked, only the people who can fix it (a lead or an admin) read "Not linked to
+// Figma yet." with the next step: ask Claude to link it, or add the team's Figma file in Settings first. Everyone else
+// sees nothing. Every caller passes what the model says (figmaLinkFor) and who reads it (`canFix`): a team's Library and
+// Studio from the team's read (scripts/team-data teamLead), Bridge's own Library from the maintainer check
+// (FigmaLinkSite), since it never starts the Studio's GitHub session. Pure: props only.
 import { Icon, Link } from '@bridge-ds/react';
 import { FigmaMark } from '../studio/brand-icons';
 import { figmaFileOf, figmaLinkOf, type RepoModel } from '@bridge-ds/core';
-import { libraryLead } from '../../../lib/create-branch';
 import { FIGMA_FILE_WORDS } from '../../../lib/figma-file';
+import '../../../styles/figma-link.css';
 
 export interface FigmaLinkProps {
   /** The component's Figma component, null when the map does not link it. */
@@ -17,8 +18,8 @@ export interface FigmaLinkProps {
   fileSet: boolean;
   /** Settings > Figma file, for this Library's team. */
   settingsHref: string;
-  /** Who reads the "not linked" line; default: a lead or an admin of the team, from the session. */
-  canFix?: boolean | undefined;
+  /** A lead or an admin of the team reads the page: they alone read the "not linked" line and its next step. */
+  canFix: boolean;
 }
 
 /** What the model says about one component: its Figma link and whether the team set its Figma file. */
@@ -28,16 +29,6 @@ export function figmaLinkFor(model: Pick<RepoModel, 'componentMap' | 'config'>, 
 }
 
 export function FigmaLink({ link, fileSet, settingsHref, canFix }: FigmaLinkProps) {
-  const [lead, setLead] = useState(canFix ?? false);
-  useEffect(() => {
-    if (link || canFix !== undefined) return;
-    let live = true;
-    void import('../../../scripts/github-session').then(({ onAccess }) => onAccess((a) => live && setLead(libraryLead(a))));
-    return () => {
-      live = false;
-    };
-  }, [link, canFix]);
-
   if (link) {
     return (
       <p className="t-ui cp-figma">
@@ -49,7 +40,7 @@ export function FigmaLink({ link, fileSet, settingsHref, canFix }: FigmaLinkProp
       </p>
     );
   }
-  if (!lead) return null;
+  if (!canFix) return null;
   return (
     <p className="t-ui cp-figma cp-figma-missing">
       <Icon icon={FigmaMark} size="sm" />

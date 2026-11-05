@@ -97,6 +97,17 @@ async function editRight(team: { owner: string; repo: string }, client: GitHubCl
   }
 }
 
+/**
+ * A lead or an admin of the team, who can link its components to Figma (the "Not linked to Figma yet" line of its
+ * Library pages and of Studio Components): GitHub write access, or an email admin. An email member who can edit is not
+ * a lead (lib/create-branch libraryLead).
+ */
+export function teamLead(data: Pick<TeamData, 'canEdit' | 'owner' | 'repo'>): boolean {
+  if (!data.canEdit) return false;
+  const member = contributorFor(`${data.owner}/${data.repo}`);
+  return !member || member.role === 'admin';
+}
+
 /** A client for the team, with the visitor's token when it works. */
 export function teamClient(team: { owner: string; repo: string }): GitHubClient {
   return studioClient(`${team.owner}/${team.repo}`, teamToken(team));

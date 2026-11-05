@@ -63,6 +63,11 @@
   gap: var(--space-4);
 }
 
+/* The Figma line (FigmaLink) in the drawer: the grid's gap spaces it. */
+.tcm-d .cp-figma {
+  margin: 0;
+}
+
 .tcm-d-eyebrow {
   margin: 0;
   color: var(--color-text-muted);
