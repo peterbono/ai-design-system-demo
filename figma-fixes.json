@@ -89,6 +89,21 @@
         }
       },
       "width": "fixed"
+    },
+    {
+      "by": "claude",
+      "component": "CodeBlock",
+      "id": "codeblock-label-text",
+      "kind": "part",
+      "part": "word-2",
+      "reason": "The label is set in the caption style in code, where Figma draws it in the mono code style.",
+      "set": {
+        "fontFamily": "font.family.sans",
+        "fontSize": "typography.caption.size",
+        "fontWeight": "font.weight.medium",
+        "lineHeight": "typography.caption.line-height",
+        "textFill": "color.text.muted"
+      }
     }
   ]
 }
