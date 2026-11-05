@@ -229,6 +229,14 @@
         }
       },
       "width": 204
+    },
+    {
+      "by": "claude",
+      "component": "Link",
+      "id": "link-draw",
+      "kind": "status",
+      "reason": "Inline and subtle links are 3 px taller in Figma, likely from the text line height, and the standalone link lays its children side by side where code stacks them: adjust the text style and layout in the component, then compare with code again.",
+      "status": "differs"
     }
   ]
 }
