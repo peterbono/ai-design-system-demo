@@ -543,7 +543,7 @@ export interface FolderSetRef {
   /** `popup`: the popup drawn open. */
   view?: string | undefined;
   axes: { name: string; prop?: string | undefined; values: string[]; default?: string | undefined }[];
-  /** The local classes of the set's root (`popup` for Dialog.module.css .popup). */
+  /** The local classes of the set's root (`popup` for Dialog.module.css .popup): the first is the one its element carries. */
   rootClasses: string[];
 }
 
@@ -562,7 +562,9 @@ export function asFolderSetStory(story: MeasuredSpecsStory, set: FolderSetRef): 
   const classes = new Set(rootClassesOf(story.spec).map(lower));
   if (set.fixed && Object.keys(set.fixed).length) {
     if (!Object.entries(set.fixed).every(([k, v]) => lower(has[k]) === lower(v))) return undefined;
-  } else if (!set.rootClasses.length || !set.rootClasses.every((c) => classes.has(lower(c)))) return undefined;
+  // The first class of the set's root is the one the element carries (Popover.module.css .popup); the static spec may
+  // fold a child's class into the root (.body), which the measured root does not have.
+  } else if (!set.rootClasses.length || !classes.has(lower(set.rootClasses[0]!))) return undefined;
   const props = { ...(story.props ?? {}) };
   for (const axis of set.axes) {
     if (!axis.prop || has[axis.prop] !== undefined) continue;

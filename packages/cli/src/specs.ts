@@ -525,7 +525,7 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
       let entries = own.map((s) => asFolderSetStory(s, ref)).filter((s): s is MeasuredSpecsStory => !!s);
       let resolved: Record<string, string> | undefined;
       if (!entries.length && set.view === 'popup' && ref.rootClasses.length) {
-        const sel = classSelector(ref.rootClasses);
+        const sel = classSelector(ref.rootClasses.slice(0, 1));
         for (const s of picks.filter((x) => x.title === title)) {
           try {
             const m = await measureStory(browser.page, base, s.id, { within: sel, open: true, ...shotOpt(s.id, { part: set.name }) });

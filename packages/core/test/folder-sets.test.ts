@@ -52,6 +52,8 @@ describe('asFolderSetStory', () => {
   it('leaves out a story that is not the set: another root, other fixed props, an error', () => {
     const [md] = raw().stories;
     expect(asFolderSetStory(md!, { ...POPUP, rootClasses: ['tooltip'] })).toBeUndefined();
+    // Popover/Popup's static root names .popup and .body (folded in): the element carries the first.
+    expect(asFolderSetStory(md!, { ...POPUP, rootClasses: ['popup', 'body'] })).toMatchObject({ set: 'Dialog/Popup' });
     const full: FolderSetRef = { name: 'Pagination/Full', fixed: { variant: 'full' }, axes: [{ name: 'Size', prop: 'size', values: ['sm', 'md'] }], rootClasses: ['pagination'] };
     const story = { ...md!, title: 'Navigation/Pagination', props: { variant: 'full', size: 'sm' } };
     expect(asFolderSetStory(story, full)).toMatchObject({ title: 'Navigation/Pagination/Full', set: 'Pagination/Full', props: { variant: 'full', size: 'sm' } });
