@@ -342,6 +342,14 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Input",
+      "id": "input-draw-status",
+      "kind": "status",
+      "reason": "Sizes and measured values match on all 9 variants, so check the placeholder text style and color and the field fill in Figma against the story shots.",
+      "status": "differs"
     }
   ]
 }
