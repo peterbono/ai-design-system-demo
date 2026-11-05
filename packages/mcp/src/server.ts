@@ -1016,7 +1016,7 @@ export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpS
     'bridge_list_products',
     {
       title: 'List products',
-      description: 'The products of this design system (bridge.config.json "products": name, repo or folder, preview link pattern, framework; for a product with its own repository, connection: connected, read-only or not-connected, where not-connected means its explorations are left out of the lists until an admin installs the Bridge GitHub App there) and the one the current folder or repo belongs to, which tools that start work use when no product is given. Ask the person which product when it is not obvious.',
+      description: 'The products of this design system (bridge.config.json "products": name, repo or folder, preview link pattern, framework; for a product with its own repository, connection: connected, read-only or not-connected, where not-connected means its explorations are left out of the lists until an admin installs the Bridge GitHub App there; access says in one sentence whether this person can start and save its explorations, trust it over connection) and the one the current folder or repo belongs to, which tools that start work use when no product is given. Ask the person which product when it is not obvious.',
       inputSchema: {},
       annotations: RO,
     },

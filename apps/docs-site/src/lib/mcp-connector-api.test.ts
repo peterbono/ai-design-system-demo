@@ -4,11 +4,12 @@
 // Fakes only: a fake GitHub, a fake Claude client, no network.
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { BridgeContext } from '@bridge-ds/mcp';
+import { BridgeContext, type ClaudeDesignHost } from '@bridge-ds/mcp';
 import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/account';
 import { QUIET_AFTER_MS, stepOf, STEP_WORDS } from '../../api/_lib/fix-sessions';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
+import { putTeamClaudeDesign } from '../../api/_lib/teams';
 import { quotaMeter } from '../../api/_lib/github-quota';
 import { redirectMatches } from '../../api/_lib/oauth';
 import { EMAIL_REFUSED_TOOLS, EMAIL_REFUSED_WORDS, grantIdentity, handleConnector, HOSTED_REFUSED_TOOLS, HOSTED_REFUSED_WORDS, LIBRARY_LEADS_WORDS, type ConnectorEnv, type FetchLike, type McpHandler } from '../../api/mcp/index';
@@ -48,17 +49,17 @@ function world(o: { push?: boolean; refreshFails?: boolean; realMcp?: boolean; c
   };
   const redis = memoryRedis(() => t);
   const env: ConnectorEnv = { LIBRARY_SESSION_SECRET: SECRET, GITHUB_APP_CLIENT_ID: 'Iv1.bridge', GITHUB_APP_CLIENT_SECRET: 'app-secret', PUBLIC_SITE_URL: SITE };
-  const mcpSeen: { body: unknown; repo: string; token: string; proxied: boolean }[] = [];
+  const mcpSeen: { body: unknown; repo: string; token: string; proxied: boolean; claudeDesign?: ClaudeDesignHost }[] = [];
   const toolAnswers: Record<string, unknown> = {};
   const mcp: McpHandler = async (ctx, _req, body) => {
-    const c = ctx as unknown as { repo: string; token: string; fetch?: unknown };
-    mcpSeen.push({ body, repo: c.repo, token: c.token, proxied: typeof c.fetch === 'function' });
+    const c = ctx as unknown as { repo: string; token: string; fetch?: unknown; claudeDesign?: ClaudeDesignHost };
+    mcpSeen.push({ body, repo: c.repo, token: c.token, proxied: typeof c.fetch === 'function', ...(c.claudeDesign ? { claudeDesign: c.claudeDesign } : {}) });
     const m = body as { id: number; method: string; params?: { name?: string } };
     if (m.method !== 'tools/call') return res(200, { jsonrpc: '2.0', id: m.id, result: { tools: [] } });
     return res(200, { jsonrpc: '2.0', id: m.id, result: { content: [{ type: 'text', text: JSON.stringify(toolAnswers[m.params!.name!]) }] } });
   };
   // realMcp: the real Bridge MCP server (packages/mcp handleHttp) on a real context, GitHub faked by `f`.
-  const fakes = o.realMcp ? {} : { mcp, context: async (x: { repo: string; token: string; fetch?: FetchLike }) => ({ repo: x.repo, token: x.token, fetch: x.fetch }) as unknown as BridgeContext };
+  const fakes = o.realMcp ? {} : { mcp, context: async (x: { repo: string; token: string; fetch?: FetchLike; claudeDesign?: ClaudeDesignHost }) => ({ repo: x.repo, token: x.token, fetch: x.fetch, claudeDesign: x.claudeDesign }) as unknown as BridgeContext };
   const checked: { repo: string; pr: number | string }[] = [];
   const checkPieces = async (ctx: BridgeContext, pr: number | string) => {
     if (o.checkFails) throw new Error('GitHub answered 500');
@@ -553,6 +554,18 @@ describe('an email member connects Claude with their Bridge sign-in (no GitHub)'
     expect(EMAIL_REFUSED_TOOLS).toContain('bridge_scaffold_component');
     expect(EMAIL_REFUSED_TOOLS).not.toContain('bridge_start_exploration');
     expect(EMAIL_REFUSED_TOOLS).not.toContain('bridge_promote_exploration');
+  });
+
+  it("reads the team's Library in Claude Design that an admin saved, the same record for every member", async () => {
+    const w = world({ app: true });
+    const { id, approve } = await emailSignIn(w);
+    const t = await tokens(w, id, new URL((await approve.json()).redirect).searchParams.get('code')!);
+    await mcpPost(w, t.body.access_token, rpc(5, 'bridge_get_claude_design_system', {}));
+    expect(await w.mcpSeen.at(-1)!.claudeDesign!.read!()).toBeNull();
+    // An admin saves it through their own connection (the same team): the email member's next call reads it.
+    await putTeamClaudeDesign(w.redis, 'Acme/Design', { url: 'https://claude.ai/artifact/YZ1z4WxSWErcMHVDcbFmkW', version: '1.8.4', at: '2026-11-04T00:00:00.000Z', by: 'Florian' });
+    await mcpPost(w, t.body.access_token, rpc(6, 'bridge_get_claude_design_system', {}));
+    expect(await w.mcpSeen.at(-1)!.claudeDesign!.read!()).toMatchObject({ url: 'https://claude.ai/artifact/YZ1z4WxSWErcMHVDcbFmkW', version: '1.8.4' });
   });
 
   it('refuses someone who is not on the team, and ends the connection when they leave it', async () => {

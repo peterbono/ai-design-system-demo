@@ -65,6 +65,12 @@ async function localWhoami(ctx: BridgeContext): Promise<WhoAmI> {
   return { name, ...(login ? { login } : {}), role, via: 'github', team, writes };
 }
 
+/** Whether Bridge writes for this person through its own app, as someone who can edit (the hosted connector says so). */
+export async function writesThroughBridge(ctx: BridgeContext): Promise<boolean> {
+  const w = await ctx.opts.identity?.().catch(() => null);
+  return Boolean(w && w.writes === 'bridge' && (w.role === 'Can edit' || w.role === 'Admin'));
+}
+
 export async function whoami(ctx: BridgeContext): Promise<WhoAmI & { means: string }> {
   const w = (await ctx.opts.identity?.().catch(() => null)) ?? (await localWhoami(ctx));
   return { ...w, means: whoamiLine(w) };

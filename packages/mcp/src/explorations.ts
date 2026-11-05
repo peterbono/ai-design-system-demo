@@ -69,6 +69,7 @@ import { branchExists, commitToNewLocalBranch, currentBranch, git } from '@bridg
 import { BridgeContext } from './context.js';
 import { productMarks, resolveProduct, viewerOf } from './branches.js';
 import { addToken, readOnlyPreview, say } from './say.js';
+import { writesThroughBridge } from './whoami.js';
 import { locate, productClient, type Located } from './product-repos.js';
 
 const USE_CASES = new Set<string>(EXPLORATION_USE_CASES.map((u) => u.value));
@@ -136,11 +137,6 @@ export function designCopyBlocked(ctx: BridgeContext, product: string, repo: str
   return `${product} explorations are created in the design team's copy of ${product} (${repo}), never in the developers' repository. ${why} Or, only if the person chooses it, start it in the design system repository for now (${say(ctx, 'where: "library"', '--in-library')}).`;
 }
 
-/** Whether Bridge writes for this person through its own app, as someone who can edit (the hosted connector says so). */
-async function writesThroughBridge(ctx: BridgeContext): Promise<boolean> {
-  const w = await ctx.opts.identity?.().catch(() => null);
-  return Boolean(w && w.writes === 'bridge' && (w.role === 'Can edit' || w.role === 'Admin'));
-}
 
 /**
  * bridge_start_exploration / `bridge explore start`. With a GitHub token: the branch on GitHub from the default branch

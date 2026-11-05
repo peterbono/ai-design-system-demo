@@ -37,7 +37,7 @@ function site(version: string, files = FILES) {
 
 const who = (role: WhoAmI['role']): (() => Promise<WhoAmI>) => async () => ({ name: 'Ana', role, via: 'github', team: 'Acme DS', writes: 'own' });
 
-async function connect(opts: { role?: WhoAmI['role']; version?: string; files?: Record<string, string>; kept?: TeamClaudeDesign | null; noSetting?: boolean }) {
+async function connect(opts: { role?: WhoAmI['role']; version?: string; files?: Record<string, string>; kept?: TeamClaudeDesign | null; noSetting?: boolean; readFails?: boolean }) {
   const store: { value: TeamClaudeDesign | null } = { value: opts.kept ?? null };
   const s = site(opts.version ?? '1.8.4', opts.files);
   const ctx = await BridgeContext.create({
@@ -49,7 +49,10 @@ async function connect(opts: { role?: WhoAmI['role']; version?: string; files?: 
       ...(opts.noSetting
         ? {}
         : {
-            read: async () => store.value,
+            read: async () => {
+              if (opts.readFails) throw new Error('redis down');
+              return store.value;
+            },
             save: async (v: TeamClaudeDesign) => {
               store.value = v;
             },
@@ -72,8 +75,8 @@ describe('bridge_get_claude_design_system', () => {
   it('answers the version, the manifest with a url per file, and the steps to create the artifact the first time', async () => {
     const s = await connect({});
     const { data } = await s.call('bridge_get_claude_design_system');
-    expect(Object.keys(data!).sort()).toEqual(['action', 'base', 'changed', 'instructions', 'manifest', 'name', 'package', 'removed', 'revision', 'team', 'version']);
-    expect(data).toMatchObject({ name: 'Bridge Library', package: '@bridge-ds/react', version: '1.8.4', revision: 'abc1234', base: `${SITE}/claude-design-system/1.8.4/`, team: null, action: 'create', removed: [] });
+    expect(Object.keys(data!).sort()).toEqual(['action', 'base', 'changed', 'instructions', 'manifest', 'name', 'package', 'removed', 'revision', 'team', 'teamKnown', 'version']);
+    expect(data).toMatchObject({ name: 'Bridge Library', package: '@bridge-ds/react', version: '1.8.4', revision: 'abc1234', base: `${SITE}/claude-design-system/1.8.4/`, team: null, action: 'create', teamKnown: true, removed: [] });
     expect(data!.manifest).toMatchObject({ url: `${SITE}/claude-design-system/manifest.json`, count: 4 });
     const readme = data!.manifest.files.find((f: { path: string }) => f.path === 'project/README.md');
     expect(readme).toEqual({ path: 'project/README.md', size: 17, sha256: sha(FILES['project/README.md']!), url: `${SITE}/claude-design-system/1.8.4/project/README.md` });
@@ -121,6 +124,43 @@ describe('bridge_get_claude_design_system', () => {
     const bad = await s.call('bridge_get_claude_design_system', { inline: ['../secrets'] });
     expect(bad.error).toBe(true);
     expect(bad.text).toMatch(/Not in the manifest/);
+    await s.close();
+  });
+
+  it.each(['Can edit', 'Reader'] as const)('asks a %s to get an admin or lead to add it, never to create a second artifact', async (role) => {
+    const s = await connect({ role });
+    const { data } = await s.call('bridge_get_claude_design_system');
+    expect(data).toMatchObject({ team: null, action: 'ask', teamKnown: true });
+    expect(data!.instructions).toMatch(/ask an admin or lead/);
+    expect(data!.instructions).toMatch(/Do not create one/);
+    expect(data!.instructions).toMatch(/base URL/);
+    expect(data!.instructions).not.toMatch(/—/);
+    await s.close();
+  });
+
+  it('a Can edit member still gets the team artifact once an admin saved it', async () => {
+    const m = manifestOf('1.8.4');
+    const kept: TeamClaudeDesign = { url: 'https://claude.ai/artifact/YZ1z4WxSWErcMHVDcbFmkW', version: '1.8.4', files: Object.fromEntries(m.files.map((f) => [f.path, f.sha256])), at: '2026-11-04T00:00:00.000Z' };
+    const s = await connect({ role: 'Can edit', kept });
+    const { data } = await s.call('bridge_get_claude_design_system');
+    expect(data).toMatchObject({ team: { url: kept.url }, action: 'none' });
+    await s.close();
+  });
+
+  it('where the server keeps no team settings (the local server), says it cannot tell rather than "create"', async () => {
+    const s = await connect({ noSetting: true });
+    const { data } = await s.call('bridge_get_claude_design_system');
+    expect(data).toMatchObject({ team: null, action: 'unknown', teamKnown: false });
+    expect(data!.instructions).toMatch(/never create a second one/);
+    expect(data!.instructions).toMatch(/Bridge connector/);
+    await s.close();
+  });
+
+  it('says so when the team setting cannot be read, instead of asking for a new artifact', async () => {
+    const s = await connect({ readFails: true });
+    const r = await s.call('bridge_get_claude_design_system');
+    expect(r.error).toBe(true);
+    expect(r.text).toContain(claudeDesign.CLAUDE_DESIGN_WORDS.settingUnreadable);
     await s.close();
   });
 

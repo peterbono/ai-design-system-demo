@@ -97,6 +97,7 @@ import { originRepo } from '@bridge-ds/core/node';
 import { productClient } from './product-repos.js';
 import type { BridgeContext } from './context.js';
 import { addToken, BlockedError, say } from './say.js';
+import { writesThroughBridge } from './whoami.js';
 
 /** What a write needs from the token, per action, in the words GitHub's token settings use. */
 export const RIGHTS = {
@@ -412,6 +413,14 @@ async function productConnection(ctx: BridgeContext, repo: string): Promise<'con
   }
 }
 
+/** What this person can do with a product's explorations, in one plain sentence (bridge_list_products `access`). */
+export const PRODUCT_ACCESS_WORDS = {
+  explore: (name: string) => `You can start and save explorations of ${name}.`,
+  exploreInCopy: (name: string) => `You can start and save explorations of ${name}: Bridge saves them for you in the design team's copy. The developers' code stays read only for you, explorations never change it.`,
+  askForEdit: (name: string) => `You can look at the explorations of ${name}, but not start or save them. Ask an admin of the team for Can edit.`,
+  readOnly: (name: string) => `You can look at the explorations of ${name}, but not start or save them with this access.`,
+} as const;
+
 /** The configured products, and the one the current folder or repo belongs to (the default for new work). */
 export async function listProducts(ctx: BridgeContext) {
   const { config } = await ctx.config();
@@ -421,6 +430,21 @@ export async function listProducts(ctx: BridgeContext) {
   // One read per product with its own repository: whether its explorations show up in the lists.
   const own = new Map(await Promise.all(productRepos(products, ds).map(async (x) => [x.product.key, await productConnection(ctx, x.repo)] as const)));
   const copies = new Map(products.flatMap((p) => (designCopyOf(p, ds) ? [[p.key, designCopyOf(p, ds)!] as const] : [])));
+  // A member Bridge writes for (the hosted connector, Can edit or Admin) starts and saves explorations in the design
+  // team's copy although GitHub shows the copy read-only to Bridge's read (startExploration): say what they can do.
+  const identity = own.size ? await ctx.opts.identity?.().catch(() => null) : null;
+  const bridgeWrites = identity ? await writesThroughBridge(ctx) : false;
+  for (const [key, c] of own) if (c === 'read-only' && copies.has(key) && bridgeWrites) own.set(key, 'connected');
+  const accessOf = (p: ProductConfig, c: string): string | null =>
+    c === 'connected'
+      ? copies.has(p.key) && bridgeWrites
+        ? PRODUCT_ACCESS_WORDS.exploreInCopy(p.name)
+        : PRODUCT_ACCESS_WORDS.explore(p.name)
+      : c === 'read-only'
+        ? identity
+          ? PRODUCT_ACCESS_WORDS.askForEdit(p.name)
+          : PRODUCT_ACCESS_WORDS.readOnly(p.name)
+        : null;
   return {
     products: products.map((p) => ({
       key: p.key,
@@ -430,6 +454,7 @@ export async function listProducts(ctx: BridgeContext) {
       ...(own.has(p.key)
         ? {
             connection: own.get(p.key)!,
+            ...(accessOf(p, own.get(p.key)!) ? { access: accessOf(p, own.get(p.key)!)! } : {}),
             ...(own.get(p.key) === 'not-connected'
               ? {
                   connect: copies.has(p.key)
