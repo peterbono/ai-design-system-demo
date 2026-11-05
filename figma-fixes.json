@@ -342,6 +342,19 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "Tag",
+      "id": "tag-selected-status",
+      "kind": "status",
+      "reason": "The selected toggle tag matches the code on every measured value but 7 percent of pixels differ, likely the selected fill, the check icon or the label color: compare the shot with the Figma render by eye.",
+      "status": "differs",
+      "where": {
+        "args": {
+          "defaultSelected": true
+        }
+      }
     }
   ]
 }
