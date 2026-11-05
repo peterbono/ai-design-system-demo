@@ -342,6 +342,16 @@
       "kind": "status",
       "reason": "The inline textarea is 16 px narrower in Figma, likely the field inside not filling its row, and a root width does not move it: set the field to fill in the component, then compare with code again.",
       "status": "differs"
+    },
+    {
+      "by": "claude",
+      "component": "AlertDialog",
+      "height": "fixed",
+      "id": "alertdialog-root-size",
+      "kind": "part",
+      "part": "root",
+      "reason": "The dialog is 384 px wide in code so its description wraps to 180 px tall, where Figma hugs the title at 534 px wide.",
+      "width": 384
     }
   ]
 }
