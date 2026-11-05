@@ -337,10 +337,14 @@ export function variantDifferences(input: VariantGapInput): GapDifference[] {
   const pairsAll = pairParts(parts, measured, pairOpts);
   const hiddenFor = new Map<string, string>();
   for (const [b, m] of pairsAll) if (isHidden(byId.get(b)!)) hiddenFor.set(m, b);
+  // The layers Figma has (read back from the file): a part the set gives under the same name is not missing there.
+  const shownLayers = new Set(Object.keys(input.built?.boxes ?? {}));
+  const hiddenLayers = new Set(input.built?.hidden ?? []);
   for (const m of measured.parts) {
     if (m.id === 'root' || pairedMeasured.has(m.id)) continue;
     if (m.parent && m.parent !== 'root' && !pairedMeasured.has(m.parent)) continue;
-    const hiddenPart = hiddenFor.get(m.id);
+    if (shownLayers.has(m.id)) continue;
+    const hiddenPart = hiddenFor.get(m.id) ?? (hiddenLayers.has(m.id) ? m.id : undefined);
     out.push({
       text: hiddenPart ? `The ${name(m.id)} is hidden in Figma, shown in code` : `The ${name(m.id)} is missing in Figma`,
       part: hiddenPart ?? m.id,

@@ -241,14 +241,6 @@
     },
     {
       "by": "claude",
-      "component": "Avatar",
-      "id": "avatar-draw",
-      "kind": "status",
-      "reason": "The mark and fallback are missing in Figma: draw them in the component, then compare with code again.",
-      "status": "differs"
-    },
-    {
-      "by": "claude",
       "component": "Breadcrumb",
       "id": "breadcrumb-hover-status",
       "kind": "status",
@@ -260,23 +252,7 @@
       "component": "Button",
       "id": "button-draw",
       "kind": "status",
-      "reason": "The link variant is missing its inner button part in Figma, and its width cannot be pinned because the link story fills its container in code: draw the part, then compare with code again.",
-      "status": "differs"
-    },
-    {
-      "by": "claude",
-      "component": "Checkbox",
-      "id": "checkbox-draw",
-      "kind": "status",
-      "reason": "The indicator is missing in Figma: draw it in the component, then compare with code again.",
-      "status": "differs"
-    },
-    {
-      "by": "claude",
-      "component": "ChoiceCard",
-      "id": "choicecard-draw",
-      "kind": "status",
-      "reason": "The dot is missing in Figma: draw it in the component, then compare with code again.",
+      "reason": "The link story shows the button inside a sentence that fills its container, so the link button alone cannot match that shot and its width cannot be pinned: compare the shots with the Figma render by eye.",
       "status": "differs"
     },
     {
@@ -305,18 +281,10 @@
     },
     {
       "by": "claude",
-      "component": "Radio",
-      "id": "radio-draw",
-      "kind": "status",
-      "reason": "The dot is missing in Figma: draw it in the component, then compare with code again.",
-      "status": "differs"
-    },
-    {
-      "by": "claude",
       "component": "RadioGroup",
       "id": "radiogroup-draw",
       "kind": "status",
-      "reason": "The group is 13 px shorter in Figma from the spacing between options, and the horizontal group misses its dot: rework the option spacing and draw the dot in the component, then compare with code again.",
+      "reason": "The group is 13 px shorter in Figma from the spacing between options: rework the option spacing in the component, then compare with code again.",
       "status": "differs"
     },
     {
@@ -356,7 +324,7 @@
       "component": "Switch",
       "id": "switch-draw",
       "kind": "status",
-      "reason": "The description is missing in Figma on the start placement, and the small end placement differs in pixels only: draw the description in the component, then compare with code again.",
+      "reason": "The start placement story shows a description, which the component keeps hidden, and the small end placement differs in pixels only: compare the shots with the Figma render by eye.",
       "status": "differs"
     },
     {
