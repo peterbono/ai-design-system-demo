@@ -4,6 +4,7 @@
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { hasVisualWorkflow, VISUAL_CHECK_LABEL, VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
 import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualAsk, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
+import { DEMO_WORDS, isSampleTeam } from '../../lib/demo';
 import { attrUrl } from '../../lib/html';
 import { esc, GitHubError, ghGet, ghWrite, hasWorkingToken, onAccess, showGhError } from '../github-session';
 import { siteConfig } from '../repo-context';
@@ -67,6 +68,8 @@ export function visualWorkflowPresent(owner: string, repo: string): Promise<bool
 
 /** The quiet line where the before and after would be, on a repo without visual checks: a link to set them up. */
 const SET_UP_LINE = `<p class="cg-line rv-what-quiet">This repo has no visual checks yet. <a href="${attrUrl(VISUAL_CHECKS_DOCS)}" target="_blank" rel="noopener">Set up visual checks</a></p>`;
+/** The same place on the sample team: nothing to set up there, so it says what a real team gets. */
+const SAMPLE_LINE = `<p class="cg-line rv-what-quiet">${DEMO_WORDS.noBeforeAfter}</p>`;
 
 export interface VisualSummary {
   /** Changed screens and stories; null when the workflow has not run for this commit (or could not be read). */
@@ -110,7 +113,7 @@ export async function loadVisualImpact(
   if (state.kind === 'not-computed') {
     // No workflow: no label to add and nothing that runs again, only how to set it up.
     if ((await visualWorkflowPresent(o.owner, o.repo)) === false) {
-      (topSlot ?? slot).innerHTML = SET_UP_LINE;
+      (topSlot ?? slot).innerHTML = isSampleTeam(`${o.owner}/${o.repo}`) ? SAMPLE_LINE : SET_UP_LINE;
       return { changed: null, thumb: '', paintedTop: Boolean(topSlot) };
     }
     const onTop = Boolean(topSlot) && visualMode() === 'on-demand';

@@ -64,6 +64,15 @@ export function linkAuthors(commits: readonly BranchCommitLike[]): BranchCommitL
 }
 
 /**
+ * The commits as `who` made them, Claude's own left as they are: a sample exploration's commits all come from the one
+ * account behind the sample team, and its page names its sample person (lib/demo.ts isSampleExploration).
+ */
+export function commitsAs(commits: readonly BranchCommitLike[], who: string): BranchCommitLike[] {
+  const name = isNameAuthor(who) ? nameOfAuthor(who) : who;
+  return commits.map((c) => (humanAuthorOf(c) ? { ...c, author: { ...c.author, login: who }, commit: { ...c.commit, author: { ...c.commit.author, name } } } : c));
+}
+
+/**
  * The face of an actor; a person's change Claude co-wrote reads "Florian with Claude" with the person's photo. Someone
  * known by name only (`nameOnly`, or an email address recorded as the author) gets the drawn face of their name, the
  * same one as on their cards and in the account menu (lib/people nameFace), never a GitHub account's photo.

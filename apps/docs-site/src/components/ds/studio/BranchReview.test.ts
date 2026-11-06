@@ -52,6 +52,20 @@ describe('BranchReview', () => {
     expect(document.body.textContent).not.toMatch(/#17|developer tests?|GitHub/);
   });
 
+  it('names no visual checks on the sample team, and keeps the set-up line on a real team', () => {
+    const change = { kind: 'component' as const, meta: 'new component', paths: ['a.tsx'] };
+    const changes = [
+      { ...change, id: 'a', title: 'ProfileHeader', component: 'ProfileHeader' },
+      { ...change, id: 'b', title: 'Avatar', component: 'Avatar' },
+    ];
+    const { unmount } = render(createElement(BranchReview, { ...base, changes, visualSetUp: true, visualSample: true }));
+    expect(screen.getByText('On your own team, Bridge shows the before and after here.')).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/visual checks/);
+    unmount();
+    render(createElement(BranchReview, { ...base, changes, visualSetUp: true }));
+    expect(document.body.textContent).toContain('This repo has no visual checks yet.');
+  });
+
   it('folds the technical side under For developers for a developer', () => {
     render(createElement(BranchReview, { ...base, developer: { tests: '2 developer tests fail. A developer fixes them.', failing: ['Unit tests'], url: 'https://github.com/o/r/pull/17', number: 17 } }));
     expect(screen.getByRole('button', { name: 'For developers' })).toBeTruthy();

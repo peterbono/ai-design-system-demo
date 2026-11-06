@@ -17,9 +17,11 @@ import {
   BUILD_STEPS,
   BUILD_STATUS_LABEL,
   buildRequestBrief,
+  defaultProduct,
   matchesBuildFilter,
   parseBuildRequestIssue,
   parseBuildSpec,
+  productOfBranch,
   requestIssueTitle,
   type BuildFilter,
   type BuildIssueLike,
@@ -29,11 +31,13 @@ import {
   type BuildStatus,
 } from '@bridge-ds/core';
 import type { ThumbSpec } from './branch-thumb';
-import { daysSince, type PillTone } from './home-model';
+import { isYours, YOU } from './branches-page';
+import { daysSince, person, type PillTone } from './home-model';
+import { designerKey } from './review-categories';
 import { safeUrl } from './html';
 import { DEV_MESSAGE_WORDS, developersMessage, offersDevelopersMessage } from './developers-message';
 import { JIRA_IN_BRIDGE } from './studio-flags';
-import { authorFor } from './author';
+import { authorFor, isNameAuthor, nameOfAuthor } from './author';
 import { isProductBranch } from './product-branch';
 import { explorationHref } from './explorations-view';
 import { explorationState } from './exploration-state';
@@ -184,6 +188,8 @@ export interface LifecycleExtra {
   nextRelease?: boolean;
   /** The designer said the developers' version looks right: "Approved, waiting to ship", still in the In review tab. */
   approved?: boolean;
+  /** The key of the product it belongs to, when Bridge knows one (rowProduct: else the default product, as on Changes). */
+  productKey?: string | null;
 }
 
 /** The tabs of Being built: the lifecycle's words (All, Waiting to be picked up, In progress, In review, Shipped this week). */
@@ -219,6 +225,43 @@ export function statusTag(v: Pick<BuildRequestView, 'status' | 'label' | 'stale'
   if (v.nextRelease) return { label: LIFECYCLE_LABEL['next-release'], tone: LIFECYCLE_TONE['next-release'] };
   if (v.approved) return { label: LIFECYCLE_LABEL.approved, tone: LIFECYCLE_TONE.approved };
   return { label: v.status === 'in-review' ? LIFECYCLE_LABEL['in-review'] : v.label, tone: LIFECYCLE_TONE[BUILD_STAGE[v.status]] };
+}
+
+/**
+ * The product each build request or Claude's fix belongs to: a `product: <key>` label on it or on its pull request, else
+ * the default product, the library (core productOfBranch, the rule of Changes). Nothing else changes.
+ */
+export function withProducts<V extends BuildRequestView>(views: readonly V[], ctx: { issues?: readonly RestIssue[]; pulls: readonly RestPull[]; products: readonly ProductConfig[] }): (V & LifecycleExtra)[] {
+  const own = ctx.pulls.filter((p) => !p.product);
+  return views.map((v) => {
+    const issue = v.kind === 'issue' ? ctx.issues?.find((i) => Number(i.number) === v.number) : undefined;
+    const pull = own.find((p) => Number(p.number) === (v.pull?.number ?? (v.kind === 'pull' ? v.number : null)));
+    return { ...v, productKey: productOfBranch(ctx.products, { labels: [...labelNames(issue?.labels), ...labelNames(pull?.labels)] }).key };
+  });
+}
+
+/** The product filter's value of a row: its product's key, else the default product's, so no row is left without one. */
+export const rowProduct = (v: LifecycleExtra, products: readonly ProductConfig[]): string => (v.productKey ?? defaultProduct(products).key).toLowerCase();
+
+/**
+ * The people of a row, as the people filter reads them: who builds it (its faces), who sent it or asked Claude for the
+ * fix, so You finds what you sent, and who said Done exploring on an exploration's line. The viewer's key is YOU.
+ */
+export function rowPeople(
+  v: Pick<BuildRequestView, 'builders' | 'requestedBy'> & { fix?: unknown; exploration?: { doneBy?: string | null } },
+  o: { nameOf: (login: string) => string; viewer?: string | null; viewerName?: string | null },
+): { key: string; name: string }[] {
+  const logins = [...v.builders, v.requestedBy, v.exploration?.doneBy].filter((l): l is string => Boolean(l));
+  const seen = new Map<string, { key: string; name: string }>();
+  for (const l of logins) {
+    const byName = isNameAuthor(l) || /\s/.test(l);
+    const bare = isNameAuthor(l) ? nameOfAuthor(l) : l;
+    const p = person(bare, o.nameOf(bare));
+    const yours = isYours({ author: bare, requester: byName ? { name: bare, login: null } : { name: null, login: bare } }, o.viewer ?? null, o.viewerName);
+    const key = yours ? YOU : designerKey(p);
+    if (!seen.has(key)) seen.set(key, { key, name: p.name });
+  }
+  return [...seen.values()];
 }
 
 /** "Today", "1 day", "9 days": how long a request has existed. */
@@ -427,6 +470,8 @@ export interface ExplorationBuildRow extends BuildRequestView {
     line: string;
     /** The product's name, when it was explored for one. */
     product: string | null;
+    /** Who said Done exploring, when the row's line names them. */
+    doneBy?: string | null;
     /**
      * A product added from its address, for a team member: the plain message for its developers, who work elsewhere
      * (lib/developers-message). The row says so and offers "Copy for your developers".
@@ -531,7 +576,8 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
       'not-planned': 'Developers closed it without building it',
     };
     // Waiting for developers who work elsewhere: what to do comes before who said done (the line is cut on one line).
-    const line = (forDevelopers && !where[status] ? [product, DEV_MESSAGE_WORDS.elsewhere] : [product, status === 'shipped' ? null : done, where[status]]).filter(Boolean).join(' · ');
+    const elsewhere = Boolean(forDevelopers && !where[status]);
+    const line = (elsewhere ? [product, DEV_MESSAGE_WORDS.elsewhere] : [product, status === 'shipped' ? null : done, where[status]]).filter(Boolean).join(' · ');
     const sentence: Record<BuildStatus, string> = {
       requested: 'Waiting for a developer.',
       'picked-up': 'Developers are building it.',
@@ -569,7 +615,8 @@ export function explorationBuildRows(pulls: readonly RestPull[], ctx: Exploratio
         jira: null,
         figmaUrl: null,
         timeline,
-        exploration: { href: `changes/${explorationHref({ number: Number(p.number), product: p.product })}`, line, product, ...(forDevelopers ? { forDevelopers } : {}) },
+        exploration: { href: `changes/${explorationHref({ number: Number(p.number), product: p.product })}`, line, product, doneBy: elsewhere || status === 'shipped' ? null : doneBy, ...(forDevelopers ? { forDevelopers } : {}) },
+        productKey: productConfig?.key ?? null,
         ...(reviewWords ? { reviewLine: reviewWords } : {}),
         ...(nextRelease ? { nextRelease: true } : {}),
         ...(stage === 'approved' ? { approved: true } : {}),

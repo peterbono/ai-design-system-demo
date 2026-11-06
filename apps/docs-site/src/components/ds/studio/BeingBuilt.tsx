@@ -11,6 +11,9 @@
 //     "Button" then "Claude's fix from Figma, asked by Dana" and where it stands, from its pull request when the list
 //     read it (lib/claude-connector fixRows). Such a row opens Claude's fix in Studio; while Claude works, the page reads
 //     the sessions again every 10 seconds (paused while the tab is hidden).
+//   - On the line under the tabs, Changes' two filters (components/ds/studio/ListFilters, ?product= and ?people=) and its
+//     count: the tab counts follow them. A row is filtered by its product and by the people it shows (lib/building-view
+//     rowProduct, rowPeople); a row with nobody on it stays under Everyone.
 //   - Explorations handed to developers (Done exploring) are rows of the same list too, with an "Exploration" tag: the
 //     product, who said Done exploring and when. Such a row opens the exploration in Studio.
 //   - Nothing sent yet: what a build request is, where it comes from, who picks it up.
@@ -44,15 +47,26 @@ import {
 import { Check, Copy, Hammer } from "lucide-react";
 import {
   BUILD_IMAGE_LABEL,
+  DEFAULT_PRODUCTS,
   type BuildRequestView,
 } from "@bridge-ds/core";
 import { BranchRow } from "./BranchRow";
+import { ClearFilters, ListFiltersBar, NO_FILTER_MATCH } from "./ListFilters";
 import { useCopy } from "./TeamLink";
 import { DEV_MESSAGE_WORDS } from "../../../lib/developers-message";
 import { BusyNotice } from "./BusyNotice";
 import { githubBusy, type GitHubBusy } from "../../../lib/github-busy";
 import { Drawing } from "./Drawing";
 import { Who } from "./faces";
+import {
+  activeFilters,
+  filterChoices,
+  inFilters,
+  listFiltersParam,
+  listSummary,
+  withListFilters,
+  type ListFilters,
+} from "../../../lib/branches-page";
 import { person } from "../../../lib/home-model";
 import { safeUrl } from "../../../lib/html";
 import { JIRA_IN_BRIDGE } from "../../../lib/studio-flags";
@@ -71,6 +85,8 @@ import {
   pageSentence,
   propLine,
   rowLine,
+  rowPeople,
+  rowProduct,
   rowThumb,
   shortDate,
   statusTag,
@@ -494,6 +510,11 @@ export default function BeingBuilt() {
   const [busy, setBusy] = useState<GitHubBusy | null>(null);
   const [run, setRun] = useState(0);
   const [filter, setFilter] = useState<BuildTab>("all");
+  const [picked, setPicked] = useState<ListFilters>(() =>
+    typeof location === "undefined"
+      ? { product: null, by: null }
+      : listFiltersParam(location.search)
+  );
   const [open, setOpen] = useState<{
     kind: "issue" | "pull";
     number: number;
@@ -559,11 +580,22 @@ export default function BeingBuilt() {
     : "";
   useEffect(() => setPageSummary(summary), [summary]);
 
-  const go = useCallback((v: BuildRequestView | null) => {
-    const url = v ? detailQuery(v) : location.pathname;
-    history.pushState(null, "", url);
-    setOpen(v ? { kind: v.kind, number: v.number } : null);
-    window.scrollTo({ top: 0 });
+  // The filters stay in the address while a detail is open, and when it closes.
+  const go = useCallback(
+    (v: BuildRequestView | null) => {
+      const query = withListFilters(v ? detailQuery(v) : "", picked);
+      history.pushState(null, "", v ? query : `${location.pathname}${query}`);
+      setOpen(v ? { kind: v.kind, number: v.number } : null);
+      window.scrollTo({ top: 0 });
+    },
+    [picked]
+  );
+
+  const pickFilters = useCallback((f: ListFilters) => {
+    setPicked(f);
+    const url = new URL(location.href);
+    url.search = withListFilters(url.search, f);
+    history.replaceState(history.state, "", url);
   }, []);
 
   if (busy && !data)
@@ -598,8 +630,19 @@ export default function BeingBuilt() {
   );
   if (!rows.length) return <Empty />;
 
-  const counts = filterCounts(rows, now);
-  const shown = rows.filter((v) => matchesBuildTab(v, filter, now));
+  // The two filters of Changes (lib/branches-page), over what the tab lists; the tab counts follow them.
+  const products = data.products ?? DEFAULT_PRODUCTS;
+  const signedIn = Boolean(data.viewer);
+  const me = { nameOf: data.nameOf, viewer: data.viewer ?? null, viewerName: data.viewerName ?? null };
+  const items = (rows as Row[]).map((v) => ({ v, product: rowProduct(v, products), people: rowPeople(v, me) }));
+  const queue = items.filter((x) => matchesBuildTab(x.v, filter, now));
+  const active = activeFilters(picked, queue, products, signedIn);
+  const filtered = Boolean(active.product) || Boolean(active.by);
+  const counts = filterCounts(
+    items.filter((x) => inFilters(x, active)).map((x) => x.v),
+    now
+  );
+  const shown = queue.filter((x) => inFilters(x, active)).map((x) => x.v);
   return (
     <div className="bb">
       {(data.sample || data.stale) && (
@@ -627,8 +670,21 @@ export default function BeingBuilt() {
           </TabsList>
         </Tabs>
       </div>
+      {(queue.length > 0 || filtered) && (
+        <ListFiltersBar
+          active={active}
+          choices={filterChoices(queue, products, active, signedIn)}
+          onPick={pickFilters}
+          summary={listSummary(shown.length, queue.length, filtered)}
+          clear={filtered && shown.length > 0}
+        />
+      )}
       {shown.length ? (
         <Rows views={shown} data={data} now={now} onOpen={go} />
+      ) : filtered && queue.length > 0 ? (
+        <p className="t-body t-muted bb-none">
+          {NO_FILTER_MATCH} <ClearFilters onPick={pickFilters} />
+        </p>
       ) : (
         <p className="t-body t-muted bb-none">{EMPTY_FILTER[filter]}</p>
       )}

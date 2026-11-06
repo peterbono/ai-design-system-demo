@@ -134,6 +134,18 @@ export interface QueueItem {
   designer: { key: string; name: string };
 }
 
+/**
+ * What the people filter reads on a listed row: its one designer, or `people` when a row shows several, or nobody (a
+ * build request nobody picked up): such a row is only under Everyone.
+ */
+export interface PeopleItem {
+  category?: ReviewCategory;
+  designer?: { key: string; name: string };
+  people?: readonly { key: string; name: string }[];
+}
+
+export const peopleOf = (x: PeopleItem): readonly { key: string; name: string }[] => x.people ?? (x.designer ? [x.designer] : []);
+
 export const passes = (x: QueueItem, f: QueueFilters): boolean => (f.kind === 'all' || x.category === f.kind) && (!f.by || x.designer.key === f.by);
 
 /** The kind options with their counts (over what the designer filter keeps), every kind listed even at 0. */
@@ -152,11 +164,11 @@ export const EVERYONE = '~everyone';
  * The designers who wait, by name, with their counts (over what the kind filter, and `keep` when given, keep).
  * Everyone first.
  */
-export function designerOptions<I extends QueueItem>(items: readonly I[], kind: KindFilter, keep?: (x: I) => boolean): { value: string; label: string; count: number }[] {
+export function designerOptions<I extends PeopleItem>(items: readonly I[], kind: KindFilter, keep?: (x: I) => boolean): { value: string; label: string; count: number }[] {
   const kept = items.filter((x) => (kind === 'all' || x.category === kind) && (!keep || keep(x)));
   const by = new Map<string, { name: string; count: number }>();
-  for (const x of items) if (!by.has(x.designer.key)) by.set(x.designer.key, { name: x.designer.name, count: 0 });
-  for (const x of kept) by.get(x.designer.key)!.count++;
+  for (const x of items) for (const d of peopleOf(x)) if (!by.has(d.key)) by.set(d.key, { name: d.name, count: 0 });
+  for (const x of kept) for (const d of peopleOf(x)) by.get(d.key)!.count++;
   const people = [...by.entries()].map(([value, v]) => ({ value, label: v.name, count: v.count })).sort((a, b) => a.label.localeCompare(b.label));
   return [{ value: EVERYONE, label: 'Everyone', count: kept.length }, ...people];
 }

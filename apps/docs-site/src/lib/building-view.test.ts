@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { assembleBuildRequests, composeBuildRequestIssue, figmaAheadLine, buildSummaryLine, DEFAULT_PRODUCTS, type ProductConfig } from '@bridge-ds/core';
 import { sampleBuildData, SAMPLE_BUILDERS } from './building-sample';
-import { ageLabel, buildDetail, explorationBuildRows, mergeRows, type RestPull, detailFromQuery, detailQuery, filterCounts, jiraLink, listedRows, pageSentence, rowThumb, propLine, rowLine, slimIssue, slimPull, statusTag, timelineSteps, toBuildIssue, toBuildPull, matchesBuildTab, withLifecycle } from './building-view';
+import { ageLabel, buildDetail, explorationBuildRows, mergeRows, type RestPull, detailFromQuery, detailQuery, filterCounts, jiraLink, listedRows, pageSentence, rowPeople, rowProduct, rowThumb, propLine, rowLine, slimIssue, slimPull, statusTag, timelineSteps, toBuildIssue, toBuildPull, matchesBuildTab, withLifecycle, withProducts } from './building-view';
+import { YOU } from './branches-page';
 import type { DesignTaskRead } from './review-state';
 
 const NOW = Date.parse('2026-10-24T12:00:00Z');
@@ -378,5 +379,58 @@ describe('Being built: explorations handed to developers', () => {
     const release: RestPull = { number: 99, html_url: '', state: 'open', head: { ref: 'changeset-release/main' }, body: 'x'.repeat(9000) };
     expect(slimPull(release).body).toHaveLength(9000);
     expect(slimPull({ ...pull(40, {}), merge_commit_sha: 'abc', requested_reviewers: [{ login: 'lee' }] })).toMatchObject({ merge_commit_sha: 'abc', requested_reviewers: [{ login: 'lee' }] });
+  });
+});
+
+describe('the filters of Being built', () => {
+  const products: ProductConfig[] = [
+    { key: 'shop', name: 'Shop' },
+    { key: 'library', name: 'Library', default: true },
+  ];
+  const nameOf = (l: string) => ({ 'malik-haddad': 'Malik', dana: 'Dana' })[l] ?? l;
+  const view = { builders: [] as string[], requestedBy: 'dana' };
+
+  it('a build request reads under who builds it and who sent it: You finds what you sent', () => {
+    expect(rowPeople(view, { nameOf })).toEqual([{ key: 'dana', name: 'Dana' }]);
+    expect(rowPeople(view, { nameOf, viewer: 'dana' })[0]!.key).toBe(YOU);
+    expect(rowPeople({ ...view, builders: ['malik-haddad'] }, { nameOf }).map((p) => p.key)).toEqual(['malik-haddad', 'dana']);
+    expect(rowPeople({ ...view, requestedBy: null }, { nameOf })).toEqual([]);
+  });
+
+  it("Claude's fix shows Claude and who asked for it", () => {
+    expect(rowPeople({ ...view, builders: ['claude'], fix: {} }, { nameOf })).toEqual([
+      { key: 'claude', name: 'Claude AI' },
+      { key: 'dana', name: 'Dana' },
+    ]);
+  });
+
+  it('an exploration shows who said Done exploring on its line, a name Bridge only knows by name too', () => {
+    const quiet = { ...view, requestedBy: null };
+    expect(rowPeople({ ...quiet, exploration: { doneBy: 'dana' } }, { nameOf })).toEqual([{ key: 'dana', name: 'Dana' }]);
+    expect(rowPeople({ ...quiet, exploration: { doneBy: 'name:Dino Rossi' } }, { nameOf })).toEqual([{ key: 'dino-rossi', name: 'Dino' }]);
+    expect(rowPeople({ ...quiet, exploration: { doneBy: null } }, { nameOf })).toEqual([]);
+  });
+
+  it('the viewer is You, by login or by the name a row records, and listed once', () => {
+    expect(rowPeople({ ...view, builders: ['dana'], fix: {} }, { nameOf, viewer: 'Dana' })).toEqual([{ key: YOU, name: 'Dana' }]);
+    expect(rowPeople({ ...view, requestedBy: 'Priya Shah', fix: {} }, { nameOf, viewer: 'priya', viewerName: 'Priya Shah' })[0]!.key).toBe(YOU);
+  });
+
+  it('a row without a product falls under the default product', () => {
+    expect(rowProduct({}, products)).toBe('library');
+    expect(rowProduct({ productKey: null }, products)).toBe('library');
+    expect(rowProduct({ productKey: 'Shop' }, products)).toBe('shop');
+  });
+
+  it('reads the product from a label on the request or on its pull request, else the default product', () => {
+    const { issues, pulls } = sampleBuildData(NOW);
+    const views = assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.map(toBuildPull), now: NOW });
+    expect(new Set(withProducts(views, { issues, pulls, products }).map((v) => v.productKey))).toEqual(new Set(['library']));
+    const labelled = issues.map((i) => (i.number === 41 ? { ...i, labels: [...i.labels, 'product: shop'] } : i));
+    const onPull = pulls.map((p) => (p.number === 50 ? { ...p, labels: [{ name: 'product: shop' }] } : p));
+    const keyOf = (n: number) => withProducts(views, { issues: labelled, pulls: onPull, products }).find((v) => v.number === n)!.productKey;
+    expect(keyOf(41)).toBe('shop');
+    expect(keyOf(33)).toBe('shop');
+    expect(keyOf(39)).toBe('library');
   });
 });

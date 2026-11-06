@@ -9,10 +9,10 @@
 // Explorations handed to developers (Done exploring) are rows of the same list too, read from the pull requests read
 // here (no read per row) and, for products with their own repository, from the one read of their open pull requests
 // that Changes and the home make too (scripts/product-repos.ts). They stay out of `views` as well.
-import { assembleBuildRequests, BUILD_REQUEST_LABEL, DEFAULT_PRODUCTS, liveAddressOf, parseExplorationBody, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient } from '@bridge-ds/core';
+import { assembleBuildRequests, BUILD_REQUEST_LABEL, DEFAULT_PRODUCTS, liveAddressOf, parseExplorationBody, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient, type ProductConfig } from '@bridge-ds/core';
 import { fixRows, isLoginLike, missingFixPulls, parseSession, type FixRow, type Session } from '../lib/claude-connector';
 import { isSampleTeam } from '../lib/demo';
-import { BUILD_CACHE_MS, buildCacheKey, explorationBuildRows, slimIssue, slimPull, toBuildIssue, toBuildPull, withLifecycle, type ExplorationBuildRow, type LifecycleExtra, type RestIssue, type RestPull } from '../lib/building-view';
+import { BUILD_CACHE_MS, buildCacheKey, explorationBuildRows, slimIssue, slimPull, toBuildIssue, toBuildPull, withLifecycle, withProducts, type ExplorationBuildRow, type LifecycleExtra, type RestIssue, type RestPull } from '../lib/building-view';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
 import { needsReviewRead } from '../lib/review-state';
 import { readDesignTask } from './design-task';
@@ -45,6 +45,12 @@ export interface BuildData {
   pulls?: RestPull[];
   /** Explorations handed to developers, as rows of the list (none on the sample team). */
   explorations?: (ExplorationBuildRow & LifecycleExtra)[];
+  /** bridge.config.json products, for the product filter. Absent: the default products. */
+  products?: readonly ProductConfig[];
+  /** Who You is in the people filter: the login or email, the demo lead's seat on the sample team, else nobody. */
+  viewer?: string | null;
+  /** The viewer's profile name: their rows read with it where only a name is recorded. */
+  viewerName?: string | null;
 }
 
 const noRepoPage = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-no-repo');
@@ -61,9 +67,10 @@ async function readSessions(repo: string): Promise<Session[]> {
 }
 
 /** Claude's fixes read again (every 10 seconds while Claude works), against the pull requests already read. */
-export async function readFixes(data: Pick<BuildData, 'pulls' | 'nameOf' | 'sample'>): Promise<FixRow[]> {
+export async function readFixes(data: Pick<BuildData, 'pulls' | 'nameOf' | 'sample' | 'products'>): Promise<FixRow[]> {
   if (data.sample) return [];
-  return fixRows(await readSessions(repoName()), data.pulls ?? [], Date.now(), data.nameOf);
+  const pulls = data.pulls ?? [];
+  return withProducts(fixRows(await readSessions(repoName()), pulls, Date.now(), data.nameOf), { pulls, products: data.products ?? DEFAULT_PRODUCTS });
 }
 
 const repoName = () => {
@@ -127,13 +134,18 @@ async function read(): Promise<BuildData> {
   if (isSampleTeam(repo)) {
     const { issues, pulls } = sampleBuildData(now, repo);
     const nameOf = (l: string) => SAMPLE_BUILDERS[l] ?? l;
+    // The product filter names the team's products: its settings, the one memoized team load of every page.
+    await teamSettings();
+    const products = sitesProducts();
     return {
-      views: assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.map(toBuildPull), now, nameOf }),
+      views: withProducts(assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.map(toBuildPull), now, nameOf }), { issues, pulls, products }),
       bodies: new Map(issues.map((i) => [i.number, i.body ?? ''])),
       sample: true,
       stale: false,
       nameOf,
       jiraBase: null,
+      products,
+      ...viewerOf(),
     };
   }
   // A team shell knows the team's settings (its products and their repositories, the approvers, Jira) once the team is
@@ -207,16 +219,40 @@ async function read(): Promise<BuildData> {
   const lifecycle = { reviews: (k: string) => reviews.get(k) ?? null, nextRelease, nameOf, viewer };
   const task = (u: string) => tasks.get(u) ?? null;
   return {
-    views: withLifecycle(assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.data.map(toBuildPull), now, nameOf }), { pulls: pulls.data, ...lifecycle }),
+    views: withProducts(withLifecycle(assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.data.map(toBuildPull), now, nameOf }), { pulls: pulls.data, ...lifecycle }), { issues, pulls: pulls.data, products }),
     bodies: new Map(issues.map((i) => [i.number, i.body ?? ''])),
     sample: false,
     stale: requests.stale || builds.stale || pulls.stale,
     nameOf,
     jiraBase: jiraBase(),
-    fixes: fixRows(sessions, fixPulls, now, nameOf),
+    fixes: withProducts(fixRows(sessions, fixPulls, now, nameOf), { pulls: fixPulls, products }),
     pulls: fixPulls,
     explorations: explorationBuildRows(explored, { products, now, approvers: approversNow(), ...lifecycle, task, member, shot: (k) => shots.get(k) ?? null }),
+    products,
+    ...viewerOf(),
   };
+}
+
+/** The site's products, once its settings were read; the defaults otherwise. */
+function sitesProducts(): ProductConfig[] {
+  try {
+    const site = siteConfig() as { products?: ProductConfig[] };
+    return site.products?.length ? site.products : DEFAULT_PRODUCTS;
+  } catch {
+    return DEFAULT_PRODUCTS;
+  }
+}
+
+/** Who You is, as on Changes: the signed-in person, else the demo persona whose seat a visitor takes on the sample team. */
+function viewerOf(): Pick<BuildData, 'viewer' | 'viewerName'> {
+  const me = currentViewer();
+  const login = me?.login ?? currentContributor()?.email ?? null;
+  if (login) return { viewer: login, viewerName: me?.name ?? null };
+  try {
+    return { viewer: isSampleTeam(repoName()) ? ((siteConfig() as { demo?: { viewer?: string } }).demo?.viewer?.trim().toLowerCase() ?? null) : null, viewerName: null };
+  } catch {
+    return { viewer: null, viewerName: null };
+  }
 }
 
 /** On a team shell, the team's settings read (scripts/team-data, memoized per page); a failed read keeps the defaults. */

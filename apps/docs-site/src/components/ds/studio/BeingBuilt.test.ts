@@ -54,6 +54,48 @@ describe('Being built', () => {
     expect(document.body.textContent).not.toMatch(/jira|DS-128/i);
   });
 
+  it("has Changes' two filters under the tabs, with its count, the tab counts following them", async () => {
+    data = { ...sample(), viewer: 'dana' };
+    const { container } = render(createElement(BeingBuilt));
+    await screen.findByText('Tabs: put a count after the label');
+    expect(container.querySelectorAll('.bl-bar [role="combobox"]').length).toBe(2);
+    expect(container.querySelector('.bl-bar')!.textContent).toContain('All products');
+    expect(container.querySelector('.bl-bar')!.textContent).toContain('Everyone');
+    expect(container.querySelector('.bl-bar')!.textContent).toContain('6 changes.');
+    await userEvent.click(container.querySelectorAll('.bl-bar [role="combobox"]')[1]!);
+    await userEvent.click(await screen.findByRole('option', { name: /Malik/ }));
+    expect(location.search).toBe('?people=malik-haddad');
+    expect(container.querySelector('.bl-bar')!.textContent).toContain('2 of 6 changes.');
+    expect(screen.getByRole('tab', { name: /^All/ }).textContent).toContain('2');
+    expect(screen.getByRole('tab', { name: /Waiting to be picked up/ }).textContent).toContain('0');
+    // A row with nobody on it left with the filter, and comes back under Everyone.
+    expect(screen.queryByText('Tabs: put a count after the label')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(location.search).toBe('');
+    expect(screen.getByText('Tabs: put a count after the label')).toBeTruthy();
+    await expectNoAxeViolations(container);
+  });
+
+  it('opens on the filters of the address and keeps them through a detail', async () => {
+    history.replaceState(null, '', '/studio/building/?people=malik-haddad');
+    data = sample();
+    render(createElement(BeingBuilt));
+    await userEvent.click(await screen.findByText('Badge: add an info tone'));
+    expect(location.search).toBe('?request=33&people=malik-haddad');
+    await userEvent.click(screen.getByRole('link', { name: 'All build requests' }));
+    expect(location.search).toBe('?people=malik-haddad');
+    expect(screen.queryByText('Button: add a lg size')).toBeNull();
+  });
+
+  it('says so when the filters leave nothing, Clear filters on the same line', async () => {
+    history.replaceState(null, '', '/studio/building/?product=admin');
+    data = sample();
+    render(createElement(BeingBuilt));
+    expect(await screen.findByText(/Nothing here matches these filters/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByText('Button: add a lg size')).toBeTruthy();
+  });
+
   it('teaches what a build request is when nothing was sent', async () => {
     data = { ...sample(), views: [], sample: false };
     const { container } = render(createElement(BeingBuilt));

@@ -9,6 +9,7 @@ import { DEFAULT_PRODUCTS, defaultProduct, isToolingPull, productOfBranch, type 
 import { MAX_TOGETHER } from './combine-changes';
 import { VOCAB } from './vocabulary';
 import { LIFECYCLE_LABEL, type LifecycleStage } from './review-state';
+import { designerOptions, peopleOf, type PeopleItem } from './review-categories';
 
 // ---------------------------------------------------------------------------------------------------------------
 // The state tabs and the people filter
@@ -83,26 +84,41 @@ export function visibleTabs(counts: Partial<Record<StateTab, number>>, current: 
 /** The people filter's value for the signed-in viewer (a key designerKey never makes: it strips "~"). */
 export const YOU = '~you';
 
-/** What the address holds: the tab, the product (a product key, null: all products) and the person (null: everyone). */
-export interface ChangesFilters {
-  state: StateTab;
+/** The two filters of a list (Changes, Being built): the product (a product key, null: all products) and the person (null: everyone). */
+export interface ListFilters {
   product: string | null;
   by: string | null;
 }
 
+/** What the address of Changes holds: the tab and the two filters. */
+export interface ChangesFilters extends ListFilters {
+  state: StateTab;
+}
+
 /**
- * The filters the page opens on, from the address: ?state=, ?product= (a product key), ?people= (a designer key, or
- * "you"). Old links keep working: ?kind=library and ?kind=docs open on the library product (its guidance counts under
- * it), ?kind=product on all products; ?who=waiting opens Waiting on me, ?who=mine and ?view=mine open on You, ?by= is
- * the old people parameter, ?archived=1 opens Archived, ?status=draft|ready|waiting the matching state, and the old
- * merged line (?status=merged|shipped|closed) and History (?view=history) open Shipped. With ?exploration= open,
- * ?product= names that exploration's product, not a filter.
+ * The two filters a list opens on, from the address: ?product= (a product key), ?people= (a designer key, or "you").
+ * Old links keep working: ?kind=library and ?kind=docs open on the library product (its guidance counts under it),
+ * ?kind=product on all products; ?who=mine and ?view=mine open on You, ?by= is the old people parameter. With
+ * ?exploration= open, ?product= names that exploration's product, not a filter.
  */
-export function changesFiltersParam(search: string, products: readonly ProductConfig[] = DEFAULT_PRODUCTS): ChangesFilters {
+export function listFiltersParam(search: string, products: readonly ProductConfig[] = DEFAULT_PRODUCTS): ListFilters {
   const q = new URLSearchParams(search);
   const k = q.get('kind');
   const named = q.has('exploration') ? null : q.get('product')?.trim().toLowerCase() || null;
   const product = named ?? (k === 'library' || k === 'docs' ? defaultProduct(products).key.toLowerCase() : null);
+  const raw = (q.get('people') ?? q.get('by'))?.trim().toLowerCase() || null;
+  const mine = q.get('who') === 'mine' || q.get('view') === 'mine';
+  const by = raw === 'you' || (!raw && mine) ? YOU : raw && raw !== '~everyone' && raw !== 'everyone' ? raw : null;
+  return { product, by };
+}
+
+/**
+ * What Changes opens on, from the address: ?state= and the two filters (listFiltersParam). Old links keep working:
+ * ?who=waiting opens Waiting on me, ?archived=1 opens Archived, ?status=draft|ready|waiting the matching state, and the
+ * old merged line (?status=merged|shipped|closed) and History (?view=history) open Shipped.
+ */
+export function changesFiltersParam(search: string, products: readonly ProductConfig[] = DEFAULT_PRODUCTS): ChangesFilters {
+  const q = new URLSearchParams(search);
   const st = q.get('state');
   const status = q.get('status');
   // The tabs before the one lifecycle: Not started is Exploring now, Draft is Being built.
@@ -123,21 +139,14 @@ export function changesFiltersParam(search: string, products: readonly ProductCo
               : status === 'waiting'
                 ? 'code'
                 : 'all';
-  const raw = (q.get('people') ?? q.get('by'))?.trim().toLowerCase() || null;
-  const mine = q.get('who') === 'mine' || q.get('view') === 'mine';
-  const by = raw === 'you' || (!raw && mine) ? YOU : raw && raw !== '~everyone' && raw !== 'everyone' ? raw : null;
-  return { state, product, by };
+  return { state, ...listFiltersParam(search, products) };
 }
 
-/** The address query for the filters, other parameters kept; the defaults (All, all products, everyone) leave it. */
-export function withChangesFilters(search: string, f: ChangesFilters): string {
+/** The address query for the two filters, other parameters kept; the defaults (all products, everyone) leave it. */
+export function withListFilters(search: string, f: ListFilters): string {
   const q = new URLSearchParams(search);
-  for (const old of ['who', 'by', 'archived', 'kind']) q.delete(old);
+  for (const old of ['who', 'by', 'kind']) q.delete(old);
   if (q.get('view') === 'mine') q.delete('view');
-  const status = q.get('status');
-  if (status && ['draft', 'ready', 'waiting', 'merged', 'shipped', 'closed'].includes(status)) q.delete('status');
-  if (f.state === 'all') q.delete('state');
-  else q.set('state', f.state);
   // An open exploration's ?product= is its own product: the filter leaves it.
   if (!q.has('exploration')) {
     if (f.product) q.set('product', f.product);
@@ -147,6 +156,17 @@ export function withChangesFilters(search: string, f: ChangesFilters): string {
   else q.delete('people');
   const s = q.toString();
   return s ? `?${s}` : '';
+}
+
+/** The address query for Changes, other parameters kept; the defaults (All, all products, everyone) leave it. */
+export function withChangesFilters(search: string, f: ChangesFilters): string {
+  const q = new URLSearchParams(search);
+  q.delete('archived');
+  const status = q.get('status');
+  if (status && ['draft', 'ready', 'waiting', 'merged', 'shipped', 'closed'].includes(status)) q.delete('status');
+  if (f.state === 'all') q.delete('state');
+  else q.set('state', f.state);
+  return withListFilters(`?${q.toString()}`, f);
 }
 
 /** The product filter's value for every product (a key product keys never make: they start with a letter or digit). */
@@ -161,6 +181,38 @@ export function productOptions(items: readonly { product: string }[], products: 
   const n = (key: string) => items.filter((x) => x.product.toLowerCase() === key).length;
   const each = products.map((p) => ({ value: p.key.toLowerCase(), label: p.name, count: n(p.key.toLowerCase()) })).filter((o) => o.count > 0 || o.value === current);
   return [{ value: ALL_PRODUCTS, label: 'All products', count: items.length }, ...each];
+}
+
+/** A listed row, as the two filters read it: its product key in lower case and the people it shows. */
+export type FilterItem = PeopleItem & { product: string };
+
+/** A row stays under the filters: its product is the one picked, and the person picked is one of those it shows. */
+export const inFilters = (x: FilterItem, f: ListFilters): boolean => (!f.product || x.product === f.product) && (!f.by || peopleOf(x).some((p) => p.key === f.by));
+
+/**
+ * The filters that apply to what a tab lists. The person picked stays only while someone listed matches it (an address
+ * naming nobody listed keeps everyone); You stays once signed in. The product picked stays only while it is a
+ * configured product (an address naming another keeps all products).
+ */
+export function activeFilters(picked: ListFilters, listed: readonly FilterItem[], products: readonly ProductConfig[], signedIn: boolean): ListFilters {
+  const by = picked.by && (picked.by === YOU ? signedIn : listed.some((x) => peopleOf(x).some((p) => p.key === picked.by))) ? picked.by : null;
+  const product = picked.product && products.some((p) => p.key.toLowerCase() === picked.product) ? picked.product : null;
+  return { product, by };
+}
+
+/** The options of the two selects: the products over what the people filter keeps, the people over what the product filter keeps. */
+export function filterChoices(listed: readonly FilterItem[], products: readonly ProductConfig[], active: ListFilters, signedIn: boolean) {
+  return {
+    products: productOptions(
+      listed.filter((x) => inFilters(x, { product: null, by: active.by })),
+      products,
+      active.product,
+    ),
+    people: peopleOptions(
+      designerOptions(listed, 'all', (x) => inFilters(x, { product: active.product, by: null })),
+      signedIn,
+    ),
+  };
 }
 
 /** The count line above the list: "3 changes." / "1 of 4 changes." when a filter narrows it. */

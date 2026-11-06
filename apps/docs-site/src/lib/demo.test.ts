@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { sampleTeam } from './invites';
 import { roleRows } from './roles-view';
-import { sampleApprovalRows, sampleCodeReviewers, samplePersonOf, sampleTurnSentence } from './demo';
+import { isSampleExploration, sampleApprovalRows, sampleCodeReviewers, samplePersonOf, sampleTurnSentence } from './demo';
 import { soloOwnerSentence } from '@bridge-ds/core';
 import { DEMO_APPROVED_KEY, demoApprovedSet, markDemoApproved, DEMO_REPOS, demoApproved, demoBanner, demoDialog, DEMO_STASH_KEY, DEMO_VISIT_KEY, DEMO_WORDS, SHARED_DRAFT_KEY, swapDemoDrafts, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
 
@@ -275,5 +275,13 @@ describe('samplePersonOf: people on the sample team', () => {
     expect(samplePersonOf('bridge-agent[bot]', sampleTeam())).toBeNull();
     expect(samplePersonOf('github-actions[bot]', sampleTeam())).toBeNull();
     expect(samplePersonOf(' ', sampleTeam())).toBeNull();
+  });
+});
+
+describe('sample explorations', () => {
+  it('knows the sample explorations by branch, and no other branch', () => {
+    expect(isSampleExploration('explore/profile-page')).toBe(true);
+    expect(isSampleExploration('explore/my-own-idea')).toBe(false);
+    expect(isSampleExploration(null)).toBe(false);
   });
 });

@@ -1376,6 +1376,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     },
     visual: effect ?? (x.visual ? { state: 'loading', shots: [] } : null),
     visualSetUp: x.visualSetUp,
+    visualSample: onSample,
     // The screens of the visual check come from the admin demo app (apps/admin, previews.apps.admin), a preview of
     // this repository, not a product: its name stays even when bridge.config.json lists no such product.
     product: (effect && origin?.product) || (PRODUCTS.find((p) => p.key === 'admin')?.label ?? 'Admin demo'),

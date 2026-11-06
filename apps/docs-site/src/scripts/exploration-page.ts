@@ -17,6 +17,7 @@ import {
   reopenedOf,
   buildersOf,
   changedScreenOf,
+  commitsAs,
   checkInClaudeLine,
   doneActionFor,
   doneByOf,
@@ -71,10 +72,10 @@ import { sampleVisitor } from './demo-gate';
 import { copyText } from './explorer/util';
 import { loadVisualImpact } from './reviews/visual-impact';
 import { previewShotOf } from './preview-shots';
-import { isSampleTeam, sampleExplorationPreview, samplePreviewPage } from '../lib/demo';
+import { isSampleExploration, isSampleTeam, sampleExplorationPreview, samplePreviewPage } from '../lib/demo';
 import { knownNames } from './people';
 import { isEmailAddress, loginKey } from '../lib/people';
-import { isNameAuthor } from '../lib/author';
+import { explorationAuthorFor, isNameAuthor } from '../lib/author';
 import { siteApprovers } from './teams';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
@@ -269,6 +270,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // Try it in the product, on a private product too: the toolbar there reads the change with the member's pass.
   installReadPass();
   mod ??= await import('../components/ds/studio/ExplorationPage');
+  const sample = isSampleTeam(`${CFG.owner}/${CFG.repo}`);
+  // A sample exploration: its sample person, never the one account behind the sample team (its commits below too).
+  const samplePerson = sample && isSampleExploration(r.branch);
+  if (samplePerson) r = { ...r, author: explorationAuthorFor(r.author, pull.body) ?? r.author };
   const key = explorationKey(r);
   const own = productRepoByKey(r.product);
   const gh = own ? productClient(own.repo, pull.base?.ref) : dsClient();
@@ -404,10 +409,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // the frame paints once: the capture, or the plate.
   // The sample team publishes no preview deploys: its explorations show the screen their card shows, and Open the
   // preview opens that screen running (lib/demo.ts).
-  const sample = isSampleTeam(`${CFG.owner}/${CFG.repo}`);
   const sampleShot = sample ? sampleExplorationPreview(r.branch) : null;
   const samplePage = sample ? samplePreviewPage(r.branch) : null;
-  const [files, commits, sources, shot] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r), sampleShot ? { src: sampleShot, screen: null, capturedAt: null } : previewShotOf(r).catch(() => null)]);
+  const [files, readCommits, sources, shot] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r), sampleShot ? { src: sampleShot, screen: null, capturedAt: null } : previewShotOf(r).catch(() => null)]);
+  const commits = samplePerson ? commitsAs(readCommits, r.author) : readCommits;
   reported = sources;
   if (current?.key !== key) return;
   // "Where it stands": the handover notes, while it runs (after Done exploring they went to the developers as the spec).
@@ -507,7 +512,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const devRead = devRepo && task?.devPull ? await readDevPull(devRepo, task.devPull) : null;
   const fromTask = task ? taskStatus(task) : null;
   const status = (devRead && fromTask !== 'shipped' ? 'building' : fromTask ? (fromTask === 'closed' ? 'ready' : fromTask) : r.status) as 'ready' | 'building' | 'shipped';
-  const label = doneByOf(commits) ? null : await readyLabelEvent(r);
+  const labelled = doneByOf(commits) ? null : await readyLabelEvent(r);
+  const label = labelled && samplePerson ? { ...labelled, login: r.author } : labelled;
   // Validated by a lead: the commits and the label are theirs, the block keeps the designer who said it (who started it, for a member without GitHub).
   const doneLogin = (block?.leadOkBy ? (block.doneBy ?? r.author) : null) ?? doneByOf(commits) ?? label?.login ?? r.author;
   const doneAt = block?.doneAt ?? label?.at ?? null;
