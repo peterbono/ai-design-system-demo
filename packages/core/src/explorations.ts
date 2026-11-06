@@ -118,6 +118,20 @@ export interface Exploration {
   member?: string | undefined;
   memberName?: string | undefined;
   doneByMember?: string | undefined;
+  /**
+   * The designer said "Done exploring" and the design lead has not answered yet (decision 2026-11-06): nothing reached
+   * the developers. Who asked (a GitHub login, or the display name of a member without one, never an email) and the
+   * pieces they ticked travel with it: they are used when the lead says it looks right.
+   */
+  leadAskedAt?: string | undefined;
+  leadAskedBy?: string | undefined;
+  leadAskedByName?: string | undefined;
+  leadPieces?: string[] | undefined;
+  /** The lead's last "Needs changes": their words and who said it, shown to the designer until they ask again. */
+  leadNote?: string | undefined;
+  leadNoteBy?: string | undefined;
+  /** The lead who said it looks right, so the hand-off names them. */
+  leadOkBy?: string | undefined;
 }
 
 const MARK = 'bridge-exploration';
@@ -368,6 +382,13 @@ function explorationBlock(e: Exploration): string {
     ...(memberRefOf(e.member) ? { member: e.member } : {}),
     ...(memberRefOf(e.member) && e.memberName && !e.memberName.includes('@') ? { memberName: e.memberName.trim().slice(0, 80) } : {}),
     ...(e.doneAt && memberRefOf(e.doneByMember) ? { doneByMember: e.doneByMember } : {}),
+    ...(e.leadAskedAt ? { leadAskedAt: e.leadAskedAt } : {}),
+    ...(e.leadAskedAt && githubLoginOf(e.leadAskedBy) ? { leadAskedBy: githubLoginOf(e.leadAskedBy) } : {}),
+    ...(e.leadAskedAt && e.leadAskedByName && !e.leadAskedByName.includes('@') ? { leadAskedByName: e.leadAskedByName.trim().slice(0, 80) } : {}),
+    ...(e.leadAskedAt && e.leadPieces?.length ? { leadPieces: e.leadPieces } : {}),
+    ...(e.leadNote ? { leadNote: e.leadNote } : {}),
+    ...(e.leadNote && githubLoginOf(e.leadNoteBy) ? { leadNoteBy: githubLoginOf(e.leadNoteBy) } : {}),
+    ...(githubLoginOf(e.leadOkBy) ? { leadOkBy: githubLoginOf(e.leadOkBy) } : {}),
   };
   return `<!-- ${MARK} ${JSON.stringify(data).replace(/-->/g, '--\\u003e')} -->`;
 }
@@ -595,7 +616,7 @@ const DEV_SECTION = '### For developers';
  */
 export function withDoneExploring(
   body: string | null | undefined,
-  done: { branch: string; doneAt: string; doneBy?: string | undefined; doneSha?: string | undefined; checks?: ExplorationChecks | null | undefined; copy?: string | undefined; task?: string | undefined; spec?: string | null | undefined },
+  done: { branch: string; doneAt: string; doneBy?: string | undefined; doneSha?: string | undefined; checks?: ExplorationChecks | null | undefined; copy?: string | undefined; task?: string | undefined; spec?: string | null | undefined; leadOkBy?: string | undefined },
 ): string {
   const e = parseExplorationBody(body);
   const [fetch, checkout] = done.copy ? designCopyTakeCommands(done.copy, done.branch) : explorationTakeCommands(done.branch);
@@ -638,7 +659,9 @@ export function withDoneExploring(
     .replace(/### For developers[\s\S]*?(?=### |<!-- |$)/, '');
   if (!e || !block.test(kept)) return `${kept.trim()}${kept.trim() ? '\n\n' : ''}${section}`;
   const at = kept.search(block);
-  const nextBlock = explorationBlock({ ...e, doneAt: done.doneAt, ...(done.doneBy ? { doneBy: done.doneBy } : {}), ...(done.doneSha ? { doneSha: done.doneSha } : {}), ...(done.task ? { task: done.task } : {}) });
+  // The lead's ask ends here: Back to exploring must not bring it back.
+  const { leadAskedAt: _askedAt, leadAskedBy: _askedBy, leadAskedByName: _askedName, leadPieces: _pieces, leadNote: _note, leadNoteBy: _noteBy, ...started } = e;
+  const nextBlock = explorationBlock({ ...started, doneAt: done.doneAt, ...(done.doneBy ? { doneBy: done.doneBy } : {}), ...(done.doneSha ? { doneSha: done.doneSha } : {}), ...(done.task ? { task: done.task } : {}), ...(done.leadOkBy ? { leadOkBy: done.leadOkBy } : {}) });
   const after = kept.slice(at).replace(block, () => nextBlock).trim();
   return `${kept.slice(0, at).trim()}\n\n${section}\n\n${after}`.trim();
 }
@@ -657,6 +680,45 @@ export function withoutDoneExploring(body: string | null | undefined, reopenedAt
   const at = kept.search(block);
   const after = kept.slice(at).replace(block, () => explorationBlock({ ...rest, reopenedAt, ...(reopenedBy ? { reopenedBy } : {}) }));
   return `${kept.slice(0, at).trim()}\n\n${after.trim()}`.trim();
+}
+
+/** The body once the block changed; a body without a Bridge block stays as it is. */
+function withBlock(body: string | null | undefined, next: (e: Exploration) => Exploration): string {
+  const e = parseExplorationBody(body);
+  const text = body ?? '';
+  if (!e) return text;
+  const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
+  return text.replace(block, () => explorationBlock(next(e)));
+}
+
+/** The designer asked the design lead: the exploration keeps running (label, note, preview), nothing reaches developers. */
+export function withLeadAsked(body: string | null | undefined, ask: { at: string; by?: string | null | undefined; byName?: string | null | undefined; pieces?: readonly string[] | undefined }): string {
+  return withBlock(body, ({ leadNote: _note, leadNoteBy: _by, ...e }) => ({ ...e, leadAskedAt: ask.at, leadAskedBy: ask.by ?? undefined, leadAskedByName: ask.byName ?? undefined, leadPieces: [...(ask.pieces ?? [])] }));
+}
+
+/** The ask taken away: by the lead with what should change (`note`), or by the designer who keeps exploring. */
+export function withoutLeadAsked(body: string | null | undefined, answer: { note?: string | null | undefined; by?: string | null | undefined } = {}): string {
+  return withBlock(body, ({ leadAskedAt: _at, leadAskedBy: _by, leadAskedByName: _name, leadPieces: _pieces, leadNote: _note, leadNoteBy: _noteBy, ...e }) => ({ ...e, ...(answer.note?.trim() ? { leadNote: answer.note.trim().slice(0, 2000), leadNoteBy: answer.by ?? undefined } : {}) }));
+}
+
+/** Waits on the design lead: asked, and not handed to developers since. */
+export function isWaitingForLead(body: string | null | undefined): boolean {
+  const e = parseExplorationBody(body);
+  return Boolean(e?.leadAskedAt && !e.doneAt);
+}
+
+/**
+ * Whether Done exploring goes through the design lead first. A lead saying it on someone else's exploration is that
+ * validation. Their own needs another lead. Nobody else to ask (a team of one, no design owner named): it goes straight
+ * to the developers, or it would wait forever.
+ */
+export function needsLeadValidation(x: { viewer?: string | null | undefined; author?: string | null | undefined; leads: readonly string[] }): boolean {
+  const norm = (l: string | null | undefined) => (l ?? '').replace(/^@/, '').toLowerCase();
+  const viewer = norm(x.viewer);
+  const author = norm(x.author);
+  const people = x.leads.map(norm).filter((l) => l && !l.includes('/'));
+  if (viewer && viewer !== author && people.includes(viewer)) return false;
+  return people.some((l) => l !== viewer && l !== author);
 }
 
 /** A Jira key first in a pull request title ("DS-42 Exploration: ..."), kept when the exploration is renamed. */

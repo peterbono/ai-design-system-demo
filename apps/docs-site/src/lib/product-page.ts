@@ -43,7 +43,7 @@ export function productKeyFromPath(pathname: string): string | null {
 export const cardProductKey = (c: Pick<ExplorationCard, 'productKey'>, products: readonly ProductConfig[]): string => (c.productKey ?? defaultProduct(products).key).toLowerCase();
 
 /** Where an exploration stands on a product page, in the order the page lists them. */
-export type ProductStateKey = 'running' | 'review' | 'waiting' | 'building' | 'shipped' | 'not-planned';
+export type ProductStateKey = 'running' | 'lead' | 'review' | 'waiting' | 'building' | 'shipped' | 'not-planned';
 
 /**
  * The groups of a product page, in the lifecycle's order and words (lib/review-state LIFECYCLE_LABEL): Exploring,
@@ -51,6 +51,7 @@ export type ProductStateKey = 'running' | 'review' | 'waiting' | 'building' | 's
  */
 export const PRODUCT_STATES: { key: ProductStateKey; label: string; count: (n: number) => string; open: boolean }[] = [
   { key: 'running', label: LIFECYCLE_LABEL.exploring, count: (n) => `${n} exploring`, open: true },
+  { key: 'lead', label: LIFECYCLE_LABEL['waiting-for-lead'], count: (n) => `${n} waiting for lead`, open: true },
   { key: 'waiting', label: LIFECYCLE_LABEL['waiting-for-code'], count: (n) => `${n} waiting to be picked up`, open: true },
   { key: 'building', label: LIFECYCLE_LABEL['being-built'], count: (n) => `${n} being built`, open: true },
   { key: 'review', label: LIFECYCLE_LABEL['in-review'], count: (n) => `${n} in review`, open: true },
@@ -61,6 +62,7 @@ export const PRODUCT_STATES: { key: ProductStateKey; label: string; count: (n: n
 /** The group of each status (lib/exploration-state): the one status decides, never the words on the card. */
 const GROUP_OF: Record<LifecycleStage, ProductStateKey | null> = {
   exploring: 'running',
+  'waiting-for-lead': 'lead',
   'waiting-for-code': 'waiting',
   'being-built': 'building',
   'in-review': 'review',
@@ -83,7 +85,7 @@ export function productGroups<C extends Pick<ExplorationCard, 'lifecycle'>>(card
 
 /** How many cards stand in each state. */
 export function productCounts(cards: readonly Pick<ExplorationCard, 'lifecycle'>[]): Record<ProductStateKey, number> {
-  const out: Record<ProductStateKey, number> = { running: 0, review: 0, waiting: 0, building: 0, shipped: 0, 'not-planned': 0 };
+  const out: Record<ProductStateKey, number> = { running: 0, lead: 0, review: 0, waiting: 0, building: 0, shipped: 0, 'not-planned': 0 };
   for (const c of cards) {
     const k = stateOfCard(c);
     if (k) out[k] += 1;

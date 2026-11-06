@@ -9,7 +9,7 @@ import { isGuardedExploration, isHandedOff, isToolingPull, productsOf, requester
 import { siteConfig } from './repo-context';
 import { designTaskReads, rememberQuestions, taskUrlOf } from './design-task';
 import { askerRole, devQuestionOf, taskStage, type DesignTaskRead } from '../lib/review-state';
-import { parseExplorationBody } from '@bridge-ds/core';
+import { isWaitingForLead, parseExplorationBody } from '@bridge-ds/core';
 import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, limitLine, readRepo, RateLimitError, resolveAccess } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
@@ -50,7 +50,7 @@ import {
   type TimelineEvent,
 } from '../lib/home-model';
 import { isHosted, studioHref } from '../lib/team-path';
-import { explorationNameOf, needsReviewRead, reviewsFromStatus, reviewStateOf, waitsOnViewer } from '../lib/review-state';
+import { explorationNameOf, needsReviewRead, reviewersAsked, reviewsFromStatus, reviewStateOf, waitsOnViewer } from '../lib/review-state';
 import { explorationHref } from '../lib/explorations-view';
 import { mineFromCards, noteMine } from '../lib/nav-products';
 import { busyText } from '../lib/team-load';
@@ -470,6 +470,16 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
       if (!state.requested.some((l) => same(l, viewer)) || !waitsOnViewer(state, viewer)) continue;
       const asker = pick(p.user.login)!;
       needs.push(explorationReviewNeed({ number: p.number, product: p.product ?? null, author: asker, asker, since: null, thumb: { kind: 'icon', icon: 'branch' }, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`) }, now));
+    }
+    // Done exploring asked the design lead: theirs to answer before anything reaches the developers (never the person
+    // who asked: a lead's own exploration waits on another lead).
+    for (const p of [...pulls, ...productOpen]) {
+      if (!isWaitingForLead(p.body)) continue;
+      const block = parseExplorationBody(p.body);
+      const asker = block?.leadAskedBy ?? p.user.login;
+      if (!reviewersAsked({ approvers: siteApprovers().design, builders: [asker] }).some((l) => same(l, viewer))) continue;
+      const person = pick(asker)!;
+      needs.push(explorationReviewNeed({ number: p.number, product: p.product ?? null, author: person, asker: person, since: block?.leadAskedAt ?? null, thumb: { kind: 'icon', icon: 'branch' }, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`) }, now));
     }
     // Someone asked a question on the task of an exploration the viewer handed off (named, never "the developers" by
     // default): theirs to answer (the one rule, lib/waiting-on). Remembered for the nav badge on the other pages.

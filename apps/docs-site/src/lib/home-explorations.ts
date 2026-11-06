@@ -153,6 +153,8 @@ export function cardOfLifecycle(
       return { stage: 'kept', state: isHandedOff({ labels: p.labels ?? [], body: p.body }) ? LIFECYCLE_LABEL[lifecycle] : 'Kept in the library' };
     case 'in-review':
       return { stage: 'in-review', state: LIFECYCLE_LABEL['in-review'] };
+    case 'waiting-for-lead':
+      return { stage: 'in-review', state: LIFECYCLE_LABEL['waiting-for-lead'] };
     case 'archived':
       return { stage: 'exploring', state: LIFECYCLE_LABEL.archived };
     default:
@@ -373,6 +375,7 @@ export interface OwnOpenWork {
 export function openStageOf(c: Pick<ExplorationCard, 'lifecycle'>): OpenStage | null {
   switch (c.lifecycle) {
     case 'exploring':
+    case 'waiting-for-lead':
       return 'exploring';
     case 'waiting-for-code':
       return 'code';

@@ -9,7 +9,7 @@
 // reviews once the developers started), and the library part. A product exploration never checked against the
 // library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
 // viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { archiveExplorationOnGitHub, branchPreviewUrl, EXPLORATION_PREFIX, figmaLines, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { archiveExplorationOnGitHub, branchPreviewUrl, cancelLeadAskOnGitHub, isWaitingForLead, leadApproveOnGitHub, leadChangesOnGitHub, EXPLORATION_PREFIX, figmaLines, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
   canPutInFigma,
@@ -49,13 +49,13 @@ import { pieceRows, type PieceRowView } from '../lib/product-branch';
 import { checkPieces } from './connector-api';
 import { forgetClaudeLink, knownClaudeLink, viewerClaudeLink } from './claude-link';
 import { connectorUrl, copilotSetup, terminalSetup } from '../lib/claude-connector';
-import { ARCHIVED_LINE, BACK_TO_EXPLORING_LINE, UNARCHIVED_LINE, explorationKey, RENAMED_LINE, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
+import { ARCHIVED_LINE, BACK_TO_EXPLORING_LINE, LEAD_CHANGES_LINE, LEAD_OK_LINE, UNARCHIVED_LINE, explorationKey, RENAMED_LINE, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { developerLines, productCrumbs, productProduction, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
 import { touchesVisuals } from '../lib/visual-impact';
 import { shownJiraKey } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
 import { canKeepExploration, keepExplorationLine, productKeeperLine, startedByDesigner, startedByEmailMember } from '../lib/write-route';
-import type { ExplorationPageProps } from '../components/ds/studio/ExplorationPage';
+import type { ExplorationPageProps, LeadView } from '../components/ds/studio/ExplorationPage';
 import { askDoneExploring } from './exploration-done';
 import { explorationsConfig } from './exploration-start';
 import { siteConfig } from './repo-context';
@@ -196,6 +196,51 @@ const sentOf = (row: PieceRowView): SentPiece => ({
   ...(row.library ? { opens: row.library.opens, number: row.library.number } : {}),
   action: row.action,
 });
+
+/**
+ * The page while the design lead has not answered. A lead (never the person who asked) answers here: Looks right runs
+ * the hand-off with their GitHub access, Needs changes sends it back with their words. Who asked can take it back.
+ */
+function leadViewOf(
+  r: ExplorationRow,
+  body: string | null | undefined,
+  o: { gh: GitHubClient; products: readonly ProductConfig[]; library: (() => GitHubClient) | null; previewUrl: string | null; keeper: boolean; reopen: (line: string) => void },
+): LeadView | null {
+  if (!isWaitingForLead(body)) return null;
+  const block = parseExplorationBody(body);
+  const asker = block?.leadAskedBy ?? r.author;
+  const leads = reviewersAsked({ approvers: siteApprovers().design, builders: [asker] });
+  const viewer = currentViewer()?.email ? null : (currentViewer()?.login ?? null);
+  const isLead = Boolean(viewer && connected() && leads.some((l) => l.toLowerCase() === viewer.toLowerCase()));
+  if (isLead) {
+    const who = block?.leadAskedByName ?? block?.leadAskedBy ?? 'The designer';
+    return {
+      line: `${who} is done exploring. Look at the preview, then answer: nothing reaches the developers before you do.`,
+      onAnswer: async (a) => {
+        if (a.kind === 'looks-right') {
+          await leadApproveOnGitHub(o.gh, r.number, { products: o.products, previewUrl: o.previewUrl, lead: viewer!, ...(o.library ? { library: o.library() } : {}), source: 'studio' });
+          o.reopen(LEAD_OK_LINE);
+          return LEAD_OK_LINE;
+        }
+        await leadChangesOnGitHub(o.gh, r.number, { note: a.text, lead: viewer! });
+        o.reopen(LEAD_CHANGES_LINE);
+        return LEAD_CHANGES_LINE;
+      },
+    };
+  }
+  const known = knownNamesOf(leads);
+  const names = leads.length ? leads.map((l) => known[l] ?? l).join(', ') : 'your lead';
+  return {
+    line: `Waiting for ${names}. Nothing goes to the developers until they say it looks right.`,
+    onCancel: o.keeper
+      ? async () => {
+          await cancelLeadAskOnGitHub(o.gh, r.number);
+          o.reopen(BACK_TO_EXPLORING_LINE);
+          return BACK_TO_EXPLORING_LINE;
+        }
+      : null,
+  };
+}
 
 function repaint(d: HTMLElement, key: string, patch: Partial<ExplorationPageProps>) {
   if (!current || current.key !== key || !mod) return;
@@ -385,6 +430,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const previewNote = v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
   repaint(d, key, {
     stage: stage === 'not-started' ? 'not-started' : 'exploring',
+    lead: leadViewOf(r, pull.body, { gh, products, library: own ? () => dsClient() : null, previewUrl, keeper, reopen: (line) => reopen(line) }),
+    leadNote: parseExplorationBody(pull.body)?.leadNote ?? null,
     author: faceOf(r.author, false, names),
     startedTail: startedTail(product.name, startedAtOf(pull.body, pull.created_at, commits[0]?.commit.author?.date)),
     todayUrl,
@@ -478,7 +525,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const answer = devRead?.answer ?? null;
   const shippedAnswer = status === 'shipped' ? (task?.shippedAnswer ?? null) : null;
   const askers = [question?.login, declineNote?.login, shippedAnswer?.login].filter((l): l is string => Boolean(l));
-  const more = connected() ? await namesOf([...new Set([doneLogin, ...builders, ...asked, ...(verdict ? [verdict.login] : []), ...(answer?.login ? [answer.login] : []), ...askers])]).catch(() => ({}) as Record<string, string>) : {};
+  const more = connected() ? await namesOf([...new Set([doneLogin, ...builders, ...asked, ...(verdict ? [verdict.login] : []), ...(answer?.login ? [answer.login] : []), ...askers, ...(block?.leadOkBy ? [block.leadOkBy] : [])])]).catch(() => ({}) as Record<string, string>) : {};
   if (current?.key !== key) return;
   const allNames = { ...names, ...knownNamesOf([...asked, ...(verdict ? [verdict.login] : [])]), ...more };
   // Done exploring by someone known by name only (an email member's commit, or the requester of the app's pull
@@ -514,7 +561,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     address && offersDevelopersMessage({ address, status, declined, archived: Boolean(r.archived), member: onTeam })
       ? { message: developersMessage({ name: r.name, product: product.name, address, startPage: startPageOf(block), purpose: block?.purpose ?? r.purpose, previewUrl: (v.state === 'branch' ? v.url : null) ?? branchPreviewUrl(product.preview, r.branch), shotUrl: shot?.src ?? null }) }
       : null;
-  const steps = handoffSteps({ status, doneBy, doneAt, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease, question: questionOn, declined, elsewhere: Boolean(address) });
+  const leadOkBy = block?.leadOkBy ?? null;
+  const steps = handoffSteps({ status, doneBy, doneAt, leadOk: leadOkBy ? faceOf(leadOkBy, false, allNames) : null, builders: builders.map((l) => faceOf(l, false, allNames)), shippedAt, product: isLibrary ? 'the library' : product.name, library: isLibrary, review, nextRelease, question: questionOn, declined, elsewhere: Boolean(address) });
   const taskUrl = block?.task ?? null;
   const ref = r.product ? `${r.product}#${r.number}` : String(r.number);
   // Who may run the check: someone who can write it, in a team that writes branches. Bridge's server runs it for them:

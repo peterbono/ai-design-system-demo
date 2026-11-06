@@ -2,16 +2,17 @@
 // (components/ds/studio/DoneExploring.tsx) with the pieces the last check found, then runs the core call with the
 // viewer's token. The ticked pieces go to the DS lead as requests with the preview link, the branch goes to the
 // developers, nothing closes. No React here: the dialog is its own island, reached by an event.
-import { doneExploringOnGitHub, type GitHubClient, type ProductConfig } from '@bridge-ds/core';
-import { doneLine, donePieces } from '../lib/explorations-view';
+import { askLeadOnGitHub, doneExploringOnGitHub, needsLeadValidation, type GitHubClient, type ProductConfig } from '@bridge-ds/core';
+import { doneLine, donePieces, leadAskedLine } from '../lib/explorations-view';
 import type { DoneExploringDetail } from '../components/ds/studio/DoneExploring';
 import { currentViewer } from './github-session';
+import { siteApprovers } from './teams';
 import { checkPieces } from './connector-api';
 
 export const DONE_EXPLORING_EVENT = 'bridge:done-exploring-ask';
 
 export function askDoneExploring(
-  r: { number: number; name: string },
+  r: { number: number; name: string; author?: string | null },
   body: string | null | undefined,
   opts: {
     client: () => GitHubClient;
@@ -32,16 +33,27 @@ export function askDoneExploring(
   },
 ) {
   const found = donePieces(body);
+  const who0 = currentViewer();
+  const viewer = who0 && !who0.email ? who0.login : null;
+  const leads = siteApprovers().design;
+  // A design lead validates first: nothing reaches the developers before they answer (core needsLeadValidation).
+  const viaLead = needsLeadValidation({ viewer, author: r.author, leads });
   const detail: DoneExploringDetail = {
     number: r.number,
     name: r.name,
     pieces: found.pieces,
     checked: found.checked,
     sent: found.sent,
+    viaLead,
     confirm: async (pieces) => {
       // A member who joined by email is named by their display name in the developers' task, never by their email.
       const v = currentViewer();
       const who = v ? (v.email ? { openedByName: v.name?.trim() || 'a designer' } : { openedBy: v.login }) : {};
+      if (viaLead) {
+        await askLeadOnGitHub(opts.client(), r.number, { pieces, ...who, leads: leads.filter((l) => !l.includes('/') && l.toLowerCase() !== viewer?.toLowerCase()) });
+        opts.after(leadAskedLine(pieces.length));
+        return;
+      }
       const res = await doneExploringOnGitHub(opts.client(), r.number, { pieces, products: opts.products ?? [], previewUrl: opts.previewUrl, ...who, ...(opts.library ? { library: opts.library() } : {}), source: 'studio' });
       // The designer reads what happened to their pieces; GitHub housekeeping (a label, the note) is for developers.
       const other = res.warnings.filter((w) => !res.pieces.warnings.includes(w));

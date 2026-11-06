@@ -7,6 +7,7 @@ import { fakeGitHub, readTree, REAL_PATHS, REPO } from './helpers.js';
 function setup() {
   const tree = readTree(REPO, REAL_PATHS);
   const cfg = JSON.parse(tree['bridge.config.json']!);
+    cfg.governance.owners.design = ['owner']; // The token's owner is the design lead: Done exploring goes straight to the developers.
   cfg.products = [
     { key: 'shop', name: 'Shop', repo: 'acme/shop', preview: 'https://shop-git-{branch}-acme.vercel.app' },
     { key: 'library', name: 'Library', default: true },

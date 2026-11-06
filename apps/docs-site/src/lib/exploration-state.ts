@@ -7,7 +7,9 @@
 //   1. The design pull request is merged: Shipped (In the next release while the library release lists it).
 //   2. It is closed without merging: Closed (given up; lists leave it out).
 //   3. It carries the `archived` label: Archived (out of the lists, its preview still alive).
-//   4. It runs (the `exploration` label, Back to exploring, or a running one whose label is missing): Exploring. Back
+//   4. It runs (the `exploration` label, Back to exploring, or a running one whose label is missing): Exploring, or
+//      Waiting for lead once Done exploring asked the design lead and they have not answered (nothing reached the
+//      developers yet). Back
 //      to exploring closes the developers' task as not planned, so a running exploration never reads its task.
 //   5. Done exploring was said and the developers' task (design copy explorations) was read: the task decides.
 //      Closed as completed = Shipped, even while the design pull request stays open (it stays open on purpose: its
@@ -21,7 +23,7 @@
 //
 // The task's stage is read once per task (scripts/design-task.ts designTaskStages, cached a minute and shared) and
 // passed in; before it is read, rule 6 stands in for it.
-import { explorationStatus, isArchivedExploration, isHandedOff } from '@bridge-ds/core';
+import { explorationStatus, isArchivedExploration, isHandedOff, isWaitingForLead } from '@bridge-ds/core';
 import { explorationLifecycle, reviewStateOf, type LifecyclePull, type LifecycleStage, type PullReviewLike } from './review-state';
 
 export interface ExplorationStateInput {
@@ -64,7 +66,7 @@ export function explorationState(x: ExplorationStateInput): LifecycleStage {
   // Rule 7: a draft never handed off and not running (a product branch started outside an exploration) is being tried.
   if (status === 'promoted' && p.draft && !isHandedOff({ labels, body }) && !isArchivedExploration(labels)) return 'exploring';
   const review = reviewStateOf({ draft: p.draft ?? null, requested: p.requested_reviewers ?? [], approvers: x.approvers ?? [], builders: x.builders ?? [], reviews: x.reviews ?? null });
-  const base = explorationLifecycle({ status, archived: isArchivedExploration(labels), review });
+  const base = explorationLifecycle({ status, archived: isArchivedExploration(labels), lead: isWaitingForLead(body), review });
   return withDevTask(base, x.task);
 }
 

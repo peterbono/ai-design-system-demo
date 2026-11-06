@@ -15,6 +15,7 @@ import {
   EXPLORATION_USE_CASES,
   explorationTakeCommands,
   isArchivedExploration,
+  isWaitingForLead,
   parsePiecesRecord,
   explorationBranch,
   explorationProblems,
@@ -258,7 +259,7 @@ export function explorationRows(
         purpose: s.purpose,
         useCaseLabel: EXPLORATION_USE_CASES.find((u) => u.value === s.useCase)?.label ?? null,
         status: s.status,
-        statusLabel: EXPLORATION_STATUS_LABEL[s.status],
+        statusLabel: isWaitingForLead(p.body) && s.status === 'active' ? LIFECYCLE_LABEL['waiting-for-lead'] : EXPLORATION_STATUS_LABEL[s.status],
         archived: s.archived,
         tone: 'neutral' as const,
         author: s.author,
@@ -440,11 +441,19 @@ export function donePieces(body: string | null | undefined): { checked: boolean;
 }
 
 /** What the Done exploring dialog says, before any write. */
-export function doneExploringCopy(x: { checked: boolean; pieces: number; sent: number; canCheck?: boolean }): { description: string; piecesLine: string | null } {
-  const description = 'Nothing closes: the preview stays for you, your DS lead and stakeholders. Your developers take it from here.';
+export function doneExploringCopy(x: { checked: boolean; pieces: number; sent: number; canCheck?: boolean; viaLead?: boolean }): { description: string; piecesLine: string | null } {
+  const description = x.viaLead ? 'Your lead looks at it first. Once they say it looks right, your developers take it from here.' : 'Nothing closes: the preview stays for you, your DS lead and stakeholders. Your developers take it from here.';
   if (!x.checked) return { description, piecesLine: x.canCheck ? 'Bridge could not check it against the library this time. You can go on without proposing pieces.' : 'Not checked against the library yet. Ask Claude what is missing first, or go on without proposing pieces.' };
   if (!x.pieces) return { description, piecesLine: x.sent ? 'Every piece it needs is already with your DS lead.' : null };
   return { description, piecesLine: 'New pieces for the library. Each one you tick goes to your DS lead as a request, with a link to this preview.' };
+}
+
+export const LEAD_OK_LINE = 'Sent to the developers.';
+export const LEAD_CHANGES_LINE = 'Sent back to the designer.';
+
+/** The line after Done exploring when the design lead validates first. */
+export function leadAskedLine(pieces: number): string {
+  return pieces ? `Sent to your lead, with ${pieces} ${pieces === 1 ? 'piece' : 'pieces'} for the library. Your developers get it once they say it looks right.` : 'Sent to your lead. Your developers get it once they say it looks right.';
 }
 
 /** The line after Done exploring: what went where, in one sentence. */

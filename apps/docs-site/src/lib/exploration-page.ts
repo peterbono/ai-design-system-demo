@@ -211,6 +211,7 @@ export type TagTone = 'neutral' | 'info' | 'success' | 'warning';
  */
 export function explorationTag(status: string, opts: { notStarted?: boolean; stage?: LifecycleStage | null } = {}): { label: string; tone: TagTone; dot: boolean } {
   // The lifecycle stage, once read (lib/review-state): Being built splits into In review, Shipped into In the next release.
+  if (opts.stage === 'waiting-for-lead') return { label: LIFECYCLE_LABEL['waiting-for-lead'], tone: LIFECYCLE_TONE['waiting-for-lead'], dot: false };
   if (opts.stage === 'in-review') return { label: LIFECYCLE_LABEL['in-review'], tone: LIFECYCLE_TONE['in-review'], dot: false };
   if (opts.stage === 'next-release') return { label: LIFECYCLE_LABEL['next-release'], tone: LIFECYCLE_TONE['next-release'], dot: false };
   // The designer said it looks right: the developers ship it next. Declined: grey, nothing moves.
@@ -281,6 +282,8 @@ export function handoffSteps(input: {
   status: HandoffStatus;
   doneBy: PageFace | null;
   doneAt: string | null;
+  /** The design lead who validated it before the developers, when one did. */
+  leadOk?: PageFace | null;
   builders: readonly PageFace[];
   shippedAt?: string | null;
   product: string;
@@ -306,7 +309,8 @@ export function handoffSteps(input: {
   // A product added from its address: kept in Bridge for its developers, who get it through the message.
   const sentTo = input.elsewhere ? `Kept for the ${input.product} developers.` : `Sent to the ${input.library ? 'library' : input.product} developers.`;
   const doneWho = [input.doneBy?.name, when].filter(Boolean).join(', ');
-  const done: HandoffStep = { status: 'done', title: 'Done exploring', detail: doneWho ? `${doneWho}. ${sentTo}` : sentTo };
+  const validated = input.leadOk ? ` Validated by ${input.leadOk.name}.` : '';
+  const done: HandoffStep = { status: 'done', title: 'Done exploring', detail: doneWho ? `${doneWho}.${validated} ${sentTo}` : `${validated.trim()} ${sentTo}`.trim() };
   const who = input.builders.length ? names(input.builders) : null;
   const rv = input.review ?? null;
   const dev = rv?.dev ?? null;

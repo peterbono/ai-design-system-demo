@@ -76,6 +76,13 @@ export { claudeNewUrl };
 
 export type ExplorationStage = 'loading' | 'not-started' | 'exploring' | 'handed-off';
 
+/** Waiting for the design lead: one line, their answer when the viewer is a lead, Keep exploring for who asked. */
+export interface LeadView {
+  line: string;
+  onAnswer?: ((a: DesignAnswer) => Promise<string | void>) | null;
+  onCancel?: (() => Promise<string | void>) | null;
+}
+
 /** After Done exploring: where it stands, the four steps, and what the library gets from it. */
 export interface HandoffView {
   status: HandoffStatus;
@@ -161,6 +168,10 @@ export interface ExplorationPageProps {
   activity: ActivityRow[] | null;
   done: DoneAction;
   onDone: (focus: HTMLElement | null) => void;
+  /** Done exploring asked the design lead and they have not answered yet. */
+  lead?: LeadView | null;
+  /** The lead's last "Needs changes", until the designer asks again. */
+  leadNote?: string | null;
   /** Rename in the "..." menu: saves the new name on GitHub; null when not offered. */
   onRename?: ((name: string) => Promise<string | void>) | null;
   /** Back to exploring in the "..." menu (waiting for code, no developer push yet); null when not offered. */
@@ -256,15 +267,48 @@ function ContinueButton({ p, tool, line, say, variant, children, size = 'lg' }: 
   );
 }
 
-function DoneCard({ p }: { p: ExplorationPageProps }) {
+/** While the design lead has not answered: their answer for them, where it stands for everyone else. */
+function LeadCard({ lead, say }: { lead: LeadView; say: (s: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <section className="xp-done zone" aria-labelledby="xp-lead-h">
+      <h2 className="xp-h2" id="xp-lead-h">
+        {lead.onAnswer ? 'Ready for the developers?' : 'With your lead'}
+      </h2>
+      <p>{lead.line}</p>
+      {lead.onAnswer ? (
+        <DevAnswer onAnswer={lead.onAnswer} say={say} words={LEAD_ANSWER_WORDS} />
+      ) : lead.onCancel ? (
+        <Button
+          variant="inverse"
+          size="md"
+          className="xp-done-btn"
+          loading={busy}
+          onClick={() => {
+            setBusy(true);
+            lead.onCancel!()
+              .then((r) => r && say(r))
+              .catch((err: Error) => say(err.message))
+              .finally(() => setBusy(false));
+          }}
+        >
+          Keep exploring
+        </Button>
+      ) : null}
+    </section>
+  );
+}
+
+function DoneCard({ p, say }: { p: ExplorationPageProps; say: (s: string) => void }) {
+  if (p.lead) return p.archived ? null : <LeadCard lead={p.lead} say={say} />;
   const d = p.done;
   if (!d || p.archived) return null;
   return (
     <section className="xp-done zone" aria-labelledby="xp-done-h">
       <h2 className="xp-h2" id="xp-done-h">
-        Happy with it?
+        {p.leadNote ? 'Your lead asked for changes' : 'Happy with it?'}
       </h2>
-      <p>Pick what the library should keep. The preview stays for everyone.</p>
+      {p.leadNote ? <p>{p.leadNote}</p> : <p>Pick what the library should keep. The preview stays for everyone.</p>}
       {d.kind === 'note' ? (
         <p className="xp-muted">{d.text}</p>
       ) : d.kind === 'demo' ? (
@@ -464,7 +508,10 @@ function LibraryPart({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
  * The designer's answer on the developers' version, under the steps: Looks right in one click, Needs changes opens a
  * short text first (progressive disclosure). Bridge posts it on the developers' pull request.
  */
-function DevAnswer({ onAnswer, say }: { onAnswer: NonNullable<HandoffView['onAnswer']>; say: (s: string) => void }) {
+const DEV_ANSWER_WORDS = { hint: 'The developers read it on their work.', send: 'Send to the developers' };
+const LEAD_ANSWER_WORDS = { hint: 'The designer reads it on this page.', send: 'Send to the designer' };
+
+function DevAnswer({ onAnswer, say, words = DEV_ANSWER_WORDS }: { onAnswer: NonNullable<HandoffView['onAnswer']>; say: (s: string) => void; words?: typeof DEV_ANSWER_WORDS }) {
   const [asking, setAsking] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<'looks-right' | 'changes' | null>(null);
@@ -484,10 +531,10 @@ function DevAnswer({ onAnswer, say }: { onAnswer: NonNullable<HandoffView['onAns
           if (text.trim()) send({ kind: 'changes', text });
         }}
       >
-        <Textarea label="What should change" hint="The developers read it on their work." rows={3} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+        <Textarea label="What should change" hint={words.hint} rows={3} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
         <ButtonGroup>
           <Button type="submit" variant="primary" size="md" loading={busy === 'changes'} disabled={!text.trim()}>
-            Send to the developers
+            {words.send}
           </Button>
           <Button type="button" variant="ghost" size="md" onClick={() => setAsking(false)} disabled={busy !== null}>
             Cancel
@@ -929,7 +976,7 @@ function ExplorationBody(p: ExplorationPageProps) {
             {!handoff && !p.archived && p.latest && <LatestLine latest={p.latest} say={setSaid} />}
           </section>
           <div className="xp-side">
-            {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} /> : <DoneCard p={p} />}
+            {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} /> : <DoneCard p={p} say={setSaid} />}
             {!handoff && p.notes && <WhereItStands view={p.notes} say={setSaid} />}
             {!handoff && <ActivityList rows={p.activity} />}
           </div>

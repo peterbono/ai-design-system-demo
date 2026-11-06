@@ -15,10 +15,13 @@ import {
   explorationStartingPoint,
   explorationStatus,
   isGuardedExploration,
+  isWaitingForLead,
   parseExplorationBody,
   startPageOf,
   withDoneExploring,
+  withLeadAsked,
   withoutDoneExploring,
+  withoutLeadAsked,
   type DoneExploringPlan,
   type ExplorationChecks,
   type ExplorationStatus,
@@ -52,6 +55,8 @@ export interface DoneExploringInput {
    * requests for the ticked pieces are filed there, where the DS lead works, linking back to the product pull request.
    */
   library?: GitHubClient | undefined;
+  /** The design lead who validated it, when one did: the hand-off names them. */
+  leadOkBy?: string | undefined;
 }
 
 export interface DoneExploring {
@@ -179,7 +184,7 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   // The pieces wrote their links into the body: read it again before the developer section goes in.
   const latest = await gh.getPullRequest(p.number).catch(() => p);
   const doneAt = parseExplorationBody(plan.body)?.doneAt ?? (input.date ?? new Date()).toISOString();
-  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneBy: doneByOfInput(input), doneSha, checks, ...(codeRepo ? { copy: gh.fullName } : {}), ...(task ? { task } : {}), ...(spec && !codeRepo ? { spec } : {}) }) });
+  await x.updatePullRequest(p.number, { body: withDoneExploring(latest.body, { branch: p.headRef, doneAt, doneBy: doneByOfInput(input), doneSha, checks, ...(githubLoginOf(input.leadOkBy) ? { leadOkBy: githubLoginOf(input.leadOkBy)! } : {}), ...(codeRepo ? { copy: gh.fullName } : {}), ...(task ? { task } : {}), ...(spec && !codeRepo ? { spec } : {}) }) });
   return out;
 }
 
@@ -224,6 +229,54 @@ export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | 
     if (!(e instanceof GitHubError && e.status === 404)) out.warnings.push(`The ${EXPLORATION_READY_LABEL} label is still on (${e.message}).`);
   });
   return out;
+}
+
+export interface LeadAsked {
+  number: number;
+  url: string;
+  branch: string;
+}
+
+/**
+ * "Done exploring" where a design lead validates first: only the body changes. The exploration keeps running, so its
+ * label, note and preview stay and no developer sees anything until the lead says it looks right.
+ */
+export async function askLeadOnGitHub(gh: GitHubClient, ref: string | number, input: { pieces?: readonly string[] | undefined; openedBy?: string | undefined; openedByName?: string | undefined; date?: Date | undefined; leads?: readonly string[] | undefined } = {}): Promise<LeadAsked> {
+  if (!gh.canWrite) throw new GitHubError(401, 'Saying "Done exploring" needs a GitHub token (pull requests: write).');
+  const p = await findExplorationOnGitHub(gh, ref);
+  const status = explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body, headSha: p.headSha, draft: p.draft });
+  if (status !== 'active') throw new GitHubError(422, `#${p.number} is no longer being explored.`);
+  const at = (input.date ?? new Date()).toISOString();
+  await gh.updatePullRequest(p.number, { body: withLeadAsked(p.body, { at, by: doneByOfInput(input), byName: input.openedByName, pieces: input.pieces }) });
+  // GitHub tells the leads; a refused comment changes nothing, the exploration already waits for them in Studio.
+  const leads = (input.leads ?? []).map(githubLoginOf).filter((l): l is string => Boolean(l));
+  if (leads.length) await gh.createIssueComment(p.number, `${leads.map((l) => `@${l}`).join(' ')} ready for your validation in Bridge. Nothing goes to the developers until you answer.`).catch(() => undefined);
+  return { number: p.number, url: p.url, branch: p.headRef };
+}
+
+/**
+ * The design lead's "Looks right": what Done exploring always did, under the name of the person who asked, with the
+ * pieces they ticked. A refused step leaves the ask in place, so the lead can say it again.
+ */
+export async function leadApproveOnGitHub(gh: GitHubClient, ref: string | number, input: Omit<DoneExploringInput, 'pieces' | 'openedBy' | 'openedByName'> & { lead?: string | undefined }): Promise<DoneExploring> {
+  const p = await findExplorationOnGitHub(gh, ref);
+  const e = parseExplorationBody(p.body);
+  if (!isWaitingForLead(p.body)) throw new GitHubError(422, `#${p.number} is not waiting for a lead.`);
+  const { lead, ...rest } = input;
+  return doneExploringOnGitHub(gh, p.number, { ...rest, pieces: e?.leadPieces ?? [], ...(e?.leadAskedBy ? { openedBy: e.leadAskedBy } : {}), ...(e?.leadAskedByName ? { openedByName: e.leadAskedByName } : {}), ...(lead ? { leadOkBy: lead } : {}) });
+}
+
+/** The design lead's "Needs changes": back to the designer with the lead's words, nothing reached developers. */
+export async function leadChangesOnGitHub(gh: GitHubClient, ref: string | number, input: { note: string; lead?: string | undefined }): Promise<void> {
+  const p = await findExplorationOnGitHub(gh, ref);
+  if (!isWaitingForLead(p.body)) throw new GitHubError(422, `#${p.number} is not waiting for a lead.`);
+  await gh.updatePullRequest(p.number, { body: withoutLeadAsked(p.body, { note: input.note, by: input.lead }) });
+}
+
+/** The designer keeps exploring while the lead has not answered. */
+export async function cancelLeadAskOnGitHub(gh: GitHubClient, ref: string | number): Promise<void> {
+  const p = await findExplorationOnGitHub(gh, ref);
+  if (isWaitingForLead(p.body)) await gh.updatePullRequest(p.number, { body: withoutLeadAsked(p.body) });
 }
 
 /** The design spec from the exploration's note files on the branch (exploration-notes.ts), or null when they hold none. */

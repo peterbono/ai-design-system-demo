@@ -25,7 +25,7 @@ Usage:
                      pick one up where it was left ("Continue Bridge exploration #12"): switches this
                      checkout to its branch when nothing is uncommitted, then says where it stands
   bridge explore done <name|#pr|product#pr> [--piece <id> ...] [--dry-run] [--json]
-                     done exploring: each --piece (ids from bridge pieces) becomes a request for the DS lead
+                     done exploring: where the team names a design lead, it waits for them first; then each --piece (ids from bridge pieces) becomes a request for the DS lead
                      with the preview link; the exploration label and note go, ready-for-devs comes, and
                      developers continue on the branch. Never closes, merges or marks it ready
                      (promote is the old name of done)
@@ -107,6 +107,11 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       const ctx = await context(root, io, a, has(a, 'dry-run') ? 'read' : 'write');
       const r = await explorations.doneExploring(ctx, { ref, pieces: a.flags.piece ?? [], dryRun: has(a, 'dry-run'), ...exploreSource(io.env) });
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
+      if (r.status === 'waiting-for-lead') {
+        io.print(`Sent to your design lead for ${r.ref} (${r.branch}). Nothing reaches the developers until they say it looks right in Bridge Studio.`);
+        io.print(r.url);
+        return 0;
+      }
       const lead = r.status === 'dry-run' ? 'Dry run: done exploring' : r.status === 'already-done' ? 'Already done exploring' : 'Done exploring';
       io.print(`${lead} ${r.ref} (${r.branch}${r.repo ? ` in ${r.repo}` : ''}). Nothing closed or merged: the preview stays.${r.requestsIn && r.requests.length ? ` Requests go to ${r.requestsIn}.` : ''}`);
       if (r.labels) io.print(`Labels: +${r.labels.add.join(', +')}, -${r.labels.remove.join(', -')}${r.removeFiles.length ? `. Removes ${r.removeFiles.join(', ')}` : ''}.`);
