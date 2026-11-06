@@ -540,9 +540,33 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
 // ---------------------------------------------------------------------------------------------
 // Nodes
 
+/** Whether a layer sits inside an instance of the variant: its layers are its component's, not this variant's parts. */
+function insideInstance(node: SceneNode, variant: ComponentNode): boolean {
+  for (let p = node.parent; p && p !== variant; p = p.parent) if (p.type === 'INSTANCE') return true;
+  return false;
+}
+
 function findPart(variant: ComponentNode, id: string): SceneNode | undefined {
   if (id === 'root') return variant;
-  return variant.findOne((n) => n.getSharedPluginData(NS, 'part') === id) ?? undefined;
+  const marked = (n: SceneNode) => n.getSharedPluginData(NS, 'part') === id;
+  const first = variant.findOne(marked);
+  if (!first || !insideInstance(first, variant)) return first ?? undefined;
+  return variant.findAll(marked).find((n) => !insideInstance(n, variant));
+}
+
+/**
+ * Another spec source can draw the same part as another kind of layer (the static spec's "label" is a text, the
+ * measure's holds parts of its own; its "indicator" an icon instance, the measure's a box). A layer that cannot be
+ * this part makes way: a new one in its place, or its children would have nowhere to go.
+ */
+function replaceMisfit(node: SceneNode, part: SpecPart): SceneNode {
+  const fits = part.kind === 'text' ? node.type === 'TEXT' : node.type !== 'TEXT' && node.type !== 'INSTANCE';
+  if (fits) return node;
+  const fresh = createPart(part);
+  const holder = node.parent as Box;
+  holder.insertChild(holder.children.indexOf(node), fresh);
+  node.remove();
+  return fresh;
 }
 
 const sameName = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9]/g, '') === b.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -783,6 +807,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       }
       ctx.problems.push(`${ctx.where}: no component "${target}". Pull components again to create it.`);
     }
+    if (node && part.id !== 'root') node = replaceMisfit(node, part);
     if (!node) {
       node = createPart(part);
       parent.appendChild(node);
