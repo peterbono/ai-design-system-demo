@@ -370,3 +370,36 @@ test('with a design lead: nothing reaches the developers until they say it looks
   assert.equal(after?.leadOkBy, 'flo');
   assert.equal(after?.leadAskedAt, undefined);
 });
+
+test('Back to exploring brings back notes Done exploring removed, from the commit before', async () => {
+  const body = explorationPrBody({ name: 'Orders', purpose: '', slug: 'orders' }, { owner: 'acme', repo: 'shop', packages: [], apps: {} });
+  const done = withDoneExploring(body, { branch: 'explore/orders', doneAt: '2026-11-01T10:00:00Z', doneSha: 'c2' });
+  const pull = { number: 4, node_id: 'PR_4', html_url: 'https://github.com/acme/shop/pull/4', title: 'Exploration: Orders', state: 'open', draft: true, body: done, labels: [{ name: 'ready-for-devs' }], head: { ref: 'explore/orders', sha: 'c2' }, base: { ref: 'main' }, user: { login: 'ann' }, updated_at: '' };
+  const writes: { method: string; path: string; body?: any }[] = [];
+  const res = (status: number, b: unknown) => ({ ok: status < 300, status, headers: { get: () => null }, json: async () => b, text: async () => JSON.stringify(b) });
+  const note = explorationNotePath('orders');
+  const f = (async (url: string, init?: { method?: string; body?: string }) => {
+    const method = init?.method ?? 'GET';
+    const path = url.replace('https://api.github.com', '');
+    const b = init?.body ? JSON.parse(init.body) : undefined;
+    if (method !== 'GET') writes.push({ method, path, body: b });
+    if (path === '/repos/acme/shop/pulls/4') {
+      if (method === 'PATCH') Object.assign(pull, b);
+      return res(200, pull);
+    }
+    if (path.startsWith('/repos/acme/shop/pulls/4/commits')) return res(200, [{ sha: 'c1', commit: { message: 'work' } }, { sha: 'c2', commit: { message: 'chore(explore): done exploring, remove the exploration note' } }]);
+    if (path.includes(`/contents/${note}`)) return path.endsWith('ref=c1') ? res(200, { content: Buffer.from('# Notes').toString('base64'), encoding: 'base64', type: 'file' }) : res(404, {});
+    if (path === '/repos/acme/shop/git/ref/heads/explore/orders') return res(200, { object: { sha: 'c2' } });
+    if (path.startsWith('/repos/acme/shop/git/commits/')) return res(200, { tree: { sha: 't1' } });
+    if (path === '/repos/acme/shop/git/trees') return res(201, { sha: 't2' });
+    if (path === '/repos/acme/shop/git/commits') return res(201, { sha: 'c3' });
+    if (path === '/repos/acme/shop/git/refs/heads/explore/orders') return res(200, {});
+    if (path.startsWith('/repos/acme/shop/issues/4/labels')) return res(200, []);
+    return res(404, { message: `no route ${method} ${path}` });
+  }) as unknown as ConstructorParameters<typeof GitHubClient>[2];
+  const gh = new GitHubClient('acme/shop', 't', f, NO_RETRY, { etags: false, protectedBranches: ['main'], branchPrefix: 'explore/' });
+  const back = await reopenExplorationOnGitHub(gh, 4);
+  assert.deepEqual(back.warnings, []);
+  const commit = writes.find((w) => w.path === '/repos/acme/shop/git/commits');
+  assert.equal(commit?.body.message, 'chore(explore): bring the exploration notes back');
+});

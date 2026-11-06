@@ -405,7 +405,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   reported = sources;
   if (current?.key !== key) return;
   // "Where it stands": the handover notes, while it runs (after Done exploring they went to the developers as the spec).
-  if (!handedOff) void paintNotes(d, key, r, gh, files, notesEditable({ writable, member: Boolean(member), designer, emailOnProduct, direct, own: Boolean(own) }) && !r.archived);
+  // Handed off, the notes stay readable: the lead and the designer keep the decisions, whoever carries on.
+  void paintNotes(d, key, r, gh, files, !handedOff && notesEditable({ writable, member: Boolean(member), designer, emailOnProduct, direct, own: Boolean(own) }) && !r.archived);
   // Archived: the page of the state it was archived in (not started or exploring), with the Archived tag.
   const stage = explorationStage({ status: r.archived ? 'active' : r.status, files });
   const app = own ? undefined : isLibrary ? (libraryPreviewApp(files, CFG.apps) ?? 'docs') : (product.key as 'admin');

@@ -226,7 +226,7 @@ export interface ExplorationPageProps {
   /**
    * "Where it stands": the handover notes (decisions, edge cases, open questions, next step), above the activity while
    * it runs. Editable in place by whoever can edit the exploration (onSave), read only otherwise. Unset: not shown
-   * (after Done exploring the notes went to the developers).
+   * (after Done exploring they stay readable when the branch keeps them).
    */
   notes?: WhereItStandsView | null;
   /** "Put in Figma": the line for the viewer's Claude (lib/exploration-page canPutInFigma). Unset or null: no button. */
@@ -977,7 +977,7 @@ function ExplorationBody(p: ExplorationPageProps) {
           </section>
           <div className="xp-side">
             {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} /> : <DoneCard p={p} say={setSaid} />}
-            {!handoff && p.notes && <WhereItStands view={p.notes} say={setSaid} />}
+            {p.notes && (!handoff || p.notes.notes) && <WhereItStands view={p.notes} say={setSaid} />}
             {!handoff && <ActivityList rows={p.activity} />}
           </div>
           {handoff && <ActivityList rows={p.activity} />}
