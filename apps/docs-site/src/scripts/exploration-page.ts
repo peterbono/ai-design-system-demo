@@ -311,7 +311,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const isLibrary = !own && product.default === true;
   const handedOff = handedOffHere(r);
   const lines = pageLines({ number: r.number, name: r.name, productName: product.name, product: own?.product.key, repo: own?.repo });
-  // "Put in Figma": for who can edit, only when the team has a Figma file (Bridge's rule: a fact goes to who can act on it).
+  // "Send to Figma": for who can edit, only when the team has a Figma file (Bridge's rule: a fact goes to who can act on it).
   const figmaLine = (status: string) =>
     canPutInFigma({ figmaFile: (siteConfig() as { figma?: { file?: string } }).figma?.file, demo: sampleVisitor(), archived: Boolean(r.archived), status, memberRole: member?.role, designer, reviewer: viewerRole() === 'reviewer', write: currentAccess()?.write })
       ? figmaLines({ number: r.number, name: r.name, product: own?.product.key, repo: own?.repo })

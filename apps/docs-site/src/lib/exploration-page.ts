@@ -149,7 +149,7 @@ export function reopenedOf(body: string | null | undefined): { at: string; by: s
 export const pageLines = continueLines;
 
 /**
- * Who gets "Put in Figma": the team has a Figma file and the viewer can edit (a fact shows only to who can act on it):
+ * Who gets "Send to Figma": the team has a Figma file and the viewer can edit (a fact shows only to who can act on it):
  * a member who joined with their email unless they only view, a designer Bridge writes for, a reviewer, or GitHub write
  * access. Never on the sample team, an archived exploration or a shipped or closed one.
  */

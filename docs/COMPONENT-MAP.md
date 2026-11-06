@@ -72,7 +72,7 @@ the leads change the library.
 
 ## Putting an exploration in Figma
 
-**For designers:** say "Put this exploration in Figma" to your Claude, or use Put in Figma on the exploration page in
+**For designers:** say "Put this exploration in Figma" to your Claude, or use Send to Figma on the exploration page in
 Studio (shown to people who can edit, when the team has a Figma file). Your Claude builds it in a new page of the
 team's Figma file with real components, then gives you the page link and says what it could not express.
 
