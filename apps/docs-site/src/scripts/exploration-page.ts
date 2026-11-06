@@ -501,7 +501,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const fromTask = task ? taskStatus(task) : null;
   const status = (devRead && fromTask !== 'shipped' ? 'building' : fromTask ? (fromTask === 'closed' ? 'ready' : fromTask) : r.status) as 'ready' | 'building' | 'shipped';
   const label = doneByOf(commits) ? null : await readyLabelEvent(r);
-  const doneLogin = doneByOf(commits) ?? label?.login ?? r.author;
+  // Validated by a lead: the commits and the label are theirs, the block keeps the designer who said it (who started it, for a member without GitHub).
+  const doneLogin = (block?.leadOkBy ? (block.doneBy ?? r.author) : null) ?? doneByOf(commits) ?? label?.login ?? r.author;
   const doneAt = block?.doneAt ?? label?.at ?? null;
   // Who explored it: their own comments on the task are answers, never a question of the developers.
   const designers = [r.author, block?.author, block?.doneBy, doneLogin];
