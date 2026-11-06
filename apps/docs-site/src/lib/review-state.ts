@@ -7,7 +7,7 @@
 // each reviewer's last say (approved or changes requested; changes requested wins, as on GitHub), and the draft flag.
 // The reviews themselves (GET pulls/{n}/reviews) are read only for open, handed-off pull requests that are not drafts
 // (needsReviewRead): a few per page, never one per row. Pure: no DOM, no fetch. Tested in review-state.test.ts.
-import { DESIGN_TASK_BACK_COMMENT, explorationStatus, isArchivedExploration, isExplorationPull, parseExplorationBody, type ExplorationStatus } from '@bridge-ds/core';
+import { DESIGN_TASK_BACK_COMMENT, explorationStatus, isArchivedExploration, isExplorationPull, isWaitingForLead, parseExplorationBody, type ExplorationStatus } from '@bridge-ds/core';
 import { sameRepo } from './team-path.js';
 
 /** A review of the pull request as GitHub lists it (GET pulls/{n}/reviews). */
@@ -127,11 +127,13 @@ export function reviewLine(s: ReviewState, opts: { viewer?: string | null; nameO
 // The lifecycle
 
 /** Where a piece of work stands, on every page. */
-export type LifecycleStage = 'exploring' | 'waiting-for-code' | 'being-built' | 'in-review' | 'approved' | 'next-release' | 'shipped' | 'archived' | 'closed' | 'not-planned';
+export type LifecycleStage = 'exploring' | 'waiting-for-lead' | 'waiting-for-code' | 'being-built' | 'in-review' | 'approved' | 'next-release' | 'shipped' | 'archived' | 'closed' | 'not-planned';
 
 /** The words of each stage: the tab, the tag and the line say the same. */
 export const LIFECYCLE_LABEL: Record<LifecycleStage, string> = {
   exploring: 'Exploring',
+  // Done exploring was said; the design lead validates before anything reaches the developers.
+  'waiting-for-lead': 'Waiting for lead',
   'waiting-for-code': 'Waiting to be picked up',
   'being-built': 'Being built',
   'in-review': 'In review',
@@ -155,6 +157,7 @@ export type StageTone = 'neutral' | 'info' | 'warning' | 'success';
  */
 export const LIFECYCLE_TONE: Record<LifecycleStage, StageTone> = {
   exploring: 'info',
+  'waiting-for-lead': 'warning',
   'waiting-for-code': 'warning',
   'being-built': 'info',
   'in-review': 'warning',
@@ -171,10 +174,10 @@ export const LIFECYCLE_TONE: Record<LifecycleStage, StageTone> = {
  * merged, whether it waits for the library release. Core's "building" splits here: still a draft with nobody asked is
  * Being built; ready for review, reviewers asked, or changes requested is In review.
  */
-export function explorationLifecycle(input: { status: ExplorationStatus; archived?: boolean; review?: Pick<ReviewState, 'draft' | 'requested' | 'verdict'> | null; nextRelease?: boolean }): LifecycleStage {
+export function explorationLifecycle(input: { status: ExplorationStatus; archived?: boolean; lead?: boolean; review?: Pick<ReviewState, 'draft' | 'requested' | 'verdict'> | null; nextRelease?: boolean }): LifecycleStage {
   const { status } = input;
   if (input.archived && status !== 'shipped' && status !== 'closed') return 'archived';
-  if (status === 'active') return 'exploring';
+  if (status === 'active') return input.lead ? 'waiting-for-lead' : 'exploring';
   if (status === 'ready') return 'waiting-for-code';
   if (status === 'building') {
     const r = input.review;
@@ -220,7 +223,7 @@ export function needsReviewRead(p: LifecyclePull): boolean {
 export function pullLifecycle(p: LifecyclePull, ctx: { approvers?: readonly string[]; reviews?: readonly PullReviewLike[] | null; nextRelease?: boolean } = {}): { stage: LifecycleStage; review: ReviewState } {
   const c = coreOf(p);
   const review = reviewStateOf({ draft: p.draft ?? null, requested: p.requested_reviewers ?? [], approvers: ctx.approvers ?? [], reviews: ctx.reviews ?? null });
-  return { stage: explorationLifecycle({ status: explorationStatus(c), archived: isArchivedExploration(c.labels), review, nextRelease: Boolean(ctx.nextRelease) }), review };
+  return { stage: explorationLifecycle({ status: explorationStatus(c), archived: isArchivedExploration(c.labels), lead: isWaitingForLead(c.body), review, nextRelease: Boolean(ctx.nextRelease) }), review };
 }
 
 /** An exploration's name as people read it: the name in its Bridge block, else its title without "Exploration:". */

@@ -47,10 +47,11 @@ export const STABLE_TABS: readonly StateTab[] = ['all', 'waiting', 'exploring', 
 const DEV_TABS: readonly StateTab[] = ['code', 'building', 'review'];
 
 // Approved, waiting to ship stays under In review until it ships, as on Being built (lib/building-view statusTag).
-const STAGE_TAB: Partial<Record<LifecycleStage, StageTab>> = { exploring: 'exploring', 'waiting-for-code': 'code', 'being-built': 'building', 'in-review': 'review', approved: 'review' };
+const STAGE_TAB: Partial<Record<LifecycleStage, StageTab>> = { exploring: 'exploring', 'waiting-for-lead': 'exploring', 'waiting-for-code': 'code', 'being-built': 'building', 'in-review': 'review', approved: 'review' };
 const LABEL_TAB: Record<string, StageTab> = {
   'Not started': 'exploring',
   [LIFECYCLE_LABEL.exploring]: 'exploring',
+  [LIFECYCLE_LABEL['waiting-for-lead']]: 'exploring',
   [LIFECYCLE_LABEL['waiting-for-code']]: 'code',
   [LIFECYCLE_LABEL['being-built']]: 'building',
   [LIFECYCLE_LABEL['in-review']]: 'review',

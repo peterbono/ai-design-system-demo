@@ -21,7 +21,7 @@ import {
   waitForDesignCopy,
 } from '../src/design-copy-github';
 import { designCopyTakeCommands, doneExploringPlan, explorationNote, explorationNotePath, explorationPrBody, parseExplorationBody, withDoneExploring, type Exploration } from '../src/explorations';
-import { designTaskRef, doneExploringOnGitHub, DESIGN_TASK_BACK_COMMENT, reopenExplorationOnGitHub } from '../src/exploration-done-github';
+import { askLeadOnGitHub, designTaskRef, doneExploringOnGitHub, DESIGN_TASK_BACK_COMMENT, leadApproveOnGitHub, leadChangesOnGitHub, reopenExplorationOnGitHub } from '../src/exploration-done-github';
 import { GitHubClient } from '../src/github-client';
 import { fakeGitHub } from './fake-github';
 import { realConfig } from './helpers';
@@ -330,4 +330,43 @@ test('designTaskRef reads a task URL, only in the expected repository', () => {
   assert.equal(designTaskRef('https://github.com/acme/other/issues/7', 'acme/shop'), null);
   assert.equal(designTaskRef('https://github.com/acme/shop/pull/7', null), null);
   assert.equal(designTaskRef(undefined, null), null);
+});
+
+test('with a design lead: nothing reaches the developers until they say it looks right, under the designer\'s name', async () => {
+  const writes: { method: string; path: string; body: any }[] = [];
+  let pullBody = explorationPrBody({ name: 'Orders', purpose: 'Faster', slug: 'orders' }, { owner: 'acme', repo: 'shop-design', packages: [], apps: {}, inProduct: { name: 'Art print shop', library: DS, copyOf: 'acme/shop' } });
+  const res = (status: number, b: unknown) => ({ ok: status < 300, status, headers: { get: () => null }, json: async () => b, text: async () => JSON.stringify(b) });
+  const f = (async (url: string, init?: { method?: string; body?: string }) => {
+    const path = url.replace('https://api.github.com', '').split('?')[0]!;
+    const method = init?.method ?? 'GET';
+    const b = init?.body ? JSON.parse(init.body) : {};
+    if (method !== 'GET') writes.push({ method, path, body: b });
+    if (path === '/repos/acme/shop-design/pulls/4' && method === 'PATCH') pullBody = b.body;
+    if (path === '/repos/acme/shop-design/pulls/4') return res(200, { number: 4, title: 'Exploration: Orders', body: pullBody, state: 'open', draft: true, html_url: 'https://github.com/acme/shop-design/pull/4', labels: [{ name: 'exploration' }], head: { ref: 'explore/orders', sha: 'h1' }, base: { ref: 'main' }, user: { login: 'ann' }, created_at: '', updated_at: '' });
+    if (path.startsWith('/repos/acme/shop-design/pulls/4/files')) return res(200, [{ filename: 'src/pages/Orders.tsx', status: 'modified' }]);
+    if (path.includes('/check-runs') || path.includes('/status')) return res(200, { check_runs: [], statuses: [], state: 'success' });
+    if (path === '/repos/acme/shop-design/issues/4/comments') return res(201, { id: 1, body: b.body, user: { login: 'ann' }, html_url: '', created_at: '' });
+    if (path.startsWith('/repos/acme/shop-design/issues/4/labels')) return res(200, []);
+    if (path === '/repos/acme/shop/labels') return res(201, {});
+    if (path === '/repos/acme/shop/issues') return res(201, { number: 7, title: b.title, body: b.body, html_url: 'https://github.com/acme/shop/issues/7', state: 'open', labels: [{ name: FROM_DESIGN_LABEL }], user: { login: 'flo' }, created_at: '', updated_at: '' });
+    return res(404, { message: `no route ${method} ${path}` });
+  }) as unknown as ConstructorParameters<typeof GitHubClient>[2];
+  const gh = new GitHubClient('acme/shop-design', 't', f, NO_RETRY, { etags: false, protectedBranches: ['main'], branchPrefix: 'explore/' });
+
+  await askLeadOnGitHub(gh, 4, { openedBy: 'ann', leads: ['flo'] });
+  assert.equal(writes.some((w) => w.path.startsWith('/repos/acme/shop/')), false);
+  assert.equal(parseExplorationBody(pullBody)?.leadAskedBy, 'ann');
+  assert.match(writes.find((w) => w.path.endsWith('/comments'))!.body.body, /@flo/);
+
+  await leadChangesOnGitHub(gh, 4, { note: 'Tighter', lead: 'flo' });
+  assert.equal(parseExplorationBody(pullBody)?.leadNote, 'Tighter');
+  await assert.rejects(leadApproveOnGitHub(gh, 4, { products: PRODUCTS, lead: 'flo' }), /not waiting/);
+
+  await askLeadOnGitHub(gh, 4, { openedBy: 'ann' });
+  const r = await leadApproveOnGitHub(gh, 4, { products: PRODUCTS, lead: 'flo' });
+  assert.deepEqual(r.task, { number: 7, url: 'https://github.com/acme/shop/issues/7', repo: 'acme/shop' });
+  const after = parseExplorationBody(pullBody);
+  assert.equal(after?.doneBy, 'ann');
+  assert.equal(after?.leadOkBy, 'flo');
+  assert.equal(after?.leadAskedAt, undefined);
 });

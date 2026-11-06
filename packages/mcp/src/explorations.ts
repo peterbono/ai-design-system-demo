@@ -9,7 +9,9 @@ import { dirname, join } from 'node:path';
 import {
   archiveExplorationOnGitHub,
   baseBranchOf,
+  askLeadOnGitHub,
   doneExploringOnGitHub,
+  needsLeadValidation,
   parsePiecesRecord,
   productsOf,
   closeExplorationOnGitHub,
@@ -391,6 +393,11 @@ export async function doneExploring(ctx: BridgeContext, a: { ref: string; pieces
     previewUrl = build?.previews.find((v) => v.url && v.state !== 'failed')?.url ?? null;
   }
   const viewer = await viewerOf(ctx, ds);
+  // A design lead validates first (decision 2026-11-06): nothing reaches the developers before they answer in Studio.
+  if (!a.dryRun && needsLeadValidation({ viewer, author: parseExplorationBody(p.body)?.author ?? p.author, leads: config.governance.owners.design })) {
+    const asked = await askLeadOnGitHub(gh, p.number, { pieces: a.pieces ?? [], ...(viewer ? { openedBy: viewer } : {}), leads: config.governance.owners.design.filter((l) => !l.includes('/') && l.replace(/^@/, '').toLowerCase() !== viewer?.toLowerCase()) });
+    return { status: 'waiting-for-lead' as const, number: asked.number, ref: explorationRefLabel({ number: asked.number, product: at.product?.key, repo: at.repo }), url: asked.url, branch: asked.branch, leads: config.governance.owners.design };
+  }
   const r = await doneExploringOnGitHub(gh, p.number, {
     // In a product's own repository the requests are filed in the design system repository, where the DS lead works.
     ...(at.repo ? { library: ds.withBranchPrefix(undefined) } : {}),

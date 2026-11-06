@@ -15,6 +15,8 @@ export interface DoneExploringDetail {
   checked: boolean;
   /** Pieces already sent to the library before. */
   sent: number;
+  /** It goes to the design lead first, not to the developers. */
+  viaLead?: boolean;
   /** Runs it with the ticked piece ids. Throws with a sentence that says how to fix it. */
   confirm: (pieces: string[]) => Promise<void>;
   /** Called when the dialog closes, done or not: focus goes back to the page. */
@@ -80,7 +82,7 @@ export default function DoneExploring() {
     }
   };
 
-  const copy = detail ? doneExploringCopy({ checked: detail.checked, pieces: detail.pieces.length, sent: detail.sent, canCheck: Boolean(detail.check) }) : null;
+  const copy = detail ? doneExploringCopy({ checked: detail.checked, pieces: detail.pieces.length, sent: detail.sent, canCheck: Boolean(detail.check), viaLead: Boolean(detail.viaLead) }) : null;
   return (
     <Dialog open={detail !== null} onOpenChange={(o) => !o && !busy && close(false)}>
       <DialogContent
