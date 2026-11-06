@@ -60,7 +60,7 @@ describe('ExplorationPage, archived', () => {
     expect(screen.queryByText('Open in Claude Code')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Bring it in' })).toBeNull();
     expect(screen.queryByText(/^Continue/)).toBeNull();
-    expect(container.querySelector('.xp-preview-acts.is-one')!.children).toHaveLength(1);
+    expect(container.querySelector('.xp-preview-acts')!.children).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Unarchive' })).toBeTruthy();
   });
 

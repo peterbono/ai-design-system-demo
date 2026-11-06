@@ -42,6 +42,8 @@ describe('exploration page model', () => {
   it('names people by their name, Claude as Claude, with GitHub photos for accounts only', () => {
     expect(faceOf('florian', false, { florian: 'Florian' })).toEqual({ login: 'florian', name: 'Florian', agent: false, avatar: 'https://github.com/florian.png?size=64' });
     expect(faceOf('claude', true)).toMatchObject({ name: 'Claude', agent: true, avatar: null });
+    // A person known by name only reads as their name, even when a lookup echoed the raw author back.
+    expect(faceOf('name:Dino', false, { 'name:Dino': 'name:Dino' }).name).toBe('Dino');
     expect(avatarOf('ann@example.com')).toBeNull();
     expect(avatarOf('github-actions[bot]')).toBeNull();
   });

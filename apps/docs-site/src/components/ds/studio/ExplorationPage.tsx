@@ -13,7 +13,7 @@
 //   when, the preview with one action, and the one Harbor zone on what happens next: the hand-off in four steps (the
 //   DS Checklist), then what the library gets from it (the pieces Bridge found, each with its request status; Bridge
 //   runs that check itself, the page shows it while it runs). The activity under it. A write's line is a DS toast.
-// - "Put in Figma", one quiet action under the preview for who can edit when the team has a Figma file: it hands the
+// - "Put in Figma", one of the actions under the preview for who can edit when the team has a Figma file: it hands the
 //   request to the viewer's own Claude, which rebuilds the exploration in Figma. Once Claude recorded the page, the link.
 // The "..." menu holds Rename (a DS Dialog), Back to exploring (a confirmation, waiting for code only) and Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
 // over lib/exploration-page.ts. Styles: styles/exploration-page.css.
@@ -648,20 +648,20 @@ function LatestLine({ latest, say }: { latest: NonNullable<ExplorationPageProps[
 }
 
 /**
- * Under the preview, the quiet way to Figma: the page Claude built, once recorded, then the action. It always hands
- * the line to the viewer's AI tool: Claude Code's copy of the product has no Figma connector of its own to count on.
+ * The way to Figma, in the block of actions under the preview: the page Claude built, once recorded, then the action.
+ * It always hands the line to the viewer's AI tool: Claude Code's copy of the product has no Figma connector of its own
+ * to count on.
  */
 function FigmaAction({ p, tool, say }: { p: ExplorationPageProps; tool: AiTool; say: (s: string) => void }) {
   const page = p.notes?.notes?.figmaPage ?? null;
   if (!page && !p.figma) return null;
   const to = p.claudeCodeUrl ? 'claude-app' : tool;
   return (
-    <div className="xp-figma">
+    <>
       {page && (
-        <Link href={page} target="_blank" rel="noopener">
+        <ButtonLink variant="secondary" size="lg" href={page} target="_blank" rel="noopener" iconEnd={ExternalLink}>
           See it in Figma
-          <ExternalLink aria-hidden="true" size={14} />
-        </Link>
+        </ButtonLink>
       )}
       {p.figma && (
         <ToolAction
@@ -669,8 +669,8 @@ function FigmaAction({ p, tool, say }: { p: ExplorationPageProps; tool: AiTool; 
           line={to === 'claude-code' ? p.figma.terminal : p.figma.app}
           onCopy={p.onCopy}
           say={say}
-          variant="ghost"
-          size="md"
+          variant="secondary"
+          size="lg"
           {...(p.claudeLink ? { claudeLink: p.claudeLink } : {})}
           {...(p.connectorAddress ? { connectorAddress: p.connectorAddress } : {})}
           {...(p.onClaudeConnected ? { onClaudeConnected: p.onClaudeConnected } : {})}
@@ -678,7 +678,7 @@ function FigmaAction({ p, tool, say }: { p: ExplorationPageProps; tool: AiTool; 
           {page ? 'Put in Figma again' : 'Put in Figma'}
         </ToolAction>
       )}
-    </div>
+    </>
   );
 }
 
@@ -946,7 +946,7 @@ function ExplorationBody(p: ExplorationPageProps) {
         <div className={handoff ? 'xp-board is-handoff' : 'xp-board'}>
           <section className="xp-preview" aria-label="Preview">
             <ShotFrame p={p} />
-            <div className={handoff ? 'xp-acts' : p.archived ? 'xp-acts xp-preview-acts is-one' : 'xp-acts xp-preview-acts'}>
+            <div className="xp-acts xp-preview-acts">
               {p.previewUrl ? (
                 // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
                 <ButtonLink variant={zoneLeads ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} data-bridge-pass={p.tryWithoutPass ? 'off' : undefined} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
@@ -964,10 +964,8 @@ function ExplorationBody(p: ExplorationPageProps) {
               )}
               {/* Archived: the preview still opens, nothing offers to keep working on it (Unarchive first). */}
               {!handoff && !p.archived && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
-              {/* After Done exploring the preview's button stands alone: Figma shares its line. */}
-              {handoff && !p.archived && <FigmaAction p={p} tool={tab} say={setSaid} />}
+              {!p.archived && <FigmaAction p={p} tool={tab} say={setSaid} />}
             </div>
-            {!handoff && !p.archived && <FigmaAction p={p} tool={tab} say={setSaid} />}
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
               <p className="xp-muted xp-note" id="xp-preview-note">
                 {p.previewNote}

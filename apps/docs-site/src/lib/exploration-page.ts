@@ -84,7 +84,7 @@ export const faceOf = (who: string, claude: boolean, names: Record<string, strin
     const name = names[who] ?? who.split('@')[0]!;
     return { login: emailMemberFace(names[who], who), name: `${name}${tail}`, agent: false, avatar: null };
   }
-  if (isNameAuthor(who)) return { login: nameFace(nameOfAuthor(who)), name: `${names[who] ?? nameOfAuthor(who)}${tail}`, agent: false, avatar: null };
+  if (isNameAuthor(who)) return { login: nameFace(nameOfAuthor(who)), name: `${nameOfAuthor(names[who] ?? who)}${tail}`, agent: false, avatar: null };
   if (nameOnly.has(who)) return { login: nameFace(who), name: `${names[who] ?? who}${tail}`, agent: false, avatar: null };
   return { login: who, name: `${names[who] ?? who}${tail}`, agent: false, avatar: avatarOf(who) };
 };
