@@ -53,6 +53,70 @@ export const SAMPLE_EXPLORATION_PREVIEWS: Readonly<Record<string, string>> = {
 /** The capture of a sample exploration's screen, by its branch, or null. */
 export const sampleExplorationPreview = (branch: string | null | undefined): string | null => (branch ? (SAMPLE_EXPLORATION_PREVIEWS[branch] ?? null) : null);
 
+/**
+ * The running screen of a sample exploration, by branch: the same screen as its capture, built from the branch's own
+ * code (apps/account) with the library, shipped with the site in public/sample/previews/. The sample team publishes no
+ * preview deploys, so Open the preview opens these.
+ */
+export const SAMPLE_PREVIEW_PAGES: Readonly<Record<string, string>> = {
+  'explore/profile-page': '/sample/previews/profile-page.html',
+  'agent/billing-invoice-status': '/sample/previews/billing-invoice-status.html',
+  'explore/team-seats-and-roles': '/sample/previews/team-seats-and-roles.html',
+  'explore/notification-channels': '/sample/previews/notification-channels.html',
+  'explore/plan-comparison': '/sample/previews/plan-comparison.html',
+};
+
+/** The running screen of a sample exploration, by its branch, or null. */
+export const samplePreviewPage = (branch: string | null | undefined): string | null => (branch ? (SAMPLE_PREVIEW_PAGES[branch] ?? null) : null);
+
+/** Where a change of the sample team comes from: the exploration a "Needed by" block would name on a real team. */
+export interface SampleOrigin {
+  pr: number;
+  title: string;
+  branch: string;
+  product: string;
+  productName: string;
+}
+
+const PROFILE_PAGE: SampleOrigin = { pr: 36, title: 'Profile page', branch: 'explore/profile-page', product: 'account', productName: 'Account app' };
+const NOTIFICATION_CHANNELS: SampleOrigin = { pr: 47, title: 'Notification channels', branch: 'explore/notification-channels', product: 'account', productName: 'Account app' };
+
+/**
+ * The exploration behind each library change of the sample team, by branch: a real team reads it from the "Needed by"
+ * block Bridge writes when an exploration opens the change (lib/product-branch changeOrigin); the sample repository's
+ * pull requests carry none. Each one is something that screen does by hand today: the 56px between sections, the
+ * highlight, the avatar and the header. A change that came from nowhere in particular stays out: no origin, no line.
+ */
+export const SAMPLE_CHANGE_ORIGINS: Readonly<Record<string, SampleOrigin>> = {
+  'bridge/deepen-the-primary-blue-for-stronger-buttons': PROFILE_PAGE,
+  'bridge/add-a-56px-spacing-step-for-page-sections': PROFILE_PAGE,
+  'bridge/add-a-highlight-surface-for-new-items': PROFILE_PAGE,
+  'agent/request-profile-header': PROFILE_PAGE,
+  'agent/request-avatar-xl': PROFILE_PAGE,
+  'bridge/fix-muted-text-contrast-on-dark-raised-surfaces': NOTIFICATION_CHANNELS,
+};
+
+/** The exploration a sample team change comes from, by its branch, or null. */
+export const sampleChangeOrigin = (branch: string | null | undefined): SampleOrigin | null => (branch ? (SAMPLE_CHANGE_ORIGINS[branch] ?? null) : null);
+
+/** What a change of the sample team does to a real screen (the review's Where it shows). */
+export type SampleEffect = { screen: string; theme: 'light' | 'dark'; before: string; after: string } | 'none';
+
+/**
+ * The before and after of the sample team's token changes on the screen they come from: the screen of
+ * public/sample/previews/, captured with the old and the new value, in public/sample/changes/. 'none': the screen
+ * looks the same (the 56px is hand-typed there today, the token only gives it a name).
+ */
+export const SAMPLE_CHANGE_EFFECTS: Readonly<Record<string, SampleEffect>> = {
+  'bridge/deepen-the-primary-blue-for-stronger-buttons': { screen: 'Profile page', theme: 'light', before: 'deepen-primary-blue-before.png', after: 'deepen-primary-blue-after.png' },
+  'bridge/add-a-highlight-surface-for-new-items': { screen: 'Profile page', theme: 'light', before: 'highlight-surface-before.png', after: 'highlight-surface-after.png' },
+  'bridge/fix-muted-text-contrast-on-dark-raised-surfaces': { screen: 'Notification channels', theme: 'dark', before: 'muted-text-contrast-before.png', after: 'muted-text-contrast-after.png' },
+  'bridge/add-a-56px-spacing-step-for-page-sections': 'none',
+};
+
+/** Where the images of SAMPLE_CHANGE_EFFECTS are served from. */
+export const SAMPLE_EFFECTS_BASE = '/sample/changes';
+
 /** The repository part of "owner/repo" in words: "ai-design-system-demo" reads "Ai design system demo". */
 export const humanizeRepo = (repo: string): string => {
   const part = repo.trim().split('/').pop()?.trim() ?? '';

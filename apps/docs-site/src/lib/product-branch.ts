@@ -4,7 +4,9 @@
 // branch it opened, its status and who reviews it; "Why it already shows in your screen" stays folded. Tested in
 // product-branch.test.ts.
 import {
+  closingIssueNumbers,
   defaultProduct,
+  isExplorationBranch,
   LINK_STATUS_TONE,
   nearestQuestion,
   parseNeededBy,
@@ -229,6 +231,54 @@ export function productContextOf(body: string | null | undefined, names: Record<
     suggest: n.nearest && comment ? { label: `Suggest ${n.nearest}`, comment } : null,
     neededBy: n,
   };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Where a change comes from
+
+/** The exploration or product branch a change was opened for: the top of its review and its row on the home. */
+export interface ChangeOrigin {
+  /** Its name: "Profile page". */
+  name: string;
+  /** Its product: "Account app". */
+  product: string;
+  /** Its page in Studio. */
+  href: string;
+  /** Started as an exploration: "From the exploration ...". A product branch reads "From ...". */
+  exploration: boolean;
+  number: number;
+  /** The product key, for a product branch in the product's own repository. */
+  productKey: string | null;
+}
+
+/** The origin a "Needed by" block names, or null without one: no origin known, no line. */
+export function changeOrigin(n: Pick<NeededBy, 'pr' | 'title' | 'branch' | 'product' | 'productName' | 'repo'> | null | undefined): ChangeOrigin | null {
+  if (!n?.title.trim()) return null;
+  const productKey = n.repo ? n.product : null;
+  return {
+    name: n.title,
+    product: n.productName,
+    href: studioHref(`changes/?exploration=${n.pr}${productKey ? `&product=${encodeURIComponent(productKey)}` : ''}`),
+    exploration: isExplorationBranch(n.branch),
+    number: n.pr,
+    productKey,
+  };
+}
+
+/**
+ * The "Needed by" of a change: its own body (a library branch opened for an exploration), else the first issue it
+ * closes that has one (the pull request a developer opens for a request or a suggestion Done exploring filed, which
+ * says "Closes #n"). `readIssueBody` reads one issue: a read that fails counts as nothing known, so the review opens
+ * the same without the line.
+ */
+export async function neededByOfChange(body: string | null | undefined, readIssueBody: (n: number) => Promise<string | null | undefined>): Promise<NeededBy | null> {
+  const own = parseNeededBy(body);
+  if (own) return own;
+  for (const n of closingIssueNumbers(body).slice(0, 3)) {
+    const found = parseNeededBy(await readIssueBody(n).catch(() => null));
+    if (found) return found;
+  }
+  return null;
 }
 
 /**

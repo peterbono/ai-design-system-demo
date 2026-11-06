@@ -5,7 +5,7 @@
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
 // are pure in lib/home-model.ts and lib/branch-thumb.ts. Admins of a real team on the hosted site also get the people
 // asking to join it (board E7b, GET /api/entry?requests=), first in the list.
-import { isGuardedExploration, isHandedOff, isToolingPull, productsOf, requesterOf, type ProductConfig, type ToolingConfig } from '@bridge-ds/core';
+import { closingIssueNumbers, isGuardedExploration, isHandedOff, isToolingPull, parseNeededBy, productsOf, requesterOf, type ProductConfig, type ToolingConfig } from '@bridge-ds/core';
 import { siteConfig } from './repo-context';
 import { designTaskReads, rememberQuestions, taskUrlOf } from './design-task';
 import { askerRole, devQuestionOf, taskStage, type DesignTaskRead } from '../lib/review-state';
@@ -55,6 +55,10 @@ import { explorationHref } from '../lib/explorations-view';
 import { mineFromCards, noteMine } from '../lib/nav-products';
 import { busyText } from '../lib/team-load';
 import { isDemoRepo } from '../lib/demo';
+import { neededByOfChange } from '../lib/product-branch';
+
+/** Rows of the Needs you list whose closed request or suggestion is read for its origin: one read each, kept by ghGet. */
+const ORIGIN_READS = 6;
 
 export interface HomePull extends QueuePullFull {
   html_url: string;
@@ -391,6 +395,13 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
   const designWork = (p: HomePull) => !isToolingPull({ title: p.title, headRef: p.head.ref, labels: p.labels ?? null, files: homeFiles.get(p.number) ?? null }, tooling);
   const timelines = new Map<number, TimelineEvent[] | null>();
   const resolved = new Map<number, ThumbSpec>();
+  // The exploration each change comes from: its own "Needed by" is in the list read; one that closes a request or a
+  // suggestion names it there, read below for the rows that wait on the viewer.
+  const origins = new Map<number, string>();
+  for (const p of queue) {
+    const n = parseNeededBy(p.body);
+    if (n) origins.set(p.number, n.title);
+  }
   const persons = new Map<string, Person>();
   let loading = true;
   let settled = false;
@@ -454,6 +465,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
         changesBy: (x.changesBy ?? []).map((l) => pick(l)!),
         thumb: resolved.get(p.number) ?? { kind: 'icon', icon: x.guidance ? 'guidance' : 'branch' },
         onlyReviewer: x.onlyReviewer,
+        origin: origins.get(p.number) ?? null,
       };
       if (x.exploration) {
         // Who asks: the developers on it (assigned), else the person who opened it.
@@ -552,6 +564,16 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
   // Who asked and since when, for the rows that wait on the viewer; display names for everyone shown.
   const cls = classify();
   const waiting = cls.filter((x) => x.task && !x.task.startsWith('own'));
+  void Promise.all(
+    waiting
+      .filter((x) => !origins.has(x.pull.number) && closingIssueNumbers(x.pull.body).length)
+      .slice(0, ORIGIN_READS)
+      .map((x) =>
+        neededByOfChange(x.pull.body, (n) => ghGet<{ body?: string | null }>(`/repos/${owner}/${repo}/issues/${n}`).then((f) => f.data.body)).then((n) => {
+          if (n) origins.set(x.pull.number, n.title);
+        }),
+      ),
+  ).then(() => paint());
   await Promise.all(
     waiting.map((x) =>
       ghGet<TimelineEvent[]>(`/repos/${owner}/${repo}/issues/${x.pull.number}/timeline?per_page=100`)

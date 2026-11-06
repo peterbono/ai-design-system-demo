@@ -78,6 +78,8 @@ export interface ProductBranchProps {
   status?: string | null;
   /** The key of the exploration: the plate's drawing matches its card on the home. */
   seed?: string | null;
+  /** A capture of the screen to show instead of the plate (the sample team's, the image of its card). */
+  shot?: string | null;
   /** Why Done exploring and Archive are not offered to this viewer, and who can (lib/write-route keepExplorationLine). */
   keepNote?: string | null;
   developer: { label: string; value: string }[];
@@ -224,7 +226,14 @@ export function ProductBranch(p: ProductBranchProps) {
         <section className="pb-screen" aria-label={`Your screen in ${p.product}`}>
           {p.visual === 'loading' && <Skeleton variant="rect" className="pb-skel" />}
           {/* No before and after to show: the Field Guide plate of the product, as on the exploration page. */}
-          {p.visual === 'none' && <ScreenPlate product={p.product} screen={null} seed={p.seed ?? String(p.number)} />}
+          {p.visual === 'none' &&
+            (p.shot ? (
+              <div className="xp-frame is-shot">
+                <img src={p.shot} alt="The latest captured screen of this exploration" loading="lazy" />
+              </div>
+            ) : (
+              <ScreenPlate product={p.product} screen={null} seed={p.seed ?? String(p.number)} />
+            ))}
           <div id="pb-visual" aria-live="polite" />
         </section>
         {showPieces && (

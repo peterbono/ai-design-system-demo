@@ -78,6 +78,12 @@
   line-height: var(--typography-body-line-height);
 }
 
+.br-from {
+  color: var(--color-text-muted);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
 .br-who strong,
 .br-comment-body strong,
 .br-change-line strong {
@@ -355,6 +361,22 @@
 
 .br-shot-pair > :last-child {
   border-inline-start: var(--border-width-default) dashed var(--color-border-strong);
+}
+
+.br-shots.is-one {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.br-shots.is-one .br-shot-pair {
+  height: auto;
+}
+
+.br-shot-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
 }
 
 .br-shot-none {

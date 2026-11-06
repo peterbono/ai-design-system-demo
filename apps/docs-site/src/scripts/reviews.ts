@@ -76,7 +76,7 @@ import {
   type DesignFacts,
 } from '../lib/check-explain';
 import { productPreview, topScreen, tryInProductUrl } from '../lib/try-in-product';
-import { productContextOf } from '../lib/product-branch';
+import { changeOrigin, neededByOfChange, productContextOf } from '../lib/product-branch';
 import { canShare, shareState, showShare, type ShareState } from '../lib/share-change';
 import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, editInChangeHref, isTokenChange } from '../lib/continue-change';
 import { backToDraft, detailStatus, statusActionFor, takeSaid, type StatusActionRun } from './change-status';
@@ -112,6 +112,7 @@ import {
   type GuidanceDocs,
 } from '../lib/review-page';
 import type { ActKind, BranchReviewProps, GuidanceView, PersonRef, TokenRowView, VisualView } from '../components/ds/studio/BranchReview';
+import type { VisualShot } from '../lib/visual-impact';
 /** The Motion change id (components/ds/studio/BranchReview MOTION_CHANGE), kept here so the island loads lazily. */
 const MOTION_CHANGE = 'tokens:motion';
 import { lifecycleOfRow } from './status-filter';
@@ -124,7 +125,7 @@ import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConfl
 import { AGENT_NAME, isClaudeLogin, nameFace } from '../lib/people';
 import { safeUrl } from '../lib/html';
 import { siteConfig } from './repo-context';
-import { isDemoRepo, isSampleTeam, sampleApprovalRows, sampleCodeReviewers, sampleTurnSentence } from '../lib/demo';
+import { isDemoRepo, isSampleTeam, sampleApprovalRows, sampleChangeOrigin, sampleCodeReviewers, sampleTurnSentence, SAMPLE_CHANGE_EFFECTS, SAMPLE_EFFECTS_BASE } from '../lib/demo';
 import { sampleTeam } from '../lib/invites';
 import { demoApprovals } from './demo-approvals';
 import { viewerRoles } from '../lib/suggestions-view';
@@ -920,7 +921,10 @@ export async function openPr(n: number, push = true) {
     if (seq !== openSeq) return;
     const checks = failedFacts.map(classifyCheck);
     const fresh = freshness({ compare, mergeable: pull.mergeable, open: live });
-    const props = await detailProps({ pull, tier, files, reviews, comments, lineComments, ci, approvals, gate, gateOf, access, statuses, review, checks, fresh, docs, visual, visualSetUp: offer === 'set-up', autoShip: own.autoShip, seq });
+    // Where it comes from: its own "Needed by", else the request or suggestion it closes (one read, cached).
+    const origin = await neededByOfChange(pull.body, (issue) => ghGet<{ body?: string | null }>(`${R}/issues/${issue}`).then((f) => f.data.body));
+    if (seq !== openSeq) return;
+    const props = await detailProps({ pull, tier, files, origin, reviews, comments, lineComments, ci, approvals, gate, gateOf, access, statuses, review, checks, fresh, docs, visual, visualSetUp: offer === 'set-up', autoShip: own.autoShip, seq });
     if (!props || seq !== openSeq) return;
     view = props;
     d.innerHTML = '';
@@ -980,7 +984,7 @@ export async function openPr(n: number, push = true) {
         })
         .catch(() => undefined);
 
-    if (visual) {
+    if (visual && props.visual?.state === 'loading') {
       const slot = document.getElementById('rv-visual');
       if (slot)
         loadVisualImpact(slot, { owner: repo.owner, repo: repo.repo, pr: pull.number, sha: pull.head.sha, actionsUrl: `https://github.com/${repo.owner}/${repo.repo}/actions/workflows/visual-impact.yml`, designer: !view?.developer }, document.getElementById('rv-visual-ask') ?? undefined)
@@ -1094,6 +1098,8 @@ interface DetailInput {
   fresh: Freshness;
   docs: { path: string; base: GuidanceDocs | null; head: GuidanceDocs | null }[];
   visual: boolean;
+  /** What opened this change, as a "Needed by" block says it (lib/product-branch neededByOfChange). */
+  origin: Parameters<typeof changeOrigin>[0];
   /** It touches what visual checks capture, on a repo without the workflow. */
   visualSetUp: boolean;
   /** A token push from Figma with values only (core branchVerdict): it ships by itself once the checks pass. */
@@ -1323,8 +1329,14 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const tryIt = exploration ? tryItCopy(tryItFromComments(comments, pull.head.sha)) : null;
   const code = productWork ? { files: files.map((f) => f.filename), branch: pull.head.ref, url: pull.html_url, number: pull.number, install: tryIt?.command ?? null } : null;
 
+  // Where it comes from, and on the sample team the before and after on that screen (lib/demo.ts).
+  const onSample = isSampleTeam(`${repo.owner}/${repo.repo}`);
+  const origin = changeOrigin(x.origin ?? (onSample ? sampleChangeOrigin(pull.head.ref) : null));
+  const effect = onSample ? sampleEffectOf(pull.head.ref) : null;
+
   return {
     pr: pull.number,
+    origin,
     productContext,
     sample,
     crumbs: reviewCrumbs(files.map((f) => f.filename), title, { products: SITE.products ?? [], labels: pull.labels, exploration }),
@@ -1362,11 +1374,11 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
       guidance[path] = { ...g, docs: docsNow, sections: guidanceView(original?.base ?? null, docsNow) };
       repaint({ guidance: { ...guidance } });
     },
-    visual: x.visual ? { state: 'loading', shots: [] } : null,
+    visual: effect ?? (x.visual ? { state: 'loading', shots: [] } : null),
     visualSetUp: x.visualSetUp,
     // The screens of the visual check come from the admin demo app (apps/admin, previews.apps.admin), a preview of
     // this repository, not a product: its name stays even when bridge.config.json lists no such product.
-    product: PRODUCTS.find((p) => p.key === 'admin')?.label ?? 'Admin demo',
+    product: (effect && origin?.product) || (PRODUCTS.find((p) => p.key === 'admin')?.label ?? 'Admin demo'),
     tryUrl: null,
     people: peopleMap,
     conversation: conv,
@@ -1395,6 +1407,15 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     note,
     inQueue: Boolean(detailEl().closest('[data-review-queue]')),
   };
+}
+
+/** The before and after of a sample team change, in the shape the visual impact gives a real one; null when it has none. */
+function sampleEffectOf(branch: string): VisualView | null {
+  const e = SAMPLE_CHANGE_EFFECTS[branch];
+  if (!e) return null;
+  if (e === 'none') return { state: 'no-change', shots: [] };
+  const shot: VisualShot = { key: `sample:${branch}`, kind: 'route', label: e.screen, brand: 'bridge', theme: e.theme, status: 'changed', percent: 0, boxes: [], size: { before: null, after: null }, images: { before: e.before, after: e.after } };
+  return { state: 'changes', shots: [shot], base: SAMPLE_EFFECTS_BASE };
 }
 
 const tokenFilesOf = (files: PrFile[]) => files.filter((f) => isTokenFile(f.filename)).length;

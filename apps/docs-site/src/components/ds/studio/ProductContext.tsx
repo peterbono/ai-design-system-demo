@@ -1,10 +1,26 @@
-// "Why it exists" on the review of a library branch a product branch needs (the validated ProdReview mockup): who needs
-// it, for which product branch and product, the way to the product preview, and, when the library already has a close
-// value, the reviewer's question with "Suggest <nearest>" on the same line (a request for changes that says to use it).
-// The one Harbor zone of the review. Data: lib/product-branch.ts productContextOf. Styles: styles/branch-review.css (br-why).
+// Where a change comes from, at the top of its review (OriginLine), and "Why it exists" (the validated ProdReview
+// mockup) when the library already has a close value: who needs it, the way to the product preview, and the reviewer's
+// question with "Suggest <nearest>" on the same line (a request for changes that says to use it). The line says the
+// rest, so without that question the zone says nothing new and stays out. The one Harbor zone of the review. Data: lib/product-branch.ts productContextOf. Styles: styles/branch-review.css (br-why).
 import { useState } from 'react';
 import { Button, Link } from '@bridge-ds/react';
-import type { ProductContextView } from '../../../lib/product-branch';
+import type { ChangeOrigin, ProductContextView } from '../../../lib/product-branch';
+
+/**
+ * Where a change comes from, at the top of its review: "From the exploration Profile page, Account app", the name opens
+ * it. Only when Bridge knows it (lib/product-branch changeOrigin): no origin, no line.
+ */
+export function OriginLine({ origin: o, className }: { origin: ChangeOrigin; className?: string }) {
+  return (
+    <p className={className}>
+      {o.exploration ? 'From the exploration ' : 'From '}
+      <Link href={o.href} data-open-exploration={o.number} {...(o.productKey ? { 'data-product': o.productKey } : {})}>
+        {o.name}
+      </Link>
+      , {o.product}
+    </p>
+  );
+}
 
 export interface ProductContextProps {
   context: ProductContextView & { previewUrl: string | null };
