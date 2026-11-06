@@ -408,7 +408,7 @@ function SaidToast({ said }: { said: string | undefined }) {
 function StatusTag({ status, notStarted, stage }: { status: string; notStarted?: boolean; stage?: LifecycleStage | null }) {
   const t = explorationTag(status, { ...(notStarted ? { notStarted } : {}), stage: stage ?? null });
   return (
-    <Badge tone={t.tone} size="md" dot={t.dot} className={status === 'active' && !notStarted ? 'xp-exploring' : undefined}>
+    <Badge tone={t.tone} size="md" dot={t.dot} className={status === 'active' && !notStarted && !stage ? 'xp-exploring' : undefined}>
       {t.label}
     </Badge>
   );
@@ -841,7 +841,7 @@ function ExplorationBody(p: ExplorationPageProps) {
                 {EXPLORATION_STAGE_LABEL.archived}
               </Badge>
             ) : (
-              <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} stage={handoff?.stage ?? null} />
+              <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} stage={handoff?.stage ?? (p.lead ? 'waiting-for-lead' : null)} />
             ))}
           <span className="xp-spacer" />
           {(p.onRename || p.onReopen || p.onArchive) && (

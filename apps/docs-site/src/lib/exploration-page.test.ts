@@ -407,3 +407,9 @@ describe('canPutInFigma', () => {
     expect(canPutInFigma({ ...v, status: 'ready' })).toBe(true);
   });
 });
+
+describe('waiting for the design lead', () => {
+  it('the tag says so while the exploration still runs', () => {
+    expect(explorationTag('active', { stage: 'waiting-for-lead' })).toMatchObject({ label: 'Waiting for lead', tone: 'warning', dot: false });
+  });
+});
