@@ -13,7 +13,7 @@
 //   when, the preview with one action, and the one Harbor zone on what happens next: the hand-off in four steps (the
 //   DS Checklist), then what the library gets from it (the pieces Bridge found, each with its request status; Bridge
 //   runs that check itself, the page shows it while it runs). The activity under it. A write's line is a DS toast.
-// - "Put in Figma", one of the actions under the preview for who can edit when the team has a Figma file: it hands the
+// - "Send to Figma", one of the actions under the preview for who can edit when the team has a Figma file: it hands the
 //   request to the viewer's own Claude, which rebuilds the exploration in Figma. Once Claude recorded the page, the link.
 // The "..." menu holds Rename (a DS Dialog), Back to exploring (a confirmation, waiting for code only) and Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
 // over lib/exploration-page.ts. Styles: styles/exploration-page.css.
@@ -229,7 +229,7 @@ export interface ExplorationPageProps {
    * (after Done exploring they stay readable when the branch keeps them).
    */
   notes?: WhereItStandsView | null;
-  /** "Put in Figma": the line for the viewer's Claude (lib/exploration-page canPutInFigma). Unset or null: no button. */
+  /** "Send to Figma": the line for the viewer's Claude (lib/exploration-page canPutInFigma). Unset or null: no button. */
   figma?: { app: string; terminal: string } | null;
 }
 
@@ -675,7 +675,7 @@ function FigmaAction({ p, tool, say }: { p: ExplorationPageProps; tool: AiTool; 
           {...(p.connectorAddress ? { connectorAddress: p.connectorAddress } : {})}
           {...(p.onClaudeConnected ? { onClaudeConnected: p.onClaudeConnected } : {})}
         >
-          {page ? 'Put in Figma again' : 'Put in Figma'}
+          {page ? 'Send to Figma again' : 'Send to Figma'}
         </ToolAction>
       )}
     </>
