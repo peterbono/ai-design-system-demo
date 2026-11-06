@@ -227,7 +227,7 @@ export const ACCOUNT_WORDS = {
   nameSave: 'Continue',
   privacy: 'What Bridge keeps about you',
   // The homepage's own promise (pages/index.astro), beside the sign-in: what this is, for whoever arrives by a link.
-  pitch: 'Explore with AI. Keep what works in your design system.',
+  pitch: 'Explore with AI. Keep what works.',
   pitchLead: 'Bridge finds what your exploration added. You review it, then the code and Figma kit follow.',
   demoLead: 'Just looking?',
   demo: 'Open the demo',

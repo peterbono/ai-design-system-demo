@@ -122,8 +122,8 @@ describe('sign-in screen, email', () => {
     expect(screen.getByText('Just looking?')).toBeInTheDocument();
     expect(container.querySelectorAll('[class*="primary"]')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Send code' }).className).toMatch(/primary/);
-    // The pitch is the homepage's own words, in the one Harbor zone, after the step in the reading order.
-    const pitch = screen.getByText('Explore with AI. Keep what works in your design system.');
+    // The pitch, in the one Harbor zone, after the step in the reading order.
+    const pitch = screen.getByText('Explore with AI. Keep what works.');
     expect(pitch.closest('.zone')).not.toBeNull();
     expect(pitch.closest('.zone')!.querySelector('a, button, input')).toBeNull();
     expect(container.querySelector('.acc')!.compareDocumentPosition(pitch) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

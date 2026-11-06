@@ -1,7 +1,7 @@
 // The one sign-in screen of Bridge (pages/signin.astro), for sign in and sign up alike (boards E1 and E2, recomposed
 // 2026-11-06): the whole viewport in two parts, SignInPage below. The step sits on white paper: "Welcome to Bridge", the
 // work email and Send code (the one primary action), under it the demo as a real secondary button. Beside it the one
-// Harbor zone says what Bridge is, over the calm harbor of the quiet Home (QuietScene). On a phone the step comes first
+// Harbor zone says what Bridge is, over the story of a bridge closing (SignInScene). On a phone the step comes first
 // and the zone closes the page, so nothing pushes Send code down. Every step and room below keeps this page; past the
 // email the zone keeps only its harbor, the pitch has done its work. Then the 6-digit code (numeric keyboard, one-time-code autofill, a pasted "123 456" works), with a resend link on a
 // cooldown. Email only: GitHub comes back where a repository is linked, and in Settings > Account. An account whose
@@ -23,7 +23,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { Mail } from 'lucide-react';
 import { Alert, Avatar, Button, Icon, Input, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
-import { QuietScene } from '../studio/QuietScene';
+import { SignInScene } from './SignInScene';
 import ButtonLink from '../ButtonLink';
 import { ACCOUNT_WORDS as W, codeDigits, GITHUB_PENDING_KEY, CODE_LENGTH, defaultNext, PRIVACY_PAGE, readSignInQuery, RESEND_COOLDOWN, SIGNED_OUT_PARAM, signedOutNote, type Account, type SignedIn } from '../../../lib/account';
 import { ENTRY_SHOWN_KEY, ENTRY_WORDS as EW, INVITE_TOKEN_KEY, JOINED_KEY, entryStepOnce, inviteTokenFromHash, routeEntry, type Entry, type EntryRoute, type InviteLink } from '../../../lib/entry';
@@ -121,7 +121,7 @@ function SignInPage({ children, foot, pitch = false }: { children: ReactNode; fo
             </>
           )}
         </div>
-        <QuietScene scene="harbor" layout="window" />
+        <SignInScene />
       </div>
     </div>
   );

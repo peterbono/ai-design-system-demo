@@ -9,14 +9,13 @@
    width and padding (studio-app.css). */
 :root main.bare-main:has(.acc-page) {
   max-width: none;
-  padding: var(--space-4);
+  padding: 0;
 }
 
 .acc-page {
   display: grid;
-  grid-template-columns: min(46%, var(--size-180)) minmax(0, 1fr);
-  gap: var(--space-4);
-  min-height: calc(100dvh - var(--layout-header-height) - var(--space-4) * 2);
+  grid-template-columns: min(47%, var(--size-180)) minmax(0, 1fr);
+  min-height: calc(100dvh - var(--layout-header-height));
 }
 
 /* The step stands in the middle of its column, the privacy link at the foot, level with the bottom of the zone. */
@@ -38,23 +37,25 @@
 }
 
 .acc-zone {
-  position: relative;
   display: grid;
-  align-content: center;
-  container-type: inline-size;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
-  padding: var(--space-12) var(--space-12) 0;
   overflow: hidden;
+  border-radius: 0;
 }
 
-/* The text stands in the middle of the sky, about level with the step, and leaves the harbor its whole height: a third
-   of the harbor's width, plus the water. */
+/* The words stand in the sky, the bridge takes the rest down to the bottom edge. On a wide monitor it stops growing, so
+   the ink keeps its weight, and the deck and the water run on alone. */
+.acc-zone .ss {
+  justify-self: center;
+  max-width: var(--size-240);
+}
+
 .acc-zone-text {
-  position: relative;
   display: grid;
   gap: var(--space-3);
   max-width: var(--size-120);
-  padding-bottom: calc(min(100cqi, var(--size-240)) / 3 + var(--space-12));
+  padding: var(--space-16) var(--space-16) 0;
 }
 
 .acc-pitch {
@@ -72,12 +73,6 @@
   font-size: var(--typography-body-size);
   line-height: var(--typography-body-line-height);
   text-wrap: pretty;
-}
-
-/* The harbor runs the width of the zone here, where the Home keeps it beside its text. On a wide monitor it stops
-   growing, so the ink keeps its weight, and the water carries on alone. */
-.acc-zone .qs-view {
-  --_view: min(100%, var(--size-240));
 }
 
 .acc-title {
@@ -304,19 +299,19 @@
   }
 
   .acc-pane {
-    padding: var(--space-6) 0;
+    padding: var(--space-6) var(--space-4);
   }
 
-  .acc-zone {
+  .acc-zone-text {
     padding: var(--space-8) var(--space-6) 0;
+  }
+
+  .acc-zone .ss {
+    height: auto;
   }
 }
 
 @media (max-width: 640px) {
-  .acc-zone .qs-view {
-    display: block;
-  }
-
   .acc-title {
     font-size: var(--typography-h2-size);
     line-height: var(--typography-h2-line-height);
