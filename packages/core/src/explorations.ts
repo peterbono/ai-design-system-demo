@@ -127,12 +127,42 @@ export interface Exploration {
   leadAskedBy?: string | undefined;
   leadAskedByName?: string | undefined;
   leadPieces?: string[] | undefined;
-  /** The lead's last "Needs changes": their words and who said it, shown to the designer until they ask again. */
+  /**
+   * The leads asked by name ("Ask someone else to review"): their Home shows it, the others' no longer does. Any lead
+   * may still answer on the page. The head commit when it was asked: a newer one means it changed since.
+   */
+  leadAskedTo?: string[] | undefined;
+  leadAskedSha?: string | undefined;
+  /** Before decisions (read only, never written): the lead's last "Needs changes". decisionsOf turns it into a round. */
   leadNote?: string | undefined;
   leadNoteBy?: string | undefined;
+  /** Everything the design lead and the designer said about it, by round, oldest first (decisionsOf). */
+  decisions?: Decision[] | undefined;
   /** The lead who said it looks right, so the hand-off names them. */
   leadOkBy?: string | undefined;
 }
+
+/** What was said about an exploration between its designer and its lead. */
+export type DecisionKind = 'looks-right' | 'changes' | 'question' | 'answer' | 'not-doing' | 'take-back' | 'asked-someone' | 'handed' | 'archived';
+
+export interface Decision {
+  kind: DecisionKind;
+  at: string;
+  /** Round of the exploration: one more each time it comes back to the designer with changes to make. */
+  round: number;
+  /** A GitHub login, or the display name of a member without one (never an email). */
+  by?: string | undefined;
+  byName?: string | undefined;
+  /** Their words: the why of a decision, a question, an answer. */
+  text?: string | undefined;
+  /** The head commit it was said on. */
+  sha?: string | undefined;
+  /** "asked-someone": the leads asked. "handed": the new keeper's name. */
+  to?: string[] | undefined;
+}
+
+const DECISIONS_MAX = 30;
+const DECISION_TEXT_MAX = 2000;
 
 const MARK = 'bridge-exploration';
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -355,6 +385,15 @@ export function startPageOf(e: Pick<Exploration, 'startPage'> | null | undefined
 /** A member reference as Bridge's server writes it (16 hex characters), else null. */
 const memberRefOf = (v: string | undefined): string | null => (typeof v === 'string' && /^[0-9a-f]{16}$/.test(v) ? v : null);
 
+/** A decision as GitHub content may hold it: GitHub logins and display names, never an email, its words capped. */
+function cleanDecision(d: Decision): Decision {
+  const by = githubLoginOf(d.by);
+  const text = d.text?.trim().slice(0, DECISION_TEXT_MAX);
+  const byName = d.byName?.trim().slice(0, 80);
+  const to = d.to?.map((t) => t.trim().slice(0, 80)).filter((t) => t && !t.includes('@'));
+  return { kind: d.kind, at: d.at, round: d.round, ...(by ? { by } : {}), ...(byName && !byName.includes('@') ? { byName } : {}), ...(text ? { text } : {}), ...(d.sha ? { sha: d.sha } : {}), ...(to?.length ? { to } : {}) };
+}
+
 /** The hidden block tools read: the exploration as JSON. */
 function explorationBlock(e: Exploration): string {
   // Who started, said done or took it back, as GitHub content may hold it: GitHub logins only, never a member's email.
@@ -385,9 +424,10 @@ function explorationBlock(e: Exploration): string {
     ...(e.leadAskedAt ? { leadAskedAt: e.leadAskedAt } : {}),
     ...(e.leadAskedAt && githubLoginOf(e.leadAskedBy) ? { leadAskedBy: githubLoginOf(e.leadAskedBy) } : {}),
     ...(e.leadAskedAt && e.leadAskedByName && !e.leadAskedByName.includes('@') ? { leadAskedByName: e.leadAskedByName.trim().slice(0, 80) } : {}),
-    ...(e.leadAskedAt && e.leadPieces?.length ? { leadPieces: e.leadPieces } : {}),
-    ...(e.leadNote ? { leadNote: e.leadNote } : {}),
-    ...(e.leadNote && githubLoginOf(e.leadNoteBy) ? { leadNoteBy: githubLoginOf(e.leadNoteBy) } : {}),
+    ...(e.leadPieces?.length ? { leadPieces: e.leadPieces } : {}),
+    ...(e.leadAskedAt && e.leadAskedTo?.length ? { leadAskedTo: e.leadAskedTo.map(githubLoginOf).filter(Boolean) } : {}),
+    ...(e.leadAskedAt && e.leadAskedSha ? { leadAskedSha: e.leadAskedSha } : {}),
+    ...(e.decisions?.length ? { decisions: e.decisions.slice(-DECISIONS_MAX).map(cleanDecision) } : {}),
     ...(githubLoginOf(e.leadOkBy) ? { leadOkBy: githubLoginOf(e.leadOkBy) } : {}),
   };
   return `<!-- ${MARK} ${JSON.stringify(data).replace(/-->/g, '--\\u003e')} -->`;
@@ -660,7 +700,7 @@ export function withDoneExploring(
   if (!e || !block.test(kept)) return `${kept.trim()}${kept.trim() ? '\n\n' : ''}${section}`;
   const at = kept.search(block);
   // The lead's ask ends here: Back to exploring must not bring it back.
-  const { leadAskedAt: _askedAt, leadAskedBy: _askedBy, leadAskedByName: _askedName, leadPieces: _pieces, leadNote: _note, leadNoteBy: _noteBy, ...started } = e;
+  const { leadAskedAt: _askedAt, leadAskedBy: _askedBy, leadAskedByName: _askedName, leadPieces: _pieces, leadNote: _note, leadNoteBy: _noteBy, leadAskedTo: _to, leadAskedSha: _sha, ...started } = { ...e, decisions: decisionsOf(e) };
   const nextBlock = explorationBlock({ ...started, doneAt: done.doneAt, ...(done.doneBy ? { doneBy: done.doneBy } : {}), ...(done.doneSha ? { doneSha: done.doneSha } : {}), ...(done.task ? { task: done.task } : {}), ...(done.leadOkBy ? { leadOkBy: done.leadOkBy } : {}) });
   const after = kept.slice(at).replace(block, () => nextBlock).trim();
   return `${kept.slice(0, at).trim()}\n\n${section}\n\n${after}`.trim();
@@ -676,7 +716,8 @@ export function withoutDoneExploring(body: string | null | undefined, reopenedAt
   const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
   const kept = (body ?? '').replace(/### For developers[\s\S]*?(?=### |<!-- |$)/, '');
   if (!e || !block.test(kept)) return kept.trim();
-  const { doneAt: _doneAt, doneSha: _doneSha, reopenedBy: _by, doneByMember: _byMember, ...rest } = e;
+  // The lead's yes ends here too: the next hand-off asks again and must not read this one.
+  const { doneAt: _doneAt, doneSha: _doneSha, reopenedBy: _by, doneByMember: _byMember, leadOkBy: _ok, ...rest } = e;
   const at = kept.search(block);
   const after = kept.slice(at).replace(block, () => explorationBlock({ ...rest, reopenedAt, ...(reopenedBy ? { reopenedBy } : {}) }));
   return `${kept.slice(0, at).trim()}\n\n${after.trim()}`.trim();
@@ -691,14 +732,85 @@ function withBlock(body: string | null | undefined, next: (e: Exploration) => Ex
   return text.replace(block, () => explorationBlock(next(e)));
 }
 
-/** The designer asked the design lead: the exploration keeps running (label, note, preview), nothing reaches developers. */
-export function withLeadAsked(body: string | null | undefined, ask: { at: string; by?: string | null | undefined; byName?: string | null | undefined; pieces?: readonly string[] | undefined }): string {
-  return withBlock(body, ({ leadNote: _note, leadNoteBy: _by, ...e }) => ({ ...e, leadAskedAt: ask.at, leadAskedBy: ask.by ?? undefined, leadAskedByName: ask.byName ?? undefined, leadPieces: [...(ask.pieces ?? [])] }));
+/**
+ * Everything said about the exploration, oldest first. A body written before decisions holds at most the lead's last
+ * "Needs changes" (leadNote): it reads as one decision of the first round.
+ */
+export function decisionsOf(e: Exploration | null | undefined): Decision[] {
+  const kept = Array.isArray(e?.decisions) ? e.decisions.filter((d) => d && typeof d.kind === 'string' && typeof d.at === 'string') : [];
+  if (kept.length || !e?.leadNote) return kept;
+  return [{ kind: 'changes', at: e.reopenedAt ?? e.startedAt ?? '', round: 1, text: e.leadNote, ...(e.leadNoteBy ? { by: e.leadNoteBy } : {}) }];
 }
 
-/** The ask taken away: by the lead with what should change (`note`), or by the designer who keeps exploring. */
-export function withoutLeadAsked(body: string | null | undefined, answer: { note?: string | null | undefined; by?: string | null | undefined } = {}): string {
-  return withBlock(body, ({ leadAskedAt: _at, leadAskedBy: _by, leadAskedByName: _name, leadPieces: _pieces, leadNote: _note, leadNoteBy: _noteBy, ...e }) => ({ ...e, ...(answer.note?.trim() ? { leadNote: answer.note.trim().slice(0, 2000), leadNoteBy: answer.by ?? undefined } : {}) }));
+const ENDS_ROUND: readonly DecisionKind[] = ['changes', 'take-back'];
+
+/** The body with one more decision, in the round it belongs to. A body without a Bridge block stays as it is. */
+export function withDecision(body: string | null | undefined, d: Omit<Decision, 'round'>): string {
+  return withBlock(body, ({ leadNote: _note, leadNoteBy: _by, ...e }) => {
+    const before = decisionsOf({ ...e, leadNote: _note, leadNoteBy: _by });
+    return { ...e, decisions: [...before, { ...d, round: 1 + before.filter((x) => ENDS_ROUND.includes(x.kind)).length }] };
+  });
+}
+
+/** The designer asked the design lead: the exploration keeps running (label, note, preview), nothing reaches developers. */
+export function withLeadAsked(body: string | null | undefined, ask: { at: string; by?: string | null | undefined; byName?: string | null | undefined; pieces?: readonly string[] | undefined; sha?: string | null | undefined }): string {
+  return withBlock(body, ({ leadNote: _note, leadNoteBy: _by, leadAskedTo: _to, ...e }) => ({ ...e, decisions: decisionsOf({ ...e, leadNote: _note, leadNoteBy: _by }), leadAskedAt: ask.at, leadAskedBy: ask.by ?? undefined, leadAskedByName: ask.byName ?? undefined, leadPieces: [...(ask.pieces ?? e.leadPieces ?? [])], leadAskedSha: ask.sha ?? undefined }));
+}
+
+/**
+ * The ask taken away. The pieces the designer ticked stay for when they send it back; the words go in a decision
+ * (withDecision), the caller's to write.
+ */
+export function withoutLeadAsked(body: string | null | undefined): string {
+  return withBlock(body, ({ leadAskedAt: _at, leadAskedBy: _by, leadAskedByName: _name, leadAskedTo: _to, leadAskedSha: _sha, ...e }) => e);
+}
+
+/** "Ask someone else to review": these leads are now the ones it waits on. */
+export function withLeadAskedTo(body: string | null | undefined, to: readonly string[]): string {
+  return withBlock(body, (e) => ({ ...e, leadAskedTo: [...to] }));
+}
+
+/**
+ * The exploration under a new keeper: a GitHub login, or a member by their reference and name. The "Requested by" line
+ * follows, since Studio and the proxy read it. Who started it stays in its history.
+ */
+export function withKeeper(body: string | null | undefined, to: { login: string } | { member: string; name: string }): string {
+  const name = 'login' in to ? `@${to.login}` : to.name.trim();
+  const next = withBlock(body, ({ author: _a, member: _m, memberName: _n, ...e }) => ({ ...e, ...('login' in to ? { author: to.login } : { member: to.member, memberName: to.name.trim().slice(0, 80) }) }));
+  return next.replace(/^Requested by .+ through Bridge\.$/m, () => `Requested by ${name} through Bridge.`);
+}
+
+/** What the designer has to read, or to answer: the last open word of the lead. */
+export function openDecisionOf(body: string | null | undefined): Decision | null {
+  const e = parseExplorationBody(body);
+  if (!e || e.doneAt) return null;
+  const all = decisionsOf(e);
+  const last = all[all.length - 1];
+  if (!last) return null;
+  if (isWaitingForLead(body)) return last.kind === 'question' ? last : null;
+  return last.kind === 'changes' || last.kind === 'take-back' || last.kind === 'not-doing' ? last : null;
+}
+
+/** Whose turn it is on a running exploration the lead is part of: the lead's, the designer's, or nobody's (null). */
+export function leadTurnOf(body: string | null | undefined): 'lead' | 'designer' | null {
+  const open = openDecisionOf(body);
+  if (open && open.kind !== 'not-doing') return 'designer';
+  return !open && isWaitingForLead(body) ? 'lead' : null;
+}
+
+/** Ended by a lead with a reason: the exploration is over, its work stays. */
+export function isNotDoing(body: string | null | undefined): boolean {
+  return openDecisionOf(body)?.kind === 'not-doing';
+}
+
+/** The line for the designer's Claude when the lead's words wait on them, else null. */
+export function leadWordsForClaude(body: string | null | undefined): string | null {
+  const d = openDecisionOf(body);
+  if (!d?.text) return null;
+  const who = d.byName ?? d.by ?? 'Your lead';
+  if (d.kind === 'question') return `${who} asks: ${d.text}`;
+  if (d.kind === 'not-doing') return `${who} decided not to do this: ${d.text}`;
+  return `${who} asked for changes: ${d.text}`;
 }
 
 /** Waits on the design lead: asked, and not handed to developers since. */

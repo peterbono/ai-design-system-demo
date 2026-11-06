@@ -132,3 +132,10 @@ export const setEmailMemberRole = (repo: string, email: string, choice: { role: 
 /** Removes an email contributor: their session ends at once (the server drops the member record). */
 export const removeEmailMember = (repo: string, email: string) => call<{ ok: boolean }>('POST', '', { action: 'remove', repo, email });
 
+
+/**
+ * A lead gives an exploration to someone: Bridge forgets who kept it, so the exploration's block decides from now on,
+ * and answers with the new keeper's member reference when they joined by email.
+ */
+export const explorationKeeper = (repo: string, to: { email?: string; login?: string; branch: string; number: number; copy?: string }) =>
+  call<{ ok: boolean; ref?: string; name?: string }>('POST', '', { action: 'exploration-keeper', repo, ...to });

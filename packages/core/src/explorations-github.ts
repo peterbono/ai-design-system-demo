@@ -20,6 +20,7 @@ import {
   parseExplorationBody,
   promotionPlan,
   renamedExplorationTitle,
+  withDecision,
   withExplorationName,
   type Exploration,
   type ExplorationSource,
@@ -49,6 +50,8 @@ export interface ExplorationSettings {
   inProduct?: ExplorationPrContext['inProduct'];
   /** Wait between label retries, in ms (tests pass 0). */
   retryMs?: number | undefined;
+  /** An exploration branch to start from instead of `base`: its work comes along. Pull requests still target `base`. */
+  from?: string | undefined;
 }
 
 /** The first commit message of an exploration branch: the purpose only when one was given. */
@@ -203,7 +206,7 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
   if (await x.getBranchSha(branch)) throw new GitHubError(422, `An exploration named "${slug}" already exists (${branch}). Pick another name, or continue that one.`);
   const full: Exploration = { ...e, slug, startedAt: e.startedAt ?? new Date().toISOString() };
   const commit = await x.commitToNewBranch({
-    base: s.base,
+    base: s.from ?? s.base,
     branch,
     message: explorationStartMessage(full),
     files: [{ path: explorationNotePath(slug), content: explorationNote(full) }],
@@ -356,11 +359,13 @@ export async function promoteExplorationOnGitHub(
  * Archives an exploration (the `archived` label), or brings it back with `archived: false`. The pull request stays
  * open, so its preview link keeps working: archiving only hides it from the default lists.
  */
-export async function archiveExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { archived?: boolean } = {}): Promise<{ number: number; url: string; branch: string; archived: boolean }> {
+export async function archiveExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { archived?: boolean; reason?: string | undefined; by?: string | undefined; byName?: string | undefined; date?: Date | undefined } = {}): Promise<{ number: number; url: string; branch: string; archived: boolean }> {
   if (!gh.canWrite) throw new GitHubError(401, 'Archiving an exploration needs a GitHub token (pull requests or issues: write).');
   const p = await findExplorationOnGitHub(gh, ref);
   if (p.state !== 'open') throw new GitHubError(422, `#${p.number} is ${p.state === 'merged' ? 'shipped' : 'closed'}: only an open exploration is archived. Its link already stays on GitHub.`);
   const archived = opts.archived ?? true;
+  // A lead archiving someone else's work says why: it stays in its Decisions.
+  if (archived && opts.reason?.trim()) await gh.updatePullRequest(p.number, { body: withDecision(p.body, { kind: 'archived', at: (opts.date ?? new Date()).toISOString(), ...(opts.by ? { by: opts.by } : {}), ...(opts.byName ? { byName: opts.byName } : {}), text: opts.reason.trim(), sha: p.headSha }) });
   if (archived) await gh.addLabels(p.number, [EXPLORATION_ARCHIVED_LABEL]);
   else
     await gh.removeLabel(p.number, EXPLORATION_ARCHIVED_LABEL).catch((e: Error) => {

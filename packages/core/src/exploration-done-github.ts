@@ -6,6 +6,7 @@
 // The pure rules are in explorations.ts (doneExploringPlan, explorationStatus).
 
 import {
+  EXPLORATION_ARCHIVED_LABEL,
   EXPLORATION_LABEL,
   EXPLORATION_PREFIX,
   EXPLORATION_READY_LABEL,
@@ -17,10 +18,14 @@ import {
   explorationStatus,
   isGuardedExploration,
   isWaitingForLead,
+  openDecisionOf,
   parseExplorationBody,
   startPageOf,
   withDoneExploring,
+  withDecision,
+  withKeeper,
   withLeadAsked,
+  withLeadAskedTo,
   withoutDoneExploring,
   withoutLeadAsked,
   type DoneExploringPlan,
@@ -208,7 +213,7 @@ export interface BackToExploring {
  * then the `exploration` label comes back and `ready-for-devs` goes. A refused label write is a warning, never a
  * failure. Pieces already sent to the library stay sent.
  */
-export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { date?: Date | undefined; by?: string | null | undefined } = {}): Promise<BackToExploring> {
+export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { date?: Date | undefined; by?: string | null | undefined; reason?: string | undefined } = {}): Promise<BackToExploring> {
   if (!gh.canWrite) throw new GitHubError(401, 'Going back to exploring needs a GitHub token (pull requests: write).');
   const p = await findExplorationOnGitHub(gh, ref);
   const status = explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body, headSha: p.headSha, draft: p.draft });
@@ -222,7 +227,7 @@ export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | 
   if (task) {
     const dev = gh.withBranchPrefix(undefined).forRepo(task.repo);
     try {
-      await dev.createIssueComment(task.number, DESIGN_TASK_BACK_COMMENT);
+      await dev.createIssueComment(task.number, opts.reason?.trim() ? `${DESIGN_TASK_BACK_COMMENT}\n\n${opts.reason.trim()}` : DESIGN_TASK_BACK_COMMENT);
       await dev.updateIssue(task.number, { state: 'closed', state_reason: 'not_planned' });
     } catch (e) {
       out.warnings.push(`The developers' task stays open (${(e as Error).message}). Close ${task.url} on GitHub.`);
@@ -254,7 +259,7 @@ export async function askLeadOnGitHub(gh: GitHubClient, ref: string | number, in
   const status = explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body, headSha: p.headSha, draft: p.draft });
   if (status !== 'active') throw new GitHubError(422, `#${p.number} is no longer being explored.`);
   const at = (input.date ?? new Date()).toISOString();
-  await gh.updatePullRequest(p.number, { body: withLeadAsked(p.body, { at, by: doneByOfInput(input), byName: input.openedByName, pieces: input.pieces }) });
+  await gh.updatePullRequest(p.number, { body: withLeadAskedTo(withLeadAsked(p.body, { at, by: doneByOfInput(input), byName: input.openedByName, pieces: input.pieces, sha: p.headSha }), (input.leads ?? []).map(githubLoginOf).filter((l): l is string => Boolean(l))) });
   // GitHub tells the leads; a refused comment changes nothing, the exploration already waits for them in Studio.
   const leads = (input.leads ?? []).map(githubLoginOf).filter((l): l is string => Boolean(l));
   if (leads.length) await gh.createIssueComment(p.number, `${leads.map((l) => `@${l}`).join(' ')} ready for your validation in Bridge. Nothing goes to the developers until you answer.`).catch(() => undefined);
@@ -265,19 +270,105 @@ export async function askLeadOnGitHub(gh: GitHubClient, ref: string | number, in
  * The design lead's "Looks right": what Done exploring always did, under the name of the person who asked, with the
  * pieces they ticked. A refused step leaves the ask in place, so the lead can say it again.
  */
-export async function leadApproveOnGitHub(gh: GitHubClient, ref: string | number, input: Omit<DoneExploringInput, 'pieces' | 'openedBy' | 'openedByName'> & { lead?: string | undefined }): Promise<DoneExploring> {
+export async function leadApproveOnGitHub(gh: GitHubClient, ref: string | number, input: Omit<DoneExploringInput, 'pieces' | 'openedBy' | 'openedByName'> & { lead?: string | undefined; leadName?: string | undefined; note?: string | undefined }): Promise<DoneExploring> {
   const p = await findExplorationOnGitHub(gh, ref);
   const e = parseExplorationBody(p.body);
-  if (!isWaitingForLead(p.body)) throw new GitHubError(422, `#${p.number} is not waiting for a lead.`);
-  const { lead, ...rest } = input;
-  return doneExploringOnGitHub(gh, p.number, { ...rest, pieces: e?.leadPieces ?? [], ...(e?.leadAskedBy ? { openedBy: e.leadAskedBy } : {}), ...(e?.leadAskedByName ? { openedByName: e.leadAskedByName } : {}), ...(lead ? { leadOkBy: lead } : {}) });
+  if (!isWaitingForLead(p.body)) throw new GitHubError(422, ALREADY_ANSWERED);
+  const { lead, leadName, note, ...rest } = input;
+  const done = await doneExploringOnGitHub(gh, p.number, { ...rest, pieces: e?.leadPieces ?? [], ...(e?.leadAskedBy ? { openedBy: e.leadAskedBy } : {}), ...(e?.leadAskedByName ? { openedByName: e.leadAskedByName } : {}), ...(lead ? { leadOkBy: lead } : {}) });
+  if (input.dryRun) return done;
+  // The yes goes in the history, and its words to the developers: they build from them.
+  const now = await findExplorationOnGitHub(gh, p.number);
+  await gh.updatePullRequest(p.number, { body: withDecision(now.body, { kind: 'looks-right', ...sayer({ by: lead, byName: leadName, date: input.date }), ...(note?.trim() ? { text: note.trim() } : {}), sha: now.headSha }) });
+  if (note?.trim()) await tellDevelopersOnGitHub(gh, p.number, { text: note, byName: leadName ?? githubLoginOf(lead) ?? undefined }).catch(() => undefined);
+  return done;
 }
 
+/** A lead answered first: the second one reads this and the page shows the first answer. */
+export const ALREADY_ANSWERED = 'Someone already answered this one.';
+
+/** Who says something, for a decision: a GitHub login, or the display name of a member without one. */
+type Sayer = { by?: string | null | undefined; byName?: string | null | undefined; date?: Date | undefined };
+const sayer = (s: Sayer) => ({ at: (s.date ?? new Date()).toISOString(), ...(githubLoginOf(s.by) ? { by: githubLoginOf(s.by)! } : {}), ...(s.byName ? { byName: s.byName } : {}) });
+
 /** The design lead's "Needs changes": back to the designer with the lead's words, nothing reached developers. */
-export async function leadChangesOnGitHub(gh: GitHubClient, ref: string | number, input: { note: string; lead?: string | undefined }): Promise<void> {
+export async function leadChangesOnGitHub(gh: GitHubClient, ref: string | number, input: { note: string; lead?: string | undefined; leadName?: string | undefined; date?: Date | undefined }): Promise<void> {
   const p = await findExplorationOnGitHub(gh, ref);
-  if (!isWaitingForLead(p.body)) throw new GitHubError(422, `#${p.number} is not waiting for a lead.`);
-  await gh.updatePullRequest(p.number, { body: withoutLeadAsked(p.body, { note: input.note, by: input.lead }) });
+  if (!isWaitingForLead(p.body)) throw new GitHubError(422, ALREADY_ANSWERED);
+  await gh.updatePullRequest(p.number, { body: withDecision(withoutLeadAsked(p.body), { kind: 'changes', ...sayer({ by: input.lead, byName: input.leadName, date: input.date }), text: input.note, sha: p.headSha }) });
+}
+
+/** A lead's question, no verdict: it keeps waiting, now on the designer's answer. */
+export async function leadQuestionOnGitHub(gh: GitHubClient, ref: string | number, input: { text: string; lead?: string | undefined; leadName?: string | undefined; date?: Date | undefined }): Promise<void> {
+  const p = await findExplorationOnGitHub(gh, ref);
+  if (!isWaitingForLead(p.body)) throw new GitHubError(422, ALREADY_ANSWERED);
+  await gh.updatePullRequest(p.number, { body: withDecision(p.body, { kind: 'question', ...sayer({ by: input.lead, byName: input.leadName, date: input.date }), text: input.text, sha: p.headSha }) });
+}
+
+/**
+ * The designer answers. To a question: it waits on the lead again. To changes or a take back: the answer, then the same
+ * ask as Done exploring, with the pieces they ticked before.
+ */
+export async function answerLeadOnGitHub(gh: GitHubClient, ref: string | number, input: { text?: string | undefined; by?: string | undefined; byName?: string | undefined; date?: Date | undefined; leads?: readonly string[] | undefined }): Promise<void> {
+  const p = await findExplorationOnGitHub(gh, ref);
+  const open = openDecisionOf(p.body);
+  if (!open || open.kind === 'not-doing') throw new GitHubError(422, 'Nothing waits for your answer here.');
+  const said = input.text?.trim();
+  const body = said ? withDecision(p.body, { kind: 'answer', ...sayer(input), text: said, sha: p.headSha }) : p.body;
+  if (open.kind === 'question') {
+    await gh.updatePullRequest(p.number, { body });
+    return;
+  }
+  const leads = (input.leads ?? []).map(githubLoginOf).filter((l): l is string => Boolean(l));
+  await gh.updatePullRequest(p.number, { body: withLeadAskedTo(withLeadAsked(body, { at: sayer(input).at, by: githubLoginOf(input.by), byName: input.byName, sha: p.headSha }), leads) });
+  if (leads.length) await gh.createIssueComment(p.number, `${leads.map((l) => `@${l}`).join(' ')} ready for your validation in Bridge again.`).catch(() => undefined);
+}
+
+/** "Ask someone else to review": the other leads get it, the one who asks is off it. */
+export async function askOtherLeadOnGitHub(gh: GitHubClient, ref: string | number, input: { to: readonly string[]; lead?: string | undefined; leadName?: string | undefined; date?: Date | undefined }): Promise<void> {
+  if (!input.to.length) throw new GitHubError(422, 'There is nobody else to ask.');
+  const p = await findExplorationOnGitHub(gh, ref);
+  if (!isWaitingForLead(p.body)) throw new GitHubError(422, ALREADY_ANSWERED);
+  await gh.updatePullRequest(p.number, { body: withDecision(withLeadAskedTo(p.body, input.to), { kind: 'asked-someone', ...sayer({ by: input.lead, byName: input.leadName, date: input.date }), to: [...input.to] }) });
+  await gh.createIssueComment(p.number, `${input.to.map((l) => `@${l}`).join(' ')} ready for your validation in Bridge.`).catch(() => undefined);
+}
+
+/**
+ * "Not doing this": the exploration ends, the reason stays with it. Archived, not closed: its preview and notes stay.
+ * Handed to developers already: their task leaves their list first.
+ */
+export async function notDoingOnGitHub(gh: GitHubClient, ref: string | number, input: { reason: string; lead?: string | undefined; leadName?: string | undefined; date?: Date | undefined }): Promise<void> {
+  const p = await findExplorationOnGitHub(gh, ref);
+  const status = explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body, headSha: p.headSha, draft: p.draft });
+  if (status === 'building') throw new GitHubError(422, 'Developers already work on it: it stays with them.');
+  if (status !== 'active' && status !== 'ready') throw new GitHubError(422, ALREADY_ANSWERED);
+  if (status === 'ready') await reopenExplorationOnGitHub(gh, p.number, { by: input.lead, date: input.date, reason: input.reason });
+  const now = status === 'ready' ? await findExplorationOnGitHub(gh, p.number) : p;
+  await gh.updatePullRequest(p.number, { body: withDecision(withoutLeadAsked(now.body), { kind: 'not-doing', ...sayer({ by: input.lead, byName: input.leadName, date: input.date }), text: input.reason, sha: p.headSha }) });
+  await gh.addLabels(p.number, [EXPLORATION_ARCHIVED_LABEL]);
+}
+
+/** "Take it back": a lead takes the exploration back from the developers' list, with the reason for its designer. */
+export async function takeBackOnGitHub(gh: GitHubClient, ref: string | number, input: { reason: string; lead?: string | undefined; leadName?: string | undefined; date?: Date | undefined }): Promise<BackToExploring> {
+  const back = await reopenExplorationOnGitHub(gh, ref, { by: input.lead, date: input.date, reason: input.reason });
+  const p = await findExplorationOnGitHub(gh, back.number);
+  await gh.updatePullRequest(p.number, { body: withDecision(p.body, { kind: 'take-back', ...sayer({ by: input.lead, byName: input.leadName, date: input.date }), text: input.reason, sha: p.headSha }) });
+  return back;
+}
+
+/** A word to the developers who already started: on their task, else on the exploration itself. */
+export async function tellDevelopersOnGitHub(gh: GitHubClient, ref: string | number, input: { text: string; byName?: string | undefined }): Promise<void> {
+  const p = await findExplorationOnGitHub(gh, ref);
+  const task = designTaskRef(parseExplorationBody(p.body)?.task, null);
+  const words = input.byName ? `**${input.byName}** (design lead):\n\n${input.text.trim()}` : input.text.trim();
+  if (task) await gh.withBranchPrefix(undefined).forRepo(task.repo).createIssueComment(task.number, words);
+  else await gh.createIssueComment(p.number, words);
+}
+
+/** Take over or hand over: a new keeper, with who decided and why. Who it was given to reads in its Decisions. */
+export async function handOverOnGitHub(gh: GitHubClient, ref: string | number, input: { to: { login: string } | { member: string; name: string }; toName: string; reason: string; by?: string | undefined; byName?: string | undefined; date?: Date | undefined }): Promise<void> {
+  const p = await findExplorationOnGitHub(gh, ref);
+  await gh.updatePullRequest(p.number, { body: withDecision(withKeeper(p.body, input.to), { kind: 'handed', ...sayer(input), text: input.reason, to: [input.toName], sha: p.headSha }) });
 }
 
 /** The designer keeps exploring while the lead has not answered. */
