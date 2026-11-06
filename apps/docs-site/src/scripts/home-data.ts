@@ -478,8 +478,10 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
       const block = parseExplorationBody(p.body);
       const asker = block?.leadAskedBy ?? p.user.login;
       if (!reviewersAsked({ approvers: siteApprovers().design, builders: [asker] }).some((l) => same(l, viewer))) continue;
-      const person = pick(asker)!;
-      needs.push(explorationReviewNeed({ number: p.number, product: p.product ?? null, author: person, asker: person, since: block?.leadAskedAt ?? null, thumb: { kind: 'icon', icon: 'branch' }, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`) }, now));
+      // A designer who joined by email has no GitHub login: their name, never the app that writes for them.
+      const askedBy = block?.leadAskedBy ? null : (block?.leadAskedByName ?? block?.memberName);
+      const who = askedBy ? { login: asker, name: askedBy, avatar: null } : pick(asker)!;
+      needs.push(explorationReviewNeed({ number: p.number, product: p.product ?? null, author: who, asker: who, since: block?.leadAskedAt ?? null, thumb: { kind: 'icon', icon: 'branch' }, name: explorationNameOf(p), href: studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`) }, now));
     }
     // Someone asked a question on the task of an exploration the viewer handed off (named, never "the developers" by
     // default): theirs to answer (the one rule, lib/waiting-on). Remembered for the nav badge on the other pages.
