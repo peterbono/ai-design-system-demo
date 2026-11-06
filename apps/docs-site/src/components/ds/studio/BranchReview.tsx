@@ -77,7 +77,7 @@ import { agoInSentence, VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
 import type { ChangeOrigin } from '../../../lib/product-branch';
 import type { ShownValue } from '../../../lib/token-review';
 import type { Lifecycle, LifecycleTone } from '../../../lib/change-status';
-import { demoApproved } from '../../../lib/demo';
+import { DEMO_WORDS, demoApproved } from '../../../lib/demo';
 import { demoApprovals, rememberDemoApproval } from '../../../scripts/demo-approvals';
 
 export interface PersonRef {
@@ -142,6 +142,8 @@ export interface BranchReviewProps {
    * "set-up"): a quiet link to set them up, never an ask or a "No visual change" it cannot know.
    */
   visualSetUp?: boolean;
+  /** The sample team: no visual checks to set up, so that line says what a real team gets (lib/demo.ts). */
+  visualSample?: boolean;
   /** "Admin demo": where the screens are. */
   product: string;
   tryUrl: string | null;
@@ -535,7 +537,7 @@ function ChangeBody(p: BranchReviewProps & { change: ReviewChange; multi: boolea
       {p.visual ? (
         <WhereItShows visual={p.visual} product={p.product} tryUrl={p.tryUrl} component={change.component} components={components} compact />
       ) : p.visualSetUp ? (
-        <SetUpVisualChecks />
+        <SetUpVisualChecks sample={p.visualSample} />
       ) : (
         <p className="br-muted">No visual change.</p>
       )}
@@ -545,7 +547,8 @@ function ChangeBody(p: BranchReviewProps & { change: ReviewChange; multi: boolea
 }
 
 /** On a repo without visual checks: what it would take, calmly, in place of the before and after. */
-function SetUpVisualChecks() {
+function SetUpVisualChecks({ sample }: { sample?: boolean | undefined }) {
+  if (sample) return <p className="br-muted">{DEMO_WORDS.noBeforeAfter}</p>;
   return (
     <p className="br-muted">
       This repo has no visual checks yet.{' '}

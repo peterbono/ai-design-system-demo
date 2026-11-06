@@ -9,6 +9,7 @@ import {
   buildersOf,
   changedScreenOf,
   checkInClaudeLine,
+  commitsAs,
   doneActionFor,
   doneByOf,
   explorationTag,
@@ -411,5 +412,21 @@ describe('canPutInFigma', () => {
 describe('waiting for the design lead', () => {
   it('the tag says so while the exploration still runs', () => {
     expect(explorationTag('active', { stage: 'waiting-for-lead' })).toMatchObject({ label: 'Waiting for lead', tone: 'warning', dot: false });
+  });
+});
+
+describe('commitsAs', () => {
+  const by = (login: string, message = 'Account app: first pass'): BranchCommitLike => ({ sha: login, author: { login }, commit: { message, author: { name: login, date: '2026-10-22T10:00:00Z' } } });
+
+  it("reads a sample exploration's commits as its person, in the headline and the activity, never the account behind it", () => {
+    const commits = commitsAs([by('peterbono')], 'name:Ann Leroy');
+    const names = gitNamesOf(commits);
+    const rows = activityRows({ commits, author: 'name:Ann Leroy', names, now: new Date('2026-10-23T10:00:00Z') });
+    expect(JSON.stringify(rows)).not.toContain('peterbono');
+    expect(rows[0]!.who).toMatchObject({ name: 'Ann Leroy', avatar: null, login: '~ann-leroy' });
+  });
+
+  it("leaves Claude's own commits as Claude's", () => {
+    expect(commitsAs([by('claude[bot]')], 'name:Ann Leroy')[0]!.author!.login).toBe('claude[bot]');
   });
 });

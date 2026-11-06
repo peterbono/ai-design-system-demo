@@ -22,6 +22,11 @@
   min-width: 0;
 }
 
+/* The filters under the tabs (styles/list-filters.css) sit as far from them as on Changes, whose list gap is wider. */
+.bb > .bl-bar {
+  margin-block-start: 0;
+}
+
 /* DS Tabs (underline), like Changes: the rule spans the width, the list scrolls inside its row on a phone. */
 .bb-bar > * {
   flex: 1 1 auto;

@@ -1,7 +1,13 @@
+import { DEFAULT_PRODUCTS } from '@bridge-ds/core';
 import { describe, expect, it } from 'vitest';
 import {
+  activeFilters,
   ALL_PRODUCTS,
   barCopy,
+  filterChoices,
+  inFilters,
+  listFiltersParam,
+  withListFilters,
   listSummary,
   productOptions,
   boxDisabled,
@@ -313,5 +319,71 @@ describe('a member\'s work in the products (contribute ?mine=1 products)', () =>
     expect(ownedBy({ author: 'bridge-app[bot]', number: 7, headRef: 'explore/x', headRepo: 'acme/shop-design' }, 'leo@acme.design', mine, 'acme/design')).toBe(false);
     expect(ownedBy({ author: 'bridge-app[bot]', number: 4, headRef: 'explore/toast', product: 'shop' }, 'leo@acme.design', mine, 'acme/design')).toBe(true);
     expect(ownedBy({ author: 'bridge-app[bot]', number: 7, headRef: 'explore/other', product: 'shop' }, 'leo@acme.design', mine, 'acme/design')).toBe(false);
+  });
+});
+
+describe('the two filters of a list', () => {
+  const products = DEFAULT_PRODUCTS;
+  const library = products.find((p) => p.default)!.key.toLowerCase();
+  const other = products.find((p) => !p.default)!.key.toLowerCase();
+  const malik = { key: 'malik', name: 'Malik' };
+  const ann = { key: 'ann', name: 'Ann' };
+  const rows = [
+    { product: library, people: [malik, ann] },
+    { product: other, people: [ann] },
+    // A request nobody picked up shows nobody.
+    { product: library, people: [] },
+  ];
+
+  it('reads ?product= and ?people= and writes them back, other parameters kept', () => {
+    expect(listFiltersParam('?product=Library&people=you')).toEqual({ product: 'library', by: YOU });
+    expect(listFiltersParam('?request=33')).toEqual({ product: null, by: null });
+    expect(withListFilters('?request=33', { product: 'library', by: 'malik' })).toBe('?request=33&product=library&people=malik');
+    expect(withListFilters('?product=library&people=malik', { product: null, by: null })).toBe('');
+    expect(withListFilters('', { product: null, by: YOU })).toBe('?people=you');
+  });
+
+  it('Changes reads the same two filters with its tab', () => {
+    expect(changesFiltersParam('?state=shipped&product=library&people=ann')).toEqual({ state: 'shipped', product: 'library', by: 'ann' });
+    expect(withChangesFilters('?status=merged&archived=1', { state: 'shipped', product: 'library', by: null })).toBe('?state=shipped&product=library');
+    expect(withChangesFilters('', { state: 'all', product: null, by: null })).toBe('');
+  });
+
+  it('keeps a row under all products and everyone, with or without a person', () => {
+    expect(rows.filter((x) => inFilters(x, { product: null, by: null }))).toHaveLength(3);
+    expect(rows.filter((x) => inFilters(x, { product: library, by: null }))).toHaveLength(2);
+    expect(rows.filter((x) => inFilters(x, { product: null, by: 'ann' }))).toHaveLength(2);
+    expect(rows.filter((x) => inFilters(x, { product: library, by: 'ann' }))).toEqual([rows[0]]);
+    expect(rows.filter((x) => inFilters(x, { product: null, by: 'nobody' }))).toEqual([]);
+  });
+
+  it('reads the one designer of a Changes row too', () => {
+    expect(inFilters({ product: library, designer: ann }, { product: null, by: 'ann' })).toBe(true);
+    expect(inFilters({ product: library, designer: ann }, { product: null, by: 'malik' })).toBe(false);
+  });
+
+  it('drops a picked person nobody listed matches and a product that is not configured', () => {
+    expect(activeFilters({ product: 'nope', by: 'nobody' }, rows, products, true)).toEqual({ product: null, by: null });
+    expect(activeFilters({ product: library, by: 'ann' }, rows, products, true)).toEqual({ product: library, by: 'ann' });
+    expect(activeFilters({ product: null, by: YOU }, rows, products, true).by).toBe(YOU);
+    expect(activeFilters({ product: null, by: YOU }, rows, products, false).by).toBeNull();
+  });
+
+  it('counts each person a row shows, Everyone once per row, each select over the other filter', () => {
+    const all = filterChoices(rows, products, { product: null, by: null }, true);
+    expect(all.people.map((o) => [o.label, o.count])).toEqual([
+      ['Everyone', 3],
+      ['You', 0],
+      ['Ann', 2],
+      ['Malik', 1],
+    ]);
+    expect(all.products[0]).toMatchObject({ value: ALL_PRODUCTS, count: 3 });
+    const narrowed = filterChoices(rows, products, { product: other, by: null }, false);
+    expect(narrowed.people.map((o) => [o.label, o.count])).toEqual([
+      ['Everyone', 1],
+      ['Ann', 1],
+      ['Malik', 0],
+    ]);
+    expect(filterChoices(rows, products, { product: null, by: 'malik' }, false).products.map((o) => o.count)).toEqual([1, 1]);
   });
 });

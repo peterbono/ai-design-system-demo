@@ -28,22 +28,21 @@
 // activity snapshot answers the before/after and the files, so a change looks the same here as on the demo home.
 import { createRoot, type Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Checkbox, Link, Select, Skeleton, Tab, Tabs, TabsList, Tooltip, VisuallyHidden } from '@bridge-ds/react';
+import { Checkbox, Link, Skeleton, Tab, Tabs, TabsList, Tooltip, VisuallyHidden } from '@bridge-ds/react';
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
+import { ClearFilters, ListFiltersBar, NO_FILTER_MATCH } from './ListFilters';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
-import { ALL_PRODUCTS, ARCHIVED_NOTE, boxDisabled, changesFiltersParam, listSummary, productOptions, designRows, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, shippedAtOf, shippedByTask, isYours, knownNames, peopleOptions, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type StateTab } from '../../../lib/branches-page';
+import { activeFilters, ARCHIVED_NOTE, boxDisabled, changesFiltersParam, filterChoices, inFilters, listSummary, designRows, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, shippedAtOf, shippedByTask, isYours, knownNames, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type ListFilters, type StateTab } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
 import { CLAUDE, displayName, person, requesterPerson, SEP, type Person, type PillTone } from '../../../lib/home-model';
 import {
   categoryOf,
   designerKey,
-  designerOptions,
   groupByCategory,
   queueSummary,
   reachLine,
-  EVERYONE,
   type WaitingExtra,
 } from '../../../lib/review-categories';
 import { DEFAULT_PRODUCTS, defaultProduct } from '@bridge-ds/core';
@@ -301,14 +300,9 @@ export function BranchesList(p: BranchesListProps) {
             ? shippedItems
             : openItems.filter((q) => q.state === t);
   const queue = inTab(tab);
-  // The person picked stays only while someone listed matches it (an address naming nobody listed keeps everyone).
-  const by = picked.by && (picked.by === YOU ? Boolean(viewer) : queue.some((q) => q.designer.key === picked.by)) ? picked.by : null;
-  // The product picked stays only while it is a configured product (an address naming another keeps all products).
-  const product = picked.product && products.some((pp) => pp.key.toLowerCase() === picked.product) ? picked.product : null;
-  const active = { product, by };
+  const active = activeFilters(picked, queue, products, Boolean(viewer));
   const filtered = Boolean(active.product) || Boolean(active.by);
-  const inProduct = (q: Item) => !active.product || q.product === active.product;
-  const passes = (q: Item) => inProduct(q) && (!active.by || q.designer.key === active.by);
+  const passes = (q: Item) => inFilters(q, active);
   const kept = queue.filter(passes);
   const counts = Object.fromEntries(
     (['all', 'waiting', 'exploring', 'code', 'building', 'review', 'shipped', 'archived'] as StateTab[]).map((t) => [t, inTab(t).filter(passes).length]),
@@ -368,7 +362,7 @@ export function BranchesList(p: BranchesListProps) {
     history.replaceState(history.state, '', url);
   };
   const pickTab = (v: string) => pick({ ...picked, state: v as StateTab });
-  const pickFilters = (f: { product: string | null; by: string | null }) => pick({ ...picked, product: f.product, by: f.by });
+  const pickFilters = (f: ListFilters) => pick({ ...picked, product: f.product, by: f.by });
   // Shipped reads the closed list when it was not read yet (the page reads it after the open one).
   const readClosed = p.readClosed;
   useEffect(() => {
@@ -428,19 +422,8 @@ export function BranchesList(p: BranchesListProps) {
                 );
   };
 
-  // The filters: the products (over what the people filter keeps), the people (over what the product filter keeps).
-  const productChoices = productOptions(
-    queue.filter((q) => !active.by || q.designer.key === active.by),
-    products,
-    active.product,
-  );
-  const designers = peopleOptions(designerOptions(queue, 'all', inProduct), Boolean(viewer));
+  const choices = filterChoices(queue, products, active, Boolean(viewer));
   const reach = reachLine(products);
-  const count = (n: number) => (
-    <Badge tone="neutral" size="sm">
-      {n}
-    </Badge>
-  );
 
   const extraRow = ({ w, productName }: (typeof waitingExtras)[number], reserve = false) => {
     const pp = w.need.person ?? CLAUDE;
@@ -488,12 +471,6 @@ export function BranchesList(p: BranchesListProps) {
     </>
   );
 
-  const clearLink = (
-    <Button variant="link" onClick={() => pickFilters({ product: null, by: null })}>
-      Clear filters
-    </Button>
-  );
-
   return (
     <div className={waitingView ? 'bl is-waiting' : 'bl'}>
       {/* The tabs alone on their row: the page's primary navigation. */}
@@ -511,31 +488,7 @@ export function BranchesList(p: BranchesListProps) {
       {/* The quieter row under the tabs: the filters, then the count. It shows once the tab holds something to narrow
           (or while a filter is picked). */}
       {!(p.loading && !p.rows.length) && !(shippedTab && p.closed === null) && (queue.length > 0 || filtered) && (
-        <div className="bl-bar">
-          <span className="bl-narrow">
-            <Select
-              label="Product"
-              hideLabel
-              size="sm"
-              value={active.product ?? ALL_PRODUCTS}
-              onValueChange={(v) => pickFilters({ ...active, product: !v || v === ALL_PRODUCTS ? null : v })}
-              options={productChoices.map((o) => ({ value: o.value, label: o.label, badge: count(o.count) }))}
-            />
-            <Select
-              label="People"
-              hideLabel
-              size="sm"
-              value={active.by ?? EVERYONE}
-              onValueChange={(v) => pickFilters({ ...active, by: !v || v === EVERYONE ? null : v })}
-              options={designers.map((d) => ({ value: d.value, label: d.label, badge: count(d.count), disabled: d.count === 0 && d.value !== (active.by ?? EVERYONE) }))}
-            />
-          </span>
-          <p className="t-ui t-muted bl-summary" aria-live="polite">
-            {waitingView ? waitingLine : listSummary(kept.length, queue.length, filtered)}
-            {/* With nothing left, the empty line under it offers Clear filters instead. */}
-            {filtered && kept.length > 0 && <> {clearLink}</>}
-          </p>
-        </div>
+        <ListFiltersBar active={active} choices={choices} onPick={pickFilters} summary={waitingView ? waitingLine : listSummary(kept.length, queue.length, filtered)} clear={filtered && kept.length > 0} />
       )}
       {p.tierLabel && (
         <p className="t-ui t-muted bl-note">
@@ -553,7 +506,9 @@ export function BranchesList(p: BranchesListProps) {
           </li>
         </ul>
       ) : kept.length === 0 && filtered && queue.length > 0 ? (
-        <p className="t-body t-muted bl-none">Nothing here matches these filters. {clearLink}</p>
+        <p className="t-body t-muted bl-none">
+          {NO_FILTER_MATCH} <ClearFilters onPick={pickFilters} />
+        </p>
       ) : waitingView && queue.length > 0 ? (
         waitingList
       ) : groups.length === 0 ? (

@@ -69,6 +69,12 @@ export const SAMPLE_PREVIEW_PAGES: Readonly<Record<string, string>> = {
 /** The running screen of a sample exploration, by its branch, or null. */
 export const samplePreviewPage = (branch: string | null | undefined): string | null => (branch ? (SAMPLE_PREVIEW_PAGES[branch] ?? null) : null);
 
+/**
+ * True for the branch of a sample exploration. The repository behind the sample team has one account, which opened
+ * every branch and made every commit: on these branches, the exploration's page names its sample person instead.
+ */
+export const isSampleExploration = (branch: string | null | undefined): boolean => sampleExplorationPreview(branch) !== null;
+
 /** Where a change of the sample team comes from: the exploration a "Needed by" block would name on a real team. */
 export interface SampleOrigin {
   pr: number;
@@ -176,6 +182,8 @@ export const DEMO_WORDS = {
   ownDialogTitle: 'Sign in with GitHub to do this.',
   ownDialogLead: 'This is the design system behind Bridge, read only for visitors. Nothing is saved.',
   dialogNote: 'You pick the repos Bridge can see. It starts read-only and asks again before it writes anything.',
+  /** On the sample team, where the before and after of a change without one would be (a real team sets up its checks). */
+  noBeforeAfter: 'On your own team, Bridge shows the before and after here.',
   /** The sample-team dialog's note: what happens on a real team. */
   sampleNote: 'With your own team, Bridge reads your design system and sends nothing until you ask.',
   keepExploring: 'Keep exploring',
