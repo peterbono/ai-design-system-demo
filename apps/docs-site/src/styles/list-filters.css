@@ -38,3 +38,8 @@
 .bl-summary {
   margin: 0;
 }
+
+/* How the list is shown (ListCard ViewSwitch): at the end of the row, away from the filters that narrow it. */
+.bl-view {
+  margin-inline-start: auto;
+}

@@ -1,7 +1,9 @@
 // The quieter row under the tabs of a list (Changes, Being built): two small DS Selects, the product (All products,
 // then each product) and the person (Everyone, You, then each person by name), then the count of what is listed and
-// Clear filters. The rules are lib/branches-page (activeFilters, filterChoices, inFilters), the address ?product= and
-// ?people=; each page says what its rows are and keeps the filters with its own tabs.
+// Clear filters, and at the end how the list is shown (`end`, the ViewSwitch of ListCard). The rules are
+// lib/branches-page (activeFilters, filterChoices, inFilters), the address ?product= and ?people=; each page says
+// what its rows are and keeps the filters with its own tabs.
+import type { ReactNode } from 'react';
 import { Badge, Button, Select } from '@bridge-ds/react';
 import { ALL_PRODUCTS, type filterChoices, type ListFilters } from '../../../lib/branches-page';
 import { EVERYONE } from '../../../lib/review-categories';
@@ -32,9 +34,11 @@ export interface ListFiltersBarProps {
   summary: string;
   /** Offer Clear filters after the count; with nothing left, the empty line under the bar offers it instead. */
   clear: boolean;
+  /** At the end of the row, away from what narrows the list: how it is shown (ListCard ViewSwitch). */
+  end?: ReactNode;
 }
 
-export function ListFiltersBar({ active, choices, onPick, summary, clear }: ListFiltersBarProps) {
+export function ListFiltersBar({ active, choices, onPick, summary, clear, end }: ListFiltersBarProps) {
   return (
     <div className="bl-bar">
       <span className="bl-narrow">
@@ -64,6 +68,7 @@ export function ListFiltersBar({ active, choices, onPick, summary, clear }: List
           </>
         )}
       </p>
+      {end}
     </div>
   );
 }
