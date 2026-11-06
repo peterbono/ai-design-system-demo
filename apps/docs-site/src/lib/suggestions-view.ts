@@ -18,7 +18,7 @@ import {
 import type { ThumbSpec, ThumbToken } from './branch-thumb';
 import { branchThumb } from './branch-thumb';
 import type { ShownValue } from './token-review';
-import { waitingLabel, type BranchCard, type NeedRow, type Person } from './home-model';
+import { originPrefix, waitingLabel, type BranchCard, type NeedRow, type Person } from './home-model';
 import { studioHref } from './team-path';
 
 /** Where a suggestion opens in Studio: Branches, in place (pages/studio/changes.astro). */
@@ -148,14 +148,14 @@ export function waitsOnViewer(x: {
 }
 
 /** One Home and queue row for a suggestion that waits on the viewer. */
-export function suggestionNeed(s: { number: number; title: string; createdAt: string; thumb?: ThumbSpec | null; apply?: boolean }, author: Person, now: number): NeedRow {
+export function suggestionNeed(s: { number: number; title: string; createdAt: string; thumb?: ThumbSpec | null; apply?: boolean; origin?: string | null }, author: Person, now: number): NeedRow {
   return {
     key: suggestionKey(s.number),
     kind: 'review',
     title: s.title,
     href: suggestionHref(s.number),
     person: author,
-    line: s.apply ? SUGGESTION_WORDS.toApply(author.name) : SUGGESTION_WORDS.asks(author.name),
+    line: `${originPrefix(s.origin)}${s.apply ? SUGGESTION_WORDS.toApply(author.name) : SUGGESTION_WORDS.asks(author.name)}`,
     ...(s.apply ? { action: 'Apply' } : {}),
     since: s.createdAt,
     waitsOnYou: true,

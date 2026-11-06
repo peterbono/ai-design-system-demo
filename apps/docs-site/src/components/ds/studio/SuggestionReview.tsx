@@ -5,6 +5,8 @@
 // or one main moved under, says so first. Approve and Ask for changes show only to owners; everyone else reads why.
 // Details (who approved, every token, previews, the GitHub link) stay folded. Opened from Branches (?suggestion=N) and
 // in the review queue. Data, GitHub writes and words: scripts/suggestions.ts, lib/suggestions-view.ts.
+import { OriginLine } from './ProductContext';
+import type { ChangeOrigin } from '../../../lib/product-branch';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
@@ -51,6 +53,8 @@ export interface NextCard {
 
 export interface SuggestionReviewProps {
   n: number;
+  /** Where it comes from, when Bridge knows it: the line under the title (OriginLine). */
+  origin?: ChangeOrigin | null;
   /** The issue on GitHub, for "Open on GitHub". */
   url: string;
   title: string;
@@ -512,6 +516,7 @@ export function SuggestionReview(props: SuggestionReviewProps) {
                 </Badge>
                 <span className="sg-muted">{p.kind}</span>
               </p>
+              {p.origin && <OriginLine origin={p.origin} className="sg-muted" />}
             </div>
             {keys && (
               <p className="sg-keys sg-muted" aria-label="Keyboard: A approve, S ask for changes, J next">

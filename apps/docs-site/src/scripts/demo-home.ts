@@ -130,7 +130,7 @@ export async function loadDemoHome(stat: DemoStatic, onUpdate: (d: DemoHomeData)
   // Approve tried on the sample team during this visit: those branches no longer wait on the lead.
   const sample = isSampleTeam(`${owner}/${repo}`);
   const previews = new Map<number, ThumbSpec>();
-  const opts = { thumbs, people, approved: sample ? demoApprovals() : new Set<number>() };
+  const opts = { thumbs, people, sample, approved: sample ? demoApprovals() : new Set<number>() };
   const products = demoProducts();
   const needs = () => sortNeeds([...staticNeeds(), ...leadQueue(activity.open, activity.suggestions, now, opts)]);
   // The changed files of each running exploration, so its card says what its page says ("Not started", "Exploring").

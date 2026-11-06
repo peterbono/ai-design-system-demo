@@ -14,6 +14,7 @@ import {
   getSuggestionOnGitHub,
   listSuggestionsOnGitHub,
   loadConfig,
+  parseNeededBy,
   requesterOf,
   reviewSuggestionOnGitHub,
   overrideSuggestionOnGitHub,
@@ -37,6 +38,7 @@ import { currentContributor, currentViewer, getToken, hasWorkingToken, initGitHu
 import { loadTeams, siteApprovers, siteRoles, siteSoloOwner } from './teams';
 import { siteConfig } from './repo-context';
 import { isSampleTeam, sampleApprovalRows, sampleCodeReviewers } from '../lib/demo';
+import { changeOrigin } from '../lib/product-branch';
 import { sampleTeam } from '../lib/invites';
 import { ghAction } from '../lib/gh-wording';
 import { canReview } from '../lib/access';
@@ -138,6 +140,8 @@ interface Waiting {
   requester?: Requester | null;
   /** Approved: it waits on the viewer, a developer, to apply it. */
   apply?: boolean;
+  /** The exploration it was filed for, from its "Needed by" block. */
+  origin?: string | null;
 }
 
 let needs: { viewer: string; at: number; rows: Promise<Waiting[]> } | null = null;
@@ -181,6 +185,7 @@ async function readWaiting(viewer: string): Promise<Waiting[]> {
           thumb: suggestionThumb(d.parsed.payload, theme()),
           labels: d.issue.labels,
           requester: requesterOf(d.issue.body),
+          origin: parseNeededBy(d.issue.body)?.title ?? null,
         };
       } catch {
         return null;
@@ -431,6 +436,7 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
     const opened: OpenedSuggestion = { number: n, title, sha, role: gate.role, status, canApprove: gate.canApprove, canRequestChanges: gate.canRequestChanges };
     const props: SuggestionReviewProps = {
       n,
+      origin: changeOrigin(parseNeededBy(d.issue.body)),
       url,
       title,
       kind: kindLabel(payload.kind),

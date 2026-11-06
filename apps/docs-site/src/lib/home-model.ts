@@ -345,7 +345,12 @@ export interface ChangeFacts {
   changesBy?: Person[];
   thumb: ThumbSpec;
   onlyReviewer?: boolean;
+  /** The exploration it comes from, when Bridge knows it (lib/product-branch changeOrigin): "Profile page". */
+  origin?: string | null;
 }
+
+/** Before who asks on a review row: "from Profile page · ". Nothing when the origin is not known. */
+export const originPrefix = (origin: string | null | undefined): string => (origin?.trim() ? `from ${origin.trim()}${SEP}` : '');
 
 const changeHref = (n: number) => studioHref(`changes/?pr=${n}`);
 
@@ -353,20 +358,21 @@ const changeHref = (n: number) => studioHref(`changes/?pr=${n}`);
 export function changeNeed(c: ChangeFacts, now: number): NeedRow {
   const base = { key: `change-${c.number}`, title: c.title, href: changeHref(c.number), number: c.number, thumb: c.thumb, since: c.since, onlyReviewer: c.onlyReviewer };
   const waiting = c.since ? { label: waitingLabel(c.since, now), tone: 'warning' as const } : null;
+  const from = originPrefix(c.origin);
   switch (c.task) {
     case 'ship':
-      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} waits for you to add it to the library`, waitsOnYou: true, pill: waiting };
+      return { ...base, kind: 'review', person: c.asker, line: `${from}${c.asker.name} waits for you to add it to the library`, waitsOnYou: true, pill: waiting };
     case 'guidance':
-      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks you to check the usage guidance`, waitsOnYou: true, pill: waiting };
+      return { ...base, kind: 'review', person: c.asker, line: `${from}${c.asker.name} asks you to check the usage guidance`, waitsOnYou: true, pill: waiting };
     case 'look-again':
       // The author updated it after the viewer's changes request: the viewer's approval is what it waits for.
-      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} updated it after your changes: look again`, waitsOnYou: true, pill: waiting };
+      return { ...base, kind: 'review', person: c.asker, line: `${from}${c.asker.name} updated it after your changes: look again`, waitsOnYou: true, pill: waiting };
     case 'tech':
       // The tech owner's OK (lib/waiting-on): the same review row, in the words of their turn on the branch page.
-      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks for your tech review`, waitsOnYou: true, pill: waiting };
+      return { ...base, kind: 'review', person: c.asker, line: `${from}${c.asker.name} asks for your tech review`, waitsOnYou: true, pill: waiting };
     case 'design':
     case 'requested':
-      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks for your review`, waitsOnYou: true, pill: waiting };
+      return { ...base, kind: 'review', person: c.asker, line: `${from}${c.asker.name} asks for your review`, waitsOnYou: true, pill: waiting };
     case 'own-changes': {
       const by = c.changesBy?.length ? c.changesBy.map((p) => p.name).join(' and ') : 'A reviewer';
       return { ...base, kind: 'own', person: c.changesBy?.[0] ?? null, line: `${by} asked for changes`, waitsOnYou: false, pill: { label: 'Changes requested', tone: 'warning' }, action: 'Update' };

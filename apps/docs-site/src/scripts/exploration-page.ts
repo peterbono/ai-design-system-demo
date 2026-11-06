@@ -71,6 +71,7 @@ import { sampleVisitor } from './demo-gate';
 import { copyText } from './explorer/util';
 import { loadVisualImpact } from './reviews/visual-impact';
 import { previewShotOf } from './preview-shots';
+import { isSampleTeam, sampleExplorationPreview, samplePreviewPage } from '../lib/demo';
 import { knownNames } from './people';
 import { isEmailAddress, loginKey } from '../lib/people';
 import { isNameAuthor } from '../lib/author';
@@ -401,7 +402,12 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
 
   // The preview capture (one raw file for every exploration, no API call) arrives with the reads it waits beside, so
   // the frame paints once: the capture, or the plate.
-  const [files, commits, sources, shot] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r), previewShotOf(r).catch(() => null)]);
+  // The sample team publishes no preview deploys: its explorations show the screen their card shows, and Open the
+  // preview opens that screen running (lib/demo.ts).
+  const sample = isSampleTeam(`${CFG.owner}/${CFG.repo}`);
+  const sampleShot = sample ? sampleExplorationPreview(r.branch) : null;
+  const samplePage = sample ? samplePreviewPage(r.branch) : null;
+  const [files, commits, sources, shot] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r), sampleShot ? { src: sampleShot, screen: null, capturedAt: null } : previewShotOf(r).catch(() => null)]);
   reported = sources;
   if (current?.key !== key) return;
   // "Where it stands": the handover notes, while it runs (after Done exploring they went to the developers as the spec).
@@ -425,10 +431,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // The branch's own build. Open the preview opens it with the Bridge toolbar (tryUrl) for a product
   // whose production Bridge knows (Live product, the Before side); never for the library's apps.
   const v = tryInProductView(preview, { tryUrl: (u) => safeUrl(u) || null, todayUrl, files });
-  const previewUrl = v.state === 'branch' ? v.url : v.state === 'today' ? todayUrl : null;
+  const previewUrl = samplePage ?? (v.state === 'branch' ? v.url : v.state === 'today' ? todayUrl : null);
   const tryUrl = v.state === 'branch' && v.url && !isLibrary && productProduction(product, own ? null : CFG.production) ? withToolbar(r)(v.url) : null;
   const previewBuilding = v.state === 'building';
-  const previewNote = v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
+  const previewNote = samplePage ? null : v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
   repaint(d, key, {
     // Waiting for the lead: their answer shows even on an exploration with no change yet.
     stage: stage === 'not-started' && !isWaitingForLead(pull.body) ? 'not-started' : 'exploring',

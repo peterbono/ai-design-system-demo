@@ -45,7 +45,7 @@ import ButtonLink from '../ButtonLink';
 import { AddedNotice, EditInChange } from './ContinueChange';
 import { ShareChange, type ShareChangeProps } from './ShareChange';
 import MotionChanges, { type MotionChangesProps } from './MotionChanges';
-import { ProductContext, type ProductContextProps } from './ProductContext';
+import { OriginLine, ProductContext, type ProductContextProps } from './ProductContext';
 
 /** The id of the Motion change in the outline of a busy branch. */
 export const MOTION_CHANGE = 'tokens:motion';
@@ -74,6 +74,7 @@ import {
 } from '../../../lib/review-page';
 import type { VisualShot } from '../../../lib/visual-impact';
 import { agoInSentence, VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
+import type { ChangeOrigin } from '../../../lib/product-branch';
 import type { ShownValue } from '../../../lib/token-review';
 import type { Lifecycle, LifecycleTone } from '../../../lib/change-status';
 import { demoApproved } from '../../../lib/demo';
@@ -172,6 +173,8 @@ export interface BranchReviewProps {
   motion?: MotionChangesProps | null;
   /** Inside the review queue: its bar replaces this one. */
   inQueue?: boolean;
+  /** Where the change comes from, when Bridge knows it: the line under who asks (OriginLine). */
+  origin?: ChangeOrigin | null;
   /** A library branch a product branch needs: "Why it exists" (ProductContext). */
   productContext?: ProductContextProps['context'] | null;
   /** An exploration or a product branch: "See it" for a designer (where, why, previews, Try it, Share). */
@@ -442,10 +445,17 @@ function TokensBody({ tokens, only }: { tokens: NonNullable<BranchReviewProps['t
 
 const PAIRS = 3;
 
-function ShotPair({ shot, base }: { shot: VisualShot; base: string }) {
+function ShotPair({ shot, base, wide }: { shot: VisualShot; base: string; wide?: boolean }) {
   const url = (p?: string) => (p ? `${base}/${p}` : undefined);
   return (
     <figure className="br-shot">
+      {/* One screen fills the width, large enough to see the change: the two sides say which is which. */}
+      {wide && (
+        <div className="br-shot-sides" aria-hidden="true">
+          <span>Before</span>
+          <span>After</span>
+        </div>
+      )}
       <div className="br-shot-pair">
         {shot.images.before ? <img src={url(shot.images.before)} alt={`Before: ${shot.label}, ${shot.theme}`} loading="lazy" /> : <span className="br-shot-none">New</span>}
         {shot.images.after ? <img src={url(shot.images.after)} alt={`After: ${shot.label}, ${shot.theme}`} loading="lazy" /> : <span className="br-shot-none">Gone</span>}
@@ -490,9 +500,9 @@ function WhereItShows({ visual, product, tryUrl, component, components, compact 
       {visual.state === 'no-change' && <p className="br-muted">No visual change: every captured screen renders the same.</p>}
       {visual.state === 'changes' && !shots.length && <p className="br-muted">No captured screen changes for this part.</p>}
       {changed && (
-        <div className="br-shots">
+        <div className={shots.length === 1 ? 'br-shots is-one' : 'br-shots'}>
           {shots.slice(0, PAIRS).map((s) => (
-            <ShotPair key={s.key} shot={s} base={visual.base!} />
+            <ShotPair key={s.key} shot={s} base={visual.base!} wide={shots.length === 1} />
           ))}
         </div>
       )}
@@ -1098,8 +1108,9 @@ export function BranchReview(p: BranchReviewProps) {
             )}
           </span>
         </p>
+        {p.origin && <OriginLine origin={p.origin} className="br-from" />}
       </header>
-      {p.productContext && <ProductContext context={p.productContext} canSuggest={p.actions.suggest} onSuggest={(comment) => p.onAct('suggest', comment)} />}
+      {p.productContext?.question && <ProductContext context={p.productContext} canSuggest={p.actions.suggest} onSuggest={(comment) => p.onAct('suggest', comment)} />}
       {added && <AddedNotice text={added} onDismiss={() => setAdded(null)} />}
 
       {multi ? (

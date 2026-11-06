@@ -2,7 +2,7 @@
 // seat, so the home shows the lead's day as the signed-in home words it ("Ann asks for your review"), from the demo
 // repository's activity (scripts/demo-home.ts readDemoActivity). Nothing is made up. Pure, covered by
 // demo-home.test.ts.
-import { isGuardedExploration, requesterOf } from '@bridge-ds/core';
+import { isGuardedExploration, parseNeededBy, requesterOf } from '@bridge-ds/core';
 import { CLAUDE, changeNeed, person, requesterPerson, type NeedRow, type Person } from './home-model';
 import { isGuidanceChange } from './overview-todo';
 import { oneLineTitle } from './markdown';
@@ -11,7 +11,8 @@ import { agentMade, workNature } from './work-nature';
 import { waitsOnMe } from './waiting-on';
 import { shortTitle, suggestionNeed } from './suggestions-view';
 import { homeExplorations, type ExplorationCard } from './home-explorations';
-import { sampleExplorationPreview } from './demo';
+import { sampleChangeOrigin, sampleExplorationPreview } from './demo';
+import { changeOrigin } from './product-branch';
 import type { ProductConfig } from '@bridge-ds/core';
 import type { ThumbSpec } from './branch-thumb';
 
@@ -68,6 +69,8 @@ export interface LeadOptions {
   people?: Map<string, Person>;
   /** Branches the visitor approved during this visit (Approve tried, lib/demo.ts DEMO_APPROVED_KEY): out of the queue. */
   approved?: ReadonlySet<number>;
+  /** The sample team: its changes say the exploration they come from (lib/demo.ts SAMPLE_CHANGE_ORIGINS). */
+  sample?: boolean;
 }
 
 function who(u: { login: string; avatar_url?: string } | null, people?: Map<string, Person>): Person {
@@ -138,6 +141,7 @@ export function leadQueue(pulls: DemoPull[], suggestions: DemoSuggestion[], now:
           asker: askerOf(p, opts.people),
           since: p.created_at,
           task: guidance ? 'guidance' : 'requested',
+          origin: changeOrigin(parseNeededBy(p.body) ?? (opts.sample ? sampleChangeOrigin(p.head?.ref) : null))?.name ?? null,
           thumb: opts.thumbs?.get(p.number) ?? { kind: 'icon', icon: guidance ? 'guidance' : 'branch' },
         },
         now,
