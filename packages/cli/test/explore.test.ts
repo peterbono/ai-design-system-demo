@@ -1,4 +1,6 @@
 // bridge explore (start, list, promote, close) and the exploration flags of propose and request, with an in-memory GitHub.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runExplore } from '../src/explore.js';
 import { runRequest, type RequestIO } from '../src/request.js';
@@ -31,6 +33,10 @@ describe('bridge explore', () => {
   const dir = tempGitRepo(REPO, REAL_PATHS);
 
   it('start, list, request on it, implement brief, promote, close', async () => {
+    // The token's owner is the design lead: Done exploring goes straight to the developers.
+    const config = join(dir, 'bridge.config.json');
+    const was = readFileSync(config, 'utf8');
+    writeFileSync(config, was.replace('"design": ["peterbono"]', '"design": ["owner"]'));
     const gh = fakeGitHub(OWNER, NAME, { 'README.md': 'hi' });
 
     const help = io(gh);

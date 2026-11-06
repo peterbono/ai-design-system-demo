@@ -9,10 +9,26 @@ import { fakeGitHub, git, pinStart, readTree, REAL_PATHS, REPO, tempGitRepo } fr
 
 // pinStart: muted text starts at 600, so the edit to 700 is a real change whatever main says.
 const files = () => pinStart(readTree(REPO, REAL_PATHS));
+/** The token's owner ("owner" in the fake) as the design lead: Done exploring goes straight to the developers. */
+const asLead = (tree: Record<string, string>) => {
+  const cfg = JSON.parse(tree['bridge.config.json']!);
+  cfg.governance.owners.design = ['owner'];
+  return { ...tree, 'bridge.config.json': `${JSON.stringify(cfg, null, 2)}\n` };
+};
 const edit = { op: 'set' as const, path: 'color.text.muted', value: '{palette.neutral.700}', mode: { theme: 'light' } };
 const LIGHT = 'packages/tokens/src/semantic/light.tokens.json';
 
 describe('explorations on GitHub', () => {
+  it('Done exploring waits for the design lead: the exploration keeps running and nothing goes to the developers', async () => {
+    const gh = fakeGitHub('acme', 'ds', files());
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    await explorations.startExploration(ctx, { name: 'Pill buttons', purpose: 'Rounder buttons.' });
+    const r = (await explorations.doneExploring(ctx, { ref: 'pill-buttons' })) as any;
+    expect(r).toMatchObject({ status: 'waiting-for-lead', branch: 'explore/pill-buttons' });
+    expect(gh.pulls[0]!.labels.map((l: { name: string }) => l.name)).toContain('exploration');
+    expect(gh.pulls[0]!.body).toContain('leadAskedAt');
+  });
+
   it('start: dry run and refusal without a token; branch, note and draft pull request labeled exploration with one', async () => {
     const gh = fakeGitHub('acme', 'ds', files());
     const ro = await BridgeContext.create({ repo: 'acme/ds', fetch: gh.fetch });
@@ -118,7 +134,7 @@ describe('explorations on GitHub', () => {
   });
 
   it('token edits, requests and docs drafts aimed at the exploration branch; list; promote', async () => {
-    const gh = fakeGitHub('acme', 'ds', files());
+    const gh = fakeGitHub('acme', 'ds', asLead(files()));
     const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
     await explorations.startExploration(ctx, { name: 'Pill buttons', purpose: 'Rounder buttons.' });
     const mainLight = gh.fileAt('main', LIGHT);

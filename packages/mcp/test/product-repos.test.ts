@@ -13,6 +13,7 @@ const CSS = '.overdue {\n  background: #fdecec;\n  color: #a3123a;\n}\n';
 function setup() {
   const tree = readTree(REPO, [...REAL_PATHS, 'packages/react/src/components/Badge']);
   const cfg = JSON.parse(tree['bridge.config.json']!);
+    cfg.governance.owners.design = ['owner']; // The token's owner is the design lead: Done exploring goes straight to the developers.
   cfg.products = [
     { key: 'shop', name: 'Shop', repo: 'acme/shop', preview: 'https://shop-git-{branch}-acme.vercel.app' },
     { key: 'gone', name: 'Gone', repo: 'acme/gone' },
@@ -159,6 +160,7 @@ describe('explorations in a product repository', () => {
   it("the design team's copy (a fork in the same organization): Continue by number, product ref, branch or name; Done exploring files the task in the developers' repository", async () => {
     const tree = readTree(REPO, [...REAL_PATHS, 'packages/react/src/components/Badge']);
     const cfg = JSON.parse(tree['bridge.config.json']!);
+    cfg.governance.owners.design = ['owner']; // The token's owner is the design lead: Done exploring goes straight to the developers.
     cfg.products = [
       { key: 'shop', name: 'Shop', repo: 'acme/shop', design: { repo: 'acme/shop-design', preview: 'https://shop-design-git-{branch}-acme.vercel.app' }, preview: 'https://shop-git-{branch}-acme.vercel.app' },
       { key: 'library', name: 'Library', default: true },
@@ -205,6 +207,7 @@ describe('explorations in a product repository', () => {
   it("a member Bridge writes for (the hosted connector) starts one in the design team's copy that GitHub shows read-only; a Reader does not", async () => {
     const tree = readTree(REPO, [...REAL_PATHS]);
     const cfg = JSON.parse(tree['bridge.config.json']!);
+    cfg.governance.owners.design = ['owner']; // The token's owner is the design lead: Done exploring goes straight to the developers.
     cfg.products = [{ key: 'shop', name: 'Shop', repo: 'acme/shop', design: { repo: 'acme/shop-design' } }, { key: 'library', name: 'Library', default: true }];
     const make = () => {
       const ds = fakeGitHub('acme', 'ds', { ...tree, 'bridge.config.json': `${JSON.stringify(cfg, null, 2)}\n` });
