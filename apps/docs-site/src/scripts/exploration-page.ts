@@ -429,7 +429,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const previewBuilding = v.state === 'building';
   const previewNote = v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
   repaint(d, key, {
-    stage: stage === 'not-started' ? 'not-started' : 'exploring',
+    // Waiting for the lead: their answer shows even on an exploration with no change yet.
+    stage: stage === 'not-started' && !isWaitingForLead(pull.body) ? 'not-started' : 'exploring',
     lead: leadViewOf(r, pull.body, { gh, products, library: own ? () => dsClient() : null, previewUrl, keeper, reopen: (line) => reopen(line) }),
     leadNote: parseExplorationBody(pull.body)?.leadNote ?? null,
     author: faceOf(r.author, false, names),
