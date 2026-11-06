@@ -1,12 +1,15 @@
-// The one sign-in screen of Bridge (pages/signin.astro), for sign in and sign up alike (boards E1 and E2): one Harbor
-// zone with a Field Guide drawing, "Welcome to Bridge", the work email and Send code (the one primary action), then
-// the 6-digit code (numeric keyboard, one-time-code autofill, a pasted "123 456" works), with a resend link on a
+// The one sign-in screen of Bridge (pages/signin.astro), for sign in and sign up alike (boards E1 and E2, recomposed
+// 2026-11-06): the whole viewport in two parts, SignInPage below. The step sits on white paper: "Welcome to Bridge", the
+// work email and Send code (the one primary action), under it the demo as a real secondary button. Beside it the one
+// Harbor zone says what Bridge is, over the calm harbor of the quiet Home (QuietScene). On a phone the step comes first
+// and the zone closes the page, so nothing pushes Send code down. Every step and room below keeps this page; past the
+// email the zone keeps only its harbor, the pitch has done its work. Then the 6-digit code (numeric keyboard, one-time-code autofill, a pasted "123 456" works), with a resend link on a
 // cooldown. Email only: GitHub comes back where a repository is linked, and in Settings > Account. An account whose
 // name is still a stand-in (nameSet false) is asked "One last thing: your name" once. Then the person goes to `next`
 // (the page that sent them here, ?next=; an account without a team first sees its invite or work-domain teams once,
 // and every way on leads to `next`), else Bridge picks the room (lib/entry.ts, GET /api/entry): their team, an
 // invite (E3), a team found by work domain (E4, E4b), a team picker (E5), or "Create your team" (E6). Those rooms live
-// in EntryRooms.tsx, in this same zone. Signed in already, the screen forwards at once. Back from GitHub (Link GitHub,
+// in EntryRooms.tsx, in this same column. Signed in already, the screen forwards at once. Back from GitHub (Link GitHub,
 // Connect GitHub to accept), the GitHub sign-in links to the account first. A site without accounts keeps Continue
 // with GitHub, its only way in.
 //
@@ -20,7 +23,8 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { Mail } from 'lucide-react';
 import { Alert, Avatar, Button, Icon, Input, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
-import { Drawing } from '../studio/Drawing';
+import { QuietScene } from '../studio/QuietScene';
+import ButtonLink from '../ButtonLink';
 import { ACCOUNT_WORDS as W, codeDigits, GITHUB_PENDING_KEY, CODE_LENGTH, defaultNext, PRIVACY_PAGE, readSignInQuery, RESEND_COOLDOWN, SIGNED_OUT_PARAM, signedOutNote, type Account, type SignedIn } from '../../../lib/account';
 import { ENTRY_SHOWN_KEY, ENTRY_WORDS as EW, INVITE_TOKEN_KEY, JOINED_KEY, entryStepOnce, inviteTokenFromHash, routeEntry, type Entry, type EntryRoute, type InviteLink } from '../../../lib/entry';
 import { DomainRoom, InviteLinkRoom, InviteRoom, PickRoom } from './EntryRooms';
@@ -93,6 +97,34 @@ async function gitHubLogin(api: { workingGitHubToken: () => Promise<string | nul
   } catch {
     return null;
   }
+}
+
+/**
+ * The page every step shares, so going from the email to the code to a room only changes the left column: the step
+ * (with `foot` at the bottom of the column), then the one Harbor zone. The step comes first in the DOM too: it is the
+ * reading order, the tab order and the phone order. The zone holds no action, so it never competes with the step.
+ * `pitch`: what Bridge is, for the step that meets someone new (past it, they have chosen).
+ */
+function SignInPage({ children, foot, pitch = false }: { children: ReactNode; foot?: ReactNode; pitch?: boolean }) {
+  return (
+    <div className="acc-page">
+      <div className="acc-pane">
+        {children}
+        {foot}
+      </div>
+      <div className="zone acc-zone">
+        <div className="acc-zone-text">
+          {pitch && (
+            <>
+              <p className="acc-pitch">{W.pitch}</p>
+              <p className="acc-pitch-lead">{W.pitchLead}</p>
+            </>
+          )}
+        </div>
+        <QuietScene scene="harbor" layout="window" />
+      </div>
+    </div>
+  );
 }
 
 export default function SignIn({ invite = false }: { invite?: boolean }) {
@@ -543,227 +575,233 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
 
   if (step === 'continue' && already) {
     return (
-      <section className="zone acc" aria-labelledby="acc-title">
-        <div className="acc-art" aria-hidden="true">
-          <Drawing name="guide" width={96} />
-        </div>
-        {header({ title: W.welcomeBack, lead: W.welcomeBackLead })}
-        <div className="acc-ways acc-continue">
-          <div className="acc-who">
-            <Avatar name={already.name} src={face ?? already.avatar ?? undefined} size="lg" decorative />
-            <span className="acc-who-text">
-              <span className="acc-who-name">{already.name}</span>
-              {already.detail && <span className="t-ui t-muted">{already.detail}</span>}
-            </span>
+      <SignInPage>
+        <section className="acc" aria-labelledby="acc-title">
+          {header({ title: W.welcomeBack, lead: W.welcomeBackLead })}
+          <div className="acc-ways acc-continue">
+            <div className="acc-who">
+              <Avatar name={already.name} src={face ?? already.avatar ?? undefined} size="lg" decorative />
+              <span className="acc-who-text">
+                <span className="acc-who-name">{already.name}</span>
+                {already.detail && <span className="t-ui t-muted">{already.detail}</span>}
+              </span>
+            </div>
+            <Button variant="primary" size="lg" className="acc-wide" onClick={() => (me ? go({ account: me, created: false, next: '' }, false) : leave(already.href))}>
+              {W.continueAs}
+            </Button>
+            <Button
+              variant="ghost"
+              className="acc-wide"
+              onClick={() => {
+                setAlready(null);
+                setEmail('');
+                setStep('start');
+              }}
+            >
+              {W.anotherAccount}
+            </Button>
           </div>
-          <Button variant="primary" size="lg" className="acc-wide" onClick={() => (me ? go({ account: me, created: false, next: '' }, false) : leave(already.href))}>
-            {W.continueAs}
-          </Button>
-          <Button
-            variant="ghost"
-            className="acc-wide"
-            onClick={() => {
-              setAlready(null);
-              setEmail('');
-              setStep('start');
-            }}
-          >
-            {W.anotherAccount}
-          </Button>
-        </div>
-      </section>
+        </section>
+      </SignInPage>
     );
   }
 
   if (step === 'room' && room) {
     const rooms = { leave, onward, onJoined, onOtherEmail: () => void otherEmail(), onConnectGitHub: () => void connectGitHub() };
     return (
-      <section className="zone acc acc-room" aria-labelledby="acc-title">
-        <div className="acc-art" aria-hidden="true">
-          <Drawing name="guide" width={96} />
-        </div>
+      <SignInPage>
+        <section className="acc acc-room" aria-labelledby="acc-title">
+          {alert && (
+            <Alert tone="danger" className="acc-alert">
+              {alert}
+            </Alert>
+          )}
+          {room.to === 'invite' && <InviteRoom {...rooms} invite={room.invite} more={room.more} email={email} github={Boolean(me?.github)} header={header} />}
+          {room.to === 'domain' && <DomainRoom {...rooms} domain={room.domain} teams={room.teams} header={header} />}
+          {room.to === 'pick' && <PickRoom teams={room.teams} header={header} />}
+          {room.to === 'link' && (
+            <InviteLinkRoom link={room.link} email={email} header={header} onSignInAs={() => void signInAsInvited()} onContinue={continueAsMe} />
+          )}
+        </section>
+      </SignInPage>
+    );
+  }
+
+  /** The first step: the email (or GitHub, on a site without accounts), and the demo. */
+  const atStart = step === 'start' || step === 'leaving' || (step === 'loading' && !invite);
+
+  return (
+    <SignInPage
+      pitch={atStart}
+      foot={
+        <p className="acc-foot">
+          <Link href={PRIVACY_PAGE}>{W.privacy}</Link>
+        </p>
+      }
+    >
+      <section className="acc" aria-labelledby="acc-title" aria-busy={step === 'loading' || step === 'leaving'}>
+        {header(top)}
+        {bye && step !== 'code' && step !== 'name' && (
+          <Alert tone="success" className="acc-alert" onDismiss={() => setBye(null)}>
+            {bye}
+          </Alert>
+        )}
         {alert && (
           <Alert tone="danger" className="acc-alert">
             {alert}
           </Alert>
         )}
-        {room.to === 'invite' && <InviteRoom {...rooms} invite={room.invite} more={room.more} email={email} github={Boolean(me?.github)} header={header} />}
-        {room.to === 'domain' && <DomainRoom {...rooms} domain={room.domain} teams={room.teams} header={header} />}
-        {room.to === 'pick' && <PickRoom teams={room.teams} header={header} />}
-        {room.to === 'link' && (
-          <InviteLinkRoom link={room.link} email={email} header={header} onSignInAs={() => void signInAsInvited()} onContinue={continueAsMe} />
+
+        {atStart && (
+          <div className="acc-ways">
+            {available ? (
+              <form className="acc-form" noValidate onSubmit={(e) => void send(e)}>
+                {viaInvite ? (
+                  error && (
+                    <Alert tone="warning" className="acc-alert">
+                      {error}
+                    </Alert>
+                  )
+                ) : (
+                  <Input
+                    ref={emailField}
+                    label={W.emailLabel}
+                    type="email"
+                    name="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    size="lg"
+                    prefix={<Icon icon={Mail} size="sm" />}
+                    placeholder={W.emailPlaceholder}
+                    value={email}
+                    error={error ?? undefined}
+                    disabled={step !== 'start'}
+                    onValueChange={(v) => {
+                      setEmail(v);
+                      if (error) setError(null);
+                      if (limited) setLimited(false);
+                    }}
+                  />
+                )}
+                <Button type="submit" variant="primary" size="lg" fullWidth loading={busy === 'send'} disabled={step !== 'start'}>
+                  {W.sendCode}
+                </Button>
+                {limited && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={() => {
+                      setError(null);
+                      setLimited(false);
+                      setCode('');
+                      setStep('code');
+                    }}
+                  >
+                    {W.haveCode}
+                  </Button>
+                )}
+              </form>
+            ) : (
+              // A site without accounts: GitHub is its one way in, as before.
+              <>
+                <Button variant="primary" size="lg" fullWidth iconStart={GitHubMark} loading={busy === 'github'} disabled={step !== 'start'} onClick={() => void github()}>
+                  {busy === 'github' ? W.githubBusy : W.github}
+                </Button>
+                {step === 'start' && <p className="acc-quiet">{W.unavailable}</p>}
+              </>
+            )}
+            {/* A way in of its own, for someone with no email to give yet: quieter than Send code, never a footnote. */}
+            {!viaInvite && (
+              <div className="acc-demo">
+                <p className="acc-quiet">{W.demoLead}</p>
+                <ButtonLink href={DEMO_HOME} variant="secondary" fullWidth>
+                  {W.demo}
+                </ButtonLink>
+              </div>
+            )}
+          </div>
         )}
-      </section>
-    );
-  }
 
-  return (
-    <section className="zone acc" aria-labelledby="acc-title" aria-busy={step === 'loading' || step === 'leaving'}>
-      <div className="acc-art" aria-hidden="true">
-        <Drawing name="guide" width={96} />
-      </div>
-      {header(top)}
-      {bye && step !== 'code' && step !== 'name' && (
-        <Alert tone="success" className="acc-alert" onDismiss={() => setBye(null)}>
-          {bye}
-        </Alert>
-      )}
-      {alert && (
-        <Alert tone="danger" className="acc-alert">
-          {alert}
-        </Alert>
-      )}
-
-      {(step === 'start' || step === 'leaving' || (step === 'loading' && !invite)) && (
-        <div className="acc-ways">
-          {available ? (
-            <form className="acc-form" noValidate onSubmit={(e) => void send(e)}>
-              {viaInvite ? (
-                error && (
-                  <Alert tone="warning" className="acc-alert">
-                    {error}
-                  </Alert>
-                )
-              ) : (
-                <Input
-                  ref={emailField}
-                  label={W.emailLabel}
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  size="lg"
-                  prefix={<Icon icon={Mail} size="sm" />}
-                  placeholder={W.emailPlaceholder}
-                  value={email}
-                  error={error ?? undefined}
-                  disabled={step !== 'start'}
-                  onValueChange={(v) => {
-                    setEmail(v);
-                    if (error) setError(null);
-                    if (limited) setLimited(false);
-                  }}
-                />
-              )}
-              <Button type="submit" variant="primary" size="lg" fullWidth loading={busy === 'send'} disabled={step !== 'start'}>
-                {W.sendCode}
+        {step === 'code' && (
+          <form
+            className="acc-form"
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              void verify();
+            }}
+          >
+            <Input
+              ref={codeField}
+              label={W.codeLabel}
+              hint={W.codeHint}
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              size="lg"
+              className="acc-code"
+              value={code}
+              error={error ?? undefined}
+              onValueChange={(v) => {
+                const digits = codeDigits(v);
+                setCode(digits);
+                if (error) setError(null);
+                // Pasted or typed in full: checked at once.
+                if (digits.length === CODE_LENGTH && digits !== code) void verify(digits);
+              }}
+            />
+            <Button type="submit" variant="primary" size="lg" fullWidth loading={busy === 'verify'} disabled={busy === 'verify'}>
+              {W.verify}
+            </Button>
+            <div className="acc-row">
+              <Button variant="link" size="sm" disabled={left > 0 || busy === 'send'} onClick={() => void send()}>
+                {left > 0 ? W.resendIn(left) : W.resend}
               </Button>
-              {limited && (
+              {!viaInvite && (
                 <Button
                   variant="link"
                   size="sm"
                   onClick={() => {
-                    setError(null);
-                    setLimited(false);
+                    setStep('start');
                     setCode('');
-                    setStep('code');
+                    setError(null);
+                    setSaid('');
                   }}
                 >
-                  {W.haveCode}
+                  {W.otherEmail}
                 </Button>
               )}
-            </form>
-          ) : (
-            // A site without accounts: GitHub is its one way in, as before.
-            <>
-              <Button variant="primary" size="lg" fullWidth iconStart={GitHubMark} loading={busy === 'github'} disabled={step !== 'start'} onClick={() => void github()}>
-                {busy === 'github' ? W.githubBusy : W.github}
-              </Button>
-              {step === 'start' && <p className="acc-quiet">{W.unavailable}</p>}
-            </>
-          )}
-        </div>
-      )}
-
-      {step === 'code' && (
-        <form
-          className="acc-form"
-          noValidate
-          onSubmit={(e) => {
-            e.preventDefault();
-            void verify();
-          }}
-        >
-          <Input
-            ref={codeField}
-            label={W.codeLabel}
-            hint={W.codeHint}
-            name="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            size="lg"
-            className="acc-code"
-            value={code}
-            error={error ?? undefined}
-            onValueChange={(v) => {
-              const digits = codeDigits(v);
-              setCode(digits);
-              if (error) setError(null);
-              // Pasted or typed in full: checked at once.
-              if (digits.length === CODE_LENGTH && digits !== code) void verify(digits);
-            }}
-          />
-          <Button type="submit" variant="primary" size="lg" fullWidth loading={busy === 'verify'} disabled={busy === 'verify'}>
-            {W.verify}
-          </Button>
-          <div className="acc-row">
-            <Button variant="link" size="sm" disabled={left > 0 || busy === 'send'} onClick={() => void send()}>
-              {left > 0 ? W.resendIn(left) : W.resend}
-            </Button>
-            {!viaInvite && (
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => {
-                  setStep('start');
-                  setCode('');
-                  setError(null);
-                  setSaid('');
-                }}
-              >
-                {W.otherEmail}
-              </Button>
-            )}
-          </div>
-        </form>
-      )}
-
-      {step === 'name' && (
-        <form className="acc-form" noValidate onSubmit={(e) => void saveName(e)}>
-          <Input
-            ref={nameField}
-            label={W.nameLabel}
-            name="name"
-            autoComplete="name"
-            size="lg"
-            placeholder={W.namePlaceholder}
-            value={name}
-            error={error ?? undefined}
-            onValueChange={(v) => {
-              setName(v);
-              if (error) setError(null);
-            }}
-          />
-          <Button type="submit" variant="primary" size="lg" fullWidth loading={busy === 'name'}>
-            {W.nameSave}
-          </Button>
-        </form>
-      )}
-
-      <p className="sr-only" role="status" aria-live="polite">
-        {said}
-      </p>
-      <div className="acc-foot">
-        {step === 'start' && viaInvite && link?.state === 'live' && <p className="acc-quiet">{EW.linkNotYours(link.invitedBy)}</p>}
-        {step === 'start' && !viaInvite && (
-          <p className="acc-quiet">
-            {W.demoLead} <Link href={DEMO_HOME}>{W.demo}</Link>
-          </p>
+            </div>
+          </form>
         )}
-        <p className="acc-quiet">
-          <Link href={PRIVACY_PAGE}>{W.privacy}</Link>
+
+        {step === 'name' && (
+          <form className="acc-form" noValidate onSubmit={(e) => void saveName(e)}>
+            <Input
+              ref={nameField}
+              label={W.nameLabel}
+              name="name"
+              autoComplete="name"
+              size="lg"
+              placeholder={W.namePlaceholder}
+              value={name}
+              error={error ?? undefined}
+              onValueChange={(v) => {
+                setName(v);
+                if (error) setError(null);
+              }}
+            />
+            <Button type="submit" variant="primary" size="lg" fullWidth loading={busy === 'name'}>
+              {W.nameSave}
+            </Button>
+          </form>
+        )}
+
+        <p className="sr-only" role="status" aria-live="polite">
+          {said}
         </p>
-      </div>
-    </section>
+        {step === 'start' && viaInvite && link?.state === 'live' && <p className="acc-quiet">{EW.linkNotYours(link.invitedBy)}</p>}
+      </section>
+    </SignInPage>
   );
 }

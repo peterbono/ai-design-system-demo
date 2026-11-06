@@ -1,4 +1,4 @@
-// The rooms of Entry after the email code (lib/entry.ts routes there; SignIn.tsx hosts them in its Harbor zone):
+// The rooms of Entry after the email code (lib/entry.ts routes there; SignIn.tsx hosts them in its left column):
 //   E3  "Acme Design invited you": who invited which email and when, the team card (its people: a few avatars, "+N"
 //       and "12 members"; "You join as Reviewer: design"), Join. A reviewer or admin invite without GitHub linked says
 //       so before the action, in one line (GitHub, the free account where the design system lives), with "Connect

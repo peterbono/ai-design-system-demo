@@ -226,6 +226,9 @@ export const ACCOUNT_WORDS = {
   nameMissing: 'Add your name, so your team knows who made a change.',
   nameSave: 'Continue',
   privacy: 'What Bridge keeps about you',
+  // The homepage's own promise (pages/index.astro), beside the sign-in: what this is, for whoever arrives by a link.
+  pitch: 'Explore with AI. Keep what works in your design system.',
+  pitchLead: 'Bridge finds what your exploration added. You review it, then the code and Figma kit follow.',
   demoLead: 'Just looking?',
   demo: 'Open the demo',
   unavailable: 'Email sign-in is not available on this site yet. Continue with GitHub.',

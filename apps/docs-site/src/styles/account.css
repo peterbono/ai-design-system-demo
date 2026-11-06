@@ -1,23 +1,83 @@
 /* Bridge accounts: the sign-in screen (components/ds/account/SignIn.tsx), the account menu and Settings > Account
-   (AccountMenu.tsx, AccountSettings.tsx), the privacy page. One Harbor zone per screen (the sign-in card); the account
-   blocks are quiet rows. Four type sizes: h1, body, ui, caption. */
+   (AccountMenu.tsx, AccountSettings.tsx), the privacy page. One Harbor zone per screen (beside the sign-in step, never
+   behind its form); the account blocks are quiet rows. Four type sizes: h1, h2, body, ui. */
 
 /* --- Sign-in screen ------------------------------------------------------------------------------------------- */
 
-.acc {
-  display: grid;
-  justify-items: center;
-  gap: var(--space-4);
-  width: 100%;
-  max-width: var(--size-120);
-  margin: var(--space-10) auto;
-  padding: var(--space-10) var(--space-8) var(--space-8);
-  text-align: center;
+/* The whole viewport under the top bar, in two parts: the step on paper, the Harbor zone beside it. The zone takes what
+   the step does not need, so a wide monitor gets more harbor, not an empty column. :root: over the Studio's main
+   width and padding (studio-app.css). */
+:root main.bare-main:has(.acc-page) {
+  max-width: none;
+  padding: var(--space-4);
 }
 
-.acc-art {
-  display: flex;
-  color: var(--color-text-default);
+.acc-page {
+  display: grid;
+  grid-template-columns: min(46%, var(--size-180)) minmax(0, 1fr);
+  gap: var(--space-4);
+  min-height: calc(100dvh - var(--layout-header-height) - var(--space-4) * 2);
+}
+
+/* The step stands in the middle of its column, the privacy link at the foot, level with the bottom of the zone. */
+.acc-pane {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+  padding: var(--space-8) var(--space-8) var(--space-2);
+}
+
+.acc {
+  display: grid;
+  gap: var(--space-3);
+  align-self: center;
+  width: 100%;
+  max-width: var(--size-96);
+}
+
+.acc-zone {
+  position: relative;
+  display: grid;
+  align-content: center;
+  container-type: inline-size;
+  min-width: 0;
+  padding: var(--space-12) var(--space-12) 0;
+  overflow: hidden;
+}
+
+/* The text stands in the middle of the sky, about level with the step, and leaves the harbor its whole height: a third
+   of the harbor's width, plus the water. */
+.acc-zone-text {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--size-120);
+  padding-bottom: calc(min(100cqi, var(--size-240)) / 3 + var(--space-12));
+}
+
+.acc-pitch {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h2-line-height);
+  letter-spacing: var(--typography-h2-tracking);
+  text-wrap: balance;
+}
+
+.acc-pitch-lead {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+  text-wrap: pretty;
+}
+
+/* The harbor runs the width of the zone here, where the Home keeps it beside its text. On a wide monitor it stops
+   growing, so the ink keeps its weight, and the water carries on alone. */
+.acc-zone .qs-view {
+  --_view: min(100%, var(--size-240));
 }
 
 .acc-title {
@@ -37,6 +97,7 @@
 
 .acc-lead {
   margin: 0;
+  color: var(--color-text-muted);
   font-size: var(--typography-body-size);
   line-height: var(--typography-body-line-height);
   overflow-wrap: anywhere;
@@ -53,7 +114,21 @@
 .acc-form {
   display: grid;
   gap: var(--space-3);
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* Inside .acc-ways the form needs no second gap. */
+.acc-ways > .acc-form {
+  margin-top: 0;
+}
+
+/* The demo: its own group under a hairline, so it reads as a second way in and not as a step after Send code. */
+.acc-demo {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
 /* Already signed in (board E1, like Figma in the browser): who, then Continue as them, then another account. */
@@ -62,7 +137,6 @@
 .acc-who {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: var(--space-3);
   text-align: start;
 }
@@ -95,22 +169,24 @@
 }
 
 .acc-foot {
-  display: grid;
-  gap: var(--space-1);
-  margin-top: var(--space-2);
+  width: 100%;
+  max-width: var(--size-96);
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
 }
 
 .acc-quiet {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--typography-caption-size);
-  line-height: var(--typography-caption-line-height);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
 }
 
-/* --- Entry rooms (EntryRooms.tsx, boards E3 to E5): the same zone, a little wider for the team cards. ----------- */
+/* --- Entry rooms (EntryRooms.tsx, boards E3 to E5): the same column, a little wider for the team cards. --------- */
 
 .acc-room {
-  max-width: var(--size-140);
+  max-width: var(--size-120);
 }
 
 .ent-card,
@@ -190,7 +266,9 @@
   gap: var(--space-2);
 }
 
+/* An email or a role inside a muted line keeps the ink: it is what the line is about. */
 .ent-strong {
+  color: var(--color-text-default);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -218,10 +296,25 @@
   }
 }
 
+/* Stacked: the step first, so Send code and the demo stay on the first screen, and the zone closes the page. */
+@media (max-width: 860px) {
+  .acc-page {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .acc-pane {
+    padding: var(--space-6) 0;
+  }
+
+  .acc-zone {
+    padding: var(--space-8) var(--space-6) 0;
+  }
+}
+
 @media (max-width: 640px) {
-  .acc {
-    margin: var(--space-4) auto;
-    padding: var(--space-8) var(--space-5) var(--space-6);
+  .acc-zone .qs-view {
+    display: block;
   }
 
   .acc-title {
