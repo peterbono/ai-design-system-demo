@@ -1,0 +1,361 @@
+/* The sign-in scene (components/ds/account/SignInScene.tsx). One story on one timeline of about 24 seconds, every part reading the
+   same percentages; the water, cloud, gulls and boats breathe on their own. The base styles are the end of the story, so
+   reduced motion (the rule below stops everything) shows the bridge closed. */
+
+.ss {
+  --_beat: var(--motion-duration-shimmer);
+  --_t: calc(var(--_beat) * 17);
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.ss * {
+  transform-box: view-box;
+}
+
+.ss [data-paper] {
+  fill: var(--color-surface-default);
+}
+
+.ss [data-deep] {
+  fill: var(--color-action-primary-bg);
+}
+
+.ss [data-ink] {
+  fill: var(--color-text-default);
+}
+
+.ss text {
+  fill: var(--color-text-default);
+  stroke: transparent;
+  font-family: var(--typography-h2-family);
+  font-size: var(--font-size-500);
+  font-style: italic;
+}
+
+.ss-boat-a {
+  transform: translateX(calc(var(--space-1) * 375));
+  animation: ss-boat-a var(--_t) var(--motion-easing-linear) infinite;
+}
+
+.ss-boat-b {
+  transform: translateX(calc(var(--space-1) * 375));
+  animation: ss-boat-b var(--_t) infinite;
+}
+
+.ss-block-x {
+  transform: translateX(calc(var(--space-1) * 95));
+  animation: ss-block-x var(--_t) infinite;
+}
+
+.ss-block-y {
+  transform: translateY(calc(var(--space-1) * -33));
+  animation: ss-block-y var(--_t) infinite;
+}
+
+.ss-hook {
+  animation: ss-hook var(--_t) infinite;
+}
+
+.ss-rope {
+  transform: scaleY(0.074);
+  transform-origin: calc(var(--space-1) * 95) calc(var(--space-1) * 82.5);
+  animation: ss-rope var(--_t) infinite;
+}
+
+.ss-flag {
+  transform-origin: calc(var(--space-1) * 95) calc(var(--space-1) * 82.5);
+  animation: ss-flag var(--_t) infinite;
+}
+
+.ss-kept {
+  animation: ss-kept var(--_t) infinite;
+}
+
+.ss-cart {
+  transform: translateX(calc(var(--space-1) * -175));
+  animation: ss-cart var(--_t) var(--motion-easing-linear) infinite;
+}
+
+.ss-bob {
+  animation: ss-bob calc(var(--_beat) * 3) var(--motion-easing-standard) infinite alternate;
+}
+
+.ss-bob-late {
+  animation-delay: calc(var(--_beat) * -1);
+}
+
+.ss-wave {
+  animation: ss-wave calc(var(--_beat) * var(--_wave, 6)) var(--motion-easing-linear) infinite;
+}
+
+.ss-wave-2 {
+  --_wave: 9;
+  animation-direction: reverse;
+}
+
+.ss-wave-3 {
+  --_wave: 12;
+}
+
+.ss-cloud {
+  animation: ss-cloud calc(var(--_beat) * 21) var(--motion-easing-standard) infinite alternate;
+}
+
+.ss-gulls {
+  animation: ss-gulls calc(var(--_beat) * 26) var(--motion-easing-linear) infinite;
+}
+
+.ss-flap {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: ss-flap var(--_beat) var(--motion-easing-standard) infinite alternate;
+}
+
+.ss-flap-late {
+  animation-delay: calc(var(--_beat) * -0.5);
+}
+
+@keyframes ss-boat-a {
+  0% {
+    transform: translateX(calc(var(--space-1) * -175));
+  }
+
+  42%,
+  100% {
+    transform: translateX(calc(var(--space-1) * 375));
+  }
+}
+
+@keyframes ss-boat-b {
+  0%,
+  28% {
+    transform: translateX(calc(var(--space-1) * -175));
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  50%,
+  64% {
+    transform: translateX(calc(var(--space-1) * 95));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  90%,
+  100% {
+    transform: translateX(calc(var(--space-1) * 375));
+  }
+}
+
+@keyframes ss-block-x {
+  0%,
+  28% {
+    transform: translateX(calc(var(--space-1) * -175));
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  50%,
+  100% {
+    transform: translateX(calc(var(--space-1) * 95));
+  }
+}
+
+@keyframes ss-block-y {
+  0%,
+  58% {
+    transform: translateY(0);
+    opacity: 1;
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  64%,
+  96% {
+    transform: translateY(calc(var(--space-1) * -33));
+    opacity: 1;
+  }
+
+  99%,
+  100% {
+    transform: translateY(calc(var(--space-1) * -33));
+    opacity: 0;
+  }
+}
+
+@keyframes ss-hook {
+  0%,
+  14% {
+    transform: translateY(0);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  21%,
+  24% {
+    transform: translateY(calc(var(--space-1) * 15));
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  30%,
+  50% {
+    transform: translateY(0);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  56%,
+  58% {
+    transform: translateY(calc(var(--space-1) * 63));
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  64%,
+  66% {
+    transform: translateY(calc(var(--space-1) * 30));
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  72%,
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes ss-rope {
+  0%,
+  14% {
+    transform: scaleY(0.074);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  21%,
+  24% {
+    transform: scaleY(0.294);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  30%,
+  50% {
+    transform: scaleY(0.074);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  56%,
+  58% {
+    transform: scaleY(1);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  64%,
+  66% {
+    transform: scaleY(0.515);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  72%,
+  100% {
+    transform: scaleY(0.074);
+  }
+}
+
+@keyframes ss-flag {
+  0%,
+  66% {
+    transform: scaleY(0);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  70%,
+  96% {
+    transform: scaleY(1);
+  }
+
+  99%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes ss-kept {
+  0%,
+  66% {
+    opacity: 0;
+  }
+
+  70%,
+  94% {
+    opacity: 1;
+  }
+
+  97%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes ss-cart {
+  0%,
+  70% {
+    transform: translateX(calc(var(--space-1) * -175));
+  }
+
+  96%,
+  100% {
+    transform: translateX(calc(var(--space-1) * 375));
+  }
+}
+
+@keyframes ss-bob {
+  from {
+    transform: translateY(calc(var(--space-1) * -0.5));
+  }
+
+  to {
+    transform: translateY(calc(var(--space-1) * 0.5));
+  }
+}
+
+@keyframes ss-wave {
+  to {
+    transform: translateX(calc(var(--space-1) * -20));
+  }
+}
+
+@keyframes ss-cloud {
+  from {
+    transform: translateX(calc(var(--space-1) * -6));
+  }
+
+  to {
+    transform: translateX(calc(var(--space-1) * 6));
+  }
+}
+
+@keyframes ss-gulls {
+  from {
+    transform: translateX(calc(var(--space-1) * -175));
+  }
+
+  to {
+    transform: translateX(calc(var(--space-1) * 375));
+  }
+}
+
+@keyframes ss-flap {
+  from {
+    transform: scaleY(1);
+  }
+
+  to {
+    transform: scaleY(0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss,
+  .ss * {
+    animation: none;
+  }
+}

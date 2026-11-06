@@ -4,7 +4,8 @@
 // new account without a name is asked "Your name" once, a known one goes back to the page it came from (?next=). With
 // no ?next=, Bridge picks the room: one team, the most recent of several, the picker (E5), an invite (E3), a team
 // found by work domain (E4, then E4b), or "Create your team" (E6). Errors in designer words, resend on a cooldown, a
-// site without accounts keeps GitHub only, the way back from GitHub links the sign-in. Axe clean.
+// site without accounts keeps GitHub only, the way back from GitHub links the sign-in. The page: Send code is the one
+// primary, the demo a real secondary button, what Bridge is shows on the first step only. Axe clean.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -15,6 +16,7 @@ import { setAccountFetch } from '../../../scripts/account-session';
 import { setEntryFetch } from '../../../scripts/entry-session';
 import { RECENT_TEAMS_KEY } from '../../../lib/access-view';
 import { GITHUB_PENDING_KEY } from '../../../lib/account';
+import { DEMO_HOME } from '../../../lib/start';
 import SignIn, { navigate } from './SignIn';
 
 const gh = vi.hoisted(() => ({ token: null as string | null, startSignIn: vi.fn(async () => {}) }));
@@ -110,6 +112,28 @@ describe('sign-in screen, email', () => {
     expect(document.documentElement.hasAttribute('data-account')).toBe(true);
     // ?next= wins: Bridge does not pick a room.
     expect(entryCalls).toHaveLength(0);
+  });
+
+  it('makes the demo a real secondary action beside the one primary, and says what Bridge is on the first step only', async () => {
+    const { container } = render(createElement(SignIn));
+    const demo = await screen.findByRole('link', { name: 'Open the demo' });
+    expect(demo).toHaveAttribute('href', DEMO_HOME);
+    expect(demo.className).toMatch(/secondary/);
+    expect(screen.getByText('Just looking?')).toBeInTheDocument();
+    expect(container.querySelectorAll('[class*="primary"]')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Send code' }).className).toMatch(/primary/);
+    // The pitch, in the one Harbor zone, after the step in the reading order.
+    const pitch = screen.getByText('Explore with AI. Keep what works.');
+    expect(pitch.closest('.zone')).not.toBeNull();
+    expect(pitch.closest('.zone')!.querySelector('a, button, input')).toBeNull();
+    expect(container.querySelector('.acc')!.compareDocumentPosition(pitch) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.setup().type(await emailField(), 'leo@acme.design{Enter}');
+    expect(await screen.findByRole('heading', { name: 'Check your inbox' })).toBeInTheDocument();
+    // Past the email: the same page, the harbor stays, the demo and the pitch have done their work.
+    expect(screen.queryByText('Explore with AI. Keep what works in your design system.')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Open the demo' })).toBeNull();
+    expect(container.querySelector('.zone')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'What Bridge keeps about you' })).toBeInTheDocument();
   });
 
   it('checks a code once: Enter right after the 6th digit does not send it again', async () => {
