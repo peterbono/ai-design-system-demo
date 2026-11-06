@@ -6,12 +6,12 @@
 //   - running explorations (Changes > Explorations: tried, never merged as is);
 //   - GitHub automation: the changesets release pull request (branch changeset-release/*, opened by
 //     github-actions[bot]). It is the release step, shown as the "Next release" card in History.
-import { effectiveTier as coreEffectiveTier, isAutomationPull, isReleasePull, releasePull, reviewQueue, type QueuePull } from '@bridge-ds/core';
+import { effectiveTier as coreEffectiveTier, isAutomationPull, isFigmaFixPull, isReleasePull, releasePull, reviewQueue, type QueuePull } from '@bridge-ds/core';
 import { type LabelLike, type ReviewStatusKind, type Tier } from './review-rules';
 import { branchCount } from './vocabulary';
 
 // The queue rules live in @bridge-ds/core (review-gate.ts), shared with the MCP server and the CLI.
-export { isAutomationPull, isReleasePull, releasePull, reviewQueue, type QueuePull };
+export { isAutomationPull, isFigmaFixPull, isReleasePull, releasePull, reviewQueue, type QueuePull };
 
 // ---------------------------------------------------------------------------------------------------------------
 // What approval a change needs, in words (no tier numbers on designer surfaces)

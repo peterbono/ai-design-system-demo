@@ -37,6 +37,12 @@ describe('review queue', () => {
     expect(reviewQueue([pr(5, { head: { ref: 'explore/pill' } }), pr(6, { draft: true })]).map((p) => p.number)).toEqual([5, 6]);
   });
 
+  it('never counts a Figma fix as a library change, by label or by branch', () => {
+    const open = (ref: string, labels: string[] = []) => ({ number: 1, state: 'open', draft: false, merged_at: null, head: { ref }, user: { login: 'dana' }, labels: labels.map((name) => ({ name })) });
+    expect(reviewQueue([open('bridge/figma-fixes-text-input'), open('bridge/other', ['figma-fixes'])])).toEqual([]);
+    expect(reviewQueue([open('bridge/tokens-1')])).toHaveLength(1);
+  });
+
   it('spots automation by branch or by bot author', () => {
     expect(isReleasePull({ head: { ref: 'changeset-release/main' } })).toBe(true);
     expect(isAutomationPull({ head: { ref: 'chore/deps' }, user: { login: 'github-actions[bot]' } })).toBe(true);
