@@ -90,6 +90,9 @@
 //                                                 the team's budget protects GitHub's limit, not Bridge
 //                                                 (READ_LIMITS.team)
 // Answers that never change (a blob, a tree or a commit by its sha) are also kept in this function's memory.
+//
+// A list of pull requests is kept and answered slimmed (api/_lib/slim-pulls.ts), under its own keys, and the browser
+// may keep it as long as it asks again with its ETag each time (private, no-cache): an unchanged list costs a 304.
 // Concurrent misses of one answer make one GitHub call (single flight, per function), and a function has at most
 // MAX_UPSTREAM_IN_FLIGHT GitHub calls in flight (the others wait their turn).
 // Over the reader's or the team's GitHub calls, a read answers what is kept (confirmed within KEEP_S); nothing kept
@@ -101,6 +104,7 @@ import { GITHUB_DOWN, HttpError, SECURITY_HEADERS, clientIp, envInt, json, sha25
 import type { Redis } from './redis.js';
 import { canonicalEmail } from './canonical-email.js';
 import { isDemoRepo } from '../../src/lib/demo.js';
+import { isPullList, slimPullList } from './slim-pulls.js';
 
 /**
  * The public demo teams: anyone may read them through Bridge. The one list is src/lib/demo.ts DEMO_REPOS; isDemoRepo
@@ -715,11 +719,11 @@ export async function productReadAllowed(
   if (reader.kind === 'guest' && !(await isPublicRepo(ctx, product.owner, product.repo))) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
 }
 
-function answerKept(k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', inm: string | null, missingOk = false): Response {
+function answerKept(k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', inm: string | null, missingOk = false, revalidate = false): Response {
   const headers: Record<string, string> = {
     ...SECURITY_HEADERS,
     'Content-Security-Policy': "default-src 'none'; sandbox",
-    'Cache-Control': 'private, no-store',
+    'Cache-Control': revalidate && k.etag && k.status === 200 ? 'private, no-cache' : 'private, no-store',
     'X-Bridge-Cache': source,
   };
   if (k.etag) headers.ETag = k.etag;
@@ -754,12 +758,12 @@ interface Through {
  * GitHub's limit), kept for the next reader. Concurrent misses of the same answer share one call (once). GitHub busy
  * or down: what was kept (confirmed within KEEP_S), else busy or unreachable.
  */
-async function throughGitHub(ctx: ReadCtx, owner: string, repo: string, url: string, accept: string, key: string, kept: Kept | null, o: { keep: boolean; forever: boolean }): Promise<Through> {
+async function throughGitHub(ctx: ReadCtx, owner: string, repo: string, url: string, accept: string, key: string, kept: Kept | null, o: { keep: boolean; forever: boolean; slim: boolean }): Promise<Through> {
   const { v, leader } = await once(`get:${key}`, () => askGitHub(ctx, owner, repo, url, accept, key, kept, o));
   return { ...v, spent: leader && v.source === 'miss' };
 }
 
-async function askGitHub(ctx: ReadCtx, owner: string, repo: string, url: string, accept: string, key: string, kept: Kept | null, o: { keep: boolean; forever: boolean }): Promise<Omit<Through, 'spent'>> {
+async function askGitHub(ctx: ReadCtx, owner: string, repo: string, url: string, accept: string, key: string, kept: Kept | null, o: { keep: boolean; forever: boolean; slim: boolean }): Promise<Omit<Through, 'spent'>> {
   const now = ctx.now();
   const token = await tokenFor(ctx, owner, repo);
   const old = standIn(kept, now);
@@ -786,7 +790,8 @@ async function askGitHub(ctx: ReadCtx, owner: string, repo: string, url: string,
     if (kept.body.length <= MAX_KEPT_CHARS) await ctx.redis.pipe([['SET', key, JSON.stringify(fresh), 'EX', ETAG_KEEP_S], known]);
     return { k: fresh, source: 'revalidated' };
   }
-  const body = res.status === 204 || res.status === 304 ? '' : await res.text();
+  const text = res.status === 204 || res.status === 304 ? '' : await res.text();
+  const body = o.slim && res.status === 200 ? slimPullList(text) : text;
   const k: Kept = { status: res.status === 304 ? 200 : res.status, etag: res.headers.get('etag'), type: res.headers.get('content-type') ?? '', link: res.headers.get('link'), body, at: now };
   // Answers worth keeping: a success, or a 404 (a missing file stays missing for a while).
   if (o.keep && (k.status === 200 || k.status === 404)) {
@@ -805,11 +810,13 @@ export async function onRead(req: Request, ctx: ReadCtx, t: ReadTarget, reader: 
   const forever = immutable(t.rest, t.query);
   // A cache buster in the query (?t=...) asks for a fresh answer: never kept.
   const keep = !new URLSearchParams(t.query).has('t');
-  const key = getKey(t.full, accept, url);
+  const slim = isPullList(t.rest);
+  // Slimmed lists have their own keys: one kept whole before them is never answered, nor confirmed with its ETag.
+  const key = getKey(t.full, accept, slim ? `${url} slim` : url);
   const inm = req.headers.get('if-none-match');
   // GitHub's 404 answered as a 200 "missing" result, for a page that asked for it (MISSING_HEADER).
   const missingOk = req.headers.get(MISSING_HEADER) === '1';
-  const answer = (k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', etagIn: string | null) => answerKept(k, source, etagIn, missingOk);
+  const answer = (k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', etagIn: string | null) => answerKept(k, source, etagIn, missingOk, slim);
   const now = ctx.now();
 
   // A member who just wrote to GitHub from the page asks GitHub again (with the kept ETag); a visitor never does.
@@ -835,7 +842,7 @@ export async function onRead(req: Request, ctx: ReadCtx, t: ReadTarget, reader: 
     if (old) return answer(old, 'stale', inm);
     throw busy(up.wait);
   }
-  const { k, source, spent } = await throughGitHub(ctx, t.owner, t.repo, url, accept, key, kept, { keep, forever });
+  const { k, source, spent } = await throughGitHub(ctx, t.owner, t.repo, url, accept, key, kept, { keep, forever, slim });
   if (spent) await up.spend(1);
   return answer(k, source, inm);
 }
@@ -940,7 +947,7 @@ export async function onChanges(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 
       } else {
         try {
           left -= 1;
-          const got = await throughGitHub(ctx, t.owner, t.repo, urlOf(path), STATUS_ACCEPT, keys[i]!, k0, { keep: true, forever: false });
+          const got = await throughGitHub(ctx, t.owner, t.repo, urlOf(path), STATUS_ACCEPT, keys[i]!, k0, { keep: true, forever: false, slim: false });
           if (got.spent) spent += 1;
           else left += 1;
           k = got.k;

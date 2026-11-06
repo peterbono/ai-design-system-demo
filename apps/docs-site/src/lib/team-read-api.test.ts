@@ -119,6 +119,35 @@ const P = `/repos/${TEAM}`;
 const D = `/repos/${DEMO}`;
 const gets = (w: World, path: string) => w.calls.filter((c) => c.path === path).length;
 
+describe('team reads: lists of pull requests', () => {
+  const fat = { number: 4, title: 'T', body: 'Requested by Ann.', head: { ref: 'bridge/x', sha: 'a', repo: { full_name: 'o/r', description: 'x'.repeat(5000), forks_url: 'https://api.github.com/x' } }, _links: { self: { href: 'x' } }, comments_url: 'https://api.github.com/x' };
+  const withFatList = (deps: { fetch: FetchLike }) => {
+    const f = deps.fetch;
+    deps.fetch = async (url, init) => (new URL(url).pathname.endsWith('/pulls') ? Response.json([fat], { headers: { ETag: '"fat"' } }) : f(url, init));
+  };
+
+  it('answers and keeps the list slimmed, the browser asks again with the ETag', async () => {
+    const s = setup();
+    withFatList(s.deps);
+    const cookie = await s.member();
+    const r = await s.read(`${P}/pulls?state=all`, cookie);
+    expect(r.headers.get('cache-control')).toBe('private, no-cache');
+    expect(await r.json()).toEqual([{ number: 4, title: 'T', body: 'Requested by Ann.', head: { ref: 'bridge/x', sha: 'a', repo: { full_name: 'o/r' } } }]);
+    const hit = await s.read(`${P}/pulls?state=all`, cookie);
+    expect(hit.headers.get('x-bridge-cache')).toBe('hit');
+    expect((await hit.text()).length).toBeLessThan(300);
+    const unchanged = await s.read(`${P}/pulls?state=all`, cookie, TEAM, { 'if-none-match': '"fat"' });
+    expect(unchanged.status).toBe(304);
+  });
+
+  it('every other read stays as GitHub said, never stored by the browser', async () => {
+    const s = setup();
+    const r = await s.read(`${P}/pulls/3`, await s.member());
+    expect(r.headers.get('cache-control')).toBe('private, no-store');
+    expect(await r.json()).toEqual({ ok: '/pulls/3' });
+  });
+});
+
 describe('team reads: who', () => {
   it('reads for a member (team cookie) with the read token, never passing the cookie or the token back', async () => {
     const s = setup();
