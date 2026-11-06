@@ -12,6 +12,7 @@ import {
   DESIGN_COPY_STARTING_POINT,
   designCopyTakeCommands,
   doneExploringPlan,
+  explorationNotePath,
   explorationStartingPoint,
   explorationStatus,
   isGuardedExploration,
@@ -34,6 +35,8 @@ import { liveAddressOf, productCodeRepoOf, productOfDesignCopy, type ProductConf
 import { addressTaskBody, designTaskBody, designTaskTitle, githubLoginOf, FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION } from './design-copy-github';
 import type { RequestSource } from './requests';
 import { notesSpec, parseExplorationNotes } from './exploration-notes';
+
+const DONE_COMMIT_MESSAGE = 'chore(explore): done exploring, remove the exploration note';
 
 export interface DoneExploringInput {
   /** Piece ids the designer ticked: each becomes a request for the DS lead. Unticked ones are not proposed. */
@@ -169,8 +172,11 @@ export async function doneExploringOnGitHub(gh: GitHubClient, ref: string | numb
   }
   const x = gh.withBranchPrefix(EXPLORATION_PREFIX);
   let doneSha = p.headSha;
-  if (plan.removeFiles.length) {
-    const c = await x.commitToBranch({ branch: p.headRef, message: 'chore(explore): done exploring, remove the exploration note', files: plan.removeFiles.map((path) => ({ path, content: null })) }).catch((e: Error) => {
+  // A design copy never merges: its notes stay, so the page keeps them and Back to exploring finds them. Only a branch
+  // that can reach main loses its note.
+  if (codeRepo) out.plan = { ...plan, removeFiles: [] };
+  else if (plan.removeFiles.length) {
+    const c = await x.commitToBranch({ branch: p.headRef, message: DONE_COMMIT_MESSAGE, files: plan.removeFiles.map((path) => ({ path, content: null })) }).catch((e: Error) => {
       if (e instanceof GitHubError && e.auth === 'rejected') throw e;
       out.warnings.push(`The exploration note stays on the branch (${e.message}). Delete ${plan.removeFiles.join(', ')} before merging.`);
       return null;
@@ -224,6 +230,7 @@ export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | 
   }
   await gh.updatePullRequest(p.number, { body: withoutDoneExploring(p.body, (opts.date ?? new Date()).toISOString(), githubLoginOf(opts.by)) });
   const x = gh.withBranchPrefix(EXPLORATION_PREFIX);
+  await restoreNotes(gh, x, p).catch((e: Error) => out.warnings.push(`The exploration notes did not come back (${e.message}).`));
   if (!(await x.addLabels(p.number, [EXPLORATION_LABEL]))) out.warnings.push(`The ${EXPLORATION_LABEL} label could not be added back.`);
   await x.removeLabel(p.number, EXPLORATION_READY_LABEL).catch((e: Error) => {
     if (!(e instanceof GitHubError && e.status === 404)) out.warnings.push(`The ${EXPLORATION_READY_LABEL} label is still on (${e.message}).`);
@@ -277,6 +284,21 @@ export async function leadChangesOnGitHub(gh: GitHubClient, ref: string | number
 export async function cancelLeadAskOnGitHub(gh: GitHubClient, ref: string | number): Promise<void> {
   const p = await findExplorationOnGitHub(gh, ref);
   if (isWaitingForLead(p.body)) await gh.updatePullRequest(p.number, { body: withoutLeadAsked(p.body) });
+}
+
+/**
+ * The notes Done exploring removed, back on the branch, from the commit just before it removed them. Explorations of a
+ * design copy handed off before their notes stayed (doneExploringOnGitHub) come back here too.
+ */
+async function restoreNotes(gh: GitHubClient, x: GitHubClient, p: { number: number; headRef: string; body: string }): Promise<void> {
+  const slug = parseExplorationBody(p.body)?.slug ?? p.headRef.slice(EXPLORATION_PREFIX.length);
+  const path = explorationNotePath(slug);
+  if (await gh.getFileText(path, p.headRef).catch(() => undefined)) return;
+  const commits = await gh.listPullRequestCommits(p.number).catch(() => []);
+  const at = commits.map((c) => c.commit.message).lastIndexOf(DONE_COMMIT_MESSAGE);
+  if (at < 1) return;
+  const content = await gh.getFileText(path, commits[at - 1]!.sha).catch(() => undefined);
+  if (content) await x.commitToBranch({ branch: p.headRef, message: 'chore(explore): bring the exploration notes back', files: [{ path, content }] });
 }
 
 /** The design spec from the exploration's note files on the branch (exploration-notes.ts), or null when they hold none. */
