@@ -201,31 +201,16 @@
   gap: var(--space-6);
 }
 
-/* X2: "Open the preview" and "Continue in Claude" read as one group: one row of two equal buttons under the frame,
-   stacked on phones. A grid, so each button fills its cell (Button itself never grows in a flex row). */
+/* The actions under the preview are one block, as wide as the frame: two equal buttons a row, and one left alone takes
+   the whole row, so nothing floats beside the frame's edges. Stacked on phones. A grid, so each button fills its cell
+   (Button itself never grows in a flex row). */
 .xp-preview-acts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-/* Archived: "Open the preview" alone, filling its bar. */
-.xp-preview-acts.is-one {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-/* "Put in Figma": a quiet row under the preview's actions, the page link first once Claude recorded one. */
-.xp-figma {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-3);
-}
-
-.xp-figma > a {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
+.xp-preview-acts > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .xp-continue .xp-claude {

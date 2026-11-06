@@ -7,6 +7,7 @@
 // In suggest mode (bridge.config.json "changes") a missing piece goes to the library as a suggestion (a token) or a
 // request (a component), never a branch, and the branch actions (switch, use a preview, done exploring, archive) are
 // not offered: suggest mode is a Bridge rule until the read-only GitHub App ships.
+import { isNameAuthor } from '../lib/author';
 import {
   archiveExplorationOnGitHub,
   DEFAULT_PRODUCTS,
@@ -68,9 +69,11 @@ const client = () => studioClient(`${CFG.owner}/${CFG.repo}`, undefined, { prote
 
 /** Display names of the people on the page, read once each (only with a token: anonymous reads are kept for statuses). */
 export async function namesOf(logins: string[]): Promise<Record<string, string>> {
-  if (!connected() || !logins.length) return {};
+  // Someone known by name only has no account to look up: their name is in the login (lib/author).
+  const accounts = logins.filter((l) => !isNameAuthor(l));
+  if (!connected() || !accounts.length) return {};
   const { personOf } = await import('./home-data');
-  const people = await Promise.all([...new Set(logins)].map((l) => personOf(l).catch(() => null)));
+  const people = await Promise.all([...new Set(accounts)].map((l) => personOf(l).catch(() => null)));
   return Object.fromEntries(people.filter((p): p is NonNullable<typeof p> => Boolean(p)).map((p) => [p.login, p.name]));
 }
 
