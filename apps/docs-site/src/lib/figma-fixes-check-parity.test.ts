@@ -1,7 +1,6 @@
 // api/_lib/figma-fixes-check.ts keeps the server's copy of `bridge fixes check` (core figma-fixes.ts validateFigmaFixes,
 // with SPEC_FIELDS and COLOR_FIELDS): the /api functions load no workspace package at runtime. Both run on the same
-// fixtures and on this repository's figma-fixes.json here: any drift fails.
-import { readFileSync } from 'node:fs';
+// fixtures and on a real fixes file here: any drift fails.
 import { describe, expect, it } from 'vitest';
 import { COLOR_FIELDS as CORE_COLOR, DEFAULT_FIGMA_FIXES_FILE, FIGMA_FIXES_VERSION as CORE_VERSION, SPEC_FIELDS as CORE_FIELDS, validateFigmaFixes as coreValidate } from '@bridge-ds/core';
 import { COLOR_FIELDS, FIGMA_FIXES_FILE, FIGMA_FIXES_VERSION, SPEC_FIELDS, validateFigmaFixes } from '../../api/_lib/figma-fixes-check';
@@ -45,8 +44,14 @@ describe('the server copy of bridge fixes check', () => {
     expect(validateFigmaFixes(f)).toEqual(coreValidate(f));
   });
 
-  it("this repository's figma-fixes.json: valid on both", () => {
-    const data = JSON.parse(readFileSync(new URL('../../../../figma-fixes.json', import.meta.url), 'utf8'));
+  it('a real fixes file: valid on both', () => {
+    const data = {
+      version: 1,
+      fixes: [
+        { by: 'claude', component: 'Button', id: 'button-sm-primary-width', kind: 'part', part: 'root', reason: 'Figma hugs the label at 75 px where the code renders the small button at 72 px.', where: { args: { size: 'sm', variant: 'primary' } }, width: 'fixed' },
+        { by: 'claude', component: 'Breadcrumb', id: 'breadcrumb-hover-status', kind: 'status', reason: 'On hover every measured value matches the code but 7 percent of pixels differ.', status: 'differs' },
+      ],
+    };
     expect(validateFigmaFixes(data)).toEqual([]);
     expect(coreValidate(data)).toEqual([]);
   });

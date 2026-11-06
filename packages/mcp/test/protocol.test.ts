@@ -66,7 +66,6 @@ const TOOLS = [
   'bridge_promote_exploration',
   'bridge_propose_brand',
   'bridge_propose_component_map',
-  'bridge_propose_figma_fixes',
   'bridge_propose_revert',
   'bridge_propose_token_change',
   'bridge_push_figma_component',
@@ -83,7 +82,6 @@ const TOOLS = [
   'bridge_start_exploration',
   'bridge_switch_to_published',
   'bridge_try_branch',
-  'bridge_try_figma_fix',
   'bridge_update_from_main',
   'bridge_use_library_preview',
   'bridge_validate_tokens',
@@ -124,8 +122,9 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toMatch(/Bridge never writes to the default branch/);
     // Explorations mark what they change, so the Bridge toolbar can point at it.
     expect(client.getInstructions()).toContain('data-bridge-change="<short plain label>"');
-    // "Ask Claude to fix all N" in the plugin: one request, every component worked through, each proposed as it goes.
-    expect(client.getInstructions()).toMatch(/several components .* work through them one at a time, proposing each component's fixes before starting the next .* do not stop after the first/);
+    // Bridge proposes no Figma fix and opens no pull request for one.
+    expect(client.getInstructions()).toMatch(/Bridge does not propose Figma fixes and opens no pull request for them/);
+    expect(client.getInstructions()).not.toMatch(/bridge_propose_figma_fixes|bridge_try_figma_fix/);
     expect(client.getInstructions()).not.toMatch(/\u2014/);
   });
 
@@ -145,7 +144,7 @@ describe('MCP over stdio', () => {
     expect(config.source).toContain(config.write);
   });
 
-  it('lists the 75 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 73 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;

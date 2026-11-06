@@ -124,11 +124,11 @@ describe('bridge fix', () => {
     await expect(runFix(args('fix', 'TextInput', '--propose', 'fixes.json'), root, io().value)).rejects.toThrow(/needs --summary/);
   });
 
-  it('--with-claude without a key says how to run it from Claude Code with the MCP server', async () => {
+  it('--with-claude without a key says how to go on', async () => {
     const o = io();
     expect(await runFix(args('fix', 'TextInput', '--with-claude'), repo(), o.value)).toBe(1);
     expect(o.text()).toBe(NO_KEY);
-    expect(o.text()).toMatch(/bridge_try_figma_fix/);
+    expect(o.text()).not.toMatch(/bridge_try_figma_fix|bridge_propose_figma_fixes/);
   });
 });
 

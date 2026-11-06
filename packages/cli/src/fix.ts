@@ -76,10 +76,7 @@ export function anthropicModel(apiKey: string, model: string, fetchImpl: typeof 
 }
 
 export const NO_KEY = `bridge fix --with-claude uses your own Anthropic API key and none is set (ANTHROPIC_API_KEY).
-Run the same loop from Claude Code instead, with the Bridge MCP server (bridge init writes .mcp.json):
-  ask Claude "Fix <component> in Figma with Bridge". It calls bridge_figma_gaps, bridge_get_gap_case,
-  bridge_try_figma_fix (up to ${FIX_LOOP_MAX_ROUNDS} rounds) and bridge_propose_figma_fixes, on your Claude plan.
-Or set ANTHROPIC_API_KEY and run this command again.`;
+Set ANTHROPIC_API_KEY and run this command again, or read the gap case with \`bridge fix <component> --case\`.`;
 
 export type FixLoopRound = CoreRound;
 

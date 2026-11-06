@@ -7,6 +7,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import {
   DEFAULT_FIGMA_FIXES_FILE,
+  FIGMA_FIXES_VERSION,
   FigmaFixesError,
   appliedFixLines,
   applyFixes,
@@ -84,7 +85,8 @@ export async function runFixes(a: RequestArgs, root: string, io: RequestIO = def
   }
   if (sub !== 'check' && sub !== 'apply') throw new RequestUsageError(`Unknown fixes command "${sub}".\n\n${FIXES_HELP}`);
   const fixesPath = resolve(root, flag(a, 'fixes') ?? DEFAULT_FIGMA_FIXES_FILE);
-  const data = readJson(fixesPath, 'Fixes file');
+  // The default file is optional: without it, there are no fixes. A path passed on purpose must exist.
+  const data = !flag(a, 'fixes') && !existsSync(fixesPath) ? { version: FIGMA_FIXES_VERSION, fixes: [] } : readJson(fixesPath, 'Fixes file');
   const problems = validateFigmaFixes(data);
   const rel = relative(root, fixesPath) || fixesPath;
   const inPath = flag(a, 'in');

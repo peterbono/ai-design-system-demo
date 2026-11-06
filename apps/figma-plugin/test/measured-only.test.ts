@@ -646,6 +646,14 @@ test('figma-fixes.json: an axis fix names the Figma property and its values; the
   assert.ok(loaded.fixes!.lines.some((l) => l.startsWith('not found') && l.includes('nothing-here')), loaded.fixes!.lines.join(' / '));
 });
 
+test('no figma-fixes.json: the sets come from the measure as measured, with no fix and no problem', async () => {
+  const { load } = await measuredRepo({});
+  const loaded = (await load())!;
+  assert.ok(loaded.specs.components.some((c) => c.name === 'Tabs'));
+  assert.deepEqual(loaded.fixes?.lines ?? [], []);
+  assert.equal(loaded.fixes?.problems, undefined);
+});
+
 test('figma-fixes.json that is not valid is not used, and the pull says why', async () => {
   const { load } = await measuredRepo({ 'figma-fixes.json': JSON.stringify({ version: 1, fixes: [{ id: 'Bad Id', kind: 'part', component: 'Tabs' }] }) });
   const loaded = (await load())!;

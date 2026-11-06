@@ -696,9 +696,14 @@ export function isAutomationPull(p: Pick<QueuePull, 'head' | 'user'>): boolean {
   return isReleasePull(p) || BOTS.has((p.user?.login ?? '').toLowerCase());
 }
 
-/** The open pull requests that wait for a review, in the order given (explorations held out: isHeldExploration). Every count in the Studio comes from here. */
+/** A Figma fix Claude opened as a pull request: labelled figma-fixes or on a bridge/figma-fixes-* branch. Never a library change. */
+export function isFigmaFixPull(p: Pick<QueuePull, 'head' | 'labels'>): boolean {
+  return p.head.ref.includes('/figma-fixes-') || (p.labels ?? []).some((l) => (typeof l === 'string' ? l : l.name) === 'figma-fixes');
+}
+
+/** The open pull requests that wait for a review, in the order given (explorations and Figma fixes held out). Every count in the Studio comes from here. */
 export function reviewQueue<P extends QueuePull>(pulls: P[]): P[] {
-  return openPulls(pulls).filter((p) => !isAutomationPull(p) && !isHeldExploration(p));
+  return openPulls(pulls).filter((p) => !isAutomationPull(p) && !isHeldExploration(p) && !isFigmaFixPull(p));
 }
 
 /** The open release pull request, if the changesets action opened one. */

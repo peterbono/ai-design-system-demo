@@ -9,7 +9,7 @@ on once: Set up automatic measure." Designer page: `/docs/automatic-measure/` on
 
 | File | Where | Read by |
 | --- | --- | --- |
-| `measured-specs.json` | the `bridge-requests` branch (the automatic measure), or the repo root (committed by hand, wins) | the Claude fix tools (`bridge_figma_gaps`, `bridge_get_gap_case`, `bridge_try_figma_fix`, `bridge_propose_figma_fixes`, `bridge gaps`, `bridge fix`), the Figma plugin (Measured spec sources, "Ask Claude to fix it", gap cases), Studio (Settings, Claude) |
+| `measured-specs.json` | the `bridge-requests` branch (the automatic measure), or the repo root (committed by hand, wins) | the Claude fix tools (`bridge_figma_gaps`, `bridge_get_gap_case`, `bridge gaps`, `bridge fix`), the Figma plugin (Measured spec sources, "Ask Claude to fix it", gap cases), Studio (Settings, Claude) |
 | `measured-shots/` (`manifest.json` + PNGs) | next to `measured-specs.json`, same branch | the plugin (Check fidelity against the story renders, update previews), gap cases |
 | `figma-fidelity.json` | the repo root, else `bridge-requests` | the fix tools (unchanged: the plugin writes it after Compare with code) |
 

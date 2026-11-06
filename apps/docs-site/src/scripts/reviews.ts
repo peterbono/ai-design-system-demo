@@ -9,7 +9,7 @@
 import { figmaPushFor, tokenValuesFor } from './figma-push-read';
 import { EXPLORATION_USE_CASES, explorationStateLabel, isArchivedExploration, isGuardedExploration, shortAgo, type ExplorationStatus, isHeldExploration, explorationStatus, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, isExplorationPull, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy, type ToolingConfig } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
-import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
+import { approvalNeedLong, effectiveTier, isAutomationPull, isFigmaFixPull, reviewQueue } from '../lib/review-queue';
 import {
   allowedMergeMethods,
   canWrite,
@@ -719,7 +719,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
 
   if (src.kind === 'cached') {
     // A snapshot saved before automation left the queue may still hold the release pull request.
-    const rows = src.pulls.filter((p) => !isAutomationPull(p)).map((p) => ({ ...toRow(p, p.kind), skipped: !p.kind }));
+    const rows = src.pulls.filter((p) => !isAutomationPull(p) && !isFigmaFixPull(p)).map((p) => ({ ...toRow(p, p.kind), skipped: !p.kind }));
     showEmpty(rows.length === 0);
     paintRows(rows, false);
     paintAsOf(asOfLine(src.at));

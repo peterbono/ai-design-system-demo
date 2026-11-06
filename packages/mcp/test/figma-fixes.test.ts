@@ -79,15 +79,25 @@ describe('bridge_figma_gaps', () => {
   });
 });
 
+describe('a repo without figma-fixes.json', () => {
+  it('reads as no fixes', async () => {
+    const { ro } = setup({ 'measured-specs.json': MEASURED_WITH_BOXES });
+    const ctx = await ro();
+    expect((await figmaFixes.loadFixFiles(ctx, {})).fixes).toBeUndefined();
+    expect((await figmaFixes.getGapCaseOp(ctx, { component: 'TextInput' })).fixIds).toEqual([]);
+  });
+});
+
 describe('bridge_get_gap_case', () => {
-  it('gives the gap case with deltas and the fix schema', async () => {
+  it('gives the gap case with deltas, and proposes no fix', async () => {
     const { ro } = setup({ 'measured-specs.json': MEASURED_WITH_BOXES });
     const r = await figmaFixes.getGapCaseOp(await ro(), { component: 'textinput' });
     expect(r.gap.summary).toMatch(/Height 72 in Figma vs 84 in code: 8 px missing below the label/);
     expect(r.gap.variants[0]!.differences[0]).toMatchObject({ part: 'root', property: 'height', expected: 84, actual: 72, delta: -12 });
-    expect(r.schema).toMatch(/kind "status"/);
+    expect(r).not.toHaveProperty('schema');
     expect(r.rounds).toEqual({ used: 0, max: 3 });
-    expect(r.next).toMatch(/bridge_try_figma_fix/);
+    expect(r.next).toMatch(/^Say what differs on TextInput in plain words/);
+    expect(r.next).not.toMatch(/bridge_try_figma_fix|bridge_propose_figma_fixes/);
     await expect(figmaFixes.getGapCaseOp(await ro(), { component: 'Nope' })).rejects.toThrow(/No measured story of Nope/);
     // Nothing missing in Figma here: no word about drawing.
     expect(r.next).not.toMatch(/missing part/);
@@ -106,7 +116,7 @@ describe('bridge_get_gap_case', () => {
     expect(gaps).toMatchObject({ status: 'other-source' });
     // A run from a measured-only file reads as before.
     const measuredRun = setup({ 'measured-specs.json': MEASURED_WITH_BOXES, 'figma-fidelity.json': JSON.stringify({ ...run, specSource: 'measured-only' }) });
-    expect((await figmaFixes.getGapCaseOp(await measuredRun.ro(), { component: 'TextInput' })).next).toMatch(/bridge_try_figma_fix/);
+    expect((await figmaFixes.getGapCaseOp(await measuredRun.ro(), { component: 'TextInput' })).next).toMatch(/^Say what differs on TextInput/);
   });
 
   it('parts missing in Figma: no fix draws them, the component ends with a status fix that says so', () => {
@@ -128,7 +138,7 @@ describe('bridge_try_figma_fix', () => {
     expect(one.pixelCheck).toMatch(/Check fidelity/);
     const two = await figmaFixes.tryFigmaFixOp(ctx, { component: 'TextInput', fixes: [labelFixed, outerFixed] });
     expect(two.variants[0]!.differences[0]).toMatchObject({ after: 84, result: 'resolved' });
-    expect(two.next).toMatch(/bridge_propose_figma_fixes/);
+    expect(two.next).toMatch(/bridge fix TextInput --propose/);
     const three = await figmaFixes.tryFigmaFixOp(ctx, { component: 'TextInput', fixes: [{ ...labelFixed, height: 'hug' }] });
     expect(three.round).toBe(3);
     expect(three.verdict).toBe('same');
@@ -225,12 +235,11 @@ describe('over the protocol', () => {
     const by = Object.fromEntries(tools.map((t) => [t.name, t]));
     expect(by.bridge_figma_gaps!.annotations?.readOnlyHint).toBe(true);
     expect(by.bridge_get_gap_case!.annotations?.readOnlyHint).toBe(true);
-    expect(by.bridge_try_figma_fix!.annotations?.readOnlyHint).toBe(true);
-    expect(by.bridge_propose_figma_fixes!.annotations?.readOnlyHint).toBe(false);
-    expect(by.bridge_try_figma_fix!.description).toMatch(/at most 3 rounds per component/);
-    const res = (await client.callTool({ name: 'bridge_try_figma_fix', arguments: { component: 'TextInput', fixes: [labelFixed], fidelity: JSON.parse(RUN) } })) as { content: { text: string }[]; isError?: boolean };
+    expect(by.bridge_try_figma_fix).toBeUndefined();
+    expect(by.bridge_propose_figma_fixes).toBeUndefined();
+    const res = (await client.callTool({ name: 'bridge_get_gap_case', arguments: { component: 'TextInput', fidelity: JSON.parse(RUN) } })) as { content: { text: string }[]; isError?: boolean };
     expect(res.isError).toBeFalsy();
-    expect(JSON.parse(res.content[0]!.text)).toMatchObject({ verdict: 'closer', report: 'the report passed in' });
+    expect(JSON.parse(res.content[0]!.text)).toMatchObject({ report: 'the report passed in' });
     await client.close();
     expect(gh.pulls).toHaveLength(0);
   });

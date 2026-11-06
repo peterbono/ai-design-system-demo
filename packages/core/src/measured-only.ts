@@ -1,5 +1,5 @@
 // The Figma plugin's measured-only pull, in core so the plugin, the CLI and the MCP server draw the same sets
-// (bridge_try_figma_fix rebuilds them offline).
+// (`bridge fix --try` rebuilds them offline).
 //
 // Spec source "measured only": component specs built from measured-specs.json alone, with no static spec to lay them
 // on. What any design system can give: a Storybook. The measure (`bridge specs --measure --variants`) records each

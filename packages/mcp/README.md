@@ -45,7 +45,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 
 <!-- tools:start (generated from the server: npm run readme:tools -w @bridge-ds/mcp) -->
 
-81 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
+79 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
 
 | Tool | Access | What it does |
 | --- | --- | --- |
@@ -74,7 +74,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_get_config` | reads | Where the design system lives and what Bridge may do: source (local path or GitHub repo), write access, token tiers, modes (brand/theme/density...) and the full bridge.config.json. |
 | `bridge_get_design_language` | reads | The design language doc (principles, color, type, space, density, radius, elevation, motion, icons, voice, accessibility). |
 | `bridge_get_figma_change` | reads | One library branch sent from Figma: its spec (variant matrix, properties, bound variables per variant, layers, what code gave Figma before, the exact token swaps) and the brief to draft the code on that branch. |
-| `bridge_get_gap_case` | reads | One component's gap case: per differing variant, its story, args, state, shot and every difference with the part id, property, expected (code) and actual (Figma) and the delta in px, plus the figma-fixes.json schema. |
+| `bridge_get_gap_case` | reads | One component's gap case: per differing variant, its story, args, state, shot and every difference with the part id, property, expected (code) and actual (Figma) and the delta in px. |
 | `bridge_get_guidelines` | reads | Rules for agents in this repo (AGENTS.md): always / ask before / never lists, token conventions, risk tiers, and what Bridge enforces. |
 | `bridge_get_history` | reads | History of the design tokens: merged token-changing PRs and commits (local git: first parent of HEAD; GitHub: PR merge commits), newest first, each with author, date, why (changeset summary, PR or commit body), version it shipped in, risk tier, semver bump, breaking flag and change counts, plus the timeline of design system versions. |
 | `bridge_get_request` | reads | One request, ready to implement: the parsed request (component, kind, summary, changes asked, Figma link, images), its status and linked pull requests, the component files found under the components directory, the agent rules file, and `brief`: the prompt to implement it in this repo. |
@@ -105,7 +105,6 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_promote_exploration` | writes | "Done exploring" on an exploration (explore/<name>), as in Studio (the tool keeps its old name). |
 | `bridge_propose_brand` | writes | Propose a new brand as a reviewable change. |
 | `bridge_propose_component_map` | writes | Proposes bridge.components.json entries that link Library components to their Figma components, and opens them for review like other Bridge changes (a suggestion, or a draft pull request in direct mode; never main). |
-| `bridge_propose_figma_fixes` | writes | Opens the accepted fixes for review like other Bridge changes: figma-fixes.json with them on a new bridge/* branch and a draft pull request labelled drafted-by-claude, figma-fixes and its tier (locally: a new local branch, never pushed). |
 | `bridge_propose_revert` | writes | Plans the revert (or restore) like bridge_plan_revert, then: local repo, commits to a new local bridge/* branch without touching your working tree (never pushes); GitHub with token, new bridge/* branch and a PR labelled revert and its tier (draft for Tier 2 and 3). |
 | `bridge_propose_token_change` | writes | Propose token edits as a reviewable change. |
 | `bridge_push_figma_component` | writes | What the DS Bridge plugin Push tab does, from a structured diff of a Figma component (the v 1 spec shape: component, figmaName, coded, kind, title, summary, changes, rebinds, needsCode, unknown, variantAxes, properties, bindings, anatomy). |
@@ -122,7 +121,6 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_start_exploration` | writes | Start an exploration: a branch explore/<slug> from the default branch with a note file, and a DRAFT pull request labeled exploration. |
 | `bridge_switch_to_published` | writes | Once its library branches shipped, bring main into the product branch (GitHub update branch): it stops carrying the library change and uses the shipped one. |
 | `bridge_try_branch` | reads | Try a branch before it merges: the preview link of each product Vercel reported for it (the admin demo opens with the Bridge toolbar on, as "Try it in the product" in Studio), the other previews, and "Share with a product team": the install command a product team runs in a staging branch, or why there is none yet, with a ready-to-paste message. |
-| `bridge_try_figma_fix` | reads | Checks proposed fixes offline, nothing is written: validates them (the strict figma-fixes.json validator), lays them on the measure, rebuilds the set the way the plugin pulls it, and compares each differing variant with what the code renders. |
 | `bridge_update_from_main` | writes | Bring the latest main into a branch, as "Update from main" in Studio. |
 | `bridge_use_library_preview` | writes | The product branch takes the latest commits of the library branch of a piece (Bridge merges it in), so the product preview shows the real library change before it ships. |
 | `bridge_validate_tokens` | reads | Validate tokens: DTCG 2025.10 shape per $type, names, broken and circular aliases in every mode, alias type mismatches, missing layer files, and mode parity (a semantic token must exist in both light and dark). |

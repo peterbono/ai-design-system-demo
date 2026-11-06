@@ -1,5 +1,12 @@
 # Figma fixes and gap cases
 
+**Status:** this repository has no `figma-fixes.json`, and a missing file means no fixes everywhere (the plugin, the CLI,
+the MCP server). The MCP server and the hosted connector no longer propose fixes: `bridge_propose_figma_fixes` and
+`bridge_try_figma_fix` are retired, only `bridge_figma_gaps` and `bridge_get_gap_case` remain, and both only read. Studio
+never counts a pull request labelled `figma-fixes` or on a `bridge/figma-fixes-*` branch as a library change. The file
+format and the `bridge fix` commands below stay for a team that keeps its own `figma-fixes.json`. Passages about Claude
+proposing fixes through MCP, or about approving them, describe the retired flow.
+
 How Bridge keeps its Figma pull true for any design system. The general measure (`bridge specs --measure`) draws most
 components right. For the rest, the team's own Claude writes a correction, Bridge re-checks it against the story's
 screenshot, and a person approves it. A component that will not converge keeps an honest status (Differs, or Can't
@@ -243,17 +250,9 @@ developer.
 ### MCP flow (Claude Code, Claude Desktop)
 
 1. `bridge_figma_gaps`: the components that differ (Differs) or cannot be checked (Can't check, with the reason).
-2. `bridge_get_gap_case { component }`: the gap case (`GapCase`), the fix schema, the ids already in the file.
-3. `bridge_try_figma_fix { component, fixes }`: the values referee. At most 3 rounds per component: keep what moved
-   closer, revise the rest with the deltas. Nothing is written.
-4. `bridge_propose_figma_fixes { component, fixes, summary }`: figma-fixes.json with the fixes (a fix with the id of
-   one already there replaces it) on a new `bridge/figma-fixes-<component>` branch, and a draft pull request labelled
-   `drafted-by-claude`, `figma-fixes`, `source: mcp` and its tier (classifyRisk: Tier 2, a source file). Locally, a new
-   local branch, never pushed. The body has the gap, each fix with its reason and the before and after deltas. It runs
-   the values referee again and refuses fixes that move the component further from the code, and part or story fixes
-   that move nothing. A part fix that sizes, places or lays out a part (`width`, `height`, `direction`, `align`,
-   `overlay`) opens even when the referee says same: it can't judge layout, so the body says Compare with code decides.
-   When no round came closer, propose a `status` fix instead.
+2. `bridge_get_gap_case { component }`: the gap case (`GapCase`). Claude says what differs in plain words.
+
+Both only read. Nothing is written and no pull request opens.
 
 The MCP server may use the person's `gh` sign-in as its token (as for every write from MCP); the CLI writes only with
 a token passed on purpose (`GITHUB_TOKEN`, `--token`, or `--use-gh-auth`), and without one opens a local branch.
@@ -302,8 +301,7 @@ subscription for their own calls, so it goes this way round: Claude calls Bridge
 - **What it is:** every tool of the Bridge MCP server (`packages/mcp`, the same as `npx @bridge-ds/mcp`) over Streamable
   HTTP, stateless, JSON answers (`apps/docs-site/api/mcp`, `handleHttp` in `packages/mcp/src/lib.ts`). It works on the
   repository of the team picked at sign-in, with that person's GitHub App user token, so every write is theirs and
-  goes through the usual paths: the fix is a draft pull request on `bridge/figma-fixes-<component>`, labelled
-  `drafted-by-claude` and `figma-fixes`, Tier 2. Never the default branch. Agents never merge here: the merge tool
+  goes through the usual paths. Never the default branch. Agents never merge here: the merge tool
   (`bridge_merge_branch`, with its owner override) is neither listed nor run by the hosted connector; a person merges
   from Studio or GitHub. The local CLI and MCP server keep it.
 - **Sign-in (MCP authorization, spec 2026-07-28):** the MCP endpoint answers `401` with

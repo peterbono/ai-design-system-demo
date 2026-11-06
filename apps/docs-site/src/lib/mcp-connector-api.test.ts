@@ -431,7 +431,9 @@ describe('the real Bridge MCP server over Streamable HTTP (packages/mcp handleHt
     expect(answered.serverInfo).toEqual(info);
     const list = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const names = ((await list.json()).result.tools as { name: string }[]).map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining(['bridge_figma_gaps', 'bridge_get_gap_case', 'bridge_try_figma_fix', 'bridge_propose_figma_fixes']));
+    expect(names).toEqual(expect.arrayContaining(['bridge_figma_gaps', 'bridge_get_gap_case']));
+    expect(names).not.toContain('bridge_propose_figma_fixes');
+    expect(names).not.toContain('bridge_try_figma_fix');
   });
 });
 
@@ -564,7 +566,7 @@ describe('an email member connects Claude with their Bridge sign-in (no GitHub)'
     const { id, approve } = await emailSignIn(w);
     const t = await tokens(w, id, new URL((await approve.json()).redirect).searchParams.get('code')!);
     const seen = w.mcpSeen.length;
-    for (const name of ['bridge_review_pr', 'bridge_propose_figma_fixes', 'bridge_merge_branch']) {
+    for (const name of ['bridge_review_pr', 'bridge_merge_branch']) {
       const r = await (await mcpPost(w, t.body.access_token, rpc(2, name, {}))).json();
       expect(r.error.message, name).toBe(name === 'bridge_merge_branch' ? HOSTED_REFUSED_WORDS : EMAIL_REFUSED_WORDS);
     }

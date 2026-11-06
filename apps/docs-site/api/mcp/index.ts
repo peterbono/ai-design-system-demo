@@ -22,12 +22,11 @@
 // CORS is open for token calls (the Figma plugin).
 //
 // The MCP server acts on the team's repository chosen at sign-in, with the signed-in person's GitHub App user token:
-// every write is theirs and goes through the usual paths (a draft pull request on bridge/figma-fixes-<component>,
-// labelled drafted-by-claude and figma-fixes, Tier 2), never the default branch.
+// every write is theirs and goes through the usual paths, never the default branch.
 // Someone who joined the team with their email (no GitHub account) connects with their Bridge sign-in alone (an email
 // grant, api/_lib/oauth.ts): every GitHub call of their session goes through the email contributors' proxy in process
 // (api/contribute handleContribute, its deny-by-default policy: their explorations in the design team's copy, their
-// developers' task, design files of the library), and the tools that need GitHub powers (reviews, merges, Figma fixes,
+// developers' task, design files of the library), and the tools that need GitHub powers (reviews, merges,
 // code in the library, the library's own explorations) are neither listed nor run (EMAIL_REFUSED_TOOLS).
 //
 // Env: KV_REST_API_URL + KV_REST_API_TOKEN (or the UPSTASH_* pair), LIBRARY_SESSION_SECRET (the Bridge account session,
@@ -128,7 +127,7 @@ export const HOSTED_REFUSED_WORDS = 'Claude does not merge through Bridge: a per
 
 /**
  * The tools a member who joined with their email cannot use through Claude: they need GitHub powers (reviews, merges,
- * code in the library, Figma fixes, product package changes) or a lead's (the library's own explorations, its Figma links). Neither
+ * code in the library, product package changes) or a lead's (the library's own explorations, its Figma links). Neither
  * listed nor run; a call gets EMAIL_REFUSED_WORDS (or LIBRARY_LEADS_WORDS) in plain words.
  */
 export const EMAIL_REFUSED_TOOLS: readonly string[] = [
@@ -137,8 +136,6 @@ export const EMAIL_REFUSED_TOOLS: readonly string[] = [
   'bridge_review_suggestion',
   'bridge_apply_suggestion',
   'bridge_combine_branches',
-  'bridge_propose_figma_fixes',
-  'bridge_try_figma_fix',
   'bridge_push_figma_component',
   'bridge_scaffold_component',
   'bridge_propose_revert',

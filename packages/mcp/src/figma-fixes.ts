@@ -1,9 +1,7 @@
-// Fix with Claude: the team's own Claude (Claude Code or Claude Desktop here, through the MCP server; or the CLI loop
-// with the team's API key, or Bridge's server with the key the team connected) fixes components whose Figma build
-// differs from their story. Here Bridge holds no key: it gives the tools and is the referee. bridge_figma_gaps lists what differs, bridge_get_gap_case gives one component's
-// gap case and the fix schema, bridge_try_figma_fix runs the values referee offline (core tryFigmaFixes), and
-// bridge_propose_figma_fixes opens figma-fixes.json for review like any Bridge change. The pixel referee (the story shot
-// against the real Figma render) runs in the plugin's Check fidelity after the next pull.
+// Figma gaps: what differs between a component built in Figma and its story. bridge_figma_gaps lists the components and
+// bridge_get_gap_case gives one gap case, read only. The MCP server proposes no fix: tryFigmaFixOp and proposeFigmaFixesOp
+// are the CLI's (`bridge fix --try`, `--propose`). The pixel referee (the story shot against the real Figma render) runs
+// in the plugin's Check fidelity.
 import {
   applyFixes,
   baseBranchOf,
@@ -148,7 +146,7 @@ export async function figmaGapsOp(ctx: BridgeContext, a: FixFilesArgs = {}) {
     measured: files.measuredFrom,
     gaps,
     next: differs
-      ? say(ctx, `Fix one: bridge_get_gap_case { component: "${gaps[0]!.component}" }, then bridge_try_figma_fix (at most ${FIX_LOOP_MAX_ROUNDS} rounds), then bridge_propose_figma_fixes.`, `Fix one: \`bridge fix ${gaps[0]!.component} --with-claude\`, or \`bridge fix ${gaps[0]!.component} --case\` to read its gap case.`)
+      ? say(ctx, `Read one: bridge_get_gap_case { component: \"${gaps[0]!.component}\" }, then say what differs in plain words.`, `Fix one: \`bridge fix ${gaps[0]!.component} --with-claude\`, or \`bridge fix ${gaps[0]!.component} --case\` to read its gap case.`)
       : gaps.length
         ? 'Nothing differs that a fix can move: the rest cannot be checked, each with its reason.'
         : 'Every checked component matches its story.',
@@ -181,25 +179,15 @@ export async function getGapCaseOp(ctx: BridgeContext, a: FixFilesArgs & { compo
   if (!spec && !storiesOfComponent(files.measured, a.component).length)
     throw new Error(`No measured story of ${a.component} in ${files.measuredFrom}. Measure it with \`bridge specs --measure --variants --shots --only ${a.component}\`.`);
   const used = roundsOf(ctx).get(lc(a.component)) ?? 0;
-  // Parts missing in Figma: no fix draws them. The designer only sees what Bridge records, so the component ends with a
-  // status fix that says so, never with a sentence in the chat alone.
   // A file pulled from another source than the measure: its layers are not what the case rebuilds, so no part reads as
   // missing and no fix is asked for. The sentence says how the designer moves the file onto the measure.
   const sourceNote = runSourceNote(files.run);
   const missing = sourceNote ? [] : missingParts(gap);
-  const statusFix = `{ "id": "${lc(gap.component)}-draw", "kind": "status", "component": "${gap.component}", "status": "differs", "reason": "${missingPartsReason(missing)}" }`;
-  const drawNote = missing.length
-    ? say(
-        ctx,
-        ` No fix can draw a missing part (${missing.join(', ')}): fix what else differs, then end with a status fix (only the status fix when nothing else differs), ${statusFix}, through bridge_propose_figma_fixes, before the next component.`,
-        ` No fix can draw a missing part (${missing.join(', ')}): fix what else differs, then propose a status fix (only the status fix when nothing else differs), ${statusFix}, with \`bridge fix ${gap.component} --propose <file> --summary "..."\`.`,
-      )
-    : '';
   return {
     gap,
     ...(sourceNote ? { status: 'other-source' as const, say: sourceNote } : {}),
     ...(files.runFrom ? { report: files.runFrom } : { note: NO_RUN }),
-    schema: FIX_SCHEMA_SUMMARY,
+    ...(ctx.surface === 'cli' ? { schema: FIX_SCHEMA_SUMMARY } : {}),
     docs: 'docs/FIGMA-FIXES.md',
     rounds: { used, max: FIX_LOOP_MAX_ROUNDS },
     /** Ids already in figma-fixes.json: a new fix takes another id, or the same id to replace that fix. */
@@ -209,14 +197,14 @@ export async function getGapCaseOp(ctx: BridgeContext, a: FixFilesArgs & { compo
       : gap.variants.length
       ? say(
           ctx,
-          `Write fixes for ${gap.component} only, from the part ids and deltas above, then bridge_try_figma_fix { component, fixes }. Keep a fix only when the try says closer; after ${FIX_LOOP_MAX_ROUNDS} rounds without closer, propose a status fix (Differs or Can't check, with the reason) instead.${drawNote}`,
+          `Say what differs on ${gap.component} in plain words, from the parts and deltas above.${missing.length ? ` Missing in Figma: ${missing.join(', ')}.` : ''}`,
           `Write the fixes to a JSON file, then \`bridge fix ${gap.component} --try fixes.json\`; or let Claude do the rounds: \`bridge fix ${gap.component} --with-claude\`.`,
         )
       : 'Nothing differs on this component: there is nothing to fix.',
   };
 }
 
-/** bridge_try_figma_fix / `bridge fix <component> --try fixes.json`: the values referee on proposed fixes. */
+/** `bridge fix <component> --try fixes.json`: the values referee on proposed fixes. */
 export async function tryFigmaFixOp(ctx: BridgeContext, a: FixFilesArgs & { component: string; fixes: unknown[] }) {
   const files = await loadFixFiles(ctx, a);
   const r = tryFigmaFixes({ component: a.component, measured: files.measured, fixes: files.fixes, run: files.run, proposed: a.fixes });
@@ -229,9 +217,9 @@ export async function tryFigmaFixOp(ctx: BridgeContext, a: FixFilesArgs & { comp
     r.status === 'invalid'
       ? `Fix the problems and try again (round ${round} of ${FIX_LOOP_MAX_ROUNDS}).`
       : r.verdict === 'closer'
-        ? say(ctx, `Closer: propose it with bridge_propose_figma_fixes { component, fixes, summary }, or try once more to close the rest${last ? '' : ` (round ${round} of ${FIX_LOOP_MAX_ROUNDS})`}.`, `Closer: open it for review with \`bridge fix ${a.component} --propose <file> --summary "..."\`.`)
+        ? `Closer: open it for review with \`bridge fix ${a.component} --propose <file> --summary "..."\`.`
         : last
-          ? say(ctx, `No closer after ${round} rounds: propose a status fix instead (kind "status", status "differs" or "cant-check", the reason in a sentence) with bridge_propose_figma_fixes.`, `No closer after ${round} rounds: propose a status fix instead (kind "status", status "differs" or "cant-check", the reason in a sentence).`)
+          ? `No closer after ${round} rounds: propose a status fix instead (kind "status", status "differs" or "cant-check", the reason in a sentence).`
           : `Not closer: revise with the deltas above and try again (round ${round} of ${FIX_LOOP_MAX_ROUNDS}).`;
   return {
     ...result,
@@ -245,7 +233,7 @@ export async function tryFigmaFixOp(ctx: BridgeContext, a: FixFilesArgs & { comp
 }
 
 /**
- * bridge_propose_figma_fixes / `bridge fix <component> --propose fixes.json`: the accepted fixes in figma-fixes.json on
+ * `bridge fix <component> --propose fixes.json`: the accepted fixes in figma-fixes.json on
  * a new branch, opened for review like other Bridge changes (a draft pull request labelled drafted-by-claude and its
  * tier; locally, a bridge/* branch never pushed). The values referee runs again first: a fix that moves the component
  * further from the code is refused, and part or story fixes that move nothing are refused (propose a status fix),
@@ -263,7 +251,7 @@ export async function proposeFigmaFixesOp(ctx: BridgeContext, a: FixFilesArgs & 
       verdict: p.verdict,
       why: p.why,
       detail: p.detail,
-      hint: say(ctx, 'Try other fixes with bridge_try_figma_fix, or propose a status fix (kind "status", status "differs" or "cant-check", the reason) instead.', 'Try other fixes with `bridge fix <component> --try`, or propose a status fix (kind "status", status "differs" or "cant-check", the reason) instead.'),
+      hint: 'Try other fixes with `bridge fix <component> --try`, or propose a status fix (kind "status", status "differs" or "cant-check", the reason) instead.',
     };
   }
   const { report, labels, prBody, fileContents, title, message, draft } = p;

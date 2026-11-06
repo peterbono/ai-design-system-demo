@@ -1,6 +1,6 @@
 // bridge fixes check / apply and bridge gap, on a trimmed Carbon measure (core's fixture): files in a temp repo, output
 // captured, exit codes.
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -47,6 +47,17 @@ function repo(fixes: unknown = FIXES): string {
 }
 
 describe('bridge fixes', () => {
+  it('no figma-fixes.json: no fixes, for check and apply; a path passed on purpose must exist', async () => {
+    const root = repo();
+    rmSync(join(root, 'figma-fixes.json'));
+    const o = io();
+    expect(await runFixes(args('fixes', 'check'), root, o.value)).toBe(0);
+    expect(o.lines[0]).toBe('figma-fixes.json: 0 fixes, valid.');
+    expect(await runFixes(args('fixes', 'apply', '--in', 'measured-specs.json', '--out', 'out.json'), root, io().value)).toBe(0);
+    expect(existsSync(join(root, 'out.json'))).toBe(true);
+    await expect(runFixes(args('fixes', 'check', '--fixes', 'gone.json'), root, io().value)).rejects.toThrow(/not found/);
+  });
+
   it('check: valid file, and what finds nothing in a measure', async () => {
     const root = repo();
     const o = io();

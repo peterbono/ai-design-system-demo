@@ -1,7 +1,7 @@
 // `bridge fixes check` on the server: the validation of figma-fixes.json from @bridge-ds/core (figma-fixes.ts
 // validateFigmaFixes, with SPEC_FIELDS and COLOR_FIELDS of component-spec.ts), for api/ship's "approve-fixes". The /api
 // functions load no workspace package at runtime, so the lines the server needs live here;
-// src/lib/figma-fixes-check-parity.test.ts runs both on the same fixtures (and on this repo's figma-fixes.json) and fails
+// src/lib/figma-fixes-check-parity.test.ts runs both on the same fixtures (and on a real fixes file) and fails
 // the moment they disagree. docs/FIGMA-FIXES.md has the format.
 
 export const FIGMA_FIXES_FILE = 'figma-fixes.json';
