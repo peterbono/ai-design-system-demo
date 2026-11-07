@@ -717,7 +717,7 @@ function FigmaAction({ p, tool, say }: { p: ExplorationPageProps; tool: AiTool; 
           line={to === 'claude-code' ? p.figma.terminal : p.figma.app}
           onCopy={p.onCopy}
           say={say}
-          variant="secondary"
+          variant="ghost"
           size="lg"
           {...(p.claudeLink ? { claudeLink: p.claudeLink } : {})}
           {...(p.connectorAddress ? { connectorAddress: p.connectorAddress } : {})}
