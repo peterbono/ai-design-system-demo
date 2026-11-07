@@ -26,7 +26,9 @@ export const EXPECTED = [
 
 /** The heading of Check the build (components/ds/studio BuildCheck), and how long a visitor may wait for it. */
 export const CHECK_HEADING = 'Ready to ship?';
-export const CHECK_MS = 8000;
+export const CHECK_MS = 4000;
+/** A row of who checks the build: the section read, not only its frame. */
+export const CHECK_ROW = '.xp-build-row';
 
 /**
  * Console errors that are not the page's own: a signed-out visitor's expected refusals (a sign-in probe answers 401,
@@ -81,7 +83,7 @@ async function main() {
     // The handed-off exploration with a ready build: Check the build itself, within CHECK_MS of the page loading.
     const checked = EXPECTED.find((x) => `exploration-${x.n}` === name && x.check);
     if (checked) {
-      const shown = await page.getByText(CHECK_HEADING).first().waitFor({ timeout: CHECK_MS }).then(() => true, () => false);
+      const shown = await page.getByText(CHECK_HEADING).first().waitFor({ timeout: CHECK_MS }).then(() => page.locator(CHECK_ROW).first().waitFor({ timeout: Math.max(1, CHECK_MS - (Date.now() - started)) })).then(() => true, () => false);
       if (!shown) problems.push(`${name}: Check the build ("${CHECK_HEADING}") did not show within ${CHECK_MS / 1000} s`);
       else console.log(`${name}: Check the build showed after ${((Date.now() - started) / 1000).toFixed(1)} s`);
     }
