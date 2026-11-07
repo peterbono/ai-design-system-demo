@@ -903,7 +903,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // Check the build (board R4): the developers' version is ready in the design team's copy. Read through Bridge's server,
   // who checks it and where each stands; the designer, the PM and the leads answer there (email members and PMs too).
   if (inCopy && own && devRead && !review.draft && status === 'building' && !declined && !sample) {
-    const builder = builders.length ? faceOf(builders[0]!, false, allNames).name : 'The developer';
+    const builder = builders.length ? faceOf(builders[0]!, false, allNames).name : 'the developer';
     const designerName = block?.memberName ?? doneBy.name;
     void paintBuildCheck(d, key, { r, product: own.product.key, copy: own.repo, builder, designer: designerName, devUrl: review.dev?.url ?? null, viewerRef: member?.ref ?? null, reopen: (line) => reopen(line) });
   }
