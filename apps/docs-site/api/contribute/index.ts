@@ -178,7 +178,8 @@ import { teamInSet } from '../_lib/members.js';
 import { addsLeadWords, handsOff, LEAD_ONLY } from '../_lib/lead-gate.js';
 import { explorationKeeper } from '../_lib/exploration-keeper.js';
 import { addsPmWords, isPm, PM_ONLY, PRODUCT_KEY, pmOf, pmsOf, publicPm, setPm, withPmWord, type PmWord, type ProductPm } from '../_lib/product-pm.js';
-import { deliverNotices, type NotifyDeps } from '../_lib/notify.js';
+import { deliverNotices, teamBase, type NotifyDeps } from '../_lib/notify.js';
+import { addBuildWord, buildComment, buildStateOf, buildWordsOf, DESIGN_CHECK, devPullOfEvents, taskOfUrl, type BuildRole, type BuildWord } from '../_lib/build-check.js';
 import type { Notice } from '../_lib/notify-events.js';
 import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-update.js';
 import { validPackageName } from '../../src/lib/library-update.js';
@@ -593,6 +594,12 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
     case 'pm-word':
       return await onPmWord(req, ctx, body);
 
+    case 'build-state':
+      return await onBuild(req, ctx, body, false);
+
+    case 'build-word':
+      return await onBuild(req, ctx, body, true);
+
     case 'exploration-keeper': {
       // A lead signed in by email hands an exploration over: the member record says they lead, never the browser.
       const team = parseRepo(body.repo);
@@ -716,6 +723,81 @@ async function onPmWord(req: Request, ctx: Ctx, body: Record<string, unknown>): 
   const nd: NotifyDeps = { redis: ctx.svc.redis, sender: notifySenderFromEnv(ctx.env, ctx.f), secret: ctx.svc.secret, origin: siteOrigin(req, ctx.env.PUBLIC_SITE_URL), now: ctx.now, members: ctx.svc.members, loginId: publicLoginId(ctx.f) };
   await deliverNotices([notice], nd, `pm:${copy}:${n}:${word.at}`).catch(() => undefined);
   return json(200, { ok: true, word });
+}
+
+export const BUILD_WORDS = {
+  notReady: 'The developers have not shown a build yet.',
+  notYours: 'Only its designer, the product manager or a design lead checks the build.',
+  note: 'Say what to change.',
+};
+
+/**
+ * POST { action: 'build-state' | 'build-word', repo, product, copy, number, kind?, why?, text? } (board R4): the check
+ * of the developers' build of a handed-off exploration of a design copy. Read: who must say it looks right, what each
+ * said on the build's last commit, and the "Design check" status Bridge keeps on it (written again on each read, so a
+ * push shows pending at once). Write: the designer, the PM of the product or a design lead says Looks right or Needs
+ * changes (the build is off, or the design must change), with their note; Bridge signs it on the developers' pull
+ * request. Members by email and PMs who only view go through here: the words are Bridge's to write.
+ */
+async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, write: boolean): Promise<Response> {
+  const team = parseRepo(body.repo);
+  const t = { ...team, full: team.full.toLowerCase() };
+  const who = await callerOn(ctx, req, t);
+  if (!who) return fail(401, 'signin', SIGNIN);
+  const product = typeof body.product === 'string' ? body.product.trim().toLowerCase() : '';
+  const n = Number(body.number);
+  const copy = typeof body.copy === 'string' ? body.copy.toLowerCase() : '';
+  if (!PRODUCT_KEY.test(product) || !Number.isSafeInteger(n) || n < 1) return fail(400, 'bad_request', PM_WORDS.noExploration);
+  const facts = await teamFacts(ctx, t);
+  const pair = facts.pairs.find((p) => p.key?.toLowerCase() === product && p.copy === copy);
+  if (!pair) return fail(404, 'no_product', PM_WORDS.noProduct);
+  const [co, cn] = copy.split('/') as [string, string];
+  const copyToken = await ctx.svc.app.installationToken(co, cn);
+  if (!copyToken) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
+  const ex = await ghApp(ctx, copyToken, 'GET', `/repos/${co}/${cn}/pulls/${n}`);
+  const block = ex.status === 200 ? explorationBlockOf(ex.data?.body) : null;
+  if (!block) return fail(404, 'not_found', PM_WORDS.noExploration);
+  const task = taskOfUrl(block.task);
+  // Only the task of that product, in its developers' repository.
+  if (!task || task.repo !== pair.code) return fail(409, 'not_ready', BUILD_WORDS.notReady);
+  const [ro, rn] = pair.code.split('/') as [string, string];
+  const token = await ctx.svc.app.installationToken(ro, rn);
+  if (!token) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
+  const tl = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/issues/${task.number}/timeline?per_page=100`);
+  const dev = tl.status === 200 ? devPullOfEvents(tl.data, pair.code) : null;
+  if (!dev || dev.draft) return fail(409, 'not_ready', BUILD_WORDS.notReady);
+  const pr = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/pulls/${dev.number}`);
+  const head = typeof pr.data?.head?.sha === 'string' ? (pr.data.head.sha as string) : null;
+  if (pr.status !== 200 || !head || pr.data?.draft === true || pr.data?.state !== 'open') return fail(409, 'not_ready', BUILD_WORDS.notReady);
+  const pm = await pmOf(ctx.svc.redis, t.full, product);
+  // The design lead checks again only when the exploration sent pieces to the library: those change since approval.
+  const need = { pm: Boolean(pm), lead: Array.isArray(block.leadPieces) && block.leadPieces.length > 0 };
+  const designer = Boolean((typeof block.member === 'string' && who.email && block.member === memberRef(who.email)) || (who.login && [block.author, block.doneBy].some((a) => typeof a === 'string' && a.toLowerCase() === who.login!.toLowerCase())));
+  const role: BuildRole | null = designer ? 'designer' : isPm(pm, who) ? 'pm' : who.lead ? 'lead' : null;
+  let words = await buildWordsOf(ctx.svc.redis, pair.code, dev.number);
+  if (write) {
+    if (!role) return fail(403, 'not-allowed', BUILD_WORDS.notYours);
+    const kind = body.kind === 'looks-right' || body.kind === 'changes' ? body.kind : null;
+    const text = typeof body.text === 'string' ? body.text.trim().slice(0, 2000) : '';
+    if (!kind) return fail(400, 'bad_request', 'Unknown word.');
+    if (kind === 'changes' && !text) return fail(400, 'bad_request', BUILD_WORDS.note);
+    const word: BuildWord = { role, ...(who.login ? { by: who.login } : {}), byName: who.name, kind, ...(kind === 'changes' ? { why: body.why === 'design' ? 'design' : 'build', text } : {}), sha: head, at: new Date(ctx.now()).toISOString() };
+    words = await addBuildWord(ctx.svc.redis, pair.code, dev.number, word);
+    await ghAppSend(ctx, token, 'POST', `/repos/${ro}/${rn}/issues/${dev.number}/comments`, { body: buildComment(word) });
+    // Needs changes reaches the designer (and the PM, when the designer or a lead said it) right away.
+    if (kind === 'changes') {
+      const title = cleanTitle(block.name);
+      const to = [...(role !== 'designer' ? [null] : []), ...(pm && role !== 'pm' ? [pm.email ? `email:${pm.email}` : pm.login!] : [])];
+      const nd: NotifyDeps = { redis: ctx.svc.redis, sender: notifySenderFromEnv(ctx.env, ctx.f), secret: ctx.svc.secret, origin: siteOrigin(req, ctx.env.PUBLIC_SITE_URL), now: ctx.now, members: ctx.svc.members, loginId: publicLoginId(ctx.f) };
+      const notices: Notice[] = to.map((x) => ({ kind: 'lead-build-changes', repo: copy, items: [n], title, actor: { login: who.login ?? '', id: null }, actorName: who.name, copy: null, scope: 'any', quote: text.slice(0, 280), ...(x ? { to: [x] } : {}) }));
+      await deliverNotices(notices, nd, `build:${pair.code}:${dev.number}:${word.at}`).catch(() => undefined);
+    }
+  }
+  const st = buildStateOf(words, head, need);
+  const target = `${teamBase(siteOrigin(req, ctx.env.PUBLIC_SITE_URL), t.full)}changes/?exploration=${n}&product=${encodeURIComponent(product)}`;
+  // The status needs the app's Commit statuses write permission: without it the comment still says it, and Studio too.
+  const status = await ghAppSend(ctx, token, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { state: st.state, context: DESIGN_CHECK, description: st.description.slice(0, 140), target_url: target }).catch(() => ({ status: 0, data: null }));
+  return json(200, { ...st, head, pull: { number: dev.number, url: dev.url }, role, statusWritten: status.status === 201 });
 }
 
 /** A write with the app's token and a JSON body (ghApp reads only). */

@@ -11,7 +11,8 @@ import { designTaskReads, rememberQuestions, taskUrlOf } from './design-task';
 import { askerRole, devQuestionOf, taskStage, type DesignTaskRead } from '../lib/review-state';
 import { parseExplorationBody } from '@bridge-ds/core';
 import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
-import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, limitLine, readRepo, RateLimitError, resolveAccess } from './github-session';
+import { currentAccess, currentContributor, currentViewer, getToken, ghGet, hasWorkingToken, limitLine, readRepo, RateLimitError, resolveAccess } from './github-session';
+import { isViewerPm, pmHomeRow, type PmPerson } from '../lib/pm-view';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
 import { loadTeams, siteApprovers } from './teams';
 import { loadOwnSuggestions, loadSuggestionNeeds } from './suggestions';
@@ -353,6 +354,14 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
   // The viewer's own open suggestions sit with their branches: they wait on the reviewers, calmly. An email member's
   // are filed by Bridge for them (the server's list says which).
   let ownSuggestions: BranchCard[] = [];
+  // The product manager of each product (Settings > Products): their Home lists what waits for their opinion.
+  let pms: Record<string, PmPerson> = {};
+  const pmsRead = (async () => {
+    const token = viewerRef ? null : getToken();
+    if (!viewerRef && !token) return;
+    const { contributeTeam } = await import('./contribute-session');
+    pms = (await contributeTeam(`${owner}/${repo}`, token)).pms;
+  })().catch(() => undefined);
   const ownSuggestionsRead = (async () => {
     const mine = currentContributor() ? await import('./contribute-session').then((m) => m.contributeMine(`${owner}/${repo}`)).catch(() => null) : null;
     ownSuggestions = await loadOwnSuggestions(viewer, mine);
@@ -507,6 +516,20 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
       const who = askedBy ? { login: asker, name: askedBy, avatar: null } : pick(row.person.login ?? asker)!;
       needs.push({ ...explorationReviewNeed({ number: p.number, product: p.product ?? null, author: who, asker: who, since: row.since, thumb: { kind: 'icon', icon: 'branch' }, name: explorationNameOf(p), href }, now), title: explorationNameOf(p), line: row.line, action: row.action });
     }
+    // The product manager (boards R3, R4): an exploration of their product that waits for their opinion, and a build of
+    // the developers that waits for their check.
+    for (const p of productOpen) {
+      const pm = p.product ? pms[p.product.toLowerCase()] : undefined;
+      if (!isViewerPm(pm, { ref: viewerRef, login: viewer }) || (p.labels ?? []).some((l) => l.name === 'archived')) continue;
+      const u = taskUrlOf(p.body);
+      const t = u ? taskReads.get(u) : null;
+      const row = pmHomeRow(p.body, { buildReady: Boolean(t && taskStage(t) === 'in-review') });
+      if (!row) continue;
+      const block = parseExplorationBody(p.body);
+      const who = block?.memberName ? { login: p.user.login, name: block.memberName, avatar: null } : pick(block?.author ?? p.user.login)!;
+      const href = studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`);
+      needs.push({ ...explorationReviewNeed({ number: p.number, product: p.product ?? null, author: who, asker: who, since: row.since, thumb: { kind: 'icon', icon: 'branch' }, name: explorationNameOf(p), href }, now), title: explorationNameOf(p), line: row.line(who.name ?? 'The designer'), action: row.action });
+    }
     // Someone asked a question on the task of an exploration the viewer handed off (named, never "the developers" by
     // default): theirs to answer (the one rule, lib/waiting-on). Remembered for the nav badge on the other pages.
     const questions: string[] = [];
@@ -569,6 +592,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
     joinsRead,
     ownSuggestionsRead,
     productRead,
+    pmsRead,
   ]);
   loading = false;
   paint();

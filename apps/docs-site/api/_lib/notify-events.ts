@@ -47,10 +47,13 @@ export type NotifyKind =
   | 'lead-ok'
   | 'lead-pm-ok'
   | 'lead-pm-changes'
-  | 'lead-pm-call';
+  | 'lead-pm-call'
+  | 'lead-build-changes'
+  | 'lead-build-ready'
+  | 'lead-shipped';
 
 /** The kinds that wait on the designer: sent right away by default. The others go in the daily summary. */
-export const NEEDS_KINDS: ReadonlySet<NotifyKind> = new Set(['question', 'look', 'changes', 'lead-ask', 'lead-answer', 'lead-delegated', 'lead-reminder', 'lead-question', 'lead-changes', 'lead-took-back', 'lead-not-doing', 'lead-handed', 'lead-pm-changes', 'lead-pm-call']);
+export const NEEDS_KINDS: ReadonlySet<NotifyKind> = new Set(['question', 'look', 'changes', 'lead-ask', 'lead-answer', 'lead-delegated', 'lead-reminder', 'lead-question', 'lead-changes', 'lead-took-back', 'lead-not-doing', 'lead-handed', 'lead-pm-changes', 'lead-pm-call', 'lead-build-changes', 'lead-build-ready']);
 
 /** Where the item lives: a library suggestion only counts in the team's own repository. */
 export type NoticeScope = 'any' | 'library';

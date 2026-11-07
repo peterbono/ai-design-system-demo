@@ -75,6 +75,12 @@ export function linesOf(i: Pick<NotifyItem, 'kind' | 'title' | 'actor'>): { subj
       return { subject: `${actor} asked for changes on ${title}`, sentence: `${actor}, the product manager, left a note on your exploration.`, button: 'Read the note' };
     case 'lead-pm-call':
       return { subject: `${actor} says you agreed on ${title}`, sentence: `${actor} wrote that you agreed on ${title} in a call. If that is not right, give your own answer on the page.`, button: 'Open it' };
+    case 'lead-build-changes':
+      return { subject: `${actor} asked for changes on the build of ${title}`, sentence: `${actor} checked what the developers built for ${title} and left a note.`, button: 'Read the note' };
+    case 'lead-build-ready':
+      return { subject: `${title} is built: check it`, sentence: `The developers finished ${title}. Compare it with what was approved, then say if it can ship.`, button: 'Check the build' };
+    case 'lead-shipped':
+      return { subject: `${title} shipped`, sentence: `${title} is now in the product.`, button: 'See it' };
     case 'suggestion-declined':
       return { subject: `${actor} closed ${title}`, sentence: `${actor} decided not to add it to the library this time and said why.`, button: 'Read why' };
   }

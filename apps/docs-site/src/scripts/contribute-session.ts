@@ -849,3 +849,21 @@ function noteClosedForVisitors(repo: string) {
 
 /** GitHub's own answer for a repository the reader cannot see. */
 const closedAnswer = () => new Response(JSON.stringify({ message: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Bridge-Source': 'closed' } });
+
+/** What Bridge's server says about the check of the developers' build (board R4), and the Design check it keeps. */
+export interface BuildStateRead {
+  state: 'pending' | 'success' | 'failure';
+  rows: { role: 'designer' | 'pm' | 'lead'; required: boolean; state: 'looks-right' | 'changes' | 'waiting'; byName?: string; text?: string; why?: 'build' | 'design' }[];
+  role: 'designer' | 'pm' | 'lead' | null;
+  pull: { number: number; url: string };
+}
+
+type BuildTarget = { product: string; copy: string; number: number };
+
+export async function buildState(repo: string, x: BuildTarget, githubToken: string | null = null): Promise<BuildStateRead> {
+  return call<BuildStateRead>('POST', '', { action: 'build-state', repo, ...x }, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
+}
+
+export async function sayBuild(repo: string, x: BuildTarget & { kind: 'looks-right' | 'changes'; why?: 'build' | 'design'; text?: string }, githubToken: string | null = null): Promise<BuildStateRead> {
+  return call<BuildStateRead>('POST', '', { action: 'build-word', repo, ...x }, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
+}
