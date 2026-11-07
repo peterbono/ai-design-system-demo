@@ -139,10 +139,12 @@ export function crawlTargets(hrefs, origin, limit = CRAWL_LIMIT) {
     }
     if (u.origin !== origin) continue;
     if (/\.(png|jpe?g|gif|svg|webp|pdf|zip|json|xml|txt|css|js)$/i.test(u.pathname)) continue;
-    const path = u.pathname.replace(/\/+$/, '') || '/';
-    if (seen.has(path)) continue;
+    // A hash-routed app (react-admin, #/orders) keeps every page on "/": the route is the hash.
+    const route = u.hash.startsWith('#/') ? u.hash.replace(/[?].*$/, '').replace(/\/+$/, '') : '';
+    const path = (u.pathname.replace(/\/+$/, '') || '/') + route;
+    if (seen.has(path) || route === '#') continue;
     seen.add(path);
-    out.push(`${origin}${u.pathname}${u.search}`);
+    out.push(`${origin}${u.pathname}${u.search}${route ? u.hash : ''}`);
     if (out.length >= limit) break;
   }
   return out;

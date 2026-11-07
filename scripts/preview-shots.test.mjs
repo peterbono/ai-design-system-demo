@@ -77,6 +77,8 @@ describe('preview-shots: which preview', () => {
     const o = 'https://p.vercel.app';
     expect(crawlTargets(['/', '/orders', '/orders/', 'https://evil.example/x', '/logo.svg', '#top', '/customers?tab=all', 'mailto:a@b.c'], o)).toEqual([`${o}/orders`, `${o}/customers?tab=all`]);
     expect(crawlTargets(['/a', '/b', '/c'], o, 2)).toHaveLength(2);
+    // A hash-routed app keeps every page on "/": each route is its own page, the same route once.
+    expect(crawlTargets(['#/', '#/orders', '#/orders/', '#/orders?tenant=a', '/#/customers', '#top'], o)).toEqual([`${o}/#/orders`, `${o}/#/customers`]);
   });
 });
 

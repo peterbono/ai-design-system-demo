@@ -115,10 +115,24 @@ export interface ShotJob {
 export function fileHints(files: readonly string[]): string[] {
   const shell = new Set(['index', 'app', 'main', 'styles', 'style', 'theme', 'tokens', 'readme', 'package', 'vite.config', 'tsconfig']);
   const out: string[] = [];
+  // Folders that say nothing about the page (src/resources/orders/OrderList.tsx names "orders", never "resources").
+  const plain = new Set(['src', 'app', 'apps', 'lib', 'ui', 'components', 'resources', 'pages', 'views', 'routes', 'screens', 'features', 'modules', 'shared', 'common']);
+  // Words of a file name that name no page on their own ("list" in OrderList).
+  const generic = new Set(['list', 'page', 'view', 'item', 'items', 'form', 'card', 'table', 'show', 'edit', 'create', 'panel', 'row', 'cell', 'header', 'footer', 'layout']);
+  const add = (w: string) => {
+    if (w.length >= 3 && !shell.has(w) && !generic.has(w) && !out.includes(w)) out.push(w);
+  };
   for (const f of files) {
-    const base = f.split('/').pop()!.replace(/\.(tsx?|jsx?|vue|svelte|css|md|json)$/i, '').toLowerCase();
-    if (base.length < 3 || shell.has(base) || f.startsWith('.') || f.includes('/.')) continue;
+    if (f.startsWith('.') || f.includes('/.')) continue;
+    const parts = f.split('/');
+    const file = parts.pop()!.replace(/\.(tsx?|jsx?|vue|svelte|css|md|json)$/i, '');
+    const base = file.toLowerCase();
+    if (base.length < 3 || shell.has(base)) continue;
+    // The whole name first (billing), then its folder (orders), then the words of a compound name (order in OrderList).
     if (!out.includes(base)) out.push(base);
+    const dir = parts.pop()?.toLowerCase();
+    if (dir && !plain.has(dir)) add(dir);
+    for (const w of file.split(/(?<=[a-z0-9])(?=[A-Z])|[-_.\s]+/)) add(w.toLowerCase());
   }
   return out.slice(0, 8);
 }
