@@ -1538,6 +1538,9 @@ async function teamFacts(ctx: Ctx, team: { owner: string; repo: string; full: st
   }
   const facts: TeamFacts = { at: ctx.now(), pairs, leads, designOwners, designOwnerLogins, products, packages };
   pairsCache.set(team.full, facts);
+  // Each time Bridge reads the team's products, their repositories are watched: GitHub's webhook then knows which team
+  // a developers' pull request belongs to (Design check, notifications), even on a team nobody joined by email yet.
+  if (pairs.length) await ctx.svc.redis.pipe(watchWrites(watchedOf(team.full, pairs))).catch(() => undefined);
   return facts;
 }
 
