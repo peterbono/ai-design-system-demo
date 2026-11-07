@@ -26,6 +26,7 @@ import {
   pageLines,
   requestPieces,
   startedTail,
+  stageOfRunning,
 } from './exploration-page';
 
 const NOW = new Date('2026-10-30T14:00:00Z');
@@ -42,6 +43,8 @@ describe('exploration page model', () => {
   it('names people by their name, Claude as Claude, with GitHub photos for accounts only', () => {
     expect(faceOf('florian', false, { florian: 'Florian' })).toEqual({ login: 'florian', name: 'Florian', agent: false, avatar: 'https://github.com/florian.png?size=64' });
     expect(faceOf('claude', true)).toMatchObject({ name: 'Claude', agent: true, avatar: null });
+    // A person known by name only reads as their name, even when a lookup echoed the raw author back.
+    expect(faceOf('name:Dino', false, { 'name:Dino': 'name:Dino' }).name).toBe('Dino');
     expect(avatarOf('ann@example.com')).toBeNull();
     expect(avatarOf('github-actions[bot]')).toBeNull();
   });
@@ -428,5 +431,15 @@ describe('commitsAs', () => {
 
   it("leaves Claude's own commits as Claude's", () => {
     expect(commitsAs([by('claude[bot]')], 'name:Ann Leroy')[0]!.author!.login).toBe('claude[bot]');
+  });
+});
+
+describe('stageOfRunning', () => {
+  it('keeps Nothing built yet when nobody talked', () => {
+    expect(stageOfRunning('not-started', { talked: false })).toBe('not-started');
+  });
+  it('shows the board once a lead answered, even with no change yet', () => {
+    expect(stageOfRunning('not-started', { talked: true })).toBe('exploring');
+    expect(stageOfRunning('exploring', { talked: false })).toBe('exploring');
   });
 });

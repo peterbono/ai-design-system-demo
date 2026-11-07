@@ -84,7 +84,7 @@ export const faceOf = (who: string, claude: boolean, names: Record<string, strin
     const name = names[who] ?? who.split('@')[0]!;
     return { login: emailMemberFace(names[who], who), name: `${name}${tail}`, agent: false, avatar: null };
   }
-  if (isNameAuthor(who)) return { login: nameFace(nameOfAuthor(who)), name: `${names[who] ?? nameOfAuthor(who)}${tail}`, agent: false, avatar: null };
+  if (isNameAuthor(who)) return { login: nameFace(nameOfAuthor(who)), name: `${nameOfAuthor(names[who] ?? who)}${tail}`, agent: false, avatar: null };
   if (nameOnly.has(who)) return { login: nameFace(who), name: `${names[who] ?? who}${tail}`, agent: false, avatar: null };
   return { login: who, name: `${names[who] ?? who}${tail}`, agent: false, avatar: avatarOf(who) };
 };
@@ -145,11 +145,17 @@ export function reopenedOf(body: string | null | undefined): { at: string; by: s
   return e?.reopenedAt && !e.doneAt ? { at: e.reopenedAt, by: e.reopenedBy ?? null } : null;
 }
 
+/**
+ * The stage of a running exploration's page. A talk with a lead shows even with no change yet: their answer, their
+ * reason, and the Decisions live on the board, which "Nothing built yet" would hide.
+ */
+export const stageOfRunning = (stage: string, v: { talked: boolean }): 'not-started' | 'exploring' => (stage === 'not-started' && !v.talked ? 'not-started' : 'exploring');
+
 /** The two lines of the Continue in Claude panel. */
 export const pageLines = continueLines;
 
 /**
- * Who gets "Put in Figma": the team has a Figma file and the viewer can edit (a fact shows only to who can act on it):
+ * Who gets "Send to Figma": the team has a Figma file and the viewer can edit (a fact shows only to who can act on it):
  * a member who joined with their email unless they only view, a designer Bridge writes for, a reviewer, or GitHub write
  * access. Never on the sample team, an archived exploration or a shipped or closed one.
  */

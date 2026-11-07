@@ -1113,7 +1113,7 @@ export function BranchReview(p: BranchReviewProps) {
         </p>
         {p.origin && <OriginLine origin={p.origin} className="br-from" />}
       </header>
-      {p.productContext?.question && <ProductContext context={p.productContext} canSuggest={p.actions.suggest} onSuggest={(comment) => p.onAct('suggest', comment)} />}
+      {p.productContext && <ProductContext context={p.productContext} canSuggest={p.actions.suggest} onSuggest={(comment) => p.onAct('suggest', comment)} />}
       {added && <AddedNotice text={added} onDismiss={() => setAdded(null)} />}
 
       {multi ? (

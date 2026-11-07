@@ -13,7 +13,7 @@
 //   when, the preview with one action, and the one Harbor zone on what happens next: the hand-off in four steps (the
 //   DS Checklist), then what the library gets from it (the pieces Bridge found, each with its request status; Bridge
 //   runs that check itself, the page shows it while it runs). The activity under it. A write's line is a DS toast.
-// - "Put in Figma", one quiet action under the preview for who can edit when the team has a Figma file: it hands the
+// - "Send to Figma", one of the actions under the preview for who can edit when the team has a Figma file: it hands the
 //   request to the viewer's own Claude, which rebuilds the exploration in Figma. Once Claude recorded the page, the link.
 // The "..." menu holds Rename (a DS Dialog), Back to exploring (a confirmation, waiting for code only) and Archive. "For developers" folds the branch and the commands. Data: scripts/exploration-page.ts
 // over lib/exploration-page.ts. Styles: styles/exploration-page.css.
@@ -62,7 +62,7 @@ import type { DesignAnswer, LifecycleStage } from '../../../lib/review-state';
 import { clipQuote, explorationTag, questionWords, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
 import { studioHref } from '../../../lib/team-path';
 import { ARCHIVED_LINE } from '../../../lib/explorations-view';
-import { EXPLORATION_STAGE_LABEL } from '@bridge-ds/core';
+import { EXPLORATION_STAGE_LABEL, startedWhen } from '@bridge-ds/core';
 import { plateDrawing } from '../../../lib/branch-thumb';
 import { capturedLine } from '../../../lib/preview-shots';
 import { CONNECT_FIRST, connectFirst, TERMINAL_SETUP_LINE } from '../../../lib/claude-connector';
@@ -71,6 +71,8 @@ import { DEV_MESSAGE_WORDS } from '../../../lib/developers-message';
 import { useCopy } from './TeamLink';
 import { ClaudeGlyph, claudeNewUrl, ConnectClaudeButton, ConnectFirst, ToolAction, ToolPanel, useAiTools, useClaudeRecheck, type ToolLines, type ToolSetup } from './AiToolPanel';
 import { WhereItStands, type WhereItStandsView } from './WhereItStands';
+import { Decisions, DesignerZone, HandOverDialog, LeadBar, NotDoingZone, TellDevelopers, WhyDialog, type DesignerZoneView, type HandOverPerson, type LeadBarView, type NotDoingView } from './LeadDecisions';
+import type { DecisionRowView } from '../../../lib/lead-decisions';
 
 export { claudeNewUrl };
 
@@ -79,7 +81,10 @@ export type ExplorationStage = 'loading' | 'not-started' | 'exploring' | 'handed
 /** Waiting for the design lead: one line, their answer when the viewer is a lead, Keep exploring for who asked. */
 export interface LeadView {
   line: string;
-  onAnswer?: ((a: DesignAnswer) => Promise<string | void>) | null;
+  /** The zone's title, when it is not the question of the bar (a lead whose question waits on the designer). */
+  heading?: string;
+  /** The review bar, for a lead (LeadDecisions.tsx). */
+  bar?: LeadBarView | null;
   onCancel?: (() => Promise<string | void>) | null;
 }
 
@@ -170,14 +175,29 @@ export interface ExplorationPageProps {
   onDone: (focus: HTMLElement | null) => void;
   /** Done exploring asked the design lead and they have not answered yet. */
   lead?: LeadView | null;
-  /** The lead's last "Needs changes", until the designer asks again. */
-  leadNote?: string | null;
+  /** The lead's last open word, for the designer to answer (boards L3, L4). */
+  designerZone?: DesignerZoneView | null;
+  /** Ended by a lead, with the reason (board L5). */
+  notDoing?: NotDoingView | null;
+  /** The tag while the talk decides what it is ("Needs changes"), over the lifecycle's own. */
+  tag?: { label: string; tone: 'danger' | 'neutral' | 'info' } | null;
+  /** Everything the designer and their lead said, newest first. */
+  decisions?: readonly DecisionRowView[];
+  /** "Take it back", for a lead on someone else's exploration no developer started (board L2). */
+  onTakeBack?: ((reason: string) => Promise<string | void>) | null;
+  /** Developers started: a word on their task, for a lead. */
+  onTellDevelopers?: ((text: string) => Promise<string | void>) | null;
+  /** "Take it over" and "Hand over" in the "..." menu, for a lead. */
+  onTakeOver?: ((reason: string) => Promise<string | void>) | null;
+  handOver?: { people: readonly HandOverPerson[]; onConfirm: (to: string, reason: string) => Promise<string | void> } | null;
+  /** A lead archiving someone else's work says why: Archive asks first. */
+  archiveAsksWhy?: boolean;
   /** Rename in the "..." menu: saves the new name on GitHub; null when not offered. */
   onRename?: ((name: string) => Promise<string | void>) | null;
   /** Back to exploring in the "..." menu (waiting for code, no developer push yet); null when not offered. */
   onReopen?: (() => Promise<string | void>) | null;
   /** Archive in the "..." menu; null when not offered. */
-  onArchive: (() => Promise<string | void>) | null;
+  onArchive: ((reason?: string) => Promise<string | void>) | null;
   /**
    * Archived: hidden from the lists, its preview still works. The page keeps its layout (the preview, the activity),
    * the tag reads Archived, one line says so with Unarchive, and nothing offers Done exploring or to keep working
@@ -229,7 +249,7 @@ export interface ExplorationPageProps {
    * (after Done exploring they stay readable when the branch keeps them).
    */
   notes?: WhereItStandsView | null;
-  /** "Put in Figma": the line for the viewer's Claude (lib/exploration-page canPutInFigma). Unset or null: no button. */
+  /** "Send to Figma": the line for the viewer's Claude (lib/exploration-page canPutInFigma). Unset or null: no button. */
   figma?: { app: string; terminal: string } | null;
 }
 
@@ -267,18 +287,16 @@ function ContinueButton({ p, tool, line, say, variant, children, size = 'lg' }: 
   );
 }
 
-/** While the design lead has not answered: their answer for them, where it stands for everyone else. */
+/** While the design lead has not answered: where it stands, their answer in the bar at the bottom of the page. */
 function LeadCard({ lead, say }: { lead: LeadView; say: (s: string) => void }) {
   const [busy, setBusy] = useState(false);
   return (
     <section className="xp-done zone" aria-labelledby="xp-lead-h">
       <h2 className="xp-h2" id="xp-lead-h">
-        {lead.onAnswer ? 'Ready for the developers?' : 'With your lead'}
+        {lead.heading ?? (lead.bar ? 'Ready for the developers?' : 'With your lead')}
       </h2>
       <p>{lead.line}</p>
-      {lead.onAnswer ? (
-        <DevAnswer onAnswer={lead.onAnswer} say={say} words={LEAD_ANSWER_WORDS} />
-      ) : lead.onCancel ? (
+      {lead.onCancel && (
         <Button
           variant="inverse"
           size="md"
@@ -294,21 +312,23 @@ function LeadCard({ lead, say }: { lead: LeadView; say: (s: string) => void }) {
         >
           Keep exploring
         </Button>
-      ) : null}
+      )}
     </section>
   );
 }
 
-function DoneCard({ p, say }: { p: ExplorationPageProps; say: (s: string) => void }) {
+function DoneCard({ p, tool, line, say }: { p: ExplorationPageProps; tool: AiTool; line: string; say: (s: string) => void }) {
+  if (p.notDoing) return <NotDoingZone v={p.notDoing} say={say} />;
+  if (p.designerZone) return <DesignerZone z={p.designerZone} say={say} extra={<ContinueButton p={p} tool={tool} line={line} say={say} variant="secondary" size="md" />} />;
   if (p.lead) return p.archived ? null : <LeadCard lead={p.lead} say={say} />;
   const d = p.done;
   if (!d || p.archived) return null;
   return (
     <section className="xp-done zone" aria-labelledby="xp-done-h">
       <h2 className="xp-h2" id="xp-done-h">
-        {p.leadNote ? 'Your lead asked for changes' : 'Happy with it?'}
+        Happy with it?
       </h2>
-      {p.leadNote ? <p>{p.leadNote}</p> : <p>Pick what the library should keep. The preview stays for everyone.</p>}
+      <p>Pick what the library should keep. The preview stays for everyone.</p>
       {d.kind === 'note' ? (
         <p className="xp-muted">{d.text}</p>
       ) : d.kind === 'demo' ? (
@@ -509,9 +529,9 @@ function LibraryPart({ h, p, say }: { h: HandoffView; p: ExplorationPageProps; s
  * short text first (progressive disclosure). Bridge posts it on the developers' pull request.
  */
 const DEV_ANSWER_WORDS = { hint: 'The developers read it on their work.', send: 'Send to the developers' };
-const LEAD_ANSWER_WORDS = { hint: 'The designer reads it on this page.', send: 'Send to the designer' };
 
-function DevAnswer({ onAnswer, say, words = DEV_ANSWER_WORDS }: { onAnswer: NonNullable<HandoffView['onAnswer']>; say: (s: string) => void; words?: typeof DEV_ANSWER_WORDS }) {
+function DevAnswer({ onAnswer, say }: { onAnswer: NonNullable<HandoffView['onAnswer']>; say: (s: string) => void }) {
+  const words = DEV_ANSWER_WORDS;
   const [asking, setAsking] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<'looks-right' | 'changes' | null>(null);
@@ -648,20 +668,20 @@ function LatestLine({ latest, say }: { latest: NonNullable<ExplorationPageProps[
 }
 
 /**
- * Under the preview, the quiet way to Figma: the page Claude built, once recorded, then the action. It always hands
- * the line to the viewer's AI tool: Claude Code's copy of the product has no Figma connector of its own to count on.
+ * The way to Figma, in the block of actions under the preview: the page Claude built, once recorded, then the action.
+ * It always hands the line to the viewer's AI tool: Claude Code's copy of the product has no Figma connector of its own
+ * to count on.
  */
 function FigmaAction({ p, tool, say }: { p: ExplorationPageProps; tool: AiTool; say: (s: string) => void }) {
   const page = p.notes?.notes?.figmaPage ?? null;
   if (!page && !p.figma) return null;
   const to = p.claudeCodeUrl ? 'claude-app' : tool;
   return (
-    <div className="xp-figma">
+    <>
       {page && (
-        <Link href={page} target="_blank" rel="noopener">
+        <ButtonLink variant="secondary" size="lg" href={page} target="_blank" rel="noopener" iconEnd={ExternalLink}>
           See it in Figma
-          <ExternalLink aria-hidden="true" size={14} />
-        </Link>
+        </ButtonLink>
       )}
       {p.figma && (
         <ToolAction
@@ -669,16 +689,16 @@ function FigmaAction({ p, tool, say }: { p: ExplorationPageProps; tool: AiTool; 
           line={to === 'claude-code' ? p.figma.terminal : p.figma.app}
           onCopy={p.onCopy}
           say={say}
-          variant="ghost"
-          size="md"
+          variant="secondary"
+          size="lg"
           {...(p.claudeLink ? { claudeLink: p.claudeLink } : {})}
           {...(p.connectorAddress ? { connectorAddress: p.connectorAddress } : {})}
           {...(p.onClaudeConnected ? { onClaudeConnected: p.onClaudeConnected } : {})}
         >
-          {page ? 'Put in Figma again' : 'Put in Figma'}
+          {page ? 'Send to Figma again' : 'Send to Figma'}
         </ToolAction>
       )}
-    </div>
+    </>
   );
 }
 
@@ -690,7 +710,7 @@ const reviewsVersion = (h: HandoffView | null): boolean =>
   Boolean(h && !h.declined && h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && h.steps.some((s) => s.link));
 
 /** The one Harbor zone after Done exploring: the hand-off in four steps, then the library part. */
-function HandoffCard({ h, p, say, onBack }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void; onBack?: (() => void) | null }) {
+function HandoffCard({ h, p, say, onBack, onTakeBack }: { h: HandoffView; p: ExplorationPageProps; say: (s: string) => void; onBack?: (() => void) | null; onTakeBack?: (() => void) | null }) {
   const version = h.steps.find((s) => s.link)?.link ?? null;
   const asks = waitsOnAnswer(h);
   // The message for developers who work elsewhere: copied from the step it acts on, which then says so.
@@ -761,6 +781,12 @@ function HandoffCard({ h, p, say, onBack }: { h: HandoffView; p: ExplorationPage
         h.question && !asks && h.status !== 'shipped' && <DevQuestion q={h.question} say={say} />
       )}
       {!h.declined && h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && <DevAnswer onAnswer={h.onAnswer} say={say} />}
+      {onTakeBack && (
+        <Button variant="secondary" size="lg" className="xp-self-start" onClick={onTakeBack}>
+          Take it back
+        </Button>
+      )}
+      {p.onTellDevelopers && <TellDevelopers onSend={p.onTellDevelopers} say={say} />}
       <LibraryPart h={h} p={p} say={say} />
     </section>
   );
@@ -788,7 +814,7 @@ function ExplorationBody(p: ExplorationPageProps) {
   const line = lines[tab];
   const only = view.tools.length === 1 ? view.tools[0] : null;
   const withWhat = only === 'copilot' ? 'GitHub Copilot' : only ? 'Claude AI' : 'your AI tool';
-  const [ask, setAsk] = useState<'rename' | 'reopen' | null>(null);
+  const [ask, setAsk] = useState<'rename' | 'reopen' | 'take-back' | 'take-over' | 'hand-over' | 'archive' | null>(null);
   const [reopening, setReopening] = useState(false);
   const archive = () => {
     setSaid('');
@@ -822,7 +848,11 @@ function ExplorationBody(p: ExplorationPageProps) {
   const declined = Boolean(handoff?.declined);
   // The Harbor zone holds what waits on the viewer (Back to exploring, or the answer to a question): the preview's
   // button steps back to secondary, one primary action per view.
-  const zoneLeads = declined || waitsOnAnswer(handoff) || reviewsVersion(handoff);
+  // The lead's words wait on the viewer: the zone answers them and holds the way back to their AI tool.
+  const answers = Boolean(p.designerZone?.onSend) || Boolean(p.notDoing);
+  // The lead's bar at the bottom holds Looks right: the preview steps back the same way.
+  const answersBelow = Boolean(p.lead?.bar);
+  const zoneLeads = declined || waitsOnAnswer(handoff) || reviewsVersion(handoff) || answers || answersBelow;
   return (
     <ToolContext.Provider value={tab}>
     <div className="xp-page">
@@ -836,7 +866,11 @@ function ExplorationBody(p: ExplorationPageProps) {
             {p.title}
           </h1>
           {p.stage !== 'loading' &&
-            (p.archived ? (
+            (p.tag ? (
+              <Badge tone={p.tag.tone} size="md">
+                {p.tag.label}
+              </Badge>
+            ) : p.archived ? (
               <Badge tone="neutral" size="md">
                 {EXPLORATION_STAGE_LABEL.archived}
               </Badge>
@@ -844,7 +878,7 @@ function ExplorationBody(p: ExplorationPageProps) {
               <StatusTag status={handoff ? handoff.status : 'active'} notStarted={notStarted} stage={handoff?.stage ?? (p.lead ? 'waiting-for-lead' : null)} />
             ))}
           <span className="xp-spacer" />
-          {(p.onRename || p.onReopen || p.onArchive) && (
+          {(p.onRename || p.onReopen || p.onArchive || p.onTakeOver || p.handOver) && (
             // Last on the title's line, on a phone too (the title wraps beside it).
             <span className="xp-more">
               <Menu>
@@ -854,7 +888,9 @@ function ExplorationBody(p: ExplorationPageProps) {
                 <MenuContent align="end">
                   {p.onRename && <MenuItem onClick={() => setAsk('rename')}>Rename</MenuItem>}
                   {p.onReopen && <MenuItem onClick={() => setAsk('reopen')}>Back to exploring</MenuItem>}
-                  {p.onArchive && <MenuItem onClick={archive}>Archive</MenuItem>}
+                  {p.onTakeOver && <MenuItem onClick={() => setAsk('take-over')}>Take it over</MenuItem>}
+                  {p.handOver && <MenuItem onClick={() => setAsk('hand-over')}>Hand over</MenuItem>}
+                  {p.onArchive && <MenuItem onClick={() => (p.archiveAsksWhy ? setAsk('archive') : archive())}>Archive</MenuItem>}
                 </MenuContent>
               </Menu>
             </span>
@@ -892,7 +928,7 @@ function ExplorationBody(p: ExplorationPageProps) {
           </p>
         )}
       </div>
-      {p.archived && p.stage !== 'loading' && (
+      {p.archived && !p.notDoing && p.stage !== 'loading' && (
         <div className="xp-archived">
           <p className="xp-muted">{ARCHIVED_LINE}</p>
           {p.onUnarchive && (
@@ -943,10 +979,10 @@ function ExplorationBody(p: ExplorationPageProps) {
         // The preview and the Harbor zone end on one line: the preview's frame takes the height the zone beside it needs
         // (within a screen-like ratio). While exploring, the activity sits under the Harbor card; after Done exploring,
         // under the preview, so the hand-off and the preview stay side by side (styles/exploration-page.css).
-        <div className={handoff ? 'xp-board is-handoff' : 'xp-board'}>
+        <div className={handoff ? 'xp-board is-handoff' : p.designerZone || p.notDoing ? 'xp-board is-talk' : 'xp-board'}>
           <section className="xp-preview" aria-label="Preview">
             <ShotFrame p={p} />
-            <div className={handoff ? 'xp-acts' : p.archived ? 'xp-acts xp-preview-acts is-one' : 'xp-acts xp-preview-acts'}>
+            <div className="xp-acts xp-preview-acts">
               {p.previewUrl ? (
                 // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
                 <ButtonLink variant={zoneLeads ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} data-bridge-pass={p.tryWithoutPass ? 'off' : undefined} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
@@ -963,11 +999,9 @@ function ExplorationBody(p: ExplorationPageProps) {
                 </Button>
               )}
               {/* Archived: the preview still opens, nothing offers to keep working on it (Unarchive first). */}
-              {!handoff && !p.archived && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
-              {/* After Done exploring the preview's button stands alone: Figma shares its line. */}
-              {handoff && !p.archived && <FigmaAction p={p} tool={tab} say={setSaid} />}
+              {!handoff && !p.archived && !answers && !answersBelow && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
+              {!p.archived && !answers && <FigmaAction p={p} tool={tab} say={setSaid} />}
             </div>
-            {!handoff && !p.archived && <FigmaAction p={p} tool={tab} say={setSaid} />}
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
               <p className="xp-muted xp-note" id="xp-preview-note">
                 {p.previewNote}
@@ -976,16 +1010,49 @@ function ExplorationBody(p: ExplorationPageProps) {
             {!handoff && !p.archived && p.latest && <LatestLine latest={p.latest} say={setSaid} />}
           </section>
           <div className="xp-side">
-            {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} /> : <DoneCard p={p} say={setSaid} />}
+            {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} onTakeBack={p.onTakeBack ? () => setAsk('take-back') : null} /> : <DoneCard p={p} tool={tab} line={line} say={setSaid} />}
+            {p.decisions && <Decisions rows={p.decisions} when={startedWhen} />}
             {p.notes && (!handoff || p.notes.notes) && <WhereItStands view={p.notes} say={setSaid} />}
             {!handoff && <ActivityList rows={p.activity} />}
           </div>
           {handoff && <ActivityList rows={p.activity} />}
         </div>
       )}
+      {p.lead?.bar && !p.archived && <LeadBar bar={p.lead.bar} say={setSaid} />}
       <p className="xp-said" role="status" aria-live="polite">
         {said}
       </p>
+      {p.onTakeBack && (
+        <WhyDialog
+          open={ask === 'take-back'}
+          onOpenChange={(o) => setAsk(o ? 'take-back' : null)}
+          title="Take it back from the developers?"
+          description="It leaves their list and goes back to its designer, with your reason. They read it on this page and by email."
+          confirm="Take it back"
+          onConfirm={(why) => p.onTakeBack!(why).then((r) => setSaid(r ?? ''))}
+        />
+      )}
+      {p.onTakeOver && (
+        <WhyDialog
+          open={ask === 'take-over'}
+          onOpenChange={(o) => setAsk(o ? 'take-over' : null)}
+          title="Take it over?"
+          description="You carry it on from here. Whoever kept it reads your reason on this page."
+          confirm="Take it over"
+          onConfirm={(why) => p.onTakeOver!(why).then((r) => setSaid(r ?? ''))}
+        />
+      )}
+      {p.handOver && <HandOverDialog open={ask === 'hand-over'} onOpenChange={(o) => setAsk(o ? 'hand-over' : null)} people={p.handOver.people} onConfirm={(to, why) => p.handOver!.onConfirm(to, why).then((r) => setSaid(r ?? ''))} />}
+      {p.archiveAsksWhy && p.onArchive && (
+        <WhyDialog
+          open={ask === 'archive'}
+          onOpenChange={(o) => setAsk(o ? 'archive' : null)}
+          title="Archive this exploration?"
+          description="It leaves the lists. Its preview stays, and whoever kept it reads your reason on this page."
+          confirm="Archive"
+          onConfirm={(why) => p.onArchive!(why).then((r) => setSaid(r ?? ''))}
+        />
+      )}
       {p.onRename && (
         <RenameDialog
           open={ask === 'rename'}

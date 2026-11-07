@@ -1,7 +1,6 @@
 // Where a change comes from, at the top of its review (OriginLine), and "Why it exists" (the validated ProdReview
 // mockup) when the library already has a close value: who needs it, the way to the product preview, and the reviewer's
-// question with "Suggest <nearest>" on the same line (a request for changes that says to use it). The line says the
-// rest, so without that question the zone says nothing new and stays out. The one Harbor zone of the review. Data: lib/product-branch.ts productContextOf. Styles: styles/branch-review.css (br-why).
+// question with "Suggest <nearest>" on the same line (a request for changes that says to use it). The one Harbor zone of the review. Data: lib/product-branch.ts productContextOf. Styles: styles/branch-review.css (br-why).
 import { useState } from 'react';
 import { Button, Link } from '@bridge-ds/react';
 import type { ChangeOrigin, ProductContextView } from '../../../lib/product-branch';

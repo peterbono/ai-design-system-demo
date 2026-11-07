@@ -201,31 +201,16 @@
   gap: var(--space-6);
 }
 
-/* X2: "Open the preview" and "Continue in Claude" read as one group: one row of two equal buttons under the frame,
-   stacked on phones. A grid, so each button fills its cell (Button itself never grows in a flex row). */
+/* The actions under the preview are one block, as wide as the frame: two equal buttons a row, and one left alone takes
+   the whole row, so nothing floats beside the frame's edges. Stacked on phones. A grid, so each button fills its cell
+   (Button itself never grows in a flex row). */
 .xp-preview-acts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-/* Archived: "Open the preview" alone, filling its bar. */
-.xp-preview-acts.is-one {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-/* "Put in Figma": a quiet row under the preview's actions, the page link first once Claude recorded one. */
-.xp-figma {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-3);
-}
-
-.xp-figma > a {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
+.xp-preview-acts > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .xp-continue .xp-claude {
@@ -444,6 +429,18 @@
 }
 
 .xp-board.is-handoff > .xp-preview > .xp-frame {
+  flex: none;
+  aspect-ratio: 16 / 10;
+  min-height: 0;
+  max-height: none;
+}
+
+/* The lead's words make the side column long: the preview keeps its own height instead of an empty grey band. */
+.xp-board.is-talk {
+  align-items: start;
+}
+
+.xp-board.is-talk > .xp-preview > .xp-frame {
   flex: none;
   aspect-ratio: 16 / 10;
   min-height: 0;
@@ -972,5 +969,92 @@
   .xp-dev-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
+  }
+}
+
+/* The talk between a designer and their lead (LeadDecisions.tsx, boards L1 to L5). The bar stays on screen while the
+   page scrolls: the same bar as the review queue, at the bottom of the page. */
+.xp-lead-bar {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
+  display: grid;
+  gap: var(--space-2);
+  padding-block: var(--space-4);
+  border-block-start: var(--border-width-1) solid var(--color-border-default);
+  background-color: var(--color-bg-default);
+}
+
+.xp-lead-bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.xp-lead-bar-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.xp-lead-quote {
+  display: grid;
+  justify-self: stretch;
+  gap: var(--space-1-5);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+  overflow-wrap: anywhere;
+}
+
+.xp-lead-quote figcaption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.xp-lead-quote blockquote {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.xp-lead-form {
+  display: grid;
+  justify-self: stretch;
+  gap: var(--space-3);
+}
+
+.xp-lead-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.xp-lead-why {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.xp-self-start {
+  justify-self: start;
+}
+
+@media (max-width: 640px) {
+  /* Three rows here: pinned, they would cover the page. */
+  .xp-lead-bar {
+    position: static;
+  }
+
+  .xp-lead-bar-row {
+    flex-wrap: wrap;
+  }
+
+  .xp-lead-bar-field {
+    flex: 1 1 calc(100% - var(--size-11) - var(--space-4));
+  }
+
+  .xp-lead-bar-row > button:not([aria-label]) {
+    flex: 1 0 auto;
+    order: 2;
   }
 }

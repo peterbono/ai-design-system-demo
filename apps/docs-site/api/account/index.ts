@@ -82,7 +82,7 @@ import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { mailCode, mailP, mailPage, escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, sameOrigin, secondsToTomorrow, sha256, type FetchLike } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
-import { forgetWrites, notifySenderFromEnv, optOutKey, parsePrefs, prefsFor, prefsOf, sendDueDigests, validTimeZone, type NotifyPrefs } from '../_lib/notify.js';
+import { forgetWrites, notifySenderFromEnv, optOutKey, parsePrefs, prefsFor, prefsOf, publicLoginId, sendDueDigests, validTimeZone, type NotifyPrefs } from '../_lib/notify.js';
 import { readUnsubToken } from '../_lib/notify-mail.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { revokeAccountGrants } from '../_lib/oauth.js';
@@ -895,6 +895,7 @@ async function onDigest(req: Request, env: AccountEnv, deps: AccountDeps): Promi
     origin: siteOf(req, env),
     now: deps.now ?? Date.now,
     ...(deps.warn ? { warn: deps.warn } : {}),
+    loginId: publicLoginId(deps.fetch),
   };
   const total = { sent: 0, empty: 0, later: 0 };
   for (let i = 0; i < DIGEST_ROUNDS; i++) {

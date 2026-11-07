@@ -185,6 +185,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
         needs: d?.needs ?? [],
         branches: d?.branches ?? [],
         explorations: d?.explorations ?? [],
+        waitingOnOthers: d?.waitingOnOthers ?? [],
         health: health(),
         building: true,
         now,

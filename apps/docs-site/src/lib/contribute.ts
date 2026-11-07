@@ -56,6 +56,8 @@ export interface ContributeMember {
    * member seeded as admin (api/_lib/local-admin.ts).
    */
   role: 'view' | 'edit' | 'admin';
+  /** A design lead of the team, given by an admin. The server reads it on every write: this only shapes the page. */
+  lead?: boolean;
   /** Their stable member reference (api/_lib/exploration-member memberRef): how exploration blocks name them, never by email. */
   ref?: string;
 }

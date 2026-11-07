@@ -84,6 +84,7 @@ import { EMAIL_ROLES, type EmailRole } from '../_lib/members.js';
 import { canonicalEmail, emailSpellings, sameEmail } from '../_lib/canonical-email.js';
 import { onBridge, teamDisplayName } from '../../src/lib/demo.js';
 import { isTeamKey } from '../../src/lib/team-path.js';
+import { explorationKeeper } from '../_lib/exploration-keeper.js';
 
 export { appJwt } from '../_lib/github-app.js';
 export { resendSender, sameOrigin };
@@ -796,11 +797,12 @@ export interface PublicEmailMember {
   name: string;
   email: string;
   role: EmailRole;
+  lead?: boolean;
   addedBy: string;
   at: string;
 }
 
-const publicMember = (m: EmailMember): PublicEmailMember => ({ via: 'email', name: m.name, email: m.email, role: m.role, addedBy: m.addedBy, at: m.at });
+const publicMember = (m: EmailMember): PublicEmailMember => ({ via: 'email', name: m.name, email: m.email, role: m.role, ...(m.lead ? { lead: true } : {}), addedBy: m.addedBy, at: m.at });
 
 export const GITHUB_REQUIRED = 'Reviewers approve changes on GitHub, so they need a GitHub account. Invite them again with this role: they join with GitHub.';
 export const GITHUB_PEOPLE = 'This person works with GitHub: change their role while signed in with GitHub as an admin of the repository.';
@@ -1181,6 +1183,16 @@ async function setEmailRole(ctx: Ctx, full: string, body: Record<string, unknown
   return json(200, { ok: true, role: next });
 }
 
+/** An email member made a design lead, or no longer one. A member who only views stays out: leads change things. */
+async function setEmailLead(ctx: Ctx, full: string, body: Record<string, unknown>): Promise<Response> {
+  const email = await emailMemberOf(ctx, full, body.email);
+  const m = (await ctx.svc.members!.get(full, email))!;
+  if (body.lead === true && m.role === 'view') throw new HttpError(409, 'view-only', 'Give them Can edit first: a design lead changes things.');
+  const { lead: _was, ...rest } = m;
+  await ctx.svc.members!.put(full, body.lead === true ? { ...rest, lead: true } : rest);
+  return json(200, { ok: true, lead: body.lead === true });
+}
+
 /** What an email admin does on POST: invites, and the roles of email members. GitHub people stay with GitHub admins. */
 async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: Record<string, unknown>): Promise<Response> {
   if (req.headers.get('x-bridge-account') !== '1') throw new HttpError(403, 'origin', 'Manage your team from Studio on this site.');
@@ -1199,6 +1211,8 @@ async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: R
     }
     case 'resend':
       return resendOne(ctx, req, env, ad.full, body.id, me, counter);
+    case 'set-lead':
+      return setEmailLead(ctx, ad.full, body);
     case 'invite-role': {
       const inv = await findInvite(ctx, ad.full, body.id);
       const { role, reviewAs } = parseRole(body.role, body.reviewAs);
@@ -1240,7 +1254,7 @@ async function withLocalAdmins(ctx: Ctx, full: string, members: EmailMember[]): 
   return members.map((m) => (m.role !== 'admin' && admins.has(canonicalEmail(m.email)) ? { ...m, role: 'admin' } : m));
 }
 
-const EMAIL_ADMIN_ACTIONS = new Set(['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'remove']);
+const EMAIL_ADMIN_ACTIONS = new Set(['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'set-lead', 'remove']);
 
 async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<Response> {
   const svc = services(env, deps);
@@ -1277,6 +1291,12 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       return inviteMany(ctx, req, env, body.people, { full: facts.full, role, ...(reviewAs ? { reviewAs } : {}), me, counter: me.login, github: { appToken, facts } });
     }
 
+    case 'exploration-keeper': {
+      // A lead gives an exploration to someone: who pushes to it follows. Only in a repository of this team.
+      const { facts } = await authorize(ctx, req, body.repo, 'push');
+      return explorationKeeper(ctx.svc, facts.full, body);
+    }
+
     case 'resend': {
       const { me, facts } = await authorize(ctx, req, body.repo, 'admin');
       return resendOne(ctx, req, env, facts.full, body.id, me, me.login);
@@ -1298,6 +1318,11 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       const inv = await findInvite(ctx, facts.full, body.id);
       await ctx.svc.store.remove(inv);
       return json(200, { ok: true });
+    }
+
+    case 'set-lead': {
+      const { facts } = await authorize(ctx, req, body.repo, 'admin');
+      return setEmailLead(ctx, facts.full, body);
     }
 
     case 'set-role': {

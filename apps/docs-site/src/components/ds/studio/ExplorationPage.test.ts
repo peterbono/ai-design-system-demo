@@ -681,21 +681,21 @@ describe('Where it stands on the page', () => {
   });
 });
 
-describe('Put in Figma', () => {
+describe('Send to Figma', () => {
   const exploring: Partial<ExplorationPageProps> = { stage: 'exploring', previewUrl: 'https://preview.example.com', activity: [] };
   const figma = { app: 'Put Bridge exploration admin-app#1 "Orders" in Figma.', terminal: 'claude "Put Bridge exploration admin-app#1 in Figma"' };
   const notes = (figmaPage?: string) => ({ notes: { context: '', decisions: [], edgeCases: [], openQuestions: [], nextStep: '', ...(figmaPage ? { figmaPage } : {}) } });
 
   it('no Figma file or no right to edit (no line): no button', () => {
     paint(exploring);
-    expect(screen.queryByText('Put in Figma')).toBeNull();
+    expect(screen.queryByText('Send to Figma')).toBeNull();
     expect(screen.queryByRole('link', { name: /See it in Figma/ })).toBeNull();
   });
 
   it('opens a new Claude conversation with the line, and copies it', async () => {
     const onCopy = vi.fn(async () => {});
     paint({ ...exploring, figma, onCopy, claudeLink: 'yes' });
-    const link = await screen.findByRole('link', { name: /Put in Figma/ });
+    const link = await screen.findByRole('link', { name: /Send to Figma/ });
     expect(link.getAttribute('href')).toBe(`https://claude.ai/new?q=${encodeURIComponent(figma.app)}`);
     await act(async () => {
       fireEvent.click(link);
@@ -705,31 +705,50 @@ describe('Put in Figma', () => {
 
   it('asks to connect Claude first while its Claude has no Bridge', async () => {
     paint({ ...exploring, figma, claudeLink: 'no' });
-    expect(await screen.findByRole('button', { name: /Put in Figma/ })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /Send to Figma/ })).toBeTruthy();
   });
 
   it('in the design copy: still goes to the Claude app, never Claude Code', async () => {
     paint({ ...exploring, figma, claudeCodeUrl: 'https://claude.ai/code?repo=x' });
-    expect((await screen.findByRole('link', { name: /Put in Figma/ })).getAttribute('href')).toContain('claude.ai/new?q=');
+    expect((await screen.findByRole('link', { name: /Send to Figma/ })).getAttribute('href')).toContain('claude.ai/new?q=');
   });
 
   it('once Claude recorded the page: the link, for everyone, and the action says again', async () => {
     paint({ ...exploring, figma, notes: notes('https://www.figma.com/design/x/?node-id=24-5') });
     expect((await screen.findByRole('link', { name: /See it in Figma/ })).getAttribute('href')).toBe('https://www.figma.com/design/x/?node-id=24-5');
-    expect(screen.getByRole('link', { name: /Put in Figma again/ })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Send to Figma again/ })).toBeTruthy();
     cleanup();
     paint({ ...exploring, notes: notes('https://www.figma.com/design/x/?node-id=24-5') });
     expect(screen.getByRole('link', { name: /See it in Figma/ })).toBeTruthy();
-    expect(screen.queryByText(/Put in Figma/)).toBeNull();
+    expect(screen.queryByText(/Send to Figma/)).toBeNull();
   });
 
   it('archived: nothing offers it', () => {
     paint({ ...exploring, figma, archived: true, notes: notes() });
-    expect(screen.queryByText('Put in Figma')).toBeNull();
+    expect(screen.queryByText('Send to Figma')).toBeNull();
   });
 
   it('a page with the action has no axe violations', async () => {
     const { container } = paint({ ...exploring, figma, notes: notes() });
     await expectNoAxeViolations(container);
+  });
+});
+
+describe('the talk with a lead on the page', () => {
+  const bar = { onLooksRight: async () => 'ok', onChanges: async () => 'ok', onComment: async () => 'ok', onNotDoing: async () => undefined, onAskOther: null, link: 'https://x', onCopy: async () => undefined, changedSince: false };
+  const face = { login: 'flo', name: 'Florian', agent: false, avatar: null };
+  it('a lead whose question waits keeps the bar, reads their own words, and gets no way into Claude', () => {
+    paint({ stage: 'exploring', tag: { label: 'Waiting for Ann', tone: 'info' }, lead: { heading: 'With Ann', line: 'You asked Ann. Waiting for their answer.', bar } });
+    expect(screen.getByRole('heading', { name: 'With Ann' })).toBeTruthy();
+    expect(screen.getByText('You asked Ann. Waiting for their answer.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Looks right' })).toBeTruthy();
+    expect(screen.queryByText(/Open in Claude Code|Continue in Claude/)).toBeNull();
+  });
+  it('Not doing this shows its reason, and the way to start again, on the board', () => {
+    paint({ stage: 'exploring', archived: true, tag: { label: 'Not doing this', tone: 'neutral' }, notDoing: { title: 'Florian decided not to do this', who: face, when: 'today', text: 'Billing covers it', onReopen: async () => undefined }, decisions: [{ key: '0', name: 'Florian', login: 'flo', verb: 'decided not to do this', why: 'Billing covers it', round: 1, at: '2026-11-07T00:00:00Z' }] });
+    expect(screen.getByRole('heading', { name: 'Florian decided not to do this' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reopen as a new exploration' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Decisions' })).toBeTruthy();
+    expect(screen.queryByText('Nothing built yet')).toBeNull();
   });
 });

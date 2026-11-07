@@ -5,6 +5,7 @@
 // checked by the server against the team's email admins.
 // When the site has no invites server (an older deploy, a fork, `astro dev`) or it is not set up yet, every call
 // fails with InvitesUnavailable and the screens say "Invites are not available yet on this site." Never a fake success.
+import { CONTRIBUTE_API, CONTRIBUTE_HEADER } from '../lib/contribute';
 import type { MemberRole, PendingInvite, ReviewAs } from '../lib/invites';
 import { MEMBERS_WORDS } from '../lib/invites';
 import { getToken } from './github-session';
@@ -132,3 +133,21 @@ export const setEmailMemberRole = (repo: string, email: string, choice: { role: 
 /** Removes an email contributor: their session ends at once (the server drops the member record). */
 export const removeEmailMember = (repo: string, email: string) => call<{ ok: boolean }>('POST', '', { action: 'remove', repo, email });
 
+
+/**
+ * A lead gives an exploration to someone: Bridge forgets who kept it, so the exploration's block decides from now on,
+ * and answers with the new keeper's member reference when they joined by email.
+ */
+/** The same for a lead signed in by email: their member record is checked on the server (api/contribute). */
+export async function leadExplorationKeeper(repo: string, to: { email?: string; login?: string; branch: string; number: number; copy?: string }): Promise<{ ok: boolean; ref?: string; name?: string }> {
+  const res = await fetch(CONTRIBUTE_API, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', [CONTRIBUTE_HEADER]: '1' }, credentials: 'include', body: JSON.stringify({ action: 'exploration-keeper', repo, ...to }) });
+  const data = (await res.json().catch(() => ({}))) as { ok?: boolean; ref?: string; name?: string; message?: string };
+  if (!res.ok) throw new Error(data.message ?? `Bridge answered ${res.status}`);
+  return { ok: true, ...data };
+}
+
+/** An email member made a design lead, or no longer one. */
+export const setEmailMemberLead = (repo: string, email: string, lead: boolean) => call<{ ok: boolean; lead: boolean }>('POST', '', { action: 'set-lead', repo, email, lead });
+
+export const explorationKeeper = (repo: string, to: { email?: string; login?: string; branch: string; number: number; copy?: string }) =>
+  call<{ ok: boolean; ref?: string; name?: string }>('POST', '', { action: 'exploration-keeper', repo, ...to });

@@ -51,7 +51,7 @@ export interface WebhookDeps {
    * Notifications (api/_lib/notify.ts): the sender (null: kept, not sent), LIBRARY_SESSION_SECRET for unsubscribe
    * links and PUBLIC_SITE_URL for links. Absent: deliveries only move the read cache.
    */
-  notify?: Pick<NotifyDeps, 'sender' | 'secret' | 'warn' | 'members' | 'random' | 'profileName'> & { publicUrl?: string | undefined };
+  notify?: Pick<NotifyDeps, 'sender' | 'secret' | 'warn' | 'members' | 'random' | 'profileName' | 'loginId'> & { publicUrl?: string | undefined };
 }
 
 /** Whether `signature` (the X-Hub-Signature-256 header, "sha256=<hex>") is GitHub's for `body` with `secret`. */

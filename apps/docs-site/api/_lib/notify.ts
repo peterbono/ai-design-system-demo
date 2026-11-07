@@ -28,6 +28,8 @@
 //   bridge:notify:once:<kind>:<repo>:<n>   "1", 30 days: shipped and declined are said once per thing
 //   bridge:notify:sweep                    "1", 5 minutes: one summary round at a time outside the cron
 //   bridge:notify:off:<email>              { needs, news } of someone who unsubscribed with no Bridge account
+//   bridge:notify:remind                   sorted set of lead reminders (JSON) by when they are due (ms)
+//   bridge:notify:waiting:<repo>:<n>       the wait a reminder belongs to, 30 days: any later word ends it
 
 import { getAccount, type Account } from './account.js';
 import { brevoSender, type EmailSender } from './email.js';
@@ -117,6 +119,10 @@ export const itemMetaKey = (repo: string, n: number | string) => `bridge:notify:
 export const digestKey = (email: string) => `bridge:notify:digest:${canonicalEmail(email)}`;
 const digestKeys = (email: string) => emailSpellings(email).map((e) => `bridge:notify:digest:${e}`);
 export const soonKey = (email: string, repo: string, n: number) => `bridge:notify:soon:${canonicalEmail(email)}:${lc(repo)}#${n}`;
+/** Lead reminders waiting: JSON notices, by when they are due (ms). */
+export const REMIND_KEY = 'bridge:notify:remind';
+export const waitingKey = (repo: string, n: number) => `bridge:notify:waiting:${lc(repo)}:${n}`;
+export const REMIND_MS = 3 * 24 * 60 * 60 * 1000;
 export const onceKey = (kind: NotifyKind, repo: string, n: number) => `bridge:notify:once:${kind}:${lc(repo)}:${n}`;
 /** The choices of someone who unsubscribed without a Bridge account (an older email member). */
 export const optOutKey = (email: string) => `bridge:notify:off:${canonicalEmail(email)}`;
@@ -229,6 +235,8 @@ export interface NotifyDeps {
    * repository's read token), for someone with no Bridge account. Absent or null: their login.
    */
   profileName?: (login: string, repo: string) => Promise<string | null>;
+  /** A GitHub login's id (one read): how a lead's Bridge account is found. Absent: GitHub tells them, nothing is sent. */
+  loginId?: (login: string, repo: string) => Promise<number | null>;
 }
 
 function noSender(d: NotifyDeps) {
@@ -250,6 +258,7 @@ export function teamBase(origin: string, team: string): string {
 export function hrefOf(origin: string, team: string, kind: NotifyKind, n: number, copy: ItemMeta['copy'] | null, product: string | undefined): string {
   const base = teamBase(origin, team);
   if (kind === 'changes' || kind === 'suggestion-declined') return `${base}changes/?pr=${n}`;
+  if (kind.startsWith('lead-')) return `${base}changes/?exploration=${n}${product ? `&product=${encodeURIComponent(product)}` : ''}`;
   if (copy && product) return `${base}changes/?exploration=${copy.number}&product=${encodeURIComponent(product)}`;
   return `${base}building/`;
 }
@@ -265,7 +274,7 @@ function linksFor(d: NotifyDeps, email: string, kind: UnsubKind, home: string): 
 export type Outcome =
   | { kind: NotifyKind; status: 'sent' }
   | { kind: NotifyKind; status: 'kept'; reason?: string }
-  | { kind: NotifyKind; status: 'skipped'; reason: 'unwatched' | 'not-library' | 'no-owner' | 'github' | 'not-member' | 'off' | 'repeat' };
+  | { kind: NotifyKind; status: 'skipped'; reason: 'unwatched' | 'not-library' | 'no-owner' | 'github' | 'not-member' | 'off' | 'repeat' | 'own' };
 
 /** Who a notice is for: the first of its items Bridge keeps an author for, else the author of the exploration it links. */
 async function ownerOf(d: NotifyDeps, n: Notice): Promise<{ owner: string; item: number; meta: ItemMeta | null } | null> {
@@ -302,6 +311,43 @@ export async function actorName(d: Pick<NotifyDeps, 'redis' | 'profileName'>, a:
   return profile && !profile.includes('@') ? profile : a.login;
 }
 
+/** A login's public id, one read of GitHub's public profile. */
+export const publicLoginId =
+  (f: FetchLike) =>
+  async (login: string): Promise<number | null> => {
+    if (!/^[A-Za-z0-9-]{1,39}$/.test(login)) return null;
+    const res = await f(`https://api.github.com/users/${login}`, { method: 'GET', headers: { accept: 'application/vnd.github+json', 'user-agent': 'bridge' } });
+    if (!res.ok) return null;
+    const id = ((await res.json().catch(() => null)) as { id?: unknown } | null)?.id;
+    return Number.isSafeInteger(id) ? (id as number) : null;
+  };
+
+/** The Bridge account of a GitHub login, by id: never an address read from GitHub. */
+async function accountEmailOf(d: NotifyDeps, login: string, repo: string): Promise<string | null> {
+  const id = d.loginId ? await d.loginId(login, repo).catch(() => null) : null;
+  if (id === null) return null;
+  const email = await d.redis.cmd('GET', `bridge:account:gh:${id}`);
+  return typeof email === 'string' ? email : null;
+}
+
+/** One notice per lead named on it, so each is sent, kept or skipped on its own; never the person who did it. */
+function perPerson(notices: readonly Notice[]): Notice[] {
+  return notices.flatMap((n) => (n.to ? n.to.filter((l) => l.toLowerCase() !== n.actor.login.toLowerCase()).map((l) => ({ ...n, to: [l] })) : [n]));
+}
+
+/** What waits on a lead also reaches the leads who signed in by email (the member record says so): by address, not login. */
+const LEAD_WAITS: ReadonlySet<string> = new Set(['lead-ask', 'lead-answer', 'lead-reminder']);
+async function withEmailLeads(notices: Notice[], d: NotifyDeps, members: MemberStore): Promise<Notice[]> {
+  const waits = notices.find((n) => LEAD_WAITS.has(n.kind));
+  if (!waits) return notices;
+  const repoMeta = parse<RepoMeta>(await d.redis.cmd('GET', repoMetaKey(waits.repo)));
+  if (!repoMeta || typeof repoMeta.team !== 'string') return notices;
+  const leads = (await members.list(repoMeta.team)).filter((m) => m.lead);
+  const first = new Set<string>();
+  const extra = notices.filter((n) => LEAD_WAITS.has(n.kind) && !first.has(n.kind) && first.add(n.kind)).flatMap((n) => leads.filter((m) => m.name !== n.actorName).map((m) => ({ ...n, to: [`email:${m.email}`] })));
+  return [...notices, ...extra];
+}
+
 async function keep(d: NotifyDeps, email: string, item: NotifyItem, tz: string): Promise<void> {
   const now = d.now();
   await d.redis.pipe([
@@ -318,7 +364,20 @@ async function keep(d: NotifyDeps, email: string, item: NotifyItem, tz: string):
 export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, eventId: string): Promise<Outcome[]> {
   const out: Outcome[] = [];
   const members = d.members ?? memberStore(d.redis);
-  for (const [idx, n] of notices.entries()) {
+  // The talk with a lead: whether a reminder runs, before who hears about it. It needs no recipient.
+  for (const n of notices) {
+    const item = n.items[0];
+    if (item === undefined) continue;
+    if (n.stops) await d.redis.cmd('DEL', waitingKey(n.repo, item));
+    if (n.waits) {
+      const token = `${eventId}:${n.kind}`;
+      await d.redis.pipe([
+        ['SET', waitingKey(n.repo, item), token, 'EX', KEEP_S],
+        ['ZADD', REMIND_KEY, d.now() + REMIND_MS, JSON.stringify({ token, notice: { ...n, kind: 'lead-reminder', waits: false } })],
+      ]);
+    }
+  }
+  for (const [idx, n] of (await withEmailLeads(perPerson(notices), d, members)).entries()) {
     const skip = (reason: Extract<Outcome, { status: 'skipped' }>['reason']) => out.push({ kind: n.kind, status: 'skipped', reason });
     const repoMeta = parse<RepoMeta>(await d.redis.cmd('GET', repoMetaKey(n.repo)));
     if (!repoMeta || typeof repoMeta.team !== 'string') {
@@ -329,20 +388,41 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
       skip('not-library');
       continue;
     }
-    const found = await ownerOf(d, n);
+    const talk = n.kind.startsWith('lead-');
+    // The leads have no Bridge record on the task: their login, through their Bridge account.
+    const found = n.to?.length ? { owner: n.to[0]!.startsWith('email:') ? n.to[0]!.slice(6) : `gh:${n.to[0]}`, item: n.items[0]!, meta: null } : await ownerOf(d, n);
     if (!found) {
       skip('no-owner');
       continue;
     }
-    // A designer signed in with GitHub: GitHub tells them (phase 1).
-    if (found.owner.startsWith('gh:')) {
+    // Someone signed in with GitHub: GitHub tells them, except a talk with their lead, if they have a Bridge account.
+    const login = found.owner.startsWith('gh:') ? found.owner.slice(3) : null;
+    if (login && !talk) {
       skip('github');
       continue;
     }
-    const email = lc(found.owner);
-    if (!email.includes('@') || !(await members.get(repoMeta.team, email))) {
+    if (login && login.toLowerCase() === n.actor.login.toLowerCase()) {
+      skip('own');
+      continue;
+    }
+    const linked = login ? await accountEmailOf(d, login, n.repo) : null;
+    if (login && !linked) {
+      skip('github');
+      continue;
+    }
+    const email = lc(linked ?? found.owner);
+    if (!email.includes('@') || (!linked && !(await members.get(repoMeta.team, email)))) {
       skip('not-member');
       continue;
+    }
+    // Their own act, when they joined by email: the block names them, never by address.
+    if (talk && n.actorName && !n.actor.login) {
+      const own = await getAccount(d.redis, email);
+      const m = await members.get(repoMeta.team, email);
+      if ((m?.name ?? own?.name ?? '').trim().toLowerCase() === n.actorName.trim().toLowerCase()) {
+        skip('own');
+        continue;
+      }
     }
     const account = await getAccount(d.redis, email);
     const prefs = await prefsFor(d.redis, email, account);
@@ -352,7 +432,7 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
       continue;
     }
     // Shipped and declined are said once per thing (the task closing and the change that closes it both say it).
-    if (!needs && (await d.redis.cmd('SET', onceKey(n.kind, n.repo, found.item), '1', 'NX', 'EX', KEEP_S)) === null) {
+    if (!needs && !talk && (await d.redis.cmd('SET', onceKey(n.kind, n.repo, found.item), '1', 'NX', 'EX', KEEP_S)) === null) {
       skip('repeat');
       continue;
     }
@@ -363,7 +443,7 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
       kind: n.kind,
       // A title kept before Bridge named things the way Studio does ("add a toast alert") reads "Add a toast alert".
       title: cleanTitle(found.meta?.title) || n.title || 'Your work',
-      actor: await actorName(d, n.actor, n.repo),
+      actor: n.actorName ?? (await actorName(d, n.actor, n.repo)),
       team,
       teamRepo: repoMeta.team,
       href: hrefOf(d.origin, repoMeta.team, n.kind, found.item, found.meta?.copy ?? null, repoMeta.product),
@@ -432,7 +512,27 @@ export async function digestFor(d: NotifyDeps, email: string): Promise<{ items: 
  * list before anything is sent (ZREM answers 1 to one caller only), so two rounds never send twice. Nothing to say:
  * nothing sent.
  */
+/**
+ * The reminders due: each goes once, only if the lead still has not answered (the same wait is still on, by its token:
+ * any later word ended it). What was due is gone from the list whatever happens: never twice.
+ */
+export async function sendReminders(d: NotifyDeps, max = 25): Promise<number> {
+  const due = ((await d.redis.cmd('ZRANGEBYSCORE', REMIND_KEY, '-inf', d.now(), 'LIMIT', 0, max)) as string[] | null) ?? [];
+  let sent = 0;
+  for (const raw of due) {
+    if (Number(await d.redis.cmd('ZREM', REMIND_KEY, raw)) !== 1) continue;
+    const r = parse<{ token: string; notice: Notice }>(raw);
+    const item = r?.notice.items[0];
+    if (!r || item === undefined || (await d.redis.cmd('GET', waitingKey(r.notice.repo, item))) !== r.token) continue;
+    await d.redis.cmd('DEL', waitingKey(r.notice.repo, item));
+    const out = await deliverNotices([r.notice], d, `remind:${r.token}`);
+    sent += out.filter((o) => o.status === 'sent').length;
+  }
+  return sent;
+}
+
 export async function sendDueDigests(d: NotifyDeps, max = 25): Promise<SweepResult> {
+  await sendReminders(d, max).catch(() => 0);
   const res: SweepResult = { sent: 0, empty: 0, later: 0 };
   const now = d.now();
   const due = ((await d.redis.cmd('ZRANGEBYSCORE', DUE_KEY, '-inf', now, 'LIMIT', 0, max)) as string[] | null) ?? [];

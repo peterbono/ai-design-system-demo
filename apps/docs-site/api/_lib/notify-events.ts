@@ -11,15 +11,41 @@
 //   declined             someone closed their task as not planned                                       news
 //   shipped              their task was closed as done, or a pull request that closes it was merged      news
 //   suggestion-declined  their library suggestion was closed without being added                         news
+// Between a designer and their design lead, read from the exploration's block when its body changes (pull_request
+// edited, leadNoticesOf): who it is for and who did it are in the block, so a write Bridge's app made for an email
+// member counts, and nobody hears about their own act:
+//   lead-ask, lead-answer, lead-delegated   a lead is asked, answered, asked in another's place          needs them
+//   lead-reminder                           a lead did not answer in 3 days (once, notify.ts)            needs them
+//   lead-question, lead-changes,
+//   lead-took-back, lead-not-doing,
+//   lead-handed                             a lead's word to the designer                                needs them
+//   lead-ok                                 it went to the developers                                    news
 // Anything Bridge itself did for a member (the Bridge app's bot, a "(via Bridge)" comment) and anything another bot
 // did is never news: the designer did it, or nobody did.
 
 import { canonicalRepo } from '../../src/lib/team-path.js';
+import { explorationBlockOf } from './exploration-member.js';
 
-export type NotifyKind = 'question' | 'look' | 'changes' | 'declined' | 'shipped' | 'suggestion-declined';
+export type NotifyKind =
+  | 'question'
+  | 'look'
+  | 'changes'
+  | 'declined'
+  | 'shipped'
+  | 'suggestion-declined'
+  | 'lead-ask'
+  | 'lead-answer'
+  | 'lead-delegated'
+  | 'lead-reminder'
+  | 'lead-question'
+  | 'lead-changes'
+  | 'lead-took-back'
+  | 'lead-not-doing'
+  | 'lead-handed'
+  | 'lead-ok';
 
 /** The kinds that wait on the designer: sent right away by default. The others go in the daily summary. */
-export const NEEDS_KINDS: ReadonlySet<NotifyKind> = new Set(['question', 'look', 'changes']);
+export const NEEDS_KINDS: ReadonlySet<NotifyKind> = new Set(['question', 'look', 'changes', 'lead-ask', 'lead-answer', 'lead-delegated', 'lead-reminder', 'lead-question', 'lead-changes', 'lead-took-back', 'lead-not-doing', 'lead-handed']);
 
 /** Where the item lives: a library suggestion only counts in the team's own repository. */
 export type NoticeScope = 'any' | 'library';
@@ -42,6 +68,13 @@ export interface Notice {
    * the right-away email only. Never kept: the daily summary names things, it never quotes them.
    */
   quote?: string;
+  /** Who it is for, for a talk with a lead: these GitHub logins (the leads), else the exploration's keeper. */
+  to?: string[];
+  /** The name the block gives who did it: a member without GitHub has no login to look up. */
+  actorName?: string;
+  /** It starts waiting on a lead (a reminder in 3 days), or it stops. */
+  waits?: boolean;
+  stops?: boolean;
 }
 
 /** The context the mapper does not read from the payload. */
@@ -65,12 +98,14 @@ function human(user: unknown, ctx: NotifyContext): { login: string; id: number |
 
 /** A comment Bridge posted for a member ("**Mia** (via Bridge):"): the designer said it, nobody else. */
 export const VIA_BRIDGE = /^\s*\*\*[^*\n]{1,120}\*\* \(via Bridge\):/;
+/** A design lead's words to the developers, sent from Bridge: for them, never a question to a designer. */
+export const LEAD_NOTE = /^\s*\*\*[^*\n]{1,120}\*\* \(design lead\):/;
 // Studio's own words on a task (lib/review-state.ts devQuestionOf reads a question the same way; a test holds them
 // equal): a design review the designer sent, taking the task back to exploring, and the label that asks for design.
 export const DESIGN_REVIEW_PREFIX = 'Design review from Bridge:';
 export const TASK_BACK_PREFIX = 'The design team took this back to exploring.';
 export const NEEDS_DESIGN_LABEL = 'needs-design';
-const bridgeWords = (body: string) => VIA_BRIDGE.test(body) || body.trim().startsWith(DESIGN_REVIEW_PREFIX) || body.trim().startsWith(TASK_BACK_PREFIX);
+const bridgeWords = (body: string) => VIA_BRIDGE.test(body) || LEAD_NOTE.test(body) || body.trim().startsWith(DESIGN_REVIEW_PREFIX) || body.trim().startsWith(TASK_BACK_PREFIX);
 
 const upperFirst = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -140,6 +175,60 @@ export function linkedCopy(body: unknown, repo: string): { repo: string; number:
   return null;
 }
 
+interface BlockDecision {
+  kind?: unknown;
+  by?: unknown;
+  byName?: unknown;
+  text?: unknown;
+  to?: unknown;
+}
+
+const decisionsIn = (b: Record<string, unknown> | null): BlockDecision[] => (Array.isArray(b?.decisions) ? (b.decisions as BlockDecision[]).filter((d) => d && typeof d === 'object') : []);
+const logins = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !x.includes('@') && !x.includes('/')) : []);
+const leadKinds: Record<string, NotifyKind> = { question: 'lead-question', changes: 'lead-changes', 'take-back': 'lead-took-back', 'not-doing': 'lead-not-doing', handed: 'lead-handed', 'looks-right': 'lead-ok' };
+
+/**
+ * What changed in the talk between a designer and their lead, from the body before and after. Each new decision, once:
+ * a redelivery was refused by the webhook, and a decision only counts past the ones the old body had.
+ */
+export function leadNoticesOf(before: unknown, after: unknown, base: { repo: string; number: number }): Notice[] {
+  const was = explorationBlockOf(before);
+  const now = explorationBlockOf(after);
+  if (!now) return [];
+  const had = decisionsIn(was).length;
+  const fresh = decisionsIn(now).slice(had);
+  const title = cleanTitle(now.name);
+  const asked = logins(now.leadAskedTo);
+  const common = { repo: base.repo, items: [base.number], title, copy: null, scope: 'any' as const };
+  const actor = (d: BlockDecision) => ({ login: typeof d.by === 'string' ? d.by : '', id: null });
+  const out: Notice[] = [];
+  const named = (d: BlockDecision) => (typeof d.byName === 'string' && d.byName ? { actorName: d.byName } : {});
+  const quoted = (d: BlockDecision) => {
+    const q = quoteOf(d.text);
+    return q ? { quote: q } : {};
+  };
+  for (const d of fresh) {
+    if (typeof d.kind !== 'string') continue;
+    if (d.kind === 'answer') {
+      const all = decisionsIn(now);
+      const lastAsk = [...all.slice(0, all.indexOf(d))].reverse().find((x) => x.kind === 'question' || x.kind === 'changes' || x.kind === 'take-back');
+      const to = typeof lastAsk?.by === 'string' ? [lastAsk.by] : asked;
+      out.push({ ...common, kind: 'lead-answer', actor: actor(d), ...named(d), ...quoted(d), to, waits: true });
+    } else if (d.kind === 'asked-someone') {
+      out.push({ ...common, kind: 'lead-delegated', actor: actor(d), ...named(d), to: logins(d.to), waits: true });
+    } else if (leadKinds[d.kind]) {
+      out.push({ ...common, kind: leadKinds[d.kind]!, actor: actor(d), ...named(d), ...quoted(d), stops: true });
+    }
+  }
+  // Asked now and it was not before, with nothing else said: Done exploring, or sent back without a word.
+  if (typeof now.leadAskedAt === 'string' && typeof was?.leadAskedAt !== 'string' && !fresh.some((d) => d.kind === 'answer')) {
+    const by = typeof now.leadAskedBy === 'string' ? now.leadAskedBy : '';
+    const byName = typeof now.leadAskedByName === 'string' ? now.leadAskedByName : typeof now.memberName === 'string' ? now.memberName : '';
+    out.push({ ...common, kind: 'lead-ask', actor: { login: by, id: null }, ...(byName ? { actorName: byName } : {}), to: asked, waits: true });
+  }
+  return out;
+}
+
 /** What one delivery means for email designers: zero, one or a few notices, nothing about the payload kept beyond them. */
 export function notifyEventsOf(event: string, payload: unknown, ctx: NotifyContext = {}): Notice[] {
   const p = obj(payload);
@@ -177,6 +266,10 @@ export function notifyEventsOf(event: string, payload: unknown, ctx: NotifyConte
   if (event === 'pull_request') {
     const pr = obj(p.pull_request);
     if (!Number.isSafeInteger(pr.number)) return [];
+    if (action === 'edited') {
+      const from = obj(obj(p.changes).body).from;
+      return typeof from === 'string' ? leadNoticesOf(from, pr.body, { repo, number: pr.number }) : [];
+    }
     const closes = closedIssues(pr.body, repo);
     const author = human(pr.user, ctx) ?? (typeof obj(pr.user).login === 'string' ? { login: obj(pr.user).login as string, id: null } : null);
     // The developers' version, ready for a look: opened ready, or a draft marked ready. Bots count (a drafted change).

@@ -328,6 +328,8 @@ export interface StudioHomeProps {
    */
   explorations: ExplorationCard[];
   health: HealthLine | null;
+  /** What a lead asked and waits for, quiet and without buttons (board L6). */
+  waitingOnOthers?: readonly HomeWaiting[];
   /** Show the calm Being built line under the zone (BuildLine): what developers build from Figma, never a Needs you row. */
   building?: boolean;
   now: number;
@@ -551,12 +553,42 @@ function HomeBody(p: StudioHomeProps) {
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
       <Status health={p.health} setup={p.setup} />
+      {!loading && <WaitingOnOthers rows={p.waitingOnOthers ?? []} />}
       {p.building && <BuildLine />}
       {(byRole.cards.length > 0 || !loading) && explorations}
       {!p.demo && !loading && <YourChanges n={p.branches.length} />}
       {/* The products, like project folders in Figma: each opens its page, with the explorations made in it. */}
       {!loading && <ProductFolders folders={productFolders(p.products ?? pageProducts(), p.explorations)} />}
     </div>
+  );
+}
+
+export interface HomeWaiting {
+  key: string;
+  title: string;
+  /** "waiting for GoulouPhoto". */
+  line: string;
+  href: string;
+}
+
+/** Nothing to do here: each row moves up to Needs you when they answer. */
+function WaitingOnOthers({ rows }: { rows: readonly HomeWaiting[] }) {
+  if (!rows.length) return null;
+  return (
+    <section className="sh-waiting" aria-labelledby="sh-waiting-h">
+      <h2 className="sh-waiting-h" id="sh-waiting-h">
+        Waiting on others
+      </h2>
+      <p className="t-ui t-muted">Nothing to do here. It moves up to Needs you when they answer.</p>
+      <ul className="sh-waiting-rows">
+        {rows.map((r) => (
+          <li key={r.key}>
+            <a href={r.href}>{r.title}</a>
+            <span className="t-muted"> · {r.line}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

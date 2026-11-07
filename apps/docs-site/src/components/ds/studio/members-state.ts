@@ -203,5 +203,17 @@ export function memberActions(data: MembersData, update: (fn: (d: MembersData) =
     }
   }
 
-  return { changeRole, remove, resend, changeInviteRole, cancel, send };
+  async function setLead(m: Member, lead: boolean): Promise<Notice | null> {
+    if (sample) return void (await demoGate()), null;
+    try {
+      const a = await api();
+      await a.setEmailMemberLead(data.repo, m.email ?? m.login, lead);
+      update((d) => ({ ...d, members: d.members.map((x) => (x.login === m.login ? { ...x, lead } : x)) }));
+      return { tone: 'success', text: lead ? `${m.name} is now a design lead.` : `${m.name} is no longer a design lead.` };
+    } catch (err) {
+      return failure(err, unavailable);
+    }
+  }
+
+  return { changeRole, setLead, remove, resend, changeInviteRole, cancel, send };
 }

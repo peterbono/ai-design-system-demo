@@ -20,7 +20,7 @@ import {
   makeDesignCopyOnGitHub,
   waitForDesignCopy,
 } from '../src/design-copy-github';
-import { designCopyTakeCommands, doneExploringPlan, explorationNote, explorationNotePath, explorationPrBody, parseExplorationBody, withDoneExploring, type Exploration } from '../src/explorations';
+import { designCopyTakeCommands, doneExploringPlan, explorationNote, explorationNotePath, explorationPrBody, openDecisionOf, parseExplorationBody, withDoneExploring, type Exploration } from '../src/explorations';
 import { askLeadOnGitHub, designTaskRef, doneExploringOnGitHub, DESIGN_TASK_BACK_COMMENT, leadApproveOnGitHub, leadChangesOnGitHub, reopenExplorationOnGitHub } from '../src/exploration-done-github';
 import { GitHubClient } from '../src/github-client';
 import { fakeGitHub } from './fake-github';
@@ -243,6 +243,7 @@ test('Done exploring from a copy opens a from-design task in the product reposit
     if (path === '/repos/acme/shop-design/issues/4/labels') return res(200, []);
     if (path === '/repos/acme/shop-design/issues/4/labels/exploration') return res(200, []);
     if (path === '/repos/acme/shop/labels') return res(201, {});
+    if (path === '/repos/acme/shop/issues/7/comments') return res(201, { id: 2, body: b.body, user: { login: 'flo' }, html_url: '', created_at: '' });
     if (path === '/repos/acme/shop/issues') return res(201, { number: 7, title: b.title, body: b.body, html_url: 'https://github.com/acme/shop/issues/7', state: 'open', labels: [{ name: FROM_DESIGN_LABEL }], user: { login: 'ann' }, created_at: '', updated_at: '' });
     return res(404, { message: `no route ${method} ${path}` });
   }) as unknown as ConstructorParameters<typeof GitHubClient>[2];
@@ -359,11 +360,14 @@ test('with a design lead: nothing reaches the developers until they say it looks
   assert.match(writes.find((w) => w.path.endsWith('/comments'))!.body.body, /@flo/);
 
   await leadChangesOnGitHub(gh, 4, { note: 'Tighter', lead: 'flo' });
-  assert.equal(parseExplorationBody(pullBody)?.leadNote, 'Tighter');
-  await assert.rejects(leadApproveOnGitHub(gh, 4, { products: PRODUCTS, lead: 'flo' }), /not waiting/);
+  assert.equal(openDecisionOf(pullBody)?.text, 'Tighter');
+  await assert.rejects(leadApproveOnGitHub(gh, 4, { products: PRODUCTS, lead: 'flo' }), /already answered/);
 
   await askLeadOnGitHub(gh, 4, { openedBy: 'ann' });
-  const r = await leadApproveOnGitHub(gh, 4, { products: PRODUCTS, lead: 'flo' });
+  const r = await leadApproveOnGitHub(gh, 4, { products: PRODUCTS, lead: 'flo', note: 'Mind the tag' });
+  // The yes and its words stay in the history, and the words reach the developers on their task.
+  assert.equal(parseExplorationBody(pullBody)?.decisions?.at(-1)?.kind, 'looks-right');
+  assert.match(writes.find((w) => w.path === '/repos/acme/shop/issues/7/comments')!.body.body, /Mind the tag/);
   assert.deepEqual(r.task, { number: 7, url: 'https://github.com/acme/shop/issues/7', repo: 'acme/shop' });
   const after = parseExplorationBody(pullBody);
   assert.equal(after?.doneBy, 'ann');

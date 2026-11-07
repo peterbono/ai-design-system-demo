@@ -36,6 +36,8 @@ export interface EmailMember {
   role: EmailRole;
   /** Bumped on every (re)join: a session signed for another version is refused. */
   version: number;
+  /** A design lead of the team, given by an admin: they answer on explorations, through api/contribute's policy. Never on GitHub reviews. */
+  lead?: boolean;
   /** Who added them: a GitHub login, or the name of the email admin who did. */
   addedBy: string;
   at: string;

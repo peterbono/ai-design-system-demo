@@ -4,6 +4,7 @@ import {
   changedThings,
   continueLines,
   explorationActivity,
+  NOTES_BACK_COMMIT_MESSAGE,
   explorationStage,
   humanAuthorOf,
   isClaudeAssisted,
@@ -185,5 +186,15 @@ describe('explorationActivity: Done exploring and Back to exploring', () => {
     expect(ev.some((e) => /exploration note/.test(e.text))).toBe(false);
     // Nobody named: the person who started it.
     expect(explorationActivity({ commits, author: 'florian', reopened: { at: '2026-11-01T09:30:00Z' } })[0]).toMatchObject({ who: 'florian', text: 'took it back to exploring' });
+  });
+});
+
+describe('Bridge bringing the notes back', () => {
+  const at = '2026-02-01T10:00:00Z';
+  const c = (message: string) => ({ sha: 's', author: { login: 'ann' }, commit: { message, author: { name: 'Ann', date: at } } });
+  it('stays out of the activity and the line under the title', () => {
+    const commits = [c(NOTES_BACK_COMMIT_MESSAGE)];
+    expect(explorationActivity({ commits, author: 'ann' })).toEqual([]);
+    expect(lastActivity({ commits, files: [], author: 'ann' })).toBeNull();
   });
 });

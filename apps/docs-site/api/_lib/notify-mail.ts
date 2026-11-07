@@ -46,6 +46,26 @@ export function linesOf(i: Pick<NotifyItem, 'kind' | 'title' | 'actor'>): { subj
       return { subject: `${title} will not be built for now`, sentence: `${actor} decided not to build it this time and left a note.`, button: 'Read the note' };
     case 'shipped':
       return { subject: `${title} shipped`, sentence: 'What you designed is now in the product. Nice work.', button: 'See it' };
+    case 'lead-ask':
+      return { subject: `${actor} is done with ${title}`, sentence: `${actor} is done exploring ${title}. Nothing reaches the developers before you answer.`, button: 'Look at it' };
+    case 'lead-answer':
+      return { subject: `${actor} answered about ${title}`, sentence: `${actor} answered you about ${title}. It waits for your decision.`, button: 'Read it' };
+    case 'lead-delegated':
+      return { subject: `${actor} asks you to look at ${title}`, sentence: `${actor} would like you to review ${title} in their place.`, button: 'Look at it' };
+    case 'lead-reminder':
+      return { subject: `${title} waits for you since 3 days`, sentence: `${actor} is waiting for your answer on ${title}. Nothing reaches the developers before you answer.`, button: 'Look at it' };
+    case 'lead-question':
+      return { subject: `${actor} has a question about ${title}`, sentence: `${actor} asked something about ${title} and is waiting for your answer.`, button: 'Answer' };
+    case 'lead-changes':
+      return { subject: `${actor} asked for changes on ${title}`, sentence: `${actor} left a note on your exploration. It waits for your answer.`, button: 'Read the note' };
+    case 'lead-took-back':
+      return { subject: `${actor} took ${title} back`, sentence: `${actor} took ${title} back from the developers and said why.`, button: 'Read why' };
+    case 'lead-not-doing':
+      return { subject: `${title} will not be done`, sentence: `${actor} decided not to do ${title} and said why. Your work stays in Bridge.`, button: 'Read why' };
+    case 'lead-handed':
+      return { subject: `${actor} handed ${title} to you`, sentence: `${actor} handed ${title} over to you and said why. You carry it on from here.`, button: 'Open it' };
+    case 'lead-ok':
+      return { subject: `${title} went to the developers`, sentence: `${actor} said it looks right, so ${title} went to the developers.`, button: 'See it' };
     case 'suggestion-declined':
       return { subject: `${actor} closed ${title}`, sentence: `${actor} decided not to add it to the library this time and said why.`, button: 'Read why' };
   }
