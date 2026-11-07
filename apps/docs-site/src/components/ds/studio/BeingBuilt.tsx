@@ -54,7 +54,7 @@ import {
 } from "@bridge-ds/core";
 import { BranchRow } from "./BranchRow";
 import { ClearFilters, ListFiltersBar, NO_FILTER_MATCH } from "./ListFilters";
-import { ListCard, useListView, ViewSwitch } from "./ListCard";
+import { ListCard, useExplorationShots, useListView, ViewSwitch } from "./ListCard";
 import { useCopy } from "./TeamLink";
 import { DEV_MESSAGE_WORDS } from "../../../lib/developers-message";
 import { BusyNotice } from "./BusyNotice";
@@ -166,6 +166,9 @@ function cardPerson(v: Row, data: BuildData) {
  * product, which no heading says here, and carries the same one status tag as its row.
  */
 function Cards({ views, data, products, onOpen }: { views: Row[]; data: BuildData; products: readonly ProductConfig[]; onOpen: (v: BuildRequestView) => void }) {
+  const shots = useExplorationShots(
+    views.filter(isExploration).map((v) => ({ key: v.id, number: Number(/exploration=(\d+)/.exec(v.exploration.href)?.[1] ?? 0), product: (v as { productKey?: string | null }).productKey ?? null })),
+  );
   return (
     <ul className="sh-cards bb-cards" aria-label="Build requests">
       {views.map((v) => {
@@ -177,7 +180,7 @@ function Cards({ views, data, products, onOpen }: { views: Row[]; data: BuildDat
             <ListCard
               key={v.id}
               {...common}
-              thumb={{ kind: "screen", src: null, product: v.exploration.product, seed: v.id }}
+              thumb={shots.get(v.id) ?? { kind: "screen", src: null, product: v.exploration.product, seed: v.id }}
               title={v.title}
               href={studioHref(v.exploration.href)}
             />

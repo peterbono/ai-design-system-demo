@@ -275,12 +275,12 @@ describe('Settings > Members', () => {
     await expectNoAxeViolations(document.body);
   });
 
-  it('changes a role through the server and makes someone admin from the menu', async () => {
+  it('changes a role through the server and makes someone admin from their role', async () => {
     page.data = real();
     const user = userEvent.setup();
     render(createElement(MembersSection));
-    await user.click(await screen.findByRole('button', { name: 'More for Ann' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Make admin' }));
+    await user.click(await screen.findByRole('button', { name: /^Role for Ann/ }));
+    await user.click(await screen.findByRole('radio', { name: /^Admin/ }));
     await waitFor(() => expect(api.setMemberRole).toHaveBeenCalledWith('acme/ds', 'ann', { role: 'admin' }));
   });
 

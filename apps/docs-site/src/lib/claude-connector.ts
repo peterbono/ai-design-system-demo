@@ -208,6 +208,12 @@ const ago = (verb: string, iso: string, now: number) => {
 
 type PullState = Pick<RestPull, 'number' | 'state' | 'merged_at' | 'updated_at'>;
 
+/**
+ * A fix the team closed without keeping it leaves the lists: nobody has anything left to do on it, and a pile of them
+ * buries what is really being built. A session Claude stopped stays, with its reason: the person can ask again.
+ */
+export const fixStaysListed = (r: Pick<FixRow, 'status' | 'number'>): boolean => !(r.status === 'not-planned' && r.number > 0);
+
 /** The rows of the team's fix sessions, reconciled with the pull requests the list already read (no read per row). */
 export function fixRows(sessions: readonly Session[], pulls: readonly PullState[], now: number, nameOf: (login: string) => string = (l) => l): FixRow[] {
   return sessions.map((s, i) => {

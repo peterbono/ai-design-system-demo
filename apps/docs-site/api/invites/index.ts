@@ -1179,7 +1179,11 @@ async function setEmailRole(ctx: Ctx, full: string, body: Record<string, unknown
   const m = (await ctx.svc.members!.get(full, email))!;
   const next: EmailRole = role === 'admin' ? 'admin' : role === 'view' ? 'view' : 'edit';
   if (m.role === 'admin' && next !== 'admin' && by.teamless && (await otherAdmins(ctx, full, email)) === 0) throw new HttpError(409, 'last-admin', LAST_ADMIN);
-  if (m.role !== next) await ctx.svc.members!.put(full, { ...m, role: next });
+  // Someone who only views is no design lead: the role goes with it, and coming back does not give it back.
+  if (m.role !== next) {
+    const { lead: _lead, ...rest } = m;
+    await ctx.svc.members!.put(full, next === 'view' ? { ...rest, role: next } : { ...m, role: next });
+  }
   return json(200, { ok: true, role: next });
 }
 

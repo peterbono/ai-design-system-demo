@@ -10,7 +10,7 @@
 // here (no read per row) and, for products with their own repository, from the one read of their open pull requests
 // that Changes and the home make too (scripts/product-repos.ts). They stay out of `views` as well.
 import { assembleBuildRequests, BUILD_REQUEST_LABEL, DEFAULT_PRODUCTS, liveAddressOf, parseExplorationBody, listBuildRequestsOnGitHub, REQUEST_LABEL, type BuildRequestView, type GitHubClient, type ProductConfig } from '@bridge-ds/core';
-import { fixRows, isLoginLike, missingFixPulls, parseSession, type FixRow, type Session } from '../lib/claude-connector';
+import { fixRows, fixStaysListed, isLoginLike, missingFixPulls, parseSession, type FixRow, type Session } from '../lib/claude-connector';
 import { isSampleTeam } from '../lib/demo';
 import { BUILD_CACHE_MS, buildCacheKey, explorationBuildRows, slimIssue, slimPull, toBuildIssue, toBuildPull, withLifecycle, withProducts, type ExplorationBuildRow, type LifecycleExtra, type RestIssue, type RestPull } from '../lib/building-view';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
@@ -70,7 +70,7 @@ async function readSessions(repo: string): Promise<Session[]> {
 export async function readFixes(data: Pick<BuildData, 'pulls' | 'nameOf' | 'sample' | 'products'>): Promise<FixRow[]> {
   if (data.sample) return [];
   const pulls = data.pulls ?? [];
-  return withProducts(fixRows(await readSessions(repoName()), pulls, Date.now(), data.nameOf), { pulls, products: data.products ?? DEFAULT_PRODUCTS });
+  return withProducts(fixRows(await readSessions(repoName()), pulls, Date.now(), data.nameOf).filter(fixStaysListed), { pulls, products: data.products ?? DEFAULT_PRODUCTS });
 }
 
 const repoName = () => {

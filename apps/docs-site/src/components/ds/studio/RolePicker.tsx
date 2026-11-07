@@ -7,10 +7,11 @@
 // disclosure. A role GitHub cannot hold on this repository (a personal account's) is shown disabled with the reason, and
 // so is Reviewer for an email member (reviewers approve on GitHub). Admin works with the email: members, requests,
 // settings and invites need no GitHub.
+// An email member can also be a design lead: not a fifth role but a box on top of theirs, under the list.
 // What each role means on GitHub stays out of sight (lib/invites.ts).
 import { useId, useState, type KeyboardEvent } from 'react';
 import { ChevronDown, Code2, PenTool } from 'lucide-react';
-import { Button, ChoiceCard, ChoiceCardGroup, Icon, Popover, PopoverContent, PopoverTrigger, Radio, RadioGroup } from '@bridge-ds/react';
+import { Button, Checkbox, ChoiceCard, ChoiceCardGroup, Icon, Popover, PopoverContent, PopoverTrigger, Radio, RadioGroup } from '@bridge-ds/react';
 import { normalizeChoice, PERSONAL_NOTE, REVIEW_AS_ORDER, REVIEW_AS_WORDS, ROLE_WORDS, roleChoices, roleLabel, type ReviewAs, type RoleChoice } from '../../../lib/invites';
 import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
 import '../../../styles/invites.css';
@@ -30,13 +31,17 @@ export interface RolePickerProps {
   size?: 'sm' | 'md' | 'lg';
   /** ghost: a quiet trigger inside a list (the dialog's "Who has access"). */
   variant?: 'secondary' | 'ghost';
+  /** An email member: "Design lead" on top of their role, under the roles. Unset: not offered. */
+  lead?: { on: boolean; onChange: (on: boolean) => void };
   /** The role the trigger names, when it says more than one choice can ("Reviewer: design and code", lib/invites roleText). */
   shown?: string;
 }
 
+const LEAD_WORDS = { label: 'Design lead', help: 'Also validates explorations before the developers. Works with the email.' };
+
 const REVIEW_ICON = { design: PenTool, tech: Code2 } as const;
 
-export default function RolePicker({ value, onChange, label, personal = false, emailOnly = false, emailNote, disabled = false, size = 'md', variant = 'secondary', shown }: RolePickerProps) {
+export default function RolePicker({ value, onChange, label, personal = false, emailOnly = false, emailNote, lead, disabled = false, size = 'md', variant = 'secondary', shown }: RolePickerProps) {
   const [open, setOpen] = useState(false);
   const choice = normalizeChoice(value);
   const id = useId();
@@ -95,6 +100,11 @@ export default function RolePicker({ value, onChange, label, personal = false, e
             </div>
           ))}
         </RadioGroup>
+        {lead && choice.role !== 'view' && (
+          <div className="rp-lead">
+            <Checkbox label={LEAD_WORDS.label} description={LEAD_WORDS.help} checked={lead.on} onCheckedChange={(on) => lead.onChange(on)} />
+          </div>
+        )}
         {emailOnly ? <p className="rp-note">{emailNote ?? CONTRIBUTE_WORDS.emailRoleNote}</p> : personal && <p className="rp-note">{PERSONAL_NOTE}</p>}
       </PopoverContent>
     </Popover>

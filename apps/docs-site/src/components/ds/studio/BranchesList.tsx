@@ -34,7 +34,7 @@ import { Checkbox, Link, Skeleton, Tab, Tabs, TabsList, Tooltip, VisuallyHidden 
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { ClearFilters, ListFiltersBar, NO_FILTER_MATCH } from './ListFilters';
-import { ListCard, useListView, ViewSwitch } from './ListCard';
+import { ListCard, useExplorationShots, useListView, ViewSwitch } from './ListCard';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
 import { activeFilters, ARCHIVED_NOTE, boxDisabled, changesFiltersParam, filterChoices, inFilters, listSummary, designRows, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, shippedAtOf, shippedByTask, isYours, knownNames, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type ListFilters, type StateTab } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
@@ -185,32 +185,6 @@ function useExtras(rows: ListRow[], read: 'all' | 'seat' | 'none'): { extras: Ma
   return { extras, people };
 }
 
-/**
- * The preview captures of the exploration rows (lib/preview-shots), by "product#number": one raw file for all, no
- * GitHub API call, so even a visitor without a token gets them. A row without one keeps its thumbnail.
- */
-function useShots(rows: ListRow[]): Map<string, ThumbSpec> {
-  const [shots, setShots] = useState<Map<string, ThumbSpec>>(new Map());
-  const xp = rows.filter((r) => r.opens === 'exploration');
-  const key = xp.map((r) => `${r.product ?? ''}#${r.number}`).join(',');
-  useEffect(() => {
-    if (!xp.length) return;
-    let live = true;
-    void Promise.all([import('../../../scripts/preview-shots'), import('../../../lib/preview-shots')]).then(([{ previewShotOf }, { shotThumb }]) => {
-      for (const r of xp) {
-        void previewShotOf({ number: r.number, product: r.product ?? null }).then((shot) => {
-          if (live && shot) setShots((m) => new Map(m).set(`${r.product ?? ''}#${r.number}`, shotThumb(shot, { seed: r.product ? `${r.product}#${r.number}` : String(r.number) })));
-        });
-      }
-    });
-    return () => {
-      live = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return shots;
-}
-
 /** Whether a branch only edits tokens: its files when read, else what the status read said. */
 function tokenOnly(r: ListRow, e: Extra | undefined, tokensRoot: string): boolean | null {
   if (r.opens !== 'pr' || r.lifecycle === 'shipped' || r.lifecycle === 'closed') return false;
@@ -246,7 +220,7 @@ export function BranchesList(p: BranchesListProps) {
   const filesOfRow = (r: ListRow) => (r.product ? null : extras.get(r.number)?.files);
   const openDesign = designRows(open, filesOfRow, p.tooling);
   const shippedDesign = designRows(shipped, filesOfRow, p.tooling);
-  const shots = useShots(shown);
+  const shots = useExplorationShots(shown.filter((r) => r.opens === 'exploration').map((r) => ({ key: `${r.product ?? ''}#${r.number}`, number: r.number, product: r.product ?? null, branch: r.head.ref })));
   const names = useMemo(
     () => knownNames([...p.rows, ...archived, ...(p.closed ?? [])], p.viewer ? { login: p.viewer, name: p.viewerName ?? null } : null),
     [p.rows, archived, p.closed, p.viewer, p.viewerName],

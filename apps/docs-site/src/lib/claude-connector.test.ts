@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONNECT_FIRST, CONNECTOR_WORDS as W, connectFirst, connectionSentence, connectorUrl, developerSnippets, elapsedLabel, fixPullNumber, fixRows, missingFixPulls, parseSession, reviewOf, type Session } from './claude-connector';
+import { CONNECT_FIRST, CONNECTOR_WORDS as W, connectFirst, connectionSentence, connectorUrl, developerSnippets, elapsedLabel, fixPullNumber, fixStaysListed, fixRows, missingFixPulls, parseSession, reviewOf, type Session } from './claude-connector';
 import { matchesBuildFilter } from '@bridge-ds/core';
 
 const c = (by: string, lastUsedAt: string) => ({ id: by, client: 'Claude', by, createdAt: lastUsedAt, lastUsedAt, mine: false });
@@ -52,6 +52,12 @@ describe("Being built, Claude's fixes as rows of the one list", () => {
     expect(r!.builders).toEqual(['claude']);
     expect(matchesBuildFilter(r!, 'shipped-this-week', NOW)).toBe(true);
     expect(matchesBuildFilter(r!, 'in-progress', NOW)).toBe(false);
+  });
+
+  it('a fix the team closed leaves the lists, a stopped session stays', () => {
+    expect(fixStaysListed({ status: 'not-planned', number: 937 })).toBe(false);
+    expect(fixStaysListed({ status: 'not-planned', number: 0 })).toBe(true);
+    expect(fixStaysListed({ status: 'in-review', number: 937 })).toBe(true);
   });
 
   it('an open fix is In review, a closed one Not planned; without the pull request read, the session decides', () => {
