@@ -140,6 +140,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
 import { demoDialog } from '../../src/lib/demo.js';
+import { putShot, shotImage, shotMeta, shotsTodo, workflowClaims, type ShotsCtx } from '../_lib/private-shots.js';
 import { escHtml, mailButton, mailP, mailPage, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { explorationBlockOf, memberRef, withMemberInBlock } from '../_lib/exploration-member.js';
 import { branchKey, issueKey, mineItems, mineKey } from '../_lib/former-member.js';
@@ -621,6 +622,29 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
     default:
       return fail(400, 'bad_request', 'Unknown action.');
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Screenshots of private products' explorations (api/_lib/private-shots.ts)
+
+const shotsCtxOf = (c: { f: FetchLike; now: () => number; svc: Services }): ShotsCtx => ({ f: c.f, now: c.now, redis: c.svc.redis, token: (o, r) => c.svc.app.installationToken(o, r) });
+
+/**
+ * GET ?repo=<team>&shot=<owner/repo>&pr=<n>[&meta=1]: one capture of an exploration in a product repository of the team,
+ * for a reader of the team (a member, or a visitor of a demo team): its date and commit with meta=1, else the image.
+ */
+async function onShot(req: Request, ctx: Ctx, params: URLSearchParams): Promise<Response> {
+  const { owner, repo, full } = parseRepo(params.get('repo'));
+  const target = String(params.get('shot') ?? '').toLowerCase();
+  const pr = Number(params.get('pr'));
+  if (!/^[\w.-]+\/[\w.-]+$/.test(target) || !Number.isSafeInteger(pr) || pr < 1) return fail(400, 'bad_request', 'Say which exploration: shot=owner/repo and pr.');
+  const rctx = readCtxOf(ctx);
+  const reader = await readerOf(ctx, req, full, rctx);
+  if (!reader) return json(401, { error: 'signin', message: SIGNIN });
+  const [po, pn] = target.split('/') as [string, string];
+  await productReadAllowed(rctx, { owner, repo }, { owner: po, repo: pn }, reader);
+  if (params.get('meta') === '1') return json(200, { shot: await shotMeta(ctx.svc.redis, target, pr) }, { 'Cache-Control': 'private, no-cache' });
+  return await shotImage(ctx.svc.redis, target, pr);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -2554,6 +2578,17 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
       const designCheck = svc ? designCheckFor({ f: deps.fetch, now, random: deps.random ?? ((n) => randomBytes(n)), svc, env }) : undefined;
       return await handleGithubWebhook(req, { redis, secret: env.GITHUB_WEBHOOK_SECRET, now: deps.now ?? Date.now, ...(notify ? { notify } : {}), ...(guard ? { guard } : {}), ...(designCheck ? { designCheck } : {}) });
     }
+    // Bridge's own capture workflow (api/_lib/private-shots.ts): its GitHub OIDC token, no cookie, no CSRF header.
+    const shotsAction = params.get('shots');
+    if (shotsAction === 'todo' || shotsAction === 'put') {
+      const svc0 = services(env, deps);
+      if (!svc0) return fail(503, 'not_configured', NOT_CONFIGURED);
+      const sctx = shotsCtxOf({ f: deps.fetch, now: deps.now ?? Date.now, svc: svc0 });
+      if (!(await workflowClaims(sctx, req.headers.get('authorization')))) return fail(401, 'signin', 'Only Bridge\'s capture workflow sends screenshots.');
+      if (shotsAction === 'todo' && method === 'GET') return json(200, { jobs: await shotsTodo(sctx) });
+      if (shotsAction === 'put' && method === 'POST') return await putShot(sctx, await readBody(req, 600_000));
+      return fail(405, 'method', 'GET the todo list, POST a capture.');
+    }
     if (method !== 'GET') requireCsrf(req);
     const svc = services(env, deps);
     const gh = params.get('gh');
@@ -2567,6 +2602,7 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
     if (method === 'GET' && params.get('npm') !== null && gh === null && blobs === null) {
       return json(200, { latest: await npmLatest(deps.fetch, svc?.redis ?? null, parseNpmNames(params.get('npm'))) });
     }
+    if (method === 'GET' && params.get('shot') !== null && svc && !cross) return await onShot(req, { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env }, params);
     if (method === 'GET' && gh === null && blobs === null && users === null && changes === null) {
       const repoArg = params.get('repo');
       if (repoArg === null || !svc) {

@@ -31,5 +31,24 @@ export async function previewShotOf(x: { number: number; product?: string | null
   const own = x.product ? (await import('./product-repos')).productRepoByKey(x.product) : null;
   if (x.product && !own) return null;
   const index = await loadShotsIndex();
-  return shotFor(index, ds, own ? own.repo : `${ds.owner}/${ds.repo}`, x.number);
+  const found = shotFor(index, ds, own ? own.repo : `${ds.owner}/${ds.repo}`, x.number);
+  if (found || !own) return found;
+  // A private product's capture: kept by Bridge (api/_lib/private-shots.ts), read through the team for its readers.
+  return bridgeShotOf(`${ds.owner}/${ds.repo}`, own.repo, x.number);
+}
+
+const bridgeShots = new Map<string, Promise<PreviewShot | null>>();
+
+/** A capture Bridge keeps for a private product, through the team (members, and visitors of a demo team), or null. */
+export function bridgeShotOf(team: string, repo: string, pr: number): Promise<PreviewShot | null> {
+  const k = `${team}|${repo}#${pr}`.toLowerCase();
+  const held = bridgeShots.get(k);
+  if (held) return held;
+  const q = `repo=${encodeURIComponent(team)}&shot=${encodeURIComponent(repo)}&pr=${pr}`;
+  const p = fetch(`/api/contribute?${q}&meta=1`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    .then((r) => (r.ok ? (r.json() as Promise<{ shot?: { sha?: string; capturedAt?: string } | null }>) : null))
+    .then((d) => (d?.shot?.sha && d.shot.capturedAt ? { src: `/api/contribute?${q}&v=${d.shot.sha.slice(0, 7)}`, capturedAt: d.shot.capturedAt, sha: d.shot.sha, screen: null } : null))
+    .catch(() => null);
+  bridgeShots.set(k, p);
+  return p;
 }
