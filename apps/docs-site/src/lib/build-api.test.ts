@@ -145,6 +145,12 @@ describe('check the build', () => {
     expect((await (await handleContribute(post(say('looks-right'), flo), ENV, s.deps)).json()).state).toBe('success');
   });
 
+  it('a signed-out visitor reads nothing of a real team (a demo team reads like a viewer, never answers)', async () => {
+    const s = setup();
+    expect((await handleContribute(post({ action: 'build-state', ...at }, ''), ENV, s.deps)).status).toBe(401);
+    expect((await handleContribute(post(say('looks-right'), ''), ENV, s.deps)).status).toBe(401);
+  });
+
   it('nothing before the build is ready', async () => {
     const s = setup({ draft: true });
     const mia = await as(s, 'mia@acme.design', 'Mia', 'edit');

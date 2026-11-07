@@ -41,7 +41,7 @@ import { ASK_CLAUDE, developerLines, failedPreviewLine, pieceRows, productCrumbs
 import { ARCHIVED_LINE, UNARCHIVED_LINE, explorationKey, explorationPreviews, explorationStateLine, productPreviews, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { productClient, productRepoByKey } from './product-repos';
 import { touchesVisuals } from '../lib/visual-impact';
-import { isSampleTeam, sampleExplorationPreview, samplePreviewPage } from '../lib/demo';
+import { isSampleTeam } from '../lib/demo';
 import { ghAction, sendButton, suggestionSentLine } from '../lib/gh-wording';
 import { assertBranchWrites, changesModeOnPage } from './changes-mode';
 import { shownJiraKey } from '../lib/vocabulary';
@@ -349,7 +349,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       state: r.archived ? ARCHIVED_LINE : r.status === 'active' ? null : explorationStateLine(r.status),
       status: r.status,
       seed: key,
-      shot: sampleTeam() ? sampleExplorationPreview(r.branch) : null,
+      shot: null,
       keepNote: emailOnProduct && open ? productKeeperLine(product.name) : connected() && open && changesModeOnPage() === 'direct' && !keeper ? keepExplorationLine(r.author) : null,
       developer: developerLines({ number: r.number, branch: r.branch, links: record?.links ?? [], ...(own ? { product: own.product.key, repo: own.repo } : {}) }),
       take: r.status === 'closed' ? null : takeItLines(r.branch),
@@ -369,9 +369,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
     const preview = productPreviewOf(r, s, undefined, product);
     const v = tryInProductView(preview, { tryUrl: withToolbar(r), todayUrl: today ? safeUrl(today) || null : null, files });
     devPreview = v.state === 'failed' && preview ? [failedPreviewLine(preview)] : [];
-    // The sample team reads like any team: its branch's own preview first, its static screen only while it has none.
-    const page = !v.url && sampleTeam() ? samplePreviewPage(r.branch) : null;
-    repaint(d, { tryUrl: v.url ?? page, tryNote: page ? null : v.note, ...(devPreview.length ? { developer: [...current.props.developer, ...devPreview] } : {}) });
+    repaint(d, { tryUrl: v.url, tryNote: v.note, ...(devPreview.length ? { developer: [...current.props.developer, ...devPreview] } : {}) });
   });
   void paintVisual(d, r);
   if (record) void refresh();
