@@ -2,7 +2,8 @@
 // developers' pull request (api/_lib/build-check.ts, lib/build-check-view.ts, lib/pm-view.ts pmHomeRow).
 import { describe, expect, it } from 'vitest';
 import { buildComment, buildStateOf, devPullOfEvents, taskOfUrl, type BuildWord } from '../../api/_lib/build-check';
-import { designReviewOf } from './review-state';
+import { designReviewOf, devReviewLine, taskStage } from './review-state';
+import { reopenedBody } from '../../api/_lib/build-check';
 import { buildRows } from './build-check-view';
 import { pmHomeRow } from './pm-view';
 
@@ -66,5 +67,30 @@ describe('in words', () => {
     expect(pmHomeRow(body({ decisions: [{ kind: 'pm-ok', at: 'x', round: 1 }] }), { buildReady: false })).toBeNull();
     expect(pmHomeRow(body({ doneAt: 'x' }), { buildReady: false })).toBeNull();
     expect(pmHomeRow(body({ doneAt: 'x' }), { buildReady: true })).toMatchObject({ action: 'Check' });
+  });
+});
+
+describe('the lists and a new round', () => {
+  it('say who is still waiting, and approve only once everyone said yes', () => {
+    const name = (l: string) => l;
+    const pull = (check: { state: 'pending' | 'success' | 'failure'; waiting: string[]; changesBy: string | null }) => ({ number: 30, url: 'u', draft: false, answer: { kind: 'looks-right' as const, login: 'mia' }, check });
+    expect(devReviewLine(pull({ state: 'pending', waiting: ['Dino'], changesBy: null }), name)).toBe('Waiting for Dino');
+    expect(devReviewLine(pull({ state: 'failure', waiting: [], changesBy: 'Dino' }), name)).toBe('Dino asked for changes');
+    expect(devReviewLine(pull({ state: 'success', waiting: [], changesBy: null }), name)).toBe('Everyone said it looks right');
+    const task = (devPull: ReturnType<typeof pull>) => ({ assignees: [], state: 'open', stateReason: null, closedAt: null, devPull, labels: [], comments: null });
+    // The last comment says looks right, but Dino still waits: not approved yet.
+    expect(taskStage(task(pull({ state: 'pending', waiting: ['Dino'], changesBy: null })))).toBe('in-review');
+    expect(taskStage(task(pull({ state: 'success', waiting: [], changesBy: null })))).toBe('approved');
+  });
+
+  it('a new round: the developer section and the done marker go, the reason is a decision', () => {
+    const body = `Notes\n\n### For developers\n\nBuild it.\n\n<!-- bridge-exploration ${JSON.stringify({ name: 'Late tag', doneAt: 'x', doneSha: 'y', leadOkBy: 'flo', decisions: [{ kind: 'looks-right', at: 'a', round: 1 }] })} -->`;
+    const out = reopenedBody(body, { at: '2026-11-07T10:00:00Z', byName: 'Dino', text: 'Keep the date' })!;
+    expect(out).not.toContain('For developers');
+    const e = JSON.parse(/<!-- bridge-exploration (\{[\s\S]*?\}) -->/.exec(out)![1]!);
+    expect(e).toMatchObject({ name: 'Late tag', reopenedAt: '2026-11-07T10:00:00Z' });
+    expect(e.doneAt).toBeUndefined();
+    expect(e.leadOkBy).toBeUndefined();
+    expect(e.decisions.at(-1)).toEqual({ kind: 'take-back', at: '2026-11-07T10:00:00Z', round: 1, byName: 'Dino', text: 'Keep the date' });
   });
 });

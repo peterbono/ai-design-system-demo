@@ -238,6 +238,8 @@ export interface NotifyDeps {
   profileName?: (login: string, repo: string) => Promise<string | null>;
   /** A GitHub login's id (one read): how a lead's Bridge account is found. Absent: GitHub tells them, nothing is sent. */
   loginId?: (login: string, repo: string) => Promise<number | null>;
+  /** An exploration's block in a design copy (one read with the read token): who validated it, for the shipped summary. */
+  explorationBlock?: (repo: string, n: number) => Promise<Record<string, unknown> | null>;
 }
 
 function noSender(d: NotifyDeps) {

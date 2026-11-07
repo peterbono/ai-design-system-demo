@@ -27,11 +27,13 @@ function setup(o: { draft?: boolean; pieces?: string[] } = {}) {
   const redis = memoryRedis(() => T0);
   const members = memberStore(redis);
   const block = { name: 'Late tag', startedAt: '2026-11-01T00:00:00Z', doneAt: '2026-11-05T00:00:00Z', member: memberRef('mia@acme.design'), memberName: 'Mia', task: `https://github.com/${CODE}/issues/7`, ...(o.pieces ? { leadPieces: o.pieces } : {}) };
-  const world = { head: 'a'.repeat(40), comments: [] as string[], statuses: [] as { sha: string; state: string; context: string }[] };
+  const world = { head: 'a'.repeat(40), comments: [] as string[], statuses: [] as { sha: string; state: string; context: string }[], writes: [] as string[], body: '' };
   const deps: ContribDeps = {
     fetch: async (url, init) => {
       const u = new URL(url);
       const m = init.method;
+      if (m !== 'GET') world.writes.push(`${m} ${u.pathname}`);
+      if (m === 'PATCH' && u.pathname === `/repos/${COPY}/pulls/5`) return (world.body = JSON.parse(init.body!).body), res(200, {});
       if (m === 'GET' && u.pathname === `/repos/${REPO}/contents/bridge.config.json`) return new Response(CONFIG, { status: 200 });
       if (m === 'GET' && u.pathname === `/repos/${COPY}/pulls/5`) return res(200, { number: 5, body: `x\n\n<!-- bridge-exploration ${JSON.stringify(block)} -->` });
       if (m === 'GET' && u.pathname === `/repos/${CODE}/issues/7/timeline`) return res(200, [{ event: 'cross-referenced', source: { issue: { number: 12, html_url: `https://github.com/${CODE}/pull/12`, state: 'open', draft: o.draft === true, pull_request: {}, repository: { full_name: CODE } } } }]);
@@ -66,6 +68,40 @@ async function withPm(s: ReturnType<typeof setup>) {
   await as(s, 'dino@acme.design', 'Dino', 'view');
   await handleContribute(post({ action: 'set-pm', repo: REPO, product: 'shop', pm: { ref: memberRef('dino@acme.design') } }, admin), ENV, s.deps);
 }
+
+describe('check the build: the design must change', () => {
+  it('moves the exploration back to its designer: a new round, the task leaves the developers', async () => {
+    const s = setup();
+    await withPm(s);
+    const dino = await as(s, 'dino@acme.design', 'Dino', 'view');
+    expect((await handleContribute(post(say('changes', { why: 'design', text: 'Keep the date visible' }), dino), ENV, s.deps)).status).toBe(200);
+    const block = JSON.parse(/<!-- bridge-exploration (\{[\s\S]*?\}) -->/.exec(s.world.body)![1]!);
+    expect(block.doneAt).toBeUndefined();
+    expect(block.reopenedAt).toBe('2026-11-07T10:00:00.000Z');
+    expect(block.decisions.at(-1)).toMatchObject({ kind: 'take-back', byName: 'Dino', text: 'Keep the date visible', round: 1 });
+    expect(s.world.writes).toEqual(expect.arrayContaining([`POST /repos/${COPY}/issues/5/labels`, `DELETE /repos/${COPY}/issues/5/labels/ready-for-devs`, `POST /repos/${CODE}/issues/7/comments`, `PATCH /repos/${CODE}/issues/7`]));
+  });
+
+  it('the build is off: the exploration stays with the developers', async () => {
+    const s = setup();
+    await withPm(s);
+    const dino = await as(s, 'dino@acme.design', 'Dino', 'view');
+    await handleContribute(post(say('changes', { why: 'build', text: 'Date cut' }), dino), ENV, s.deps);
+    expect(s.world.writes.some((w) => w.includes(COPY))).toBe(false);
+  });
+});
+
+describe('the lists read the whole check', () => {
+  it('who is still waiting, by name, once the check was opened; null before', async () => {
+    const s = setup();
+    await withPm(s);
+    const mia = await as(s, 'mia@acme.design', 'Mia', 'edit');
+    const lists = () => handleContribute(post({ action: 'build-checks', repo: REPO, pulls: [{ code: CODE, number: 12 }, { code: 'acme/other', number: 1 }] }, mia), ENV, s.deps).then((r) => r.json());
+    expect((await lists()).checks).toEqual({ 'acme/shop#12': null, 'acme/other#1': null });
+    await handleContribute(post(say('looks-right'), mia), ENV, s.deps);
+    expect((await lists()).checks['acme/shop#12']).toEqual({ state: 'pending', waiting: ['Dino'], changesBy: null });
+  });
+});
 
 describe('check the build', () => {
   it('the designer and the PM say it looks right; the Design check follows on the head', async () => {

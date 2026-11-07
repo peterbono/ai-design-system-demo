@@ -388,6 +388,11 @@ export interface DevPull {
   deployedUrl?: string | null;
   /** The designer's last answer Bridge posted on it (designReviewOf), when it was read. */
   answer?: { kind: 'looks-right' | 'changes'; login: string } | null;
+  /**
+   * Check the build, as Bridge keeps it (api/_lib/build-check buildSummary): every required answer on its head, who is
+   * still waiting, who asked for changes. Wins over `answer`, the last comment only. Absent when nobody opened the check.
+   */
+  check?: { state: 'pending' | 'success' | 'failure'; waiting: string[]; changesBy: string | null } | null;
 }
 
 /**
@@ -439,7 +444,7 @@ export function taskStage(t: DesignTaskRead): LifecycleStage {
   const s = taskStatus(t);
   if (s === 'shipped') return 'shipped';
   if (s === 'closed') return 'not-planned';
-  if (t.devPull) return t.devPull.draft ? 'being-built' : t.devPull.answer?.kind === 'looks-right' ? 'approved' : 'in-review';
+  if (t.devPull) return t.devPull.draft ? 'being-built' : (t.devPull.check ? t.devPull.check.state === 'success' : t.devPull.answer?.kind === 'looks-right') ? 'approved' : 'in-review';
   return s === 'building' ? 'being-built' : 'waiting-for-code';
 }
 
@@ -447,7 +452,14 @@ export function taskStage(t: DesignTaskRead): LifecycleStage {
 export const DEV_VERSION_READY = "The developers' version is ready for your eyes";
 
 /** The Review line of a design copy exploration in lists: the designer's answer once given, else the version waits. */
-export function devReviewLine(pull: Pick<DevPull, 'answer'>, nameOf: (login: string) => string): string {
+export function devReviewLine(pull: Pick<DevPull, 'answer' | 'check'>, nameOf: (login: string) => string): string {
+  // The whole check when Bridge keeps it: who is still waiting, never only the last person who answered.
+  const c = pull.check;
+  if (c) {
+    if (c.state === 'failure') return `${c.changesBy ?? 'Someone'} asked for changes`;
+    if (c.state === 'success') return 'Everyone said it looks right';
+    return c.waiting.length ? `Waiting for ${listNames(c.waiting)}` : DEV_VERSION_READY;
+  }
   const a = pull.answer;
   if (!a?.login) return DEV_VERSION_READY;
   return `${nameOf(a.login)} ${a.kind === 'looks-right' ? 'said it looks right' : 'asked for changes'}`;

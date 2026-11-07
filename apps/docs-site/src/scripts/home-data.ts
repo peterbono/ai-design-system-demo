@@ -523,7 +523,9 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
       if (!isViewerPm(pm, { ref: viewerRef, login: viewer }) || (p.labels ?? []).some((l) => l.name === 'archived')) continue;
       const u = taskUrlOf(p.body);
       const t = u ? taskReads.get(u) : null;
-      const row = pmHomeRow(p.body, { buildReady: Boolean(t && taskStage(t) === 'in-review') });
+      // Their check of the build is due while they are among those still waiting (or nobody opened the check yet).
+      const check = t?.devPull?.check;
+      const row = pmHomeRow(p.body, { buildReady: Boolean(t && taskStage(t) === 'in-review' && (!check || check.waiting.includes(pm!.name))) });
       if (!row) continue;
       const block = parseExplorationBody(p.body);
       const who = block?.memberName ? { login: p.user.login, name: block.memberName, avatar: null } : pick(block?.author ?? p.user.login)!;

@@ -26,6 +26,7 @@ import { SECURITY_HEADERS, json, siteOrigin } from './http.js';
 import { notifyEventsOf } from './notify-events.js';
 import { itemMetaKey, onceKey, repoMetaKey, type ItemMeta, type RepoMeta } from './notify.js';
 import { pmOf } from './product-pm.js';
+import { approves, memberStore } from './members.js';
 import type { Notice } from './notify-events.js';
 import { deliverNotices, DUE_KEY, NOTIFY_TEAMS_KEY, sweepSometimes, type NotifyDeps } from './notify.js';
 import type { Redis, RedisArg } from './redis.js';
@@ -54,9 +55,11 @@ export interface WebhookDeps {
    * Notifications (api/_lib/notify.ts): the sender (null: kept, not sent), LIBRARY_SESSION_SECRET for unsubscribe
    * links and PUBLIC_SITE_URL for links. Absent: deliveries only move the read cache.
    */
-  notify?: Pick<NotifyDeps, 'sender' | 'secret' | 'warn' | 'members' | 'random' | 'profileName' | 'loginId'> & { publicUrl?: string | undefined };
+  notify?: Pick<NotifyDeps, 'sender' | 'secret' | 'warn' | 'members' | 'random' | 'profileName' | 'loginId' | 'explorationBlock'> & { publicUrl?: string | undefined };
   /** The lead guard (api/_lib/lead-guard.ts): a lead's words written on GitHub by someone who may not decide go back. */
   guard?: (event: string, payload: unknown) => Promise<boolean>;
+  /** The "Design check" on a pull request of a product's developers (contribute designCheckFor). */
+  designCheck?: (event: string, payload: unknown) => Promise<unknown>;
 }
 
 /** Whether `signature` (the X-Hub-Signature-256 header, "sha256=<hex>") is GitHub's for `body` with `secret`. */
@@ -169,6 +172,8 @@ export async function handleGithubWebhook(req: Request, d: WebhookDeps): Promise
   if (r[0] === null) return done({ ok: true, duplicate: true });
   // Never in the way of the rest: a guard that fails leaves the description as it is.
   const guarded = d.guard ? await d.guard(event, payload).catch(() => false) : false;
+  // Never in the way either: a refused status write is dropped.
+  if (d.designCheck) await d.designCheck(event, payload).catch(() => undefined);
   let notified: number | null = null;
   // What became of each notice (kind, status, reason): words only, never an address, so GitHub's Recent Deliveries
   // tell why a designer got nothing.
@@ -219,7 +224,7 @@ async function pmCopies(d: NotifyDeps, notices: readonly Notice[]): Promise<Noti
     }
     if (!meta?.product || meta.kind !== 'code') continue;
     const pm = await pmOf(d.redis, meta.team, meta.product);
-    if (!pm) continue;
+    if (!pm && n.kind !== 'shipped') continue;
     const kind = n.kind === 'look' ? 'lead-build-ready' : 'lead-shipped';
     const item = n.items[0];
     if (item === undefined || (await d.redis.cmd('SET', onceKey(kind, n.repo, item), '1', 'NX', 'EX', 30 * 24 * 60 * 60)) === null) continue;
@@ -233,7 +238,25 @@ async function pmCopies(d: NotifyDeps, notices: readonly Notice[]): Promise<Noti
       }
     }
     if (!copy) continue;
-    out.push({ ...n, kind, repo: copy.repo.toLowerCase(), items: [copy.number], copy: null, to: [pm.email ? `email:${pm.email}` : pm.login!], waits: false, stops: false });
+    const at = { ...n, repo: copy.repo.toLowerCase(), items: [copy.number], copy: null, waits: false, stops: false };
+    if (pm) out.push({ ...at, kind, to: [pm.email ? `email:${pm.email}` : pm.login!] });
+    // Shipped: the design lead who validated it hears it too, in their daily summary.
+    if (n.kind === 'shipped') {
+      const lead = await leadOf(d, meta.team, copy.repo, copy.number);
+      if (lead && (!pm || (lead !== `email:${pm.email}` && lead !== pm.login))) out.push({ ...at, kind, to: [lead] });
+    }
   }
   return out;
+}
+
+/** Who validated an exploration: the lead's login, or an email lead found by the name the block gives them. */
+async function leadOf(d: NotifyDeps, team: string, repo: string, n: number): Promise<string | null> {
+  const block = d.explorationBlock ? await d.explorationBlock(repo, n).catch(() => null) : null;
+  if (!block) return null;
+  if (typeof block.leadOkBy === 'string' && block.leadOkBy && !block.leadOkBy.includes('@')) return block.leadOkBy;
+  const yes = (Array.isArray(block.decisions) ? (block.decisions as { kind?: unknown; by?: unknown; byName?: unknown }[]) : []).filter((x) => x?.kind === 'looks-right').pop();
+  if (typeof yes?.by === 'string' && yes.by) return yes.by;
+  if (typeof yes?.byName !== 'string') return null;
+  const leads = (await (d.members ?? memberStore(d.redis)).list(team)).filter((m) => approves(m) && m.name.trim().toLowerCase() === (yes.byName as string).trim().toLowerCase());
+  return leads.length === 1 ? `email:${leads[0]!.email}` : null;
 }

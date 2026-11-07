@@ -35,12 +35,24 @@ export async function readDesignTask(url: string, opts: { doneAt?: string | null
     const i = issue.data;
     const found = i.state === 'open' && timeline ? devPullOfTimeline(timeline.data ?? [], ref.repo) : null;
     // Their pull request's comments: the designer's last answer, for the lists' Review line. One more read, only then.
-    const devPull = found ? { ...found, answer: await lastAnswerOn(ref.repo, found.number) } : null;
+    const devPull = found ? { ...found, answer: await lastAnswerOn(ref.repo, found.number), ...(found.draft ? {} : { check: await buildCheckOf(ref.repo, found.number) }) } : null;
     const comments = opts.comments !== false && (i.comments ?? 0) > 0 ? await taskComments(ref.repo, ref.number, opts.doneAt ?? null) : null;
     const merged = opts.shipped && i.state === 'closed' && i.state_reason === 'completed' && timeline ? devPullOfTimeline(timeline.data ?? [], ref.repo, { merged: true }) : null;
     const shippedAnswer = merged ? await shippedAnswerOn(ref.repo, merged.number) : null;
     const labels = (i.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean);
     return { assignees: i.assignees ?? [], state: i.state, stateReason: i.state_reason ?? null, closedAt: i.closed_at ?? null, devPull, labels, comments, ...(shippedAnswer ? { shippedAnswer } : {}) };
+  } catch {
+    return null;
+  }
+}
+
+/** Where Check the build stands on the developers' version, as Bridge's server keeps it (null: not opened, or unreadable). */
+async function buildCheckOf(repo: string, number: number): Promise<DevPull['check']> {
+  try {
+    const [{ buildChecks }, { currentContributor, getToken, readRepo }] = await Promise.all([import('./contribute-session'), import('./github-session')]);
+    const team = readRepo();
+    const all = await buildChecks(`${team.owner}/${team.repo}`, [{ code: repo, number }], currentContributor() ? null : getToken());
+    return all[`${canonicalRepo(repo).toLowerCase()}#${number}`] ?? null;
   } catch {
     return null;
   }
