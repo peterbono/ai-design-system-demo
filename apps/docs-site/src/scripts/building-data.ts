@@ -225,7 +225,7 @@ async function read(): Promise<BuildData> {
     stale: requests.stale || builds.stale || pulls.stale,
     nameOf,
     jiraBase: jiraBase(),
-    fixes: withProducts(fixRows(sessions, fixPulls, now, nameOf), { pulls: fixPulls, products }),
+    fixes: withProducts(fixRows(sessions, fixPulls, now, nameOf).filter(fixStaysListed), { pulls: fixPulls, products }),
     pulls: fixPulls,
     explorations: explorationBuildRows(explored, { products, now, approvers: approversNow(), ...lifecycle, task, member, shot: (k) => shots.get(k) ?? null }),
     products,
