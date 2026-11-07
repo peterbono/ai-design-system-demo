@@ -473,8 +473,10 @@ export function designReviewOf(comments: readonly { body?: string | null; user?:
     const rest = body.slice(DESIGN_REVIEW_PREFIX.length).trim();
     const login = c.user?.login ?? '';
     const at = c.created_at ?? '';
-    if (/^looks right\.?$/i.test(rest)) return { kind: 'looks-right', login, text: null, at };
-    const m = /^needs changes:\s*([\s\S]*)$/i.exec(rest);
+    // Bridge's server signs what a member said with their name and part on a last line ("Mia (designer)").
+    const signed = rest.replace(/\n\n[^\n]+ \((designer|product manager|design lead)\)\s*$/, '').trim();
+    if (/^looks right\.?$/i.test(signed)) return { kind: 'looks-right', login, text: null, at };
+    const m = /^needs changes:\s*([\s\S]*)$/i.exec(signed);
     if (m) return { kind: 'changes', login, text: m[1]!.trim() || null, at };
   }
   return null;

@@ -1079,3 +1079,68 @@
   display: grid;
   gap: var(--space-3);
 }
+
+/* Check the build (board R4): the approved version and the developers' build side by side, one column on a phone. */
+.xp-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .xp-compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.xp-compare-side {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* Who checks the build, in the hand-off zone: one row each, their state at the end of the row. */
+.xp-build {
+  display: grid;
+  gap: var(--space-3);
+  padding-block-end: var(--space-4);
+  border-block-end: var(--border-width-default) solid var(--color-border-default);
+}
+
+.xp-build p {
+  margin: 0;
+}
+
+.xp-build-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xp-build-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding-block: var(--space-2);
+  border-block-start: var(--border-width-default) solid var(--color-border-default);
+}
+
+.xp-build-state {
+  color: var(--color-text-muted);
+}
+
+.xp-build-state.is-looks-right {
+  color: var(--color-feedback-success-text);
+}
+
+.xp-build-state.is-changes {
+  color: var(--color-feedback-danger-text);
+}
+
+.xp-build-note {
+  flex: 1 1 100%;
+  white-space: pre-wrap;
+}

@@ -1,7 +1,7 @@
 // What the exploration page says about the product manager of its product (boards R1 and R3): the PM's own zone (What
 // do you think?) and, for the designer and the lead, where the PM stands. Pure: no DOM, no fetch. The record is core's
 // (explorations.ts pmOpinionOf); who the PM is comes from Settings > Products (api/_lib/product-pm.ts).
-import type { Decision } from '@bridge-ds/core';
+import { parseExplorationBody, pmOpinionOf, type Decision } from '@bridge-ds/core';
 
 /** A product manager as Studio reads them: a GitHub person by login, an email member by reference. Never an email. */
 export type PmPerson = { name: string; login: string } | { name: string; ref: string };
@@ -47,4 +47,16 @@ export function pmStatusLine(said: PmSaid | null, x: { pm: string; when: string;
   if (said.kind === 'pm-ok') return `${who} said it looks good${at}.`;
   if (said.kind === 'pm-changes') return `${who} asked for changes${at}.`;
   return `${said.byName ?? 'The designer'} said ${x.mine ? 'you' : x.pm} agreed in a call${at}.`;
+}
+
+/**
+ * The PM's row on their Home (boards R3, R4), for an exploration of their product: its build ready for their check, or,
+ * while it runs, their opinion asked for and not given yet. Null otherwise (archived, already said, nothing to do).
+ */
+export function pmHomeRow(body: string | null | undefined, x: { buildReady: boolean }): { line: (designer: string) => string; action: string; since: string | null } | null {
+  const e = parseExplorationBody(body);
+  if (!e) return null;
+  if (e.doneAt) return x.buildReady ? { line: () => 'The build is ready to check', action: 'Check', since: null } : null;
+  if (pmOpinionOf(body)) return null;
+  return { line: (designer) => `${designer} would like your opinion`, action: 'Look', since: e.leadAskedAt ?? null };
 }

@@ -24,6 +24,9 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { SECURITY_HEADERS, json, siteOrigin } from './http.js';
 import { notifyEventsOf } from './notify-events.js';
+import { itemMetaKey, onceKey, repoMetaKey, type ItemMeta, type RepoMeta } from './notify.js';
+import { pmOf } from './product-pm.js';
+import type { Notice } from './notify-events.js';
 import { deliverNotices, DUE_KEY, NOTIFY_TEAMS_KEY, sweepSometimes, type NotifyDeps } from './notify.js';
 import type { Redis, RedisArg } from './redis.js';
 import { HOOK_HEALTHY_MS, HOOK_LAST_KEY, READ_TOPICS, changedWrites, hookInstallationKey, knownKey, productsKey, type ReadTopic } from './team-read.js';
@@ -175,7 +178,7 @@ export async function handleGithubWebhook(req: Request, d: WebhookDeps): Promise
     // Never in the way of the read cache: a notification that fails is lost, the delivery still answers.
     try {
       if (watchAt >= 0 && Number(r[watchAt]) === 1) {
-        const out = await deliverNotices(notices, nd, delivery);
+        const out = await deliverNotices([...notices, ...(await pmCopies(nd, notices))], nd, delivery);
         notified = out.length;
         outcomes = out.map((o) => [o.kind, o.status, 'reason' in o ? o.reason : ''].filter(Boolean).join(':'));
       } else if (notices.length) outcomes = notices.map((n) => `${n.kind}:skipped:unwatched`);
@@ -197,4 +200,40 @@ export async function handleGithubWebhook(req: Request, d: WebhookDeps): Promise
     throw e;
   }
   return done({ ok: true, repos: known.length, topics: effect.topics, ...extra });
+}
+
+/**
+ * The product manager of the product hears it too (board R4): the developers' build ready to check (right away), and
+ * once it shipped (in the daily summary, once per task). Nothing when the product has no PM.
+ */
+async function pmCopies(d: NotifyDeps, notices: readonly Notice[]): Promise<Notice[]> {
+  const out: Notice[] = [];
+  for (const n of notices) {
+    if (n.kind !== 'look' && n.kind !== 'shipped') continue;
+    const raw = await d.redis.cmd('GET', repoMetaKey(n.repo));
+    let meta: RepoMeta | null = null;
+    try {
+      meta = typeof raw === 'string' ? (JSON.parse(raw) as RepoMeta) : null;
+    } catch {
+      meta = null;
+    }
+    if (!meta?.product || meta.kind !== 'code') continue;
+    const pm = await pmOf(d.redis, meta.team, meta.product);
+    if (!pm) continue;
+    const kind = n.kind === 'look' ? 'lead-build-ready' : 'lead-shipped';
+    const item = n.items[0];
+    if (item === undefined || (await d.redis.cmd('SET', onceKey(kind, n.repo, item), '1', 'NX', 'EX', 30 * 24 * 60 * 60)) === null) continue;
+    // The email opens the exploration: the task's link to it in the design copy.
+    let copy = n.copy;
+    if (!copy) {
+      try {
+        copy = (JSON.parse(String(await d.redis.cmd('GET', itemMetaKey(n.repo, item)))) as ItemMeta | null)?.copy ?? null;
+      } catch {
+        copy = null;
+      }
+    }
+    if (!copy) continue;
+    out.push({ ...n, kind, repo: copy.repo.toLowerCase(), items: [copy.number], copy: null, to: [pm.email ? `email:${pm.email}` : pm.login!], waits: false, stops: false });
+  }
+  return out;
 }

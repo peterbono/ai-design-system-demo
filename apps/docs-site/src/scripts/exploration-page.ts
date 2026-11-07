@@ -68,6 +68,7 @@ import { siteConfig } from './repo-context';
 import { changedFiles, namesOf, pieceActions, pieceActor, previewSources, productPreviewOf, readView, withToolbar } from './product-branch';
 import { productClient, productRepoByKey } from './product-repos';
 import { isViewerPm, pmStatusLine, PM_WORDS } from '../lib/pm-view';
+import { BUILD_WORDS, buildRows, type BuildCheckView } from '../lib/build-check-view';
 import type { PmView } from '../components/ds/studio/LeadDecisions';
 import { bringLatestIntoExploration, copyRepos, explorationBehind } from './design-copy';
 import { claudeCodeUrl, COPY_WORDS } from '../lib/design-copy';
@@ -334,6 +335,34 @@ async function paintPm(
         : null,
   };
   if (current?.key === key) repaint(d, key, { pm: view });
+}
+
+/** The check of the developers' build (board R4): who checks it, their answers, and the viewer's answer when theirs. */
+async function paintBuildCheck(d: HTMLElement, key: string, o: { r: ExplorationRow; product: string; copy: string; builder: string; designer: string; devUrl: string | null; viewerRef: string | null; reopen: (line: string) => void }): Promise<void> {
+  const team = `${CFG.owner}/${CFG.repo}`;
+  const { buildState, contributeTeam, sayBuild } = await import('./contribute-session');
+  const { getToken } = await import('./github-session');
+  const token = o.viewerRef ? null : getToken();
+  const target = { product: o.product, copy: o.copy, number: o.r.number };
+  const [read, people] = await Promise.all([buildState(team, target, token).catch(() => null), contributeTeam(team, token).catch(() => null)]);
+  if (!read || current?.key !== key || !current.props.handoff) return;
+  const pm = people?.pms[o.product.toLowerCase()]?.name ?? null;
+  const check: BuildCheckView = {
+    line: BUILD_WORDS.line(o.builder),
+    builder: o.builder,
+    designer: o.designer,
+    rows: buildRows(read.rows, { designer: o.designer, pm, lead: null }),
+    onSay: read.role
+      ? async (a) => {
+          await sayBuild(team, { ...target, ...a }, token);
+          const line = a.kind === 'looks-right' ? BUILD_WORDS.sentOk : a.why === 'design' ? BUILD_WORDS.sentDesign(o.designer) : BUILD_WORDS.sentBuild(o.builder);
+          o.reopen(line);
+          return line;
+        }
+      : null,
+    note: read.role ? BUILD_WORDS.pushNote : null,
+  };
+  repaint(d, key, { tag: { label: BUILD_WORDS.tag, tone: 'info' }, handoff: { ...current.props.handoff, check, build: { url: o.devUrl, builder: o.builder } } });
 }
 
 /**
@@ -871,6 +900,13 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
       declined: declined ? { note: declineNote ? { text: declineNote.text, by: faceOf(declineNote.login, false, allNames), when: declineNote.at ? startedWhen(declineNote.at) : '' } : null } : null,
     },
   });
+  // Check the build (board R4): the developers' version is ready in the design team's copy. Read through Bridge's server,
+  // who checks it and where each stands; the designer, the PM and the leads answer there (email members and PMs too).
+  if (inCopy && own && devRead && !review.draft && status === 'building' && !declined && !sample) {
+    const builder = builders.length ? faceOf(builders[0]!, false, allNames).name : 'The developer';
+    const designerName = block?.memberName ?? doneBy.name;
+    void paintBuildCheck(d, key, { r, product: own.product.key, copy: own.repo, builder, designer: designerName, devUrl: review.dev?.url ?? null, viewerRef: member?.ref ?? null, reopen: (line) => reopen(line) });
+  }
   if (!shot) {
     const thumb = await capturedImage(r, files);
     if (thumb) repaint(d, key, { thumb, thumbCapturedAt: null });

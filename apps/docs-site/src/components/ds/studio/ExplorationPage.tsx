@@ -56,6 +56,8 @@ import {
   VisuallyHidden,
 } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
+import { BuildCheck } from './BuildCheck';
+import { BUILD_WORDS, type BuildCheckView } from '../../../lib/build-check-view';
 import { Drawing } from './Drawing';
 import { Who } from './faces';
 import type { DesignAnswer, LifecycleStage } from '../../../lib/review-state';
@@ -107,6 +109,10 @@ export interface HandoffView {
    * request): Looks right, or Needs changes with a short text. Null when there is nothing to answer or the viewer cannot.
    */
   onAnswer?: ((a: DesignAnswer) => Promise<string | void>) | null;
+  /** Check the build (board R4): who checks the developers' version and their answers, read through Bridge's server. */
+  check?: BuildCheckView | null;
+  /** The developers' version, next to the approved one while it is checked. */
+  build?: { url: string | null; builder: string } | null;
   /**
    * Someone asked the designer something on the task: their words (plain text; null when only a label asks),
    * who and when, whether the designer answered since, and the reply when this viewer can write it.
@@ -745,6 +751,7 @@ function HandoffCard({ h, p, say, onBack, onTakeBack }: { h: HandoffView; p: Exp
       </h2>
       {/* The question waiting on the viewer leads the zone (on a phone too): what needs them first, the steps after. */}
       {asks && <DevQuestion q={h.question!} say={say} />}
+      {h.check && !h.declined && <BuildCheck v={h.check} say={say} />}
       <Checklist label="From exploration to product" className="xp-steps">
         {h.steps.map((s) => {
           // The step it acts on says why (their developers work elsewhere) and holds the quiet copy on the same line; a
@@ -802,7 +809,7 @@ function HandoffCard({ h, p, say, onBack, onTakeBack }: { h: HandoffView; p: Exp
       ) : (
         h.question && !asks && h.status !== 'shipped' && <DevQuestion q={h.question} say={say} />
       )}
-      {!h.declined && h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && <DevAnswer onAnswer={h.onAnswer} say={say} />}
+      {!h.declined && !h.check && h.onAnswer && h.steps.some((s) => s.title === 'Review' && s.current) && <DevAnswer onAnswer={h.onAnswer} say={say} />}
       {onTakeBack && (
         <Button variant="secondary" size="lg" className="xp-self-start" onClick={onTakeBack}>
           Take it back
@@ -1003,12 +1010,26 @@ function ExplorationBody(p: ExplorationPageProps) {
         // under the preview, so the hand-off and the preview stay side by side (styles/exploration-page.css).
         <div className={handoff ? 'xp-board is-handoff' : p.designerZone || p.notDoing ? 'xp-board is-talk' : 'xp-board'}>
           <section className="xp-preview" aria-label="Preview">
-            <ShotFrame p={p} />
+            {handoff?.build ? (
+              // Check the build: the approved version and the developers' build, side by side (board R4).
+              <div className="xp-compare">
+                <figure className="xp-compare-side">
+                  <ShotFrame p={p} />
+                  <figcaption className="xp-muted">{BUILD_WORDS.approved}</figcaption>
+                </figure>
+                <figure className="xp-compare-side">
+                  <EmptyFrame label={BUILD_WORDS.builtBy(handoff.build.builder)} />
+                  <figcaption className="xp-muted">{BUILD_WORDS.builtBy(handoff.build.builder)}</figcaption>
+                </figure>
+              </div>
+            ) : (
+              <ShotFrame p={p} />
+            )}
             <div className="xp-acts xp-preview-acts">
               {p.previewUrl ? (
                 // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
-                <ButtonLink variant={zoneLeads ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} data-bridge-pass={p.tryWithoutPass ? 'off' : undefined} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
-                  {handoff?.status === 'shipped' ? 'See it in the product' : 'Open the preview'}
+                <ButtonLink variant={zoneLeads || handoff?.build ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} data-bridge-pass={p.tryWithoutPass ? 'off' : undefined} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
+                  {handoff?.status === 'shipped' ? 'See it in the product' : handoff?.build ? BUILD_WORDS.openApproved : 'Open the preview'}
                 </ButtonLink>
               ) : p.previewBuilding ? (
                 // A status, not a dead control: Button's loading state keeps the primary colors (no disabled grey).
@@ -1019,6 +1040,11 @@ function ExplorationBody(p: ExplorationPageProps) {
                 <Button variant="primary" size="lg" disabled aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
                   Open the preview
                 </Button>
+              )}
+              {handoff?.build?.url && (
+                <ButtonLink variant="primary" size="lg" href={handoff.build.url} target="_blank" rel="noopener" iconEnd={ExternalLink}>
+                  {BUILD_WORDS.openBuild}
+                </ButtonLink>
               )}
               {/* Archived: the preview still opens, nothing offers to keep working on it (Unarchive first). */}
               {!handoff && !p.archived && !answers && !answersBelow && !p.pm?.mine && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
