@@ -49,7 +49,7 @@ export function LeadBar({ bar, say }: { bar: LeadBarView; say: (s: string) => vo
       {bar.changedSince && <p className="xp-muted">Changed since you were asked. The preview shows the latest version.</p>}
       <div className="xp-lead-bar-row">
         <div className="xp-lead-bar-field">
-          <Input label="Comment" hideLabel size="lg" placeholder="Add a comment (needed to ask for changes)" value={text} onValueChange={setText} />
+          <Input label="Comment" hideLabel size="lg" placeholder="Add a comment" value={text} onValueChange={setText} />
         </div>
         <Button variant="secondary" size="lg" disabled={!words || busy !== null} loading={busy === 'comment'} onClick={() => send('comment', bar.onComment(words))}>
           Comment

@@ -848,7 +848,9 @@ function ExplorationBody(p: ExplorationPageProps) {
   // button steps back to secondary, one primary action per view.
   // The lead's words wait on the viewer: the zone answers them and holds the way back to their AI tool.
   const answers = Boolean(p.designerZone?.onSend) || Boolean(p.notDoing);
-  const zoneLeads = declined || waitsOnAnswer(handoff) || reviewsVersion(handoff) || answers;
+  // The lead's bar at the bottom holds Looks right: the preview steps back the same way.
+  const answersBelow = Boolean(p.lead?.bar);
+  const zoneLeads = declined || waitsOnAnswer(handoff) || reviewsVersion(handoff) || answers || answersBelow;
   return (
     <ToolContext.Provider value={tab}>
     <div className="xp-page">
@@ -975,7 +977,7 @@ function ExplorationBody(p: ExplorationPageProps) {
         // The preview and the Harbor zone end on one line: the preview's frame takes the height the zone beside it needs
         // (within a screen-like ratio). While exploring, the activity sits under the Harbor card; after Done exploring,
         // under the preview, so the hand-off and the preview stay side by side (styles/exploration-page.css).
-        <div className={handoff ? 'xp-board is-handoff' : 'xp-board'}>
+        <div className={handoff ? 'xp-board is-handoff' : p.designerZone || p.notDoing ? 'xp-board is-talk' : 'xp-board'}>
           <section className="xp-preview" aria-label="Preview">
             <ShotFrame p={p} />
             <div className="xp-acts xp-preview-acts">
@@ -995,7 +997,7 @@ function ExplorationBody(p: ExplorationPageProps) {
                 </Button>
               )}
               {/* Archived: the preview still opens, nothing offers to keep working on it (Unarchive first). */}
-              {!handoff && !p.archived && !answers && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
+              {!handoff && !p.archived && !answers && !answersBelow && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
               {!p.archived && !answers && <FigmaAction p={p} tool={tab} say={setSaid} />}
             </div>
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (

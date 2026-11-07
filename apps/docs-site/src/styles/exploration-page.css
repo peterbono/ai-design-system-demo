@@ -435,6 +435,18 @@
   max-height: none;
 }
 
+/* The lead's words make the side column long: the preview keeps its own height instead of an empty grey band. */
+.xp-board.is-talk {
+  align-items: start;
+}
+
+.xp-board.is-talk > .xp-preview > .xp-frame {
+  flex: none;
+  aspect-ratio: 16 / 10;
+  min-height: 0;
+  max-height: none;
+}
+
 .xp-board > .xp-preview {
   grid-area: preview;
 }
