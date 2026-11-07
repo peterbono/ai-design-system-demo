@@ -61,6 +61,7 @@ import { BUILD_WORDS, type BuildCheckView } from '../../../lib/build-check-view'
 import { Drawing } from './Drawing';
 import { Who } from './faces';
 import type { DesignAnswer, LifecycleStage } from '../../../lib/review-state';
+import { atRoute } from '../../../lib/at-route';
 import { clipQuote, explorationTag, questionWords, type ActivityRow, type DoneAction, type HandoffStatus, type HandoffStep, type LibraryPieces, type PageFace, type SentPiece } from '../../../lib/exploration-page';
 import { studioHref } from '../../../lib/team-path';
 import { ARCHIVED_LINE } from '../../../lib/explorations-view';
@@ -112,7 +113,7 @@ export interface HandoffView {
   /** Check the build (board R4): who checks the developers' version and their answers, read through Bridge's server. */
   check?: BuildCheckView | null;
   /** The developers' version, next to the approved one while it is checked. */
-  build?: { url: string | null; builder: string; shot?: { src: string; capturedAt: string | null } | null } | null;
+  build?: { url: string | null; builder: string; shot?: { src: string; capturedAt: string | null; route?: string | null } | null } | null;
   /**
    * Someone asked the designer something on the task: their words (plain text; null when only a label asks),
    * who and when, whether the designer answered since, and the reply when this viewer can write it.
@@ -1060,7 +1061,7 @@ function ExplorationBody(p: ExplorationPageProps) {
             <div className="xp-acts xp-preview-acts">
               <div className="xp-act is-main">
                 {handoff?.build?.url ? (
-                  <ButtonLink variant="primary" size="lg" href={handoff.build.url} target="_blank" rel="noopener" iconEnd={ExternalLink}>
+                  <ButtonLink variant="primary" size="lg" href={atRoute(handoff.build.url, handoff.build.shot?.route)} target="_blank" rel="noopener" iconEnd={ExternalLink}>
                     {BUILD_WORDS.openBuild}
                   </ButtonLink>
                 ) : previewButton}
