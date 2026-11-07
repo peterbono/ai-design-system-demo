@@ -163,6 +163,7 @@ export function PmPicker({ repo, product, people, token, onSaved }: { repo: stri
     <Select
       label={W.pm}
       hint={error ?? W.pmHint}
+      placeholder={W.noPm}
       size="sm"
       options={options}
       value={pmValue(people.pms[product.toLowerCase()])}
