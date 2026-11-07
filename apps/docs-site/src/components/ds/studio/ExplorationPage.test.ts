@@ -250,7 +250,7 @@ describe('ExplorationPage, exploring (X2)', () => {
     paint({ ...exploring, tryUrl: 'https://bridge-admin-git-explore.example.com/?bridge=611' });
     expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://bridge-admin-git-explore.example.com/?bridge=611');
     expect(screen.queryByRole('link', { name: /Try it in the product/ })).toBeNull();
-    const acts = screen.getByRole('link', { name: /Open the preview/ }).closest('.xp-preview-acts')!;
+    const acts = screen.getByRole('link', { name: /Open the preview/ }).closest<HTMLElement>('.xp-preview-acts')!;
     expect(within(acts).getByRole('link', { name: /Continue in Claude/ })).toBeTruthy();
     expect(acts.children).toHaveLength(2);
   });
