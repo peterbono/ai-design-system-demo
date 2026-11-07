@@ -36,7 +36,7 @@ export interface BuildCheckView {
 export const BUILD_WORDS = {
   tag: 'Check the build',
   title: 'Ready to ship?',
-  line: (builder: string) => `${builder} finished the build. Compare it with what was approved.`,
+  line: (builder: string) => `${builder.charAt(0).toUpperCase()}${builder.slice(1)} finished the build. Compare it with what was approved.`,
   looksRight: 'Looks right',
   needsChanges: 'Needs changes',
   whatChanges: 'What needs to change?',

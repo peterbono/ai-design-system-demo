@@ -780,7 +780,7 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   if (pr.status !== 200 || !head || pr.data?.draft === true || pr.data?.state !== 'open') return fail(409, 'not_ready', BUILD_WORDS.notReady);
   const pm = await pmOf(ctx.svc.redis, t.full, product);
   // The design lead checks again only when the exploration sent pieces to the library: those change since approval.
-  const designerName = typeof block.memberName === 'string' ? block.memberName : typeof block.author === 'string' ? block.author : undefined;
+  const designerName = typeof block.memberName === 'string' ? block.memberName : typeof block.author === 'string' ? block.author : typeof block.doneBy === 'string' ? block.doneBy : undefined;
   const need: BuildNeed = { pm: Boolean(pm), lead: Array.isArray(block.leadPieces) && block.leadPieces.length > 0, names: { ...(designerName ? { designer: designerName } : {}), ...(pm ? { pm: pm.name } : {}) } };
   const designer = Boolean((typeof block.member === 'string' && who.email && block.member === memberRef(who.email)) || (who.login && [block.author, block.doneBy].some((a) => typeof a === 'string' && a.toLowerCase() === who.login!.toLowerCase())));
   const role: BuildRole | null = designer ? 'designer' : isPm(pm, who) ? 'pm' : who.lead ? 'lead' : null;
@@ -2412,7 +2412,7 @@ export function designCheckFor(ctx: Ctx): (event: string, payload: unknown) => P
     const ex = copyToken ? await ghApp(ctx, copyToken, 'GET', `/repos/${co}/${cn}/pulls/${linked.copy.number}`) : null;
     const block = ex?.status === 200 ? explorationBlockOf(ex.data?.body) : null;
     const pm = meta.product ? await pmOf(ctx.svc.redis, meta.team, meta.product) : null;
-    const designer = typeof block?.memberName === 'string' ? block.memberName : typeof block?.author === 'string' ? block.author : undefined;
+    const designer = typeof block?.memberName === 'string' ? block.memberName : typeof block?.author === 'string' ? block.author : typeof block?.doneBy === 'string' ? block.doneBy : undefined;
     const need: BuildNeed = { pm: Boolean(pm), lead: Array.isArray(block?.leadPieces) && (block!.leadPieces as unknown[]).length > 0, names: { ...(designer ? { designer } : {}), ...(pm ? { pm: pm.name } : {}) } };
     const words = await saveBuild(ctx.svc.redis, repo, pr!.number as number, need);
     await write(designCheckStatus(buildStateOf(words, head, need), need.names, { designChanging: Boolean(block && typeof block.doneAt !== 'string') }));
