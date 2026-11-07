@@ -36,6 +36,7 @@ import {
   reviewersAsked,
   reviewVerdictOf,
   startedTail,
+  stageOfRunning,
   startedAtOf,
   type DoneAction,
   type LibraryPieces,
@@ -55,7 +56,7 @@ import { developerLines, productCrumbs, productProduction, productTodayUrl, tryI
 import { touchesVisuals } from '../lib/visual-impact';
 import { shownJiraKey } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
-import { decisionRows, decisionTag, designerZoneTitle, nextName, sayerName } from '../lib/lead-decisions';
+import { decisionRows, decisionTag, designerZoneTitle, leadWaitLine, nextName, sayerName } from '../lib/lead-decisions';
 import { nameAuthor } from '../lib/author';
 import { explorationKeeper, listInvites } from './invites-api';
 import type { HandOverPerson } from '../components/ds/studio/LeadDecisions';
@@ -216,8 +217,8 @@ function leadViewOf(
   const body = pull.body;
   if (!isWaitingForLead(body)) return null;
   const block = parseExplorationBody(body);
-  // A question of the lead waits on the designer: the zone says it, the bar comes back with the answer.
-  if (leadTurnOf(body) === 'designer') return null;
+  // A question of a lead waits on the designer, whose zone says it. The leads keep their bar: the question never stops them deciding.
+  const open = leadTurnOf(body) === 'designer' ? openDecisionOf(body) : null;
   const asker = block?.leadAskedBy ?? r.author;
   const leads = reviewersAsked({ approvers: siteApprovers().design, builders: [asker] });
   const viewer = currentViewer()?.email ? null : (currentViewer()?.login ?? null);
@@ -240,7 +241,8 @@ function leadViewOf(
     };
     const others = leads.filter((l) => l.toLowerCase() !== viewer!.toLowerCase());
     return {
-      line: `${who} is done exploring. Look at the preview, then answer. Nothing reaches the developers before you do.`,
+      ...(open ? { heading: `With ${who}` } : {}),
+      line: open ? leadWaitLine(open, viewer!, who, knownNamesOf([open.by ?? ''])) : `${who} is done exploring. Look at the preview, then answer. Nothing reaches the developers before you do.`,
       bar: {
         onLooksRight: (note) =>
           answered(() => leadApproveOnGitHub(o.gh, r.number, { products: o.products, previewUrl: o.previewUrl, ...me, ...(note ? { note } : {}), ...(o.library ? { library: o.library() } : {}), source: 'studio' }).then(() => undefined), LEAD_OK_LINE),
@@ -254,6 +256,7 @@ function leadViewOf(
       },
     };
   }
+  if (open) return null;
   const known = knownNamesOf(leads);
   const names = leads.length ? leads.map((l) => known[l] ?? l).join(', ') : 'your lead';
   return {
@@ -311,7 +314,7 @@ function leadTalkOf(
     required: question,
     fieldLabel: question ? 'Your answer' : 'Your answer (optional)',
     placeholder: question ? '' : 'Say what you changed, or why you kept it',
-    note: question ? `Nothing goes to the developers until ${who} answers. Keep working if you need to: the question stays here.` : null,
+    note: question && o.designer ? `Nothing goes to the developers until ${who} says it looks right. Keep working if you need to: the question stays here.` : null,
   };
   return out;
 }
@@ -562,11 +565,14 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const previewBuilding = v.state === 'building';
   const talkNow = leadTalkOf(r, pull, { gh, designer: answersLead, names, reopen: (line) => reopen(line), onReopenNew });
   const previewNote = samplePage ? null : v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
+  const lead = leadViewOf(r, pull, { gh, products, library: own ? () => dsClient() : null, previewUrl, keeper, reopen: (line) => reopen(line), onCopy: copyText });
   repaint(d, key, {
-    // Waiting for the lead: their answer shows even on an exploration with no change yet.
-    stage: stage === 'not-started' && !isWaitingForLead(pull.body) ? 'not-started' : 'exploring',
-    lead: leadViewOf(r, pull, { gh, products, library: own ? () => dsClient() : null, previewUrl, keeper, reopen: (line) => reopen(line), onCopy: copyText }),
+    // Handed off, the page waits for the hand-off read below, never painted as running in between.
+    ...(handedOff ? {} : { stage: stageOfRunning(stage, { talked: isWaitingForLead(pull.body) || decisionsOf(parseExplorationBody(pull.body)).length > 0 }) }),
+    lead,
     ...talkNow,
+    // A lead answers in their bar, never in the designer's zone.
+    ...(lead?.bar ? { designerZone: null } : {}),
     author: faceOf(r.author, false, names),
     startedTail: startedTail(product.name, startedAtOf(pull.body, pull.created_at, commits[0]?.commit.author?.date)),
     todayUrl,

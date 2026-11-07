@@ -253,3 +253,16 @@ describe('the lifecycle words stay designer words', () => {
   });
 
 });
+
+describe("a lead's words to the developers", () => {
+  const open = { state: 'open', labels: [] };
+  const lead = { user: { login: 'flo' }, body: '**Florian** (design lead):\n\nMind the tag', created_at: '2026-11-07T10:00:00Z' };
+  it('are not a question, on the lead page or anywhere', () => {
+    expect(devQuestionOf({ ...open, comments: [lead] }, { doneAt: '2026-11-07T09:00:00Z', designers: ['ann'] })).toBeNull();
+  });
+  it('and taking it back with a reason is not one either', () => {
+    const back = { user: { login: 'flo' }, body: 'The design team took this back to exploring. It comes back here when they say Done exploring again.\n\nKeep the date', created_at: '2026-11-07T10:00:00Z' };
+    expect(devQuestionOf({ ...open, comments: [back] }, { doneAt: '2026-11-07T09:00:00Z', designers: ['ann'] })).toBeNull();
+    expect(declineNoteOf({ comments: [back, lead] }, { designers: ['ann'] })).toBeNull();
+  });
+});

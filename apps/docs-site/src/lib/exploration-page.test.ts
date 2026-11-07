@@ -26,6 +26,7 @@ import {
   pageLines,
   requestPieces,
   startedTail,
+  stageOfRunning,
 } from './exploration-page';
 
 const NOW = new Date('2026-10-30T14:00:00Z');
@@ -430,5 +431,15 @@ describe('commitsAs', () => {
 
   it("leaves Claude's own commits as Claude's", () => {
     expect(commitsAs([by('claude[bot]')], 'name:Ann Leroy')[0]!.author!.login).toBe('claude[bot]');
+  });
+});
+
+describe('stageOfRunning', () => {
+  it('keeps Nothing built yet when nobody talked', () => {
+    expect(stageOfRunning('not-started', { talked: false })).toBe('not-started');
+  });
+  it('shows the board once a lead answered, even with no change yet', () => {
+    expect(stageOfRunning('not-started', { talked: true })).toBe('exploring');
+    expect(stageOfRunning('exploring', { talked: false })).toBe('exploring');
   });
 });

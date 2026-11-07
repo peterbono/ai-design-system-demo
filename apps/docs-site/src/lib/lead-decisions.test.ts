@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { explorationPrBody, withDecision, withDoneExploring, withLeadAsked, withLeadAskedTo, withoutLeadAsked } from '@bridge-ds/core';
-import { decisionRows, decisionTag, designerZoneTitle, leadHomeRow, nextName, sayerName } from './lead-decisions';
+import { decisionRows, decisionTag, designerZoneTitle, leadHomeRow, leadWaitLine, nextName, sayerName } from './lead-decisions';
 
 const start = explorationPrBody({ name: 'Late tag', purpose: 'p', slug: 'late-tag', author: 'ann' }, { owner: 'o', repo: 'r', packages: [], apps: {} });
 const asked = withLeadAsked(start, { at: '2026-11-07T10:00:00.000Z', by: 'ann' });
@@ -71,5 +71,14 @@ describe('the Home of a lead and a designer (board L6)', () => {
   });
   it('nothing once it went to the developers', () => {
     expect(leadHomeRow(withDoneExploring(asked, { branch: 'explore/late-tag', doneAt: 't' }), lead)).toBeNull();
+  });
+});
+
+describe('a lead while their question waits on the designer', () => {
+  it('reads that it is theirs', () => {
+    expect(leadWaitLine({ by: 'Flo' }, 'flo', 'GoulouPhoto')).toBe('You asked GoulouPhoto. Waiting for their answer.');
+  });
+  it('another lead reads who asked', () => {
+    expect(leadWaitLine({ by: 'dana', byName: 'Dana' }, 'flo', 'GoulouPhoto')).toBe('Dana asked GoulouPhoto. Waiting for their answer.');
   });
 });

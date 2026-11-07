@@ -733,3 +733,22 @@ describe('Send to Figma', () => {
     await expectNoAxeViolations(container);
   });
 });
+
+describe('the talk with a lead on the page', () => {
+  const bar = { onLooksRight: async () => 'ok', onChanges: async () => 'ok', onComment: async () => 'ok', onNotDoing: async () => undefined, onAskOther: null, link: 'https://x', onCopy: async () => undefined, changedSince: false };
+  const face = { login: 'flo', name: 'Florian', agent: false, avatar: null };
+  it('a lead whose question waits keeps the bar, reads their own words, and gets no way into Claude', () => {
+    paint({ stage: 'exploring', tag: { label: 'Waiting for Ann', tone: 'info' }, lead: { heading: 'With Ann', line: 'You asked Ann. Waiting for their answer.', bar } });
+    expect(screen.getByRole('heading', { name: 'With Ann' })).toBeTruthy();
+    expect(screen.getByText('You asked Ann. Waiting for their answer.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Looks right' })).toBeTruthy();
+    expect(screen.queryByText(/Open in Claude Code|Continue in Claude/)).toBeNull();
+  });
+  it('Not doing this shows its reason, and the way to start again, on the board', () => {
+    paint({ stage: 'exploring', archived: true, tag: { label: 'Not doing this', tone: 'neutral' }, notDoing: { title: 'Florian decided not to do this', who: face, when: 'today', text: 'Billing covers it', onReopen: async () => undefined }, decisions: [{ key: '0', name: 'Florian', login: 'flo', verb: 'decided not to do this', why: 'Billing covers it', round: 1, at: '2026-11-07T00:00:00Z' }] });
+    expect(screen.getByRole('heading', { name: 'Florian decided not to do this' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reopen as a new exploration' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Decisions' })).toBeTruthy();
+    expect(screen.queryByText('Nothing built yet')).toBeNull();
+  });
+});

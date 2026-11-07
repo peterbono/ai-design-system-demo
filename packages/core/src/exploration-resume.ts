@@ -217,6 +217,10 @@ export const isStartCommit = (c: BranchCommitLike): boolean => /^chore\(explore\
 /** True for the commit Bridge writes on Done exploring (the exploration note leaves the branch). */
 export const isDoneExploringCommit = (c: BranchCommitLike): boolean => /^chore\(explore\): done exploring/.test(c.commit.message);
 
+/** The commit Bridge writes when Back to exploring brings the notes back. Back to exploring says it, in people's words. */
+export const NOTES_BACK_COMMIT_MESSAGE = 'chore(explore): bring the exploration notes back';
+const isNotesBackCommit = (c: BranchCommitLike): boolean => c.commit.message.split('\n')[0] === NOTES_BACK_COMMIT_MESSAGE;
+
 /** The activity words for Done exploring and Back to exploring, never Bridge's own commit subjects. */
 export const DONE_EXPLORING_WORDS = 'said done exploring';
 export const BACK_TO_EXPLORING_WORDS = 'took it back to exploring';
@@ -264,7 +268,7 @@ export function explorationActivity(input: {
   reopened?: { at: string; by?: string | null | undefined } | null | undefined;
   limit?: number;
 }): ActivityEvent[] {
-  const commits = input.commits.filter((c) => !isStartCommit(c));
+  const commits = input.commits.filter((c) => !isStartCommit(c) && !isNotesBackCommit(c));
   const events: ActivityEvent[] = commits.map((c) => {
     // Bridge's own Done exploring commit reads as what the person said, never its subject.
     if (isDoneExploringCommit(c)) return { who: humanAuthorOf(c) ?? input.author, claude: false, text: DONE_EXPLORING_WORDS, at: dateOf(c), sha: c.sha };

@@ -64,6 +64,12 @@ export function designerZoneTitle(kind: DecisionKind, who: string): string {
   return `${who} asks for changes`;
 }
 
+/** The line a lead reads while a question waits on the designer: "You asked" when it is theirs. */
+export function leadWaitLine(open: Pick<Decision, 'by' | 'byName'>, viewer: string, designer: string, names: Record<string, string> = {}): string {
+  const mine = Boolean(open.by && open.by.toLowerCase() === viewer.toLowerCase());
+  return `${mine ? 'You' : sayerName(open, names)} asked ${designer}. Waiting for their answer.`;
+}
+
 /** The next name free for a reopened exploration: "Late tag 2", then 3. */
 export function nextName(name: string): string {
   const m = /^(.*\S)\s+(\d+)$/.exec(name.trim());

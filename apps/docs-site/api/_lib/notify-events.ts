@@ -98,12 +98,14 @@ function human(user: unknown, ctx: NotifyContext): { login: string; id: number |
 
 /** A comment Bridge posted for a member ("**Mia** (via Bridge):"): the designer said it, nobody else. */
 export const VIA_BRIDGE = /^\s*\*\*[^*\n]{1,120}\*\* \(via Bridge\):/;
+/** A design lead's words to the developers, sent from Bridge: for them, never a question to a designer. */
+export const LEAD_NOTE = /^\s*\*\*[^*\n]{1,120}\*\* \(design lead\):/;
 // Studio's own words on a task (lib/review-state.ts devQuestionOf reads a question the same way; a test holds them
 // equal): a design review the designer sent, taking the task back to exploring, and the label that asks for design.
 export const DESIGN_REVIEW_PREFIX = 'Design review from Bridge:';
 export const TASK_BACK_PREFIX = 'The design team took this back to exploring.';
 export const NEEDS_DESIGN_LABEL = 'needs-design';
-const bridgeWords = (body: string) => VIA_BRIDGE.test(body) || body.trim().startsWith(DESIGN_REVIEW_PREFIX) || body.trim().startsWith(TASK_BACK_PREFIX);
+const bridgeWords = (body: string) => VIA_BRIDGE.test(body) || LEAD_NOTE.test(body) || body.trim().startsWith(DESIGN_REVIEW_PREFIX) || body.trim().startsWith(TASK_BACK_PREFIX);
 
 const upperFirst = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 

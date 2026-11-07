@@ -116,3 +116,12 @@ describe('the words stay', () => {
     expect(parseExplorationBody(pull.body)?.decisions?.at(-1)).toMatchObject({ kind: 'archived', text: 'Stale' });
   });
 });
+
+describe('Take it back', () => {
+  it('writes the decision with Back to exploring, once', async () => {
+    const w = world((b) => withDoneExploring(b, { branch: 'explore/orders', doneAt: '2026-01-01T00:00:00Z', doneSha: 'c1', checks: null }));
+    await takeBackOnGitHub(w.gh, 4, { reason: 'Keep the date', lead: 'flo' });
+    expect(openDecisionOf(w.pull.body)).toMatchObject({ kind: 'take-back', text: 'Keep the date', by: 'flo' });
+    expect(w.writes.filter((x) => x.method === 'PATCH' && x.path === '/repos/acme/shop/pulls/4')).toHaveLength(1);
+  });
+});
