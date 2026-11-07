@@ -867,3 +867,9 @@ export async function buildState(repo: string, x: BuildTarget, githubToken: stri
 export async function sayBuild(repo: string, x: BuildTarget & { kind: 'looks-right' | 'changes'; why?: 'build' | 'design'; text?: string }, githubToken: string | null = null): Promise<BuildStateRead> {
   return call<BuildStateRead>('POST', '', { action: 'build-word', repo, ...x }, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
 }
+
+/** Where the check of each developers' build stands, for the lists (keys "owner/repo#number"); null when not opened yet. */
+export async function buildChecks(repo: string, pulls: readonly { code: string; number: number }[], githubToken: string | null = null): Promise<Record<string, { state: 'pending' | 'success' | 'failure'; waiting: string[]; changesBy: string | null } | null>> {
+  const r = await call<{ checks?: Record<string, unknown> }>('POST', '', { action: 'build-checks', repo, pulls }, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
+  return (r.checks ?? {}) as Record<string, { state: 'pending' | 'success' | 'failure'; waiting: string[]; changesBy: string | null } | null>;
+}

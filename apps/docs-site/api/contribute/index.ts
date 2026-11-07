@@ -179,7 +179,7 @@ import { addsLeadWords, handsOff, LEAD_ONLY } from '../_lib/lead-gate.js';
 import { explorationKeeper } from '../_lib/exploration-keeper.js';
 import { addsPmWords, isPm, PM_ONLY, PRODUCT_KEY, pmOf, pmsOf, publicPm, setPm, withPmWord, type PmWord, type ProductPm } from '../_lib/product-pm.js';
 import { deliverNotices, teamBase, type NotifyDeps } from '../_lib/notify.js';
-import { addBuildWord, buildComment, buildStateOf, buildWordsOf, DESIGN_CHECK, devPullOfEvents, taskOfUrl, type BuildRole, type BuildWord } from '../_lib/build-check.js';
+import { buildComment, buildRecordOf, buildStateOf, buildSummary, designCheckStatus, mentionedIssues, NO_DESIGN, DESIGN_CHECK, DESIGN_TASK_BACK_COMMENT_SERVER, devPullOfEvents, reopenedBody, saveBuild, taskOfUrl, type BuildNeed, type BuildRole, type BuildWord } from '../_lib/build-check.js';
 import type { Notice } from '../_lib/notify-events.js';
 import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-update.js';
 import { validPackageName } from '../../src/lib/library-update.js';
@@ -600,6 +600,9 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
     case 'build-word':
       return await onBuild(req, ctx, body, true);
 
+    case 'build-checks':
+      return await onBuildChecks(req, ctx, body);
+
     case 'exploration-keeper': {
       // A lead signed in by email hands an exploration over: the member record says they lead, never the browser.
       const team = parseRepo(body.repo);
@@ -771,10 +774,12 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   if (pr.status !== 200 || !head || pr.data?.draft === true || pr.data?.state !== 'open') return fail(409, 'not_ready', BUILD_WORDS.notReady);
   const pm = await pmOf(ctx.svc.redis, t.full, product);
   // The design lead checks again only when the exploration sent pieces to the library: those change since approval.
-  const need = { pm: Boolean(pm), lead: Array.isArray(block.leadPieces) && block.leadPieces.length > 0 };
+  const designerName = typeof block.memberName === 'string' ? block.memberName : typeof block.author === 'string' ? block.author : undefined;
+  const need: BuildNeed = { pm: Boolean(pm), lead: Array.isArray(block.leadPieces) && block.leadPieces.length > 0, names: { ...(designerName ? { designer: designerName } : {}), ...(pm ? { pm: pm.name } : {}) } };
   const designer = Boolean((typeof block.member === 'string' && who.email && block.member === memberRef(who.email)) || (who.login && [block.author, block.doneBy].some((a) => typeof a === 'string' && a.toLowerCase() === who.login!.toLowerCase())));
   const role: BuildRole | null = designer ? 'designer' : isPm(pm, who) ? 'pm' : who.lead ? 'lead' : null;
-  let words = await buildWordsOf(ctx.svc.redis, pair.code, dev.number);
+  let words = (await buildRecordOf(ctx.svc.redis, pair.code, dev.number)).words;
+  if (!write) words = await saveBuild(ctx.svc.redis, pair.code, dev.number, need);
   if (write) {
     if (!role) return fail(403, 'not-allowed', BUILD_WORDS.notYours);
     const kind = body.kind === 'looks-right' || body.kind === 'changes' ? body.kind : null;
@@ -782,8 +787,19 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
     if (!kind) return fail(400, 'bad_request', 'Unknown word.');
     if (kind === 'changes' && !text) return fail(400, 'bad_request', BUILD_WORDS.note);
     const word: BuildWord = { role, ...(who.login ? { by: who.login } : {}), byName: who.name, kind, ...(kind === 'changes' ? { why: body.why === 'design' ? 'design' : 'build', text } : {}), sha: head, at: new Date(ctx.now()).toISOString() };
-    words = await addBuildWord(ctx.svc.redis, pair.code, dev.number, word);
+    words = await saveBuild(ctx.svc.redis, pair.code, dev.number, need, word);
     await ghAppSend(ctx, token, 'POST', `/repos/${ro}/${rn}/issues/${dev.number}/comments`, { body: buildComment(word) });
+    // The design must change: the exploration runs again for its designer (Back to exploring, a new round, then the
+    // lead again), and the developers' task leaves their list with the word that says so.
+    if (kind === 'changes' && word.why === 'design') {
+      const reopened = reopenedBody(String(ex.data.body), { at: word.at, ...(who.login ? { by: who.login } : {}), byName: who.name, text });
+      if (reopened) await ghAppSend(ctx, copyToken, 'PATCH', `/repos/${co}/${cn}/pulls/${n}`, { body: reopened });
+      await ghAppSend(ctx, copyToken, 'POST', `/repos/${co}/${cn}/issues/${n}/labels`, { labels: [EXPLORATION_LABEL_SERVER] }).catch(() => undefined);
+      await ghAppSend(ctx, copyToken, 'DELETE', `/repos/${co}/${cn}/issues/${n}/labels/${encodeURIComponent(EXPLORATION_READY_LABEL)}`, {}).catch(() => undefined);
+      await ghAppSend(ctx, token, 'POST', `/repos/${ro}/${rn}/issues/${task.number}/comments`, { body: `${DESIGN_TASK_BACK_COMMENT_SERVER}\n\n${text}` }).catch(() => undefined);
+      await ghAppSend(ctx, token, 'PATCH', `/repos/${ro}/${rn}/issues/${task.number}`, { state: 'closed', state_reason: 'not_planned' }).catch(() => undefined);
+      await noteWrite(ctx.svc.redis, t.full, ctx.now()).catch(() => undefined);
+    }
     // Needs changes reaches the designer (and the PM, when the designer or a lead said it) right away.
     if (kind === 'changes') {
       const title = cleanTitle(block.name);
@@ -796,8 +812,44 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   const st = buildStateOf(words, head, need);
   const target = `${teamBase(siteOrigin(req, ctx.env.PUBLIC_SITE_URL), t.full)}changes/?exploration=${n}&product=${encodeURIComponent(product)}`;
   // The status needs the app's Commit statuses write permission: without it the comment still says it, and Studio too.
-  const status = await ghAppSend(ctx, token, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { state: st.state, context: DESIGN_CHECK, description: st.description.slice(0, 140), target_url: target }).catch(() => ({ status: 0, data: null }));
+  const named = designCheckStatus(st, need.names, { designChanging: write && body.why === 'design' && body.kind === 'changes' });
+  const status = await ghAppSend(ctx, token, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...named, context: DESIGN_CHECK, target_url: target }).catch(() => ({ status: 0, data: null }));
   return json(200, { ...st, head, pull: { number: dev.number, url: dev.url }, role, statusWritten: status.status === 201 });
+}
+
+const EXPLORATION_LABEL_SERVER = 'exploration';
+
+/**
+ * POST { action: 'build-checks', repo, pulls: [{ code, number }] }: for the lists (Being built, Home, Changes), where the
+ * check of each developers' build stands on its head, from what Bridge keeps (never a write): who is still waiting, or
+ * who asked for changes. Null for a build nobody opened in Studio yet (the lists keep the last answer then).
+ */
+async function onBuildChecks(req: Request, ctx: Ctx, body: Record<string, unknown>): Promise<Response> {
+  const team = parseRepo(body.repo);
+  const t = { ...team, full: team.full.toLowerCase() };
+  if (!(await callerOn(ctx, req, t))) return fail(401, 'signin', SIGNIN);
+  const asked = Array.isArray(body.pulls) ? body.pulls.slice(0, 20) : [];
+  const codes = new Set((await teamFacts(ctx, t)).pairs.map((p) => canonicalRepo(p.code).toLowerCase()));
+  const checks: Record<string, ReturnType<typeof buildSummary> | null> = {};
+  await Promise.all(
+    asked.map(async (x: unknown) => {
+      const { code, number } = (x ?? {}) as { code?: unknown; number?: unknown };
+      if (typeof code !== 'string' || !Number.isSafeInteger(number)) return;
+      const repo = canonicalRepo(code).toLowerCase();
+      const k = `${repo}#${number}`;
+      checks[k] = null;
+      if (!codes.has(repo)) return;
+      const rec = await buildRecordOf(ctx.svc.redis, repo, number as number);
+      if (!rec.need) return;
+      const [o, r] = repo.split('/') as [string, string];
+      const token = await ctx.svc.app.installationToken(o, r);
+      const pr = token ? await ghApp(ctx, token, 'GET', `/repos/${o}/${r}/pulls/${number}`) : null;
+      const head = typeof pr?.data?.head?.sha === 'string' ? (pr.data.head.sha as string) : null;
+      if (!head) return;
+      checks[k] = buildSummary(buildStateOf(rec.words, head, rec.need), rec.need.names);
+    }),
+  );
+  return json(200, { checks });
 }
 
 /** A write with the app's token and a JSON body (ghApp reads only). */
@@ -2301,6 +2353,63 @@ async function membersOf(ctx: Ctx, req: Request, full: string, m: EmailMember | 
  * The lead guard of the webhook (api/_lib/lead-guard.ts), as the Bridge app: GitHub calls with the app's token on the
  * repository, the design owners of the team it belongs to (the notifications keep which team that is).
  */
+const DESIGN_CHECK_ACTIONS = new Set(['opened', 'reopened', 'synchronize', 'ready_for_review', 'edited']);
+
+/**
+ * The "Design check" on every pull request of a product's developers' repository Bridge watches, from the GitHub
+ * webhook (opened, reopened, a push, ready for review, a new description): success "No design to check" when it names
+ * no task of a handed-off exploration, else where the check stands, the people still waiting named (failure while the
+ * design changes). So a required check never holds a change that has no design, and a linked one shows at once.
+ * Answers recompute it (onBuild). Never in the way of the delivery: a refused write is dropped.
+ */
+export function designCheckFor(ctx: Ctx): (event: string, payload: unknown) => Promise<'none' | 'linked' | 'skipped'> {
+  return async (event, payload) => {
+    const p = (payload ?? {}) as { action?: unknown; repository?: { full_name?: unknown }; pull_request?: { number?: unknown; body?: unknown; state?: unknown; head?: { sha?: unknown } } };
+    if (event !== 'pull_request' || !DESIGN_CHECK_ACTIONS.has(String(p.action))) return 'skipped';
+    const repo = typeof p.repository?.full_name === 'string' ? canonicalRepo(p.repository.full_name).toLowerCase() : '';
+    const pr = p.pull_request;
+    const head = typeof pr?.head?.sha === 'string' ? pr.head.sha : null;
+    if (!repo || !head || !Number.isSafeInteger(pr?.number) || pr?.state === 'closed') return 'skipped';
+    // Only the developers' repository of a product Bridge watches.
+    const metaRaw = await ctx.svc.redis.cmd('GET', `bridge:notify:repo:${repo}`);
+    let meta: { team?: string; kind?: string; product?: string } | null = null;
+    try {
+      meta = typeof metaRaw === 'string' ? JSON.parse(metaRaw) : null;
+    } catch {
+      meta = null;
+    }
+    if (meta?.kind !== 'code' || !meta.team) return 'skipped';
+    const [ro, rn] = repo.split('/') as [string, string];
+    const token = await ctx.svc.app.installationToken(ro, rn);
+    if (!token) return 'skipped';
+    // A task it names that links an exploration in the design copy (Done exploring writes that link in the task).
+    let linked: { copy: { repo: string; number: number }; issue: number } | null = null;
+    for (const n of mentionedIssues(pr!.body, repo)) {
+      const issue = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/issues/${n}`);
+      const copy = issue.status === 200 && !issue.data?.pull_request ? linkedCopy(issue.data?.body, repo) : null;
+      if (copy) {
+        linked = { copy, issue: n };
+        break;
+      }
+    }
+    const write = (x: { state: string; description: string }) => ghAppSend(ctx, token, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...x, context: DESIGN_CHECK }).catch(() => undefined);
+    if (!linked) {
+      await write(NO_DESIGN);
+      return 'none';
+    }
+    const [co, cn] = linked.copy.repo.split('/') as [string, string];
+    const copyToken = await ctx.svc.app.installationToken(co, cn);
+    const ex = copyToken ? await ghApp(ctx, copyToken, 'GET', `/repos/${co}/${cn}/pulls/${linked.copy.number}`) : null;
+    const block = ex?.status === 200 ? explorationBlockOf(ex.data?.body) : null;
+    const pm = meta.product ? await pmOf(ctx.svc.redis, meta.team, meta.product) : null;
+    const designer = typeof block?.memberName === 'string' ? block.memberName : typeof block?.author === 'string' ? block.author : undefined;
+    const need: BuildNeed = { pm: Boolean(pm), lead: Array.isArray(block?.leadPieces) && (block!.leadPieces as unknown[]).length > 0, names: { ...(designer ? { designer } : {}), ...(pm ? { pm: pm.name } : {}) } };
+    const words = await saveBuild(ctx.svc.redis, repo, pr!.number as number, need);
+    await write(designCheckStatus(buildStateOf(words, head, need), need.names, { designChanging: Boolean(block && typeof block.doneAt !== 'string') }));
+    return 'linked';
+  };
+}
+
 function leadGuardFor(ctx: Ctx): (event: string, payload: unknown) => Promise<boolean> {
   const call = async (repo: string, method: string, path: string, body?: unknown) => {
     const [owner = '', name = ''] = repo.split('/');
@@ -2374,10 +2483,22 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
               ...(deps.members ? { members: deps.members } : {}),
               ...(profileName ? { profileName } : {}),
               loginId: publicLoginId(deps.fetch),
+              ...(svc
+                ? {
+                    explorationBlock: async (repo: string, n: number) => {
+                      const [o = '', r = ''] = repo.split('/');
+                      const token = await svc.readApp.installationToken(o, r);
+                      if (!token) return null;
+                      const res = await deps.fetch(`${API}/repos/${o}/${r}/pulls/${n}`, { method: 'GET', headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'User-Agent': 'bridge-contribute', 'X-GitHub-Api-Version': '2022-11-28' } });
+                      return res.status === 200 ? explorationBlockOf(((await res.json()) as { body?: unknown }).body) : null;
+                    },
+                  }
+                : {}),
             }
           : undefined;
       const guard = svc ? leadGuardFor({ f: deps.fetch, now, random: deps.random ?? ((n) => randomBytes(n)), svc, env }) : undefined;
-      return await handleGithubWebhook(req, { redis, secret: env.GITHUB_WEBHOOK_SECRET, now: deps.now ?? Date.now, ...(notify ? { notify } : {}), ...(guard ? { guard } : {}) });
+      const designCheck = svc ? designCheckFor({ f: deps.fetch, now, random: deps.random ?? ((n) => randomBytes(n)), svc, env }) : undefined;
+      return await handleGithubWebhook(req, { redis, secret: env.GITHUB_WEBHOOK_SECRET, now: deps.now ?? Date.now, ...(notify ? { notify } : {}), ...(guard ? { guard } : {}), ...(designCheck ? { designCheck } : {}) });
     }
     if (method !== 'GET') requireCsrf(req);
     const svc = services(env, deps);

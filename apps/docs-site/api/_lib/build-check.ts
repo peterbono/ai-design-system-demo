@@ -34,21 +34,86 @@ const MAX_WORDS = 60;
 
 export const buildKey = (repo: string, pull: number) => `bridge:build:${repo.toLowerCase()}:${pull}`;
 
-export async function buildWordsOf(redis: Redis, repo: string, pull: number): Promise<BuildWord[]> {
+/** Who must check, and their names, as the exploration said at its last read: the lists read the state without it. */
+export interface BuildNeed {
+  pm: boolean;
+  lead: boolean;
+  names?: { designer?: string; pm?: string };
+}
+
+export interface BuildRecord {
+  words: BuildWord[];
+  need?: BuildNeed;
+}
+
+export async function buildRecordOf(redis: Redis, repo: string, pull: number): Promise<BuildRecord> {
   const raw = await redis.cmd('GET', buildKey(repo, pull));
   try {
-    const v = typeof raw === 'string' ? (JSON.parse(raw) as { words?: unknown }) : null;
-    return Array.isArray(v?.words) ? (v.words as BuildWord[]).filter((w) => w && typeof w.sha === 'string' && typeof w.role === 'string') : [];
+    const v = typeof raw === 'string' ? (JSON.parse(raw) as { words?: unknown; need?: BuildNeed }) : null;
+    const words = Array.isArray(v?.words) ? (v.words as BuildWord[]).filter((w) => w && typeof w.sha === 'string' && typeof w.role === 'string') : [];
+    return { words, ...(v?.need && typeof v.need.pm === 'boolean' ? { need: v.need } : {}) };
   } catch {
-    return [];
+    return { words: [] };
   }
 }
 
-export async function addBuildWord(redis: Redis, repo: string, pull: number, w: BuildWord): Promise<BuildWord[]> {
-  const words = [...(await buildWordsOf(redis, repo, pull)), w].slice(-MAX_WORDS);
-  await redis.cmd('SET', buildKey(repo, pull), JSON.stringify({ words }), 'EX', BUILD_KEEP_S);
+export async function buildWordsOf(redis: Redis, repo: string, pull: number): Promise<BuildWord[]> {
+  return (await buildRecordOf(redis, repo, pull)).words;
+}
+
+/** The record with one more word (when given) and who must check now. */
+export async function saveBuild(redis: Redis, repo: string, pull: number, need: BuildNeed, w?: BuildWord): Promise<BuildWord[]> {
+  const was = await buildRecordOf(redis, repo, pull);
+  const words = (w ? [...was.words, w] : was.words).slice(-MAX_WORDS);
+  await redis.cmd('SET', buildKey(repo, pull), JSON.stringify({ words, need }), 'EX', BUILD_KEEP_S);
   return words;
 }
+
+export async function addBuildWord(redis: Redis, repo: string, pull: number, w: BuildWord): Promise<BuildWord[]> {
+  return saveBuild(redis, repo, pull, (await buildRecordOf(redis, repo, pull)).need ?? { pm: false, lead: false }, w);
+}
+
+/** What the lists show (Being built, Home, Changes): who is still waiting, or who asked for changes, by name. */
+export function buildSummary(st: BuildState, names: BuildNeed['names'] = {}): { state: BuildState['state']; waiting: string[]; changesBy: string | null } {
+  const nameOf = (r: BuildRow) => r.byName ?? (r.role === 'designer' ? names.designer : r.role === 'pm' ? names.pm : undefined) ?? (r.role === 'pm' ? 'the product manager' : r.role === 'lead' ? 'a design lead' : 'the designer');
+  return {
+    state: st.state,
+    waiting: st.rows.filter((r) => r.required && r.state === 'waiting').map(nameOf),
+    changesBy: st.rows.find((r) => r.state === 'changes')?.byName ?? null,
+  };
+}
+
+/** Where the task is in the developers' repository, back in the exploration: Back to exploring's word (core). */
+export const DESIGN_TASK_BACK_COMMENT_SERVER = 'The design team took this back to exploring. It comes back here when they say Done exploring again.';
+
+/**
+ * The exploration's body back to running for a new round (core withoutDoneExploring, then withDecision): the developer
+ * section goes, the done marker and the lead's yes leave, it records when it runs again, and the reason is a decision of
+ * the round. Null without a block.
+ */
+export function reopenedBody(body: string, d: { at: string; by?: string; byName: string; text: string }): string | null {
+  const m = BLOCK.exec(body);
+  if (!m) return null;
+  let e: Record<string, unknown>;
+  try {
+    e = JSON.parse(m[1]!) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const kept = body.replace(/### For developers[\s\S]*?(?=### |<!-- |$)/, '');
+  for (const k of ['doneAt', 'doneSha', 'reopenedBy', 'doneByMember', 'leadOkBy']) delete e[k];
+  e.reopenedAt = d.at;
+  if (d.by) e.reopenedBy = d.by;
+  const before = Array.isArray(e.decisions) ? (e.decisions as { kind?: unknown }[]).filter((x) => x && typeof x === 'object') : [];
+  const round = 1 + before.filter((x) => x.kind === 'changes' || x.kind === 'take-back').length;
+  e.decisions = [...before, { kind: 'take-back', at: d.at, round, ...(d.by ? { by: d.by } : {}), byName: d.byName, text: d.text }];
+  const block = `<!-- ${MARK} ${JSON.stringify(e).replace(/-->/g, '--\\u003e')} -->`;
+  const at = kept.search(BLOCK);
+  return `${kept.slice(0, at).trim()}\n\n${kept.slice(at).replace(BLOCK, () => block).trim()}`.trim();
+}
+
+const MARK = 'bridge-exploration';
+const BLOCK = new RegExp(`<!-- ${MARK} (\\{[\\s\\S]*?\\}) -->`);
 
 export interface BuildRow {
   role: BuildRole;
@@ -115,4 +180,29 @@ export function buildComment(w: Pick<BuildWord, 'kind' | 'why' | 'text' | 'byNam
   if (w.kind === 'looks-right') return `Design review from Bridge: looks right.\n\n${who}`;
   const what = w.why === 'design' ? `The design must change, a new version comes back from the designer: ${w.text ?? ''}` : (w.text ?? '');
   return `Design review from Bridge: needs changes: ${what.trim()}\n\n${who}`;
+}
+
+/** The "Design check" status for a pull request, in the developers' words, the people named (GitHub caps it at 140). */
+export function designCheckStatus(st: BuildState, names: BuildNeed['names'] = {}, o: { designChanging?: boolean } = {}): { state: BuildState['state']; description: string } {
+  if (o.designChanging) return { state: 'failure', description: 'The design is changing: wait for the new version' };
+  const s = buildSummary(st, names);
+  const list = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+  const description = s.state === 'failure' ? `${s.changesBy ?? 'The design team'} asked for changes` : s.state === 'success' ? 'The design team says it looks right' : `Waiting for ${list(s.waiting)}`;
+  return { state: s.state, description: description.slice(0, 140) };
+}
+
+/** A pull request that changes no explored design: nothing to check. */
+export const NO_DESIGN = { state: 'success' as const, description: 'No design to check' };
+
+/** The issues of its own repository a pull request body names: "#12", "Closes #12", or the issue's address. At most 5. */
+export function mentionedIssues(body: unknown, repo: string): number[] {
+  if (typeof body !== 'string') return [];
+  const out = new Set<number>();
+  for (const m of body.matchAll(/(?:^|[^\w/&])#(\d{1,9})\b/g)) out.add(Number(m[1]));
+  const [o, n] = repo.split('/');
+  if (o && n) {
+    const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    for (const m of body.matchAll(new RegExp(`https://github\\.com/${esc(o)}/${esc(n)}/issues/(\\d{1,9})\\b`, 'gi'))) out.add(Number(m[1]));
+  }
+  return [...out].filter((x) => x > 0).slice(0, 5);
 }
