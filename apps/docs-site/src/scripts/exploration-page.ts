@@ -424,7 +424,7 @@ export function prestartBuildState(product: string, number: number): void {
 function startBuildRead(team: string, product: string, copy: string, number: number, viewerRef: string | null): Promise<[BuildRead | null, TeamRead | null]> {
   return Promise.all([import('./contribute-session'), import('./github-session')]).then(([{ buildState, contributeTeam }, { getToken }]) => {
     const token = viewerRef ? null : getToken();
-    return Promise.all([buildState(team, { product, copy, number }, token).catch(() => null), contributeTeam(team, token).catch(() => null)]);
+    return Promise.all([buildState(team, { product, copy, number }, token).then((r) => ((r as { ready?: boolean }).ready === false ? null : r)).catch(() => null), contributeTeam(team, token).catch(() => null)]);
   });
 }
 type BuildRead = Awaited<ReturnType<(typeof import('./contribute-session'))['buildState']>>;
@@ -436,7 +436,7 @@ async function paintBuildCheck(d: HTMLElement, key: string, o: { r: ExplorationR
   const { getToken } = await import('./github-session');
   const token = o.viewerRef ? null : getToken();
   const target = { product: o.product, copy: o.copy, number: o.r.number };
-  const [read, people] = await (o.early ?? Promise.all([buildState(team, target, token).catch(() => null), contributeTeam(team, token).catch(() => null)]));
+  const [read, people] = await (o.early ?? Promise.all([buildState(team, target, token).then((r) => ((r as { ready?: boolean }).ready === false ? null : r)).catch(() => null), contributeTeam(team, token).catch(() => null)]));
   if (!read || current?.key !== key || !current.props.handoff) return;
   const pm = people?.pms[o.product.toLowerCase()]?.name ?? null;
   // The names Bridge's server knows (their GitHub profile) win over what the page could tell ("the developer").
