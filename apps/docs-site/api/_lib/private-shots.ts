@@ -122,18 +122,22 @@ export function fileHints(files: readonly string[]): string[] {
   const add = (w: string) => {
     if (w.length >= 3 && !shell.has(w) && !generic.has(w) && !out.includes(w)) out.push(w);
   };
-  for (const f of files) {
-    if (f.startsWith('.') || f.includes('/.')) continue;
+  // Code before styles (a shared stylesheet names no page), whole names before folders and words: the first hint is
+  // the strongest, and the capture tries them in this order.
+  const style = (f: string) => /\.(css|scss|less)$/i.test(f);
+  const named = files.filter((f) => !f.startsWith('.') && !f.includes('/.')).sort((a, b) => Number(style(a)) - Number(style(b)));
+  const later: string[] = [];
+  for (const f of named) {
     const parts = f.split('/');
-    const file = parts.pop()!.replace(/\.(tsx?|jsx?|vue|svelte|css|md|json)$/i, '');
+    const file = parts.pop()!.replace(/\.(tsx?|jsx?|vue|svelte|css|scss|less|md|json)$/i, '').replace(/\.(module|styles?)$/i, '');
     const base = file.toLowerCase();
     if (base.length < 3 || shell.has(base)) continue;
-    // The whole name first (billing), then its folder (orders), then the words of a compound name (order in OrderList).
     if (!out.includes(base)) out.push(base);
     const dir = parts.pop()?.toLowerCase();
-    if (dir && !plain.has(dir)) add(dir);
-    for (const w of file.split(/(?<=[a-z0-9])(?=[A-Z])|[-_.\s]+/)) add(w.toLowerCase());
+    if (dir && !plain.has(dir)) later.push(dir);
+    for (const w of file.split(/(?<=[a-z0-9])(?=[A-Z])|[-_.\s]+/)) later.push(w.toLowerCase());
   }
+  for (const w of later) add(w);
   return out.slice(0, 8);
 }
 

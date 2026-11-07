@@ -274,6 +274,7 @@ async function toWebp(context, png, width) {
 export function hintedTarget(links, origin, hints) {
   const h = (hints ?? []).map((x) => String(x).toLowerCase()).filter((x) => x.length >= 3);
   if (!h.length) return null;
+  const pages = [];
   for (const { href, text } of links) {
     let u;
     try {
@@ -282,8 +283,12 @@ export function hintedTarget(links, origin, hints) {
       continue;
     }
     if (u.origin !== origin || (u.pathname === '/' && !u.hash)) continue;
-    const words = `${u.pathname} ${u.hash} ${text ?? ''}`.toLowerCase();
-    if (h.some((x) => words.includes(x))) return u.href;
+    pages.push({ href: u.href, words: `${u.pathname} ${u.hash} ${text ?? ''}`.toLowerCase() });
+  }
+  // The strongest hint first (the whole name of a changed page), whatever order the links come in.
+  for (const x of h) {
+    const hit = pages.find((p) => p.words.includes(x));
+    if (hit) return hit.href;
   }
   return null;
 }

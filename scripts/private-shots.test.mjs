@@ -26,5 +26,8 @@ describe('the page a capture opens', () => {
     expect(hintedTarget([{ href: '#/orders', text: 'Orders' }], 'https://x.pages.dev', ['orders'])).toBe('https://x.pages.dev/#/orders');
     expect(hintedTarget(links, 'https://x.pages.dev', ['plans'])).toBeNull();
     expect(hintedTarget(links, 'https://x.pages.dev', [])).toBeNull();
+    // The strongest hint wins over the first link a weaker one matches ("account" from account.module.css).
+    const account = [{ href: '/settings', text: 'Account settings' }, { href: '/billing', text: 'Billing' }];
+    expect(hintedTarget(account, 'https://x.pages.dev', ['billing', 'account'])).toBe('https://x.pages.dev/billing');
   });
 });
