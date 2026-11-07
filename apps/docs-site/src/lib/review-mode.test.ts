@@ -196,3 +196,15 @@ describe('the PM gate at Done exploring', () => {
     expect(pmGateStop({ review: { mode: 'one', asked: [], pms }, throughReview: true, product: 'shop', body: 'x' })).toBeNull();
   });
 });
+
+describe("I'll look on the other reviewers' Home", () => {
+  it('leaves their Home, and comes back 2 days later with no decision', async () => {
+    const { leadHomeRow, TAKEN_FOR_MS } = await import('./lead-decisions');
+    const at = Date.parse('2026-11-07T10:00:00Z');
+    const body = `x\n<!-- bridge-exploration ${JSON.stringify({ name: 'Orders', leadAskedAt: '2026-11-07T09:00:00Z', leadAskedByName: 'Ann', leadTakenAt: new Date(at).toISOString(), leadTakenByName: 'Lea' })} -->`;
+    const v = { viewer: null, lead: true, own: false, viewerName: 'Dino' };
+    expect(leadHomeRow(body, { ...v, now: at + 1000 })).toBeNull();
+    expect(leadHomeRow(body, { ...v, viewerName: 'Lea', now: at + 1000 })).not.toBeNull();
+    expect(leadHomeRow(body, { ...v, now: at + TAKEN_FOR_MS + 1000 })).not.toBeNull();
+  });
+});

@@ -64,6 +64,9 @@ export function linesOf(i: Pick<NotifyItem, 'kind' | 'title' | 'actor'>): { subj
       return { subject: `${title} will not be done`, sentence: `${actor} decided not to do ${title} and said why. Your work stays in Bridge.`, button: 'Read why' };
     case 'lead-handed':
       return { subject: `${actor} handed ${title} to you`, sentence: `${actor} handed ${title} over to you and said why. You carry it on from here.`, button: 'Open it' };
+    // Never sent (notify.ts drops it): its words only so every kind has some.
+    case 'lead-taken':
+      return { subject: `Someone is looking at ${title}`, sentence: `${actor} is waiting for an answer on ${title}.`, button: 'Look at it' };
     case 'lead-ok':
       return { subject: `${title} went to the developers`, sentence: `${actor} said it looks right, so ${title} went to the developers.`, button: 'See it' };
     case 'lead-pm-ok':

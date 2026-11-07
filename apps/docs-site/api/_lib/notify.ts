@@ -338,17 +338,18 @@ function perPerson(notices: readonly Notice[]): Notice[] {
 
 /** What waits on a lead also reaches the leads who signed in by email (the member record says so): by address, not login. */
 const LEAD_WAITS: ReadonlySet<string> = new Set(['lead-ask', 'lead-answer', 'lead-reminder']);
-async function withEmailLeads(notices: Notice[], d: NotifyDeps, members: MemberStore): Promise<Notice[]> {
-  const waits = notices.find((n) => LEAD_WAITS.has(n.kind));
+async function withEmailLeads(notices: Notice[], d: NotifyDeps, members: MemberStore, originals: readonly Notice[] = notices): Promise<Notice[]> {
+  // From the notices as they came: a reminder for one email reviewer names nobody on GitHub, so it has no copy per person.
+  const waits = originals.find((n) => LEAD_WAITS.has(n.kind));
   if (!waits) return notices;
   const repoMeta = parse<RepoMeta>(await d.redis.cmd('GET', repoMetaKey(waits.repo)));
   if (!repoMeta || typeof repoMeta.team !== 'string') return notices;
   // Who is asked (api/_lib/review-mode.ts): the design leads, or every designer when review is shared. An admin decides
   // when they want to, and is never asked.
   const mode = await reviewModeOf(d.redis, repoMeta.team);
-  const leads = (await members.list(repoMeta.team)).filter((m) => askedToReview(m, mode));
+  const leads = (await members.list(repoMeta.team)).filter((m) => askedToReview(m, mode) && (!waits.takerOnly || (waits.taker?.name !== undefined && m.name === waits.taker.name)));
   const first = new Set<string>();
-  const extra = notices.filter((n) => LEAD_WAITS.has(n.kind) && !first.has(n.kind) && first.add(n.kind)).flatMap((n) => leads.filter((m) => m.name !== n.actorName).map((m) => ({ ...n, to: [`email:${m.email}`] })));
+  const extra = originals.filter((n) => LEAD_WAITS.has(n.kind) && !first.has(n.kind) && first.add(n.kind)).flatMap((n) => leads.filter((m) => m.name !== n.actorName).map((m) => ({ ...n, to: [`email:${m.email}`] })));
   return [...notices, ...extra];
 }
 
@@ -380,8 +381,24 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
         ['ZADD', REMIND_KEY, d.now() + REMIND_MS, JSON.stringify({ token, notice: { ...n, kind: 'lead-reminder', waits: false } })],
       ]);
     }
+    // "I'll look": a new wait (the reminder to everyone goes with the old one). The reminder that was due goes to the one
+    // who took it only; 2 days after taking it with no decision, it goes back to every reviewer, once.
+    if (n.kind === 'lead-taken' && n.taker) {
+      const token = `${eventId}:${n.kind}`;
+      const { taker, askedAt, ...base } = n;
+      const usual = askedAt !== undefined ? askedAt + REMIND_MS : null;
+      const back = d.now() + REMIND_MS;
+      const mine: Notice = { ...base, kind: 'lead-reminder', to: taker.login ? [taker.login] : [], takerOnly: true, taker };
+      await d.redis.pipe([
+        ['SET', waitingKey(n.repo, item), token, 'EX', KEEP_S],
+        ...(usual !== null && usual > d.now() && usual < back ? [['ZADD', REMIND_KEY, usual, JSON.stringify({ token, notice: mine })]] : []),
+        ['ZADD', REMIND_KEY, back, JSON.stringify({ token, notice: { ...base, kind: 'lead-reminder' } })],
+      ]);
+    }
   }
-  for (const [idx, n] of (await withEmailLeads(perPerson(notices), d, members)).entries()) {
+  // "I'll look" only moves the reminders: nobody gets an email for it.
+  const kept = notices.filter((x) => x.kind !== 'lead-taken');
+  for (const [idx, n] of (await withEmailLeads(perPerson(kept), d, members, kept)).entries()) {
     const skip = (reason: Extract<Outcome, { status: 'skipped' }>['reason']) => out.push({ kind: n.kind, status: 'skipped', reason });
     const repoMeta = parse<RepoMeta>(await d.redis.cmd('GET', repoMetaKey(n.repo)));
     if (!repoMeta || typeof repoMeta.team !== 'string') {
@@ -528,7 +545,8 @@ export async function sendReminders(d: NotifyDeps, max = 25): Promise<number> {
     const r = parse<{ token: string; notice: Notice }>(raw);
     const item = r?.notice.items[0];
     if (!r || item === undefined || (await d.redis.cmd('GET', waitingKey(r.notice.repo, item))) !== r.token) continue;
-    await d.redis.cmd('DEL', waitingKey(r.notice.repo, item));
+    // The reminder for the one who took it leaves the wait on: the one to everyone comes after it.
+    if (!r.notice.takerOnly) await d.redis.cmd('DEL', waitingKey(r.notice.repo, item));
     const out = await deliverNotices([r.notice], d, `remind:${r.token}`);
     sent += out.filter((o) => o.status === 'sent').length;
   }

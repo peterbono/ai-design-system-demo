@@ -1524,6 +1524,7 @@ async function checkLeadWords(ctx: Ctx, c: Call, at: { owner: string; repo: stri
   if (addsPmWords(p.data?.body, next)) throw new HttpError(403, 'pm-only', PM_ONLY);
   const r = await reviewFor(ctx, c, p.data?.body);
   if (!r.decides && addsLeadWords(p.data?.body, next, { hasLeads: r.needs })) throw leadOnly();
+  if (addsDone(p.data?.body, next)) await checkPmGate(ctx, c, p.data?.body, r);
 }
 
 /** The label that hands it to the developers goes with Done exploring: the same rule, for their own exploration. */
@@ -1531,7 +1532,32 @@ async function checkReadyLabel(ctx: Ctx, c: Call, labels: unknown, body: unknown
   if (!handsOff(labels, EXPLORATION_READY_LABEL)) return;
   const r = await reviewFor(ctx, c, body);
   if (!r.decides && r.needs) throw leadOnly();
+  await checkPmGate(ctx, c, body, r);
 }
+
+/**
+ * The PM gate on the server (board R1, lib/pm-view pmRequired): when nobody but the author can review ("Shared, no
+ * review", or the only designer), an exploration of a product with a PM reaches the developers only once the PM said
+ * Looks good, or agreed in a call. The words are the designer's to read in Studio.
+ */
+export function pmGateStop(body: unknown, pm: { name: string } | null): string | null {
+  if (!pm) return null;
+  const all = explorationBlockOf(body)?.decisions;
+  const last = Array.isArray(all) ? [...all].reverse().find((d) => typeof d?.kind === 'string' && (d.kind as string).startsWith('pm-')) : null;
+  if (last?.kind === 'pm-ok' || last?.kind === 'pm-call') return null;
+  return last?.kind === 'pm-changes' ? `${pm.name} asked for changes. Answer them first: nothing goes to the developers before ${pm.name} says it looks good.` : `Share it with ${pm.name} first: nothing goes to the developers before ${pm.name} says it looks good.`;
+}
+
+async function checkPmGate(ctx: Ctx, c: Call, body: unknown, r: { decides: boolean; needs: boolean }): Promise<void> {
+  if (r.decides || r.needs) return;
+  const product = c.scope?.pair.key;
+  if (!product) return;
+  const stop = pmGateStop(body, await pmOf(ctx.svc.redis, c.team, product).catch(() => null));
+  if (stop) throw new HttpError(403, 'pm-first', stop);
+}
+
+/** Done exploring written in a block (doneAt where there was none): the hand-off the PM gate stands before. */
+const addsDone = (before: unknown, after: unknown) => Boolean(explorationBlockOf(after)?.doneAt) && !explorationBlockOf(before)?.doneAt;
 
 const COPY_LABELS = new Set([EXPLORATION_LABEL, EXPLORATION_READY_LABEL, EXPLORATION_ARCHIVED_LABEL]);
 const copyLabel = (l: unknown) => typeof l === 'string' && (COPY_LABELS.has(l) || /^product:[\w.-]{1,64}$/.test(l));
@@ -1748,6 +1774,7 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
           if ('body' in body && addsPmWords(pull.body, body.body)) throw new HttpError(403, 'pm-only', PM_ONLY);
           const review = 'body' in body ? await reviewFor(ctx, c, pull.body) : null;
           if (review && !review.decides && addsLeadWords(pull.body, body.body, { hasLeads: review.needs })) throw leadOnly();
+          if (review && addsDone(pull.body, body.body)) await checkPmGate(ctx, c, pull.body, review);
           // A lead answering on someone else's: their words are in the block by name, the attribution stays the designer's.
           if (review?.decides && typeof was?.member === 'string' && was.member !== me.ref) return { body };
           const owner = typeof was?.member === 'string' ? { ref: was.member, name: typeof was.memberName === 'string' ? was.memberName : c.member.name } : me;
@@ -1824,6 +1851,7 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
         // The developers' task is what the lead's yes sends: a designer never files it past them.
         const review = await reviewFor(ctx, c, linked.body);
         if (!review.decides && review.needs) throw leadOnly();
+        await checkPmGate(ctx, c, linked.body, review);
         return { body: { title: body.title, labels, body: await h.requested(body.body) }, after: h.recordIssue };
       }
       if (at('issues', '*', 'comments')) {

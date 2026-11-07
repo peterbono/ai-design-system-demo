@@ -406,6 +406,21 @@ describe('a design lead signed in by email (the member record says so, never the
     expect((await ben.call('PATCH', `${C}/pulls/${n}`, { body: said('Ben') })).status).toBe(200);
     expect(blockOf(s.w.pulls[n]!.body)).toMatchObject({ memberName: 'Ann', decisions: [{ kind: 'changes', byName: 'Ben' }] });
   });
+  it('"Shared, no review": Done exploring waits for the PM\'s Looks good, on the server too', async () => {
+    const s = setup();
+    await s.redis.cmd('SET', `bridge:review-mode:${TEAM}`, 'shared-none');
+    await s.redis.cmd('SET', `bridge:pm:${TEAM}`, JSON.stringify({ shop: { login: 'dino', name: 'Dino' } }));
+    const ann = await emailDesigner(s, 'ann@acme.com', 'Ann');
+    const n = await start(s, ann, 'orders');
+    const done = () => s.w.pulls[n]!.body.replace(/"slug":"orders"/, '"slug":"orders","doneAt":"2026-11-07T12:00:00Z"');
+    const r = await ann.call('PATCH', `${C}/pulls/${n}`, { body: done() });
+    expect(r.status).toBe(403);
+    expect((await r.json()) as { error: string; message: string }).toMatchObject({ error: 'pm-first', message: expect.stringContaining('Dino says it looks good') });
+    expect((await ann.call('POST', `${C}/issues/${n}/labels`, { labels: ['ready-for-devs'] })).status).toBe(403);
+    // The PM said Looks good: it goes.
+    s.w.pulls[n]!.body = s.w.pulls[n]!.body.replace(/"slug":"orders"/, `"slug":"orders","decisions":${JSON.stringify([{ kind: 'pm-ok', at: 't', round: 1, by: 'dino' }])}`);
+    expect((await ann.call('PATCH', `${C}/pulls/${n}`, { body: done() })).status).toBe(200);
+  });
   it('what is left of a lead is gone with the record', async () => {
     const s = setup();
     const n = await start(s, await emailDesigner(s, 'ann@acme.com', 'Ann'), 'orders');

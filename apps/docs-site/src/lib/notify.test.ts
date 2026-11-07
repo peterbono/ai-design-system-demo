@@ -574,4 +574,41 @@ describe('the talk with a design lead', () => {
     expect(await sendReminders(d)).toBe(0);
     expect(Number(await redis.cmd('ZCARD', REMIND_KEY))).toBe(0);
   });
+  it("I'll look: the reminder goes to the one who took it, then back to every reviewer once", async () => {
+    const { d, redis, sent, later } = await setup();
+    const LEA = 'lea@acme.design';
+    await memberStore(redis).put(TEAM, { email: LEA, name: 'Lea', role: 'edit', lead: true, version: 1, addedBy: 'x', at: 't' });
+    const DAY = 24 * 60 * 60 * 1000;
+    const asked = { leadAskedAt: new Date(T0).toISOString(), leadAskedByName: 'Mia', leadAskedTo: ['flo'] };
+    await deliverNotices(leadNoticesOf(none, block(asked), base), d, 't1');
+    expect(sent.map((m) => m.to).sort()).toEqual(['florian@acme.design', LEA]);
+    later(DAY);
+    const taken = await deliverNotices(leadNoticesOf(block(asked), block({ ...asked, leadTakenAt: 'x', leadTakenByName: 'Lea' }), base), d, 't2');
+    expect(taken).toEqual([]);
+    expect(sent).toHaveLength(2);
+    const fresh = async () => {
+      for (const e of ['florian@acme.design', LEA]) await redis.cmd('DEL', `bridge:notify:soon:${e}:${COPY}#7`);
+    };
+    // When the usual reminder was due: Lea only.
+    later(DAY + 1000);
+    await fresh();
+    expect(await sendReminders(d)).toBe(1);
+    expect(sent[2]!.to).toBe(LEA);
+    // 2 days after taking it, no decision: back to every reviewer, once.
+    later(DAY);
+    await fresh();
+    expect(await sendReminders(d)).toBe(2);
+    expect(sent.slice(3).map((m) => m.to).sort()).toEqual(['florian@acme.design', LEA]);
+    later(4 * DAY);
+    expect(await sendReminders(d)).toBe(0);
+  });
+  it("I'll look, then a decision: no reminder at all", async () => {
+    const { d, redis, later } = await setup();
+    const asked = { leadAskedAt: new Date(T0).toISOString(), leadAskedByName: 'Mia', leadAskedTo: ['flo'] };
+    await deliverNotices(leadNoticesOf(block(asked), block({ ...asked, leadTakenAt: 'x', leadTakenBy: 'flo' }), base), d, 't3');
+    await deliverNotices(leadNoticesOf(block({ ...asked, leadTakenAt: 'x', leadTakenBy: 'flo' }), block({ decisions: [said('changes', { text: 'Tighter' })] }), base), d, 't4');
+    later(5 * 24 * 60 * 60 * 1000);
+    expect(await sendReminders(d)).toBe(0);
+    expect(await redis.cmd('GET', waitingKey(COPY, 7))).toBeNull();
+  });
 });
