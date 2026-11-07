@@ -34,6 +34,8 @@ describe('reading GitHub', () => {
   it('the task and the developers\' open pull request that links it', () => {
     expect(taskOfUrl('https://github.com/Acme/Shop/issues/7')).toEqual({ repo: 'acme/shop', number: 7 });
     expect(taskOfUrl('https://github.com/acme/shop/pull/7')).toBeNull();
+    // A task link written before the organization was renamed reads under its current name.
+    expect(taskOfUrl('https://github.com/art-print-shop-co/art-print-shop/issues/7')).toEqual({ repo: 'the-bridge-company/art-print-shop', number: 7 });
     const ev = (n: number, state: string, repo = 'acme/shop', draft = false) => ({ event: 'cross-referenced', source: { issue: { number: n, html_url: `https://github.com/${repo}/pull/${n}`, state, draft, pull_request: {}, repository: { full_name: repo } } } });
     expect(devPullOfEvents([ev(9, 'closed'), ev(10, 'open'), ev(11, 'open', 'acme/other')], 'Acme/Shop')).toEqual({ number: 10, url: 'https://github.com/acme/shop/pull/10', draft: false });
     expect(devPullOfEvents('nope', 'acme/shop')).toBeNull();

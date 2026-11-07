@@ -759,7 +759,7 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   if (!block) return fail(404, 'not_found', PM_WORDS.noExploration);
   const task = taskOfUrl(block.task);
   // Only the task of that product, in its developers' repository.
-  if (!task || task.repo !== pair.code) return fail(409, 'not_ready', BUILD_WORDS.notReady);
+  if (!task || task.repo !== canonicalRepo(pair.code).toLowerCase()) return fail(409, 'not_ready', BUILD_WORDS.notReady);
   const [ro, rn] = pair.code.split('/') as [string, string];
   const token = await ctx.svc.app.installationToken(ro, rn);
   if (!token) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
