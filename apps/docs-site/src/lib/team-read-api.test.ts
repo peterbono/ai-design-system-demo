@@ -922,3 +922,16 @@ describe('team reads with a read pass (the toolbar in a private product preview)
     expect((await readWith(s, `${D}/pulls/1`, pass, DEMO)).status).toBe(200);
   });
 });
+
+describe('team reads: watching the products', () => {
+  it("watches a team's product repositories as soon as Bridge reads its products, for a visitor too", async () => {
+    const { productWatchOf } = await import('../../api/_lib/team-read');
+    expect(productWatchOf([{ key: 'account', repo: 'acme/app', design: { repo: 'acme/app-design' } }, { key: 'library' }], 'acme/ds')).toEqual([
+      { repo: 'acme/app', meta: { team: 'acme/ds', kind: 'code', product: 'account' } },
+      { repo: 'acme/app-design', meta: { team: 'acme/ds', kind: 'copy', product: 'account' } },
+    ]);
+    const s = setup({ configs: { [SAMPLE]: JSON.stringify({ products: [{ key: 'account', repo: 'acme-design-demo/acme-account', design: { repo: 'acme-design-demo/acme-account-design' } }] }) }, private: { [SAMPLE]: true } });
+    await s.read(`/repos/acme-design-demo/acme-account/pulls`, '', SAMPLE);
+    expect(JSON.parse(String(await s.redis.cmd('GET', 'bridge:notify:repo:acme-design-demo/acme-account')))).toEqual({ team: SAMPLE, kind: 'code', product: 'account' });
+  });
+});

@@ -105,6 +105,7 @@ import type { Redis } from './redis.js';
 import { canonicalEmail } from './canonical-email.js';
 import { isDemoRepo, isSampleTeam } from '../../src/lib/demo.js';
 import { isPullList, slimPullList } from './slim-pulls.js';
+import { watchWrites, type RepoMeta } from './notify.js';
 
 /**
  * The public demo teams: anyone may read them through Bridge. The one list is src/lib/demo.ts DEMO_REPOS; isDemoRepo
@@ -658,9 +659,11 @@ export async function teamReadConfigOf(ctx: ReadCtx, owner: string, repo: string
   const res = await upstream(ctx, `${API}/repos/${owner}/${repo}/contents/bridge.config.json`, token, 'application/vnd.github.raw', null).catch(() => null);
   if (!res || (res.status !== 200 && res.status !== 404)) return none;
   let out = none;
+  let watched: { repo: string; meta: RepoMeta }[] = [];
   if (res.status === 200) {
     try {
       const config = JSON.parse(await res.text()) as { products?: unknown };
+      watched = productWatchOf(config.products, full);
       const repos = Array.isArray(config.products)
         ? [
             ...new Set(
@@ -679,8 +682,25 @@ export async function teamReadConfigOf(ctx: ReadCtx, owner: string, repo: string
     }
   }
   // Known: a push to bridge.config.json drops this list at once (api/_lib/github-webhook.ts).
-  await ctx.redis.pipe([['SET', productsKey(full), JSON.stringify(out), 'EX', PRODUCTS_KEEP_S], ['SET', knownKey(full), '1', 'EX', KEEP_S]]);
+  // Its product repositories are watched too: GitHub's webhook then knows their team (Design check, notifications),
+  // even on a team only visitors read, such as the demo.
+  await ctx.redis.pipe([['SET', productsKey(full), JSON.stringify(out), 'EX', PRODUCTS_KEEP_S], ['SET', knownKey(full), '1', 'EX', KEEP_S], ...watchWrites(watched)]);
   return out;
+}
+
+/** The watch entries of a config's products with their own repository: the developers' (code) and the design copy (copy). */
+export function productWatchOf(products: unknown, team: string): { repo: string; meta: RepoMeta }[] {
+  if (!Array.isArray(products)) return [];
+  const ok = (r: unknown): r is string => typeof r === 'string' && REPO_FULL.test(r.trim()) && r.trim().toLowerCase() !== team;
+  return products.flatMap((p) => {
+    if (!p || typeof p !== 'object') return [];
+    const { key, repo, design } = p as { key?: unknown; repo?: unknown; design?: { repo?: unknown } };
+    const product = typeof key === 'string' && key ? { product: key } : {};
+    return [
+      ...(ok(repo) ? [{ repo: repo.trim(), meta: { team, kind: 'code' as const, ...product } }] : []),
+      ...(ok(design?.repo) ? [{ repo: (design!.repo as string).trim(), meta: { team, kind: 'copy' as const, ...product } }] : []),
+    ];
+  });
 }
 
 /**
