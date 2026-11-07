@@ -37,51 +37,11 @@ export const OWN_TEAM = 'Bridge DS';
 export const isSampleTeam = (repo: string | null | undefined): boolean => canonicalRepo((repo ?? '').trim()).toLowerCase() === SAMPLE_REPO;
 
 /**
- * The explored screens of the sample team's explorations, by branch: a capture of each branch's own screen code
- * (apps/account on the sample repository, rendered with the library at the branch head), shipped with the site in
- * public/sample/explorations/. The sample team publishes no preview deploys, so the home shows these instead of a
- * sketch. A new sample exploration adds its capture here.
- */
-export const SAMPLE_EXPLORATION_PREVIEWS: Readonly<Record<string, string>> = {
-  'explore/profile-page': '/sample/explorations/profile-page.png',
-  'agent/billing-invoice-status': '/sample/explorations/billing-invoice-status.png',
-  'explore/team-seats-and-roles': '/sample/explorations/team-seats-and-roles.png',
-  'explore/notification-channels': '/sample/explorations/notification-channels.png',
-  'explore/plan-comparison': '/sample/explorations/plan-comparison.png',
-};
-
-/**
- * The sample team reads like any team: its explorations show their product's real preview and capture, the same code
- * path a member who views a team takes. Its static screens (SAMPLE_EXPLORATION_PREVIEWS, SAMPLE_PREVIEW_PAGES,
- * public/sample/explorations and public/sample/previews) are only a fallback while an exploration has no preview of
- * its own yet; turning this off removes them everywhere at once. The cleanup deletes them with this flag.
- */
-export const SAMPLE_STATIC_FALLBACK = true;
-
-/** The capture of a sample exploration's screen, by its branch, or null: a fallback only (SAMPLE_STATIC_FALLBACK). */
-export const sampleExplorationPreview = (branch: string | null | undefined): string | null => (SAMPLE_STATIC_FALLBACK && branch ? (SAMPLE_EXPLORATION_PREVIEWS[branch] ?? null) : null);
-
-/**
- * The running screen of a sample exploration, by branch: the same screen as its capture, built from the branch's own
- * code (apps/account) with the library, shipped with the site in public/sample/previews/. The sample team publishes no
- * preview deploys, so Open the preview opens these.
- */
-export const SAMPLE_PREVIEW_PAGES: Readonly<Record<string, string>> = {
-  'explore/profile-page': '/sample/previews/profile-page.html',
-  'agent/billing-invoice-status': '/sample/previews/billing-invoice-status.html',
-  'explore/team-seats-and-roles': '/sample/previews/team-seats-and-roles.html',
-  'explore/notification-channels': '/sample/previews/notification-channels.html',
-  'explore/plan-comparison': '/sample/previews/plan-comparison.html',
-};
-
-/** The running screen of a sample exploration, by its branch, or null: a fallback only (SAMPLE_STATIC_FALLBACK). */
-export const samplePreviewPage = (branch: string | null | undefined): string | null => (SAMPLE_STATIC_FALLBACK && branch ? (SAMPLE_PREVIEW_PAGES[branch] ?? null) : null);
-
-/**
  * True for the branch of a sample exploration. The repository behind the sample team has one account, which opened
  * every branch and made every commit: on these branches, the exploration's page names its sample person instead.
  */
-export const isSampleExploration = (branch: string | null | undefined): boolean => sampleExplorationPreview(branch) !== null;
+const SAMPLE_BRANCHES: readonly string[] = ['explore/profile-page', 'agent/billing-invoice-status', 'explore/team-seats-and-roles', 'explore/notification-channels', 'explore/plan-comparison'];
+export const isSampleExploration = (branch: string | null | undefined): boolean => Boolean(branch && SAMPLE_BRANCHES.includes(branch));
 
 /** Where a change of the sample team comes from: the exploration a "Needed by" block would name on a real team. */
 export interface SampleOrigin {

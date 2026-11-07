@@ -11,7 +11,7 @@ import { agentMade, workNature } from './work-nature';
 import { waitsOnMe } from './waiting-on';
 import { shortTitle, suggestionNeed } from './suggestions-view';
 import { homeExplorations, type ExplorationCard } from './home-explorations';
-import { sampleChangeOrigin, sampleExplorationPreview } from './demo';
+import { sampleChangeOrigin } from './demo';
 import { changeOrigin } from './product-branch';
 import type { ProductConfig } from '@bridge-ds/core';
 import type { ThumbSpec } from './branch-thumb';
@@ -157,8 +157,7 @@ export function leadQueue(pulls: DemoPull[], suggestions: DemoSuggestion[], now:
 /**
  * The team's explorations, as the home's exploration cards (lib/home-explorations): the product screens the team tries
  * with Claude AI, from the lead's seat (a visitor has none of their own). Library changes are left out: they wait in
- * the lead's queue (leadQueue) and live on Changes. `previews` holds the explored screens read so far; the sample
- * team's come with the site (lib/demo.ts SAMPLE_EXPLORATION_PREVIEWS).
+ * the lead's queue (leadQueue) and live on Changes. `previews` holds the explored screens read so far, as on any team.
  */
 export function teamExplorations(
   pulls: DemoPull[],
@@ -175,10 +174,7 @@ export function teamExplorations(
     {
       products: opts.products ?? [],
       author: (p) => askerOf(p, opts.people),
-      preview: (p) => {
-        const seeded = opts.sample ? sampleExplorationPreview(p.head?.ref) : null;
-        return seeded ? { kind: 'screen', src: seeded } : opts.previews?.get(p.number);
-      },
+      preview: (p) => opts.previews?.get(p.number),
       ...(opts.files ? { files: opts.files } : {}),
     },
   );

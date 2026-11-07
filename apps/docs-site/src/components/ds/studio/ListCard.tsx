@@ -41,16 +41,12 @@ export function useExplorationShots(items: readonly { key: string; number: numbe
     if (!items.length) return;
     let live = true;
     const set = (key: string, spec: ThumbSpec) => live && setShots((m) => new Map(m).set(key, spec));
-    void Promise.all([import('../../../scripts/preview-shots'), import('../../../lib/preview-shots'), import('../../../lib/demo'), import('../../../scripts/repo-context')]).then(([{ previewShotOf }, { shotThumb }, { isSampleTeam, sampleExplorationPreview }, { repoContext }]) => {
-      const sample = (() => { const r = repoContext(); return isSampleTeam(`${r.owner}/${r.repo}`); })();
+    void Promise.all([import('../../../scripts/preview-shots'), import('../../../lib/preview-shots')]).then(([{ previewShotOf }, { shotThumb }]) => {
       for (const i of items) {
-        // The real capture first, as on any team; the sample team's static screen only while it has none.
-        const seeded = sample ? sampleExplorationPreview(i.branch) : null;
         void previewShotOf({ number: i.number, product: i.product })
           .catch(() => null)
           .then((shot) => {
             if (shot) set(i.key, shotThumb(shot, { seed: i.product ? `${i.product}#${i.number}` : String(i.number) }));
-            else if (seeded) set(i.key, { kind: 'screen', src: seeded });
           });
       }
     });

@@ -775,6 +775,9 @@ async function onPmWord(req: Request, ctx: Ctx, body: Record<string, unknown>): 
   return json(200, { ok: true, word });
 }
 
+/** A signed-out visitor of a demo team reading a build check: no email, no login, never a role that answers. */
+const DEMO_VISITOR: { email?: string; login?: string; name: string; lead: boolean } = { name: 'Visitor', lead: false };
+
 export const BUILD_WORDS = {
   notReady: 'The developers have not shown a build yet.',
   notYours: 'Only its designer, the product manager or a design lead checks the build.',
@@ -792,7 +795,8 @@ export const BUILD_WORDS = {
 async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, write: boolean): Promise<Response> {
   const team = parseRepo(body.repo);
   const t = { ...team, full: team.full.toLowerCase() };
-  const who = await callerOn(ctx, req, t);
+  // A visitor of a demo team reads where the check stands, as a member who views it does; only members answer.
+  const who = (await callerOn(ctx, req, t)) ?? (!write && isPublicTeam(t.full) ? DEMO_VISITOR : null);
   if (!who) return fail(401, 'signin', SIGNIN);
   const product = typeof body.product === 'string' ? body.product.trim().toLowerCase() : '';
   const n = Number(body.number);
@@ -876,7 +880,7 @@ const EXPLORATION_LABEL_SERVER = 'exploration';
 async function onBuildChecks(req: Request, ctx: Ctx, body: Record<string, unknown>): Promise<Response> {
   const team = parseRepo(body.repo);
   const t = { ...team, full: team.full.toLowerCase() };
-  if (!(await callerOn(ctx, req, t))) return fail(401, 'signin', SIGNIN);
+  if (!(await callerOn(ctx, req, t)) && !isPublicTeam(t.full)) return fail(401, 'signin', SIGNIN);
   const asked = Array.isArray(body.pulls) ? body.pulls.slice(0, 20) : [];
   const codes = new Set((await teamFacts(ctx, t)).pairs.map((p) => canonicalRepo(p.code).toLowerCase()));
   const checks: Record<string, ReturnType<typeof buildSummary> | null> = {};

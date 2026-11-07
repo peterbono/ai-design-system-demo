@@ -102,16 +102,13 @@ describe("the DS lead's queue on the demo", () => {
       [36, 'Profile page', 'Account', 'Exploring', 'ann-leroy'],
       [45, 'Billing: invoice status as badges', 'Account', 'In review', 'ann'],
     ]);
-    // The sample team's explored screens ship with the site: never a generic icon on its cards.
-    expect(cards.map((c) => c.preview)).toMatchObject([
-      { kind: 'screen', src: '/sample/explorations/profile-page.png' },
-      { kind: 'screen', src: '/sample/explorations/billing-invoice-status.png' },
-    ]);
+    // The sample team reads like any team: no screen ships with the site, its cards show their captures or the plate.
+    expect(cards.every((c) => c.preview?.kind === 'screen' && !String((c.preview as { src?: string | null }).src ?? '').startsWith('/sample/'))).toBe(true);
     // No "Sample" chip on the cards: the demo banner already says it is sample data.
     expect(cards.every((c) => !('sample' in c))).toBe(true);
   });
 
-  it("shows every state of the sample team's explorations, each with its shipped screen", () => {
+  it("shows every state of the sample team's explorations", () => {
     const pieces = (n: number) => `<!-- bridge-pieces ${JSON.stringify({ checkedAt: 'x', headSha: 'y', pieces: Array.from({ length: n }, (_, i) => ({ id: `p${i}`, kind: 'token', title: `P${i}`, values: [] })), fixes: 0, links: [] })} -->`;
     const account = [{ name: 'product: account' }];
     const cards = teamExplorations(
@@ -127,9 +124,6 @@ describe("the DS lead's queue on the demo", () => {
       ['Notification channels', 'In review'],
       ['Plan comparison', 'Kept in the library'],
     ]);
-    expect(cards.map((c) => c.preview)).toMatchObject(
-      ['team-seats-and-roles', 'notification-channels', 'plan-comparison'].map((f) => ({ kind: 'screen', src: `/sample/explorations/${f}.png` })),
-    );
   });
 
   it('reads the explored screen of another demo when the visual impact run has one, a plate until then', () => {
