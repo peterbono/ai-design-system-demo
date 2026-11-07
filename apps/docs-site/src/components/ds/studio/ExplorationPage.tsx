@@ -707,7 +707,7 @@ function FigmaAction({ p, tool, say }: { p: ExplorationPageProps; tool: AiTool; 
   return (
     <>
       {page && (
-        <ButtonLink variant="secondary" size="lg" href={page} target="_blank" rel="noopener" iconEnd={ExternalLink}>
+        <ButtonLink variant="ghost" size="lg" href={page} target="_blank" rel="noopener" iconEnd={ExternalLink}>
           See it in Figma
         </ButtonLink>
       )}
@@ -882,6 +882,22 @@ function ExplorationBody(p: ExplorationPageProps) {
   // The lead's bar at the bottom holds Looks right: the preview steps back the same way.
   const answersBelow = Boolean(p.lead?.bar);
   const zoneLeads = declined || waitsOnAnswer(handoff) || reviewsVersion(handoff) || answers || answersBelow;
+  // The preview's own button: with the Bridge toolbar when the product has one (Live product and This change live in
+  // its toolbar), a status while it builds, else disabled with the reason under it.
+  const previewButton = p.previewUrl ? (
+    <ButtonLink variant={zoneLeads || handoff?.build ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} data-bridge-pass={p.tryWithoutPass ? 'off' : undefined} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
+      {handoff?.status === 'shipped' ? 'See it in the product' : handoff?.build ? BUILD_WORDS.openApproved : 'Open the preview'}
+    </ButtonLink>
+  ) : p.previewBuilding ? (
+    // A status, not a dead control: Button's loading state keeps the primary colors (no disabled grey).
+    <Button variant="primary" size="lg" loading>
+      Preview is building
+    </Button>
+  ) : (
+    <Button variant="primary" size="lg" disabled aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
+      Open the preview
+    </Button>
+  );
   return (
     <ToolContext.Provider value={tab}>
     <div className="xp-page">
@@ -1005,10 +1021,10 @@ function ExplorationBody(p: ExplorationPageProps) {
       )}
       {notStarted && p.notes && <WhereItStands view={p.notes} say={setSaid} />}
       {(p.stage === 'exploring' || handoff) && (
-        // The preview and the Harbor zone end on one line: the preview's frame takes the height the zone beside it needs
-        // (within a screen-like ratio). While exploring, the activity sits under the Harbor card; after Done exploring,
-        // under the preview, so the hand-off and the preview stay side by side (styles/exploration-page.css).
-        <div className={handoff ? 'xp-board is-handoff' : p.designerZone || p.notDoing ? 'xp-board is-talk' : 'xp-board'}>
+        // One skeleton in every state: the preview, its one action row and the activity on the left; the Harbor zone (only
+        // its content changes) then Where it stands on the right. Phones: preview, the zone, then the activity
+        // (styles/exploration-page.css).
+        <div className="xp-board">
           <section className="xp-preview" aria-label="Preview">
             {handoff?.build ? (
               // Check the build: the approved version and the developers' build, side by side (board R4).
@@ -1025,30 +1041,31 @@ function ExplorationBody(p: ExplorationPageProps) {
             ) : (
               <ShotFrame p={p} />
             )}
+            {/* One action row in every state, three fixed places so nothing moves between states: the main action, the
+                second one, then Send to Figma (tertiary). A place with nothing in it stays empty (styles/exploration-page.css). */}
             <div className="xp-acts xp-preview-acts">
-              {p.previewUrl ? (
-                // The preview with the Bridge toolbar when the product has one (Before and After live in its toolbar).
-                <ButtonLink variant={zoneLeads || handoff?.build ? 'secondary' : 'primary'} size="lg" href={p.tryUrl ?? p.previewUrl} target="_blank" rel="noopener" iconEnd={ExternalLink} data-bridge-pass={p.tryWithoutPass ? 'off' : undefined} aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
-                  {handoff?.status === 'shipped' ? 'See it in the product' : handoff?.build ? BUILD_WORDS.openApproved : 'Open the preview'}
-                </ButtonLink>
-              ) : p.previewBuilding ? (
-                // A status, not a dead control: Button's loading state keeps the primary colors (no disabled grey).
-                <Button variant="primary" size="lg" loading>
-                  Preview is building
-                </Button>
+              <div className="xp-act is-main">
+                {handoff?.build?.url ? (
+                  <ButtonLink variant="primary" size="lg" href={handoff.build.url} target="_blank" rel="noopener" iconEnd={ExternalLink}>
+                    {BUILD_WORDS.openBuild}
+                  </ButtonLink>
+                ) : previewButton}
+              </div>
+              {handoff?.build?.url ? (
+                <div className="xp-act is-second">{previewButton}</div>
               ) : (
-                <Button variant="primary" size="lg" disabled aria-describedby={p.previewNote ? 'xp-preview-note' : undefined}>
-                  Open the preview
-                </Button>
+                /* Archived: the preview still opens, nothing offers to keep working on it (Unarchive first). */
+                !handoff && !p.archived && !answers && !answersBelow && !p.pm?.mine && (
+                  <div className="xp-act is-second">
+                    <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />
+                  </div>
+                )
               )}
-              {handoff?.build?.url && (
-                <ButtonLink variant="primary" size="lg" href={handoff.build.url} target="_blank" rel="noopener" iconEnd={ExternalLink}>
-                  {BUILD_WORDS.openBuild}
-                </ButtonLink>
+              {!p.archived && !answers && (p.notes?.notes?.figmaPage || p.figma) && (
+                <div className="xp-act is-third">
+                  <FigmaAction p={p} tool={tab} say={setSaid} />
+                </div>
               )}
-              {/* Archived: the preview still opens, nothing offers to keep working on it (Unarchive first). */}
-              {!handoff && !p.archived && !answers && !answersBelow && !p.pm?.mine && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
-              {!p.archived && !answers && <FigmaAction p={p} tool={tab} say={setSaid} />}
             </div>
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
               <p className="xp-muted xp-note" id="xp-preview-note">
@@ -1062,9 +1079,8 @@ function ExplorationBody(p: ExplorationPageProps) {
             {!handoff && p.pm && !p.pm.mine && !p.archived && <PmStatus v={p.pm} say={setSaid} />}
             {p.decisions && <Decisions rows={p.decisions} when={startedWhen} />}
             {p.notes && (!handoff || p.notes.notes) && <WhereItStands view={p.notes} say={setSaid} />}
-            {!handoff && <ActivityList rows={p.activity} />}
           </div>
-          {handoff && <ActivityList rows={p.activity} />}
+          <ActivityList rows={p.activity} />
         </div>
       )}
       {p.lead?.bar && !p.archived && <LeadBar bar={p.lead.bar} say={setSaid} />}

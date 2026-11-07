@@ -250,7 +250,7 @@ describe('ExplorationPage, exploring (X2)', () => {
     paint({ ...exploring, tryUrl: 'https://bridge-admin-git-explore.example.com/?bridge=611' });
     expect(screen.getByRole('link', { name: /Open the preview/ }).getAttribute('href')).toBe('https://bridge-admin-git-explore.example.com/?bridge=611');
     expect(screen.queryByRole('link', { name: /Try it in the product/ })).toBeNull();
-    const acts = screen.getByRole('link', { name: /Open the preview/ }).parentElement!;
+    const acts = screen.getByRole('link', { name: /Open the preview/ }).closest('.xp-preview-acts')!;
     expect(within(acts).getByRole('link', { name: /Continue in Claude/ })).toBeTruthy();
     expect(acts.children).toHaveLength(2);
   });
@@ -416,10 +416,10 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
     expect(document.querySelector('.xp-plate')!.textContent).toContain('Orders table');
   });
 
-  it('puts the activity under the preview, beside the taller hand-off zone', () => {
+  it('puts the activity under the preview, beside the hand-off zone: the same skeleton as while exploring', () => {
     handed();
     const grid = document.querySelector('.xp-board')!;
-    expect(grid.classList.contains('is-handoff')).toBe(true);
+    expect(grid.className).toBe('xp-board');
     expect([...grid.children].map((c) => c.className.split(' ')[0])).toEqual(['xp-preview', 'xp-side', 'xp-activity']);
   });
 
@@ -685,6 +685,16 @@ describe('Send to Figma', () => {
   const exploring: Partial<ExplorationPageProps> = { stage: 'exploring', previewUrl: 'https://preview.example.com', activity: [] };
   const figma = { app: 'Put Bridge exploration admin-app#1 "Orders" in Figma.', terminal: 'claude "Put Bridge exploration admin-app#1 in Figma"' };
   const notes = (figmaPage?: string) => ({ notes: { context: '', decisions: [], edgeCases: [], openQuestions: [], nextStep: '', ...(figmaPage ? { figmaPage } : {}) } });
+
+  it('one action row in fixed places: the preview first, the AI tool second, Send to Figma third; activity under the preview', () => {
+    paint({ ...exploring, figma, claudeLink: 'yes' });
+    const places = [...document.querySelectorAll('.xp-preview-acts > .xp-act')].map((el) => el.className.split(' ')[1]);
+    expect(places).toEqual(['is-main', 'is-second', 'is-third']);
+    expect(document.querySelector('.xp-act.is-main')!.textContent).toContain('Open the preview');
+    expect(document.querySelector('.xp-act.is-third')!.textContent).toContain('Send to Figma');
+    const grid = document.querySelector('.xp-board')!;
+    expect([...grid.children].map((c) => c.className.split(' ')[0])).toEqual(['xp-preview', 'xp-side', 'xp-activity']);
+  });
 
   it('no Figma file or no right to edit (no line): no button', () => {
     paint(exploring);

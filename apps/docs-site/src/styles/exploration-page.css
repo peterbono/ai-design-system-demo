@@ -201,16 +201,38 @@
   gap: var(--space-6);
 }
 
-/* The actions under the preview are one block, as wide as the frame: two equal buttons a row, and one left alone takes
-   the whole row, so nothing floats beside the frame's edges. Stacked on phones. A grid, so each button fills its cell
-   (Button itself never grows in a flex row). */
+/* The actions under the preview are one row, as wide as the frame, in three fixed places in every state: the main
+   action, the second one (two equal columns, so the main action keeps its width whether a second one is there or
+   not), then Send to Figma, a tertiary action at its own width. Stacked on phones. A grid, so each button fills its
+   place (Button itself never grows in a flex row). */
 .xp-preview-acts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
 }
 
-.xp-preview-acts > :last-child:nth-child(odd) {
-  grid-column: 1 / -1;
+.xp-act {
+  display: flex;
+  min-width: 0;
+}
+
+.xp-act.is-main {
+  grid-column: 1;
+}
+
+.xp-act.is-second {
+  grid-column: 2;
+}
+
+.xp-act.is-third {
+  grid-column: 3;
+  gap: var(--space-2);
+}
+
+.xp-act.is-main > *,
+.xp-act.is-second > * {
+  flex: 1 1 auto;
+  inline-size: 100%;
 }
 
 .xp-continue .xp-claude {
@@ -398,49 +420,21 @@
   object-position: top left;
 }
 
-/* X2: the preview (3) beside the Harbor zone (2), both ending on one line: the row stretches to the taller of the
-   two, the preview's frame grows into it (within a screen-like ratio, 30 to 75 percent of its width) and the Harbor
-   zone after Done exploring grows to the preview. While exploring, the activity sits under the Harbor card; after
-   Done exploring, under the preview, the width of the preview. */
+/* One skeleton in every state: the preview (3), its action row and the activity on the left; the Harbor zone (2) then
+   Where it stands on the right, spanning both rows, so a tall zone never leaves an empty grey column and nothing moves
+   from one state to the next. The frame keeps the ratio of a capture. */
 .xp-board {
   display: grid;
   grid-template-areas:
     'preview side'
-    'activity .';
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: var(--space-6);
-  align-items: stretch;
-}
-
-/* While exploring the activity is in the side column: one row. */
-.xp-board:not(.is-handoff) {
-  grid-template-areas: 'preview side';
-}
-
-/* After Done exploring the hand-off zone grows with what it holds (a question, the developers' word, the library
-   pieces): it spans both rows and the activity follows the preview right under it, so a tall zone never leaves an
-   empty grey column beside it. The frame keeps the ratio of a capture. */
-.xp-board.is-handoff {
-  grid-template-areas:
-    'preview side'
     'activity side';
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   grid-template-rows: auto 1fr;
+  gap: var(--space-6);
   align-items: start;
 }
 
-.xp-board.is-handoff > .xp-preview > .xp-frame {
-  flex: none;
-  aspect-ratio: 16 / 10;
-  min-height: 0;
-  max-height: none;
-}
-
-/* The lead's words make the side column long: the preview keeps its own height instead of an empty grey band. */
-.xp-board.is-talk {
-  align-items: start;
-}
-
-.xp-board.is-talk > .xp-preview > .xp-frame {
+.xp-board > .xp-preview > .xp-frame {
   flex: none;
   aspect-ratio: 16 / 10;
   min-height: 0;
@@ -860,21 +854,12 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .xp-board,
-  .xp-board.is-handoff {
+  .xp-board {
     grid-template-areas:
       'preview'
       'side'
       'activity';
     grid-template-rows: auto;
-  }
-
-  /* While exploring (the activity is in the side column): its one-row areas ('preview side') would bring back a
-     second column, squeezing the preview to a sliver. */
-  .xp-board:not(.is-handoff) {
-    grid-template-areas:
-      'preview'
-      'side';
   }
 
   /* One column: the frame keeps the ratio of a capture. */
@@ -938,6 +923,16 @@
 
   .xp-preview-acts {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xp-act.is-main,
+  .xp-act.is-second,
+  .xp-act.is-third {
+    grid-column: 1;
+  }
+
+  .xp-act.is-third > * {
+    flex: 1 1 auto;
   }
 
   /* The preview's one action, full width on a phone: the easiest target on the screen. */

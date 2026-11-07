@@ -866,8 +866,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     ...shotProps,
     activity: handoffActivity({ commits, author: r.author, startedAt: startedAtOf(pull.body, pull.created_at), doneBy: doneLogin, doneAt, designAnswer: answer?.login ? answer : null, names: allNames }),
     figma: figmaLine(status),
-    // Shipped: the product itself, where it lives now.
-    ...(status === 'shipped' ? { previewUrl: todayUrl, tryUrl: null, previewNote: null, previewBuilding: false } : {}),
+    // Shipped: the product itself, where it lives now. "See it in the product" still opens the change with the Bridge
+    // toolbar when its preview is there (tryUrl, painted above): This change and Live product, its marked areas,
+    // Isolate. Without a preview, the product in production.
+    ...(status === 'shipped' ? { previewUrl: todayUrl, previewNote: null, previewBuilding: false } : {}),
     handoff: {
       status,
       stage: lifecycle,
