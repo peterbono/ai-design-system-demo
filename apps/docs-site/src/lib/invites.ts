@@ -382,11 +382,6 @@ export const MEMBERS_WORDS = {
   membersIntroReader: (team: string) => `Who is in ${team} and what each person can do. Only admins can invite people or change roles.`,
   resend: 'Resend',
   resent: 'Sent again.',
-  makeAdmin: 'Make admin',
-  makeLead: 'Make design lead',
-  removeLead: 'Remove design lead',
-  /** Why Make admin is off for a GitHub member of a personal account's repository. */
-  personalAdmin: 'One person owns this design system on GitHub, so only they are admin there.',
   remove: 'Remove from team',
   cancelInvite: 'Cancel invite',
   removeConfirm: (name: string, team: string) => `Remove ${name} from ${team}? They lose access on GitHub too.`,

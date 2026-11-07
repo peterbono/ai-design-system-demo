@@ -1,7 +1,7 @@
 // Settings > Members (boards I3 and I4): who is in the team and what each person can do. One sentence first, the
 // count beside the title, and for an admin the page's one primary action, "Invite collaborators", on the title's line.
 // Then a DS Table, Person and Role: each person's name, one muted line ("Reviews design"), and on the same row their
-// role picker (RolePicker, the one the invite dialog uses) and a "More" menu with Make admin and Remove from team.
+// role picker (RolePicker, the one the invite dialog uses) and a "More" menu with Remove from team.
 // Remove asks once, in the row itself, before anything happens. Pending invites close the list, with Resend on their
 // line. Someone who is not an admin reads the same list with roles as text and no controls (board I4).
 // An email member (lib/contribute.ts) reads as any member, with no tag of their own; an admin makes them Admin or Can
@@ -14,7 +14,7 @@
 // in the list at once (withJoined, BR-19), and a read after the row leaves confirms it.
 import { useEffect, useState } from 'react';
 import { Link2Off, MoreHorizontal, UserPlus } from 'lucide-react';
-import { Alert, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, MenuGroup, MenuItem, MenuTrigger, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
+import { Alert, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import RolePicker from './RolePicker';
 import { NoticeLine, PersonCell } from './MemberParts';
 import InviteDialog from './InviteDialog';
@@ -63,7 +63,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
   };
   // An email member a lead on explorations: an admin's to give, and someone who only views changes nothing.
   const leadItem = email && can.changeRole && m.role !== 'view';
-  const menu = can.makeAdmin || can.remove || leadItem;
+  const menu = can.remove;
   return (
     <>
       <TableRow>
@@ -73,7 +73,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
         <TableCell className="mem-role-cell" label="">
           <span className="mem-role">
             {can.changeRole ? (
-              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} shown={roleText(m)} personal={data.personal} emailOnly={email || noRepo(data)} emailNote={!email && noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} disabled={busy} size="sm" onChange={(c) => void run(() => act.changeRole(m, c))} />
+              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} shown={roleText(m)} personal={data.personal} emailOnly={email || noRepo(data)} emailNote={!email && noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} {...(leadItem ? { lead: { on: Boolean(m.lead), onChange: (on: boolean) => void run(() => act.setLead(m, on)) } } : {})} disabled={busy} size="sm" onChange={(c) => void run(() => act.changeRole(m, c))} />
             ) : (
               <span className="mem-role-text">{roleText(m)}</span>
             )}
@@ -81,16 +81,6 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
               <Menu>
                 <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${m.name}`} variant="ghost" size="sm" />} />
                 <MenuContent align="end">
-                  {can.makeAdmin &&
-                    (data.personal && !email ? (
-                      // A personal account's repository has no other admin on GitHub: the item stays, off, with the reason.
-                      <MenuGroup label={MEMBERS_WORDS.personalAdmin}>
-                        <MenuItem disabled>{MEMBERS_WORDS.makeAdmin}</MenuItem>
-                      </MenuGroup>
-                    ) : (
-                      <MenuItem onClick={() => void run(() => act.changeRole(m, { role: 'admin' }))}>{MEMBERS_WORDS.makeAdmin}</MenuItem>
-                    ))}
-                  {leadItem && <MenuItem onClick={() => void run(() => act.setLead(m, !m.lead))}>{m.lead ? MEMBERS_WORDS.removeLead : MEMBERS_WORDS.makeLead}</MenuItem>}
                   {can.remove && (
                     <MenuItem tone="danger" onClick={() => setConfirming(true)}>
                       {MEMBERS_WORDS.remove}

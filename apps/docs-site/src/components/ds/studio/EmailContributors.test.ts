@@ -1,3 +1,4 @@
+import RolePicker from './RolePicker';
 // @vitest-environment jsdom
 // Email contributors in Studio (lib/contribute.ts), from the keyboard, with axe: Settings > Members shows them with no
 // tag of their own, Can edit only (Reviewer and Admin disabled, with the reason) and an admin removes them; a signed-out
@@ -64,8 +65,8 @@ describe('Settings > Members, an email contributor', () => {
     expect(off(/Can edit/)).toBe(false);
     await user.keyboard('{Escape}');
 
-    await user.click(within(row).getByRole('button', { name: 'More for Leo' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Make admin' }));
+    await user.click(within(row).getByRole('button', { name: /^Role for Leo/ }));
+    await user.click(await screen.findByRole('radio', { name: /^Admin/ }));
     await waitFor(() => expect(api.setEmailMemberRole).toHaveBeenCalledWith('acme/ds', 'leo@acme.design', { role: 'admin' }));
     expect(api.setMemberRole).not.toHaveBeenCalled();
     expect(await screen.findByText('Leo is now Admin.')).toBeInTheDocument();
@@ -105,5 +106,24 @@ describe('a real team, signed out', () => {
     expect(screen.getByRole('link', { name: 'Continue with email' })).toHaveAttribute('href', '/signin/?next=%2Fstudio%2Facme%2Fds%2F');
     expect(screen.queryByRole('dialog')).toBeNull();
     await expectNoAxeViolations(container);
+  });
+});
+
+describe('design lead, under the roles', () => {
+  it('is a box in the role picker of an email member, not an item of the menu', async () => {
+    const lead = { on: false, onChange: vi.fn() };
+    const user = userEvent.setup();
+    render(createElement(RolePicker, { label: 'Role for Leo', value: { role: 'edit' }, onChange: () => undefined, emailOnly: true, lead }));
+    await user.click(screen.getByRole('button', { name: /^Role for Leo/ }));
+    await user.click(await screen.findByRole('checkbox', { name: /Design lead/ }));
+    expect(lead.onChange).toHaveBeenCalledWith(true);
+  });
+
+  it('is not offered to someone who only views', async () => {
+    const user = userEvent.setup();
+    render(createElement(RolePicker, { label: 'Role for Leo', value: { role: 'view' }, onChange: () => undefined, emailOnly: true, lead: { on: false, onChange: () => undefined } }));
+    await user.click(screen.getByRole('button', { name: /^Role for Leo/ }));
+    await screen.findByRole('radio', { name: /^Can view/ });
+    expect(screen.queryByRole('checkbox', { name: /Design lead/ })).toBeNull();
   });
 });
