@@ -338,13 +338,24 @@ async function paintPm(
 }
 
 /** The check of the developers' build (board R4): who checks it, their answers, and the viewer's answer when theirs. */
-async function paintBuildCheck(d: HTMLElement, key: string, o: { r: ExplorationRow; product: string; copy: string; builder: string; designer: string; devUrl: string | null; viewerRef: string | null; reopen: (line: string) => void }): Promise<void> {
+/** The build check's two reads, started as soon as the page knows the developers' version is ready (paintBuildCheck uses them). */
+function startBuildState(product: string, copy: string, number: number, viewerRef: string | null): Promise<[BuildRead | null, TeamRead | null]> {
+  const team = `${CFG.owner}/${CFG.repo}`;
+  return Promise.all([import('./contribute-session'), import('./github-session')]).then(([{ buildState, contributeTeam }, { getToken }]) => {
+    const token = viewerRef ? null : getToken();
+    return Promise.all([buildState(team, { product, copy, number }, token).catch(() => null), contributeTeam(team, token).catch(() => null)]);
+  });
+}
+type BuildRead = Awaited<ReturnType<(typeof import('./contribute-session'))['buildState']>>;
+type TeamRead = Awaited<ReturnType<(typeof import('./contribute-session'))['contributeTeam']>>;
+
+async function paintBuildCheck(d: HTMLElement, key: string, o: { r: ExplorationRow; product: string; copy: string; builder: string; designer: string; devUrl: string | null; viewerRef: string | null; reopen: (line: string) => void; early?: Promise<[BuildRead | null, TeamRead | null]> | null }): Promise<void> {
   const team = `${CFG.owner}/${CFG.repo}`;
   const { buildState, contributeTeam, sayBuild } = await import('./contribute-session');
   const { getToken } = await import('./github-session');
   const token = o.viewerRef ? null : getToken();
   const target = { product: o.product, copy: o.copy, number: o.r.number };
-  const [read, people] = await Promise.all([buildState(team, target, token).catch(() => null), contributeTeam(team, token).catch(() => null)]);
+  const [read, people] = await (o.early ?? Promise.all([buildState(team, target, token).catch(() => null), contributeTeam(team, token).catch(() => null)]));
   if (!read || current?.key !== key || !current.props.handoff) return;
   const pm = people?.pms[o.product.toLowerCase()]?.name ?? null;
   const check: BuildCheckView = {
@@ -732,7 +743,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // and whether they closed it as done (shipped). One read.
   // Its comments since Done exploring too, only when it has any (a question, or their word when they closed it), and
   // once shipped who said it looks right on their version.
-  const task = inCopy && block?.task ? await readDesignTask(block.task, { doneAt: block.doneAt ?? null, shipped: true }) : null;
+  const task = inCopy && block?.task ? await readDesignTask(block.task, { doneAt: block.doneAt ?? null, shipped: true, check: false }) : null;
+  // Check the build is read through Bridge's server now, while the rest of the page reads, not after it (a few seconds).
+  const earlyBuild = inCopy && own && task?.devPull && !task.devPull.draft ? startBuildState(own.product.key, own.repo, r.number, member?.ref ?? null) : null;
   // The developers' own pull request on that task (their version), with its branch and the designer's last answer.
   const devRepo = task?.devPull && block?.task ? (taskRef(block.task)?.repo ?? null) : null;
   const devRead = devRepo && task?.devPull ? await readDevPull(devRepo, task.devPull) : null;
@@ -901,7 +914,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   if (inCopy && own && devRead && !review.draft && status === 'building' && !declined) {
     const builder = builders.length ? faceOf(builders[0]!, false, allNames).name : 'the developer';
     const designerName = block?.memberName ?? doneBy.name;
-    void paintBuildCheck(d, key, { r, product: own.product.key, copy: own.repo, builder, designer: designerName, devUrl: review.dev?.url ?? null, viewerRef: member?.ref ?? null, reopen: (line) => reopen(line) });
+    void paintBuildCheck(d, key, { r, product: own.product.key, copy: own.repo, builder, designer: designerName, devUrl: review.dev?.url ?? null, viewerRef: member?.ref ?? null, reopen: (line) => reopen(line), early: earlyBuild });
   }
   if (!shot) {
     const thumb = await capturedImage(r, files);

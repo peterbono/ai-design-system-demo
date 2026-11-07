@@ -4,7 +4,7 @@ import { generateKeyPairSync, createSign } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { memoryRedis } from '../../api/_lib/redis';
 import { watchWrites } from '../../api/_lib/notify';
-import { clearJwks, putShot, shotKeyOf, shotsTodo, workflowClaims, AUDIENCE, ISSUER, SHOTS_REPOSITORY, type ShotsCtx } from '../../api/_lib/private-shots';
+import { clearJwks, fileHints, putShot, shotKeyOf, shotsTodo, workflowClaims, AUDIENCE, ISSUER, SHOTS_REPOSITORY, type ShotsCtx } from '../../api/_lib/private-shots';
 import { handleContribute, type ContribDeps } from '../../api/contribute/index';
 import { clearReadMemory } from '../../api/_lib/team-read';
 
@@ -95,5 +95,11 @@ describe('private shots: through api/contribute', () => {
     // A repository the team does not list, and a team that is not a demo for a visitor.
     expect((await handleContribute(req(`repo=${TEAM}&shot=someone/else&pr=1&meta=1`), ENV, deps(w))).status).toBe(403);
     expect((await handleContribute(req(`repo=acme/design&shot=${COPY}&pr=1&meta=1`), ENV, deps(w))).status).toBe(401);
+  });
+});
+
+describe('private shots: the page to open', () => {
+  it("names the changed files' pages, never the app shell", () => {
+    expect(fileHints(['src/pages/Billing.tsx', 'src/App.tsx', 'src/main.tsx', 'src/components/InvoiceBadge.tsx', '.bridge/explorations/x.md'])).toEqual(['billing', 'invoicebadge']);
   });
 });

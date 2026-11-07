@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '22,52 * * * *'
   workflow_dispatch:
+    inputs:
+      force:
+        description: Capture every open exploration again, even at a head already captured
+        type: boolean
+        default: false
 
 concurrency:
   group: private-shots
@@ -48,4 +53,5 @@ jobs:
         env:
           BRIDGE_DEPS: ${{ runner.temp }}/deps
           BRIDGE_CHROME_CHANNEL: chrome
-        run: node scripts/private-shots.mjs | tee -a "$GITHUB_STEP_SUMMARY"
+          FORCE: ${{ inputs.force == true }}
+        run: node scripts/private-shots.mjs $([ "$FORCE" = "true" ] && echo --force) | tee -a "$GITHUB_STEP_SUMMARY"

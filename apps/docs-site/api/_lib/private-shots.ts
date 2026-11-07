@@ -107,6 +107,20 @@ export interface ShotJob {
   branch: string;
   /** The copy's preview template (products[].design.preview), filled by the workflow with @bridge-ds/core previewUrl. */
   template: string;
+  /** The changed files' names ("billing" for src/pages/Billing.tsx): the page to open when no change marker shows one. */
+  hints: string[];
+}
+
+/** Names worth looking for among a preview's links: the changed files' base names, never the app shell's. */
+export function fileHints(files: readonly string[]): string[] {
+  const shell = new Set(['index', 'app', 'main', 'styles', 'style', 'theme', 'tokens', 'readme', 'package', 'vite.config', 'tsconfig']);
+  const out: string[] = [];
+  for (const f of files) {
+    const base = f.split('/').pop()!.replace(/\.(tsx?|jsx?|vue|svelte|css|md|json)$/i, '').toLowerCase();
+    if (base.length < 3 || shell.has(base) || f.startsWith('.') || f.includes('/.')) continue;
+    if (!out.includes(base)) out.push(base);
+  }
+  return out.slice(0, 8);
 }
 
 async function gh(ctx: ShotsCtx, token: string, path: string, accept = 'application/vnd.github+json'): Promise<Response | null> {
@@ -150,8 +164,8 @@ async function copyTemplate(ctx: ShotsCtx, team: string, copy: string): Promise<
   }
 }
 
-/** The open explorations of the watched copies whose head has no capture yet, at most TODO_MAX. */
-export async function shotsTodo(ctx: ShotsCtx): Promise<ShotJob[]> {
+/** The open explorations of the watched copies whose head has no capture yet (every one with `force`), at most TODO_MAX. */
+export async function shotsTodo(ctx: ShotsCtx, force = false): Promise<ShotJob[]> {
   const jobs: ShotJob[] = [];
   for (const { repo, team } of await watchedCopies(ctx.redis)) {
     if (jobs.length >= TODO_MAX) break;
@@ -174,8 +188,17 @@ export async function shotsTodo(ctx: ShotsCtx): Promise<ShotJob[]> {
       } catch {
         have = null;
       }
-      if (have !== sha) jobs.push({ repo, pr: Number(p.number), sha, branch, template });
+      if (force || have !== sha) jobs.push({ repo, pr: Number(p.number), sha, branch, template, hints: [] });
     });
+    // The changed files of each exploration to capture: one read each, only for those.
+    await Promise.all(
+      jobs
+        .filter((j) => j.repo === repo)
+        .map(async (j) => {
+          const files = await gh(ctx, token, `/repos/${o}/${r}/pulls/${j.pr}/files?per_page=100`);
+          if (files?.status === 200) j.hints = fileHints(((await files.json()) as { filename?: string }[]).map((x) => x.filename ?? '').filter(Boolean));
+        }),
+    );
   }
   return jobs;
 }

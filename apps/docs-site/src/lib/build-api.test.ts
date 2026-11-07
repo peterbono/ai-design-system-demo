@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { memberRef } from '../../api/_lib/exploration-member';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
-import { clearDesignPathCache, clearProductPairCache, handleContribute, issueSession, type ContribDeps } from '../../api/contribute/index';
+import { buildFactsKey, clearDesignPathCache, clearProductPairCache, handleContribute, issueSession, type ContribDeps } from '../../api/contribute/index';
 import { clearReadMemory } from '../../api/_lib/team-read';
 
 const HOST = 'bridge.example.com';
@@ -117,8 +117,9 @@ describe('check the build', () => {
     expect(done.state).toBe('success');
     expect(s.world.statuses.at(-1)?.state).toBe('success');
     expect(s.world.comments.at(-1)).toContain('Dino (product manager)');
-    // The developer pushes: everyone is asked again.
+    // The developer pushes: GitHub's webhook forgets the kept facts (designCheckFor), and everyone is asked again.
     s.world.head = 'b'.repeat(40);
+    await s.redis.cmd('DEL', buildFactsKey(COPY, 5));
     const again = await (await handleContribute(post({ action: 'build-state', ...at }, dino), ENV, s.deps)).json();
     expect(again.state).toBe('pending');
     expect(s.world.statuses.at(-1)).toMatchObject({ sha: 'b'.repeat(40), state: 'pending' });
@@ -149,6 +150,18 @@ describe('check the build', () => {
     const s = setup();
     expect((await handleContribute(post({ action: 'build-state', ...at }, ''), ENV, s.deps)).status).toBe(401);
     expect((await handleContribute(post(say('looks-right'), ''), ENV, s.deps)).status).toBe(401);
+  });
+
+  it('a read that changes nothing writes no new Design check (once per head and state)', async () => {
+    const s = setup();
+    const mia = await as(s, 'mia@acme.design', 'Mia', 'edit');
+    await handleContribute(post({ action: 'build-state', ...at }, mia), ENV, s.deps);
+    const after = s.world.statuses.length;
+    expect(after).toBeGreaterThan(0);
+    await handleContribute(post({ action: 'build-state', ...at }, mia), ENV, s.deps);
+    expect(s.world.statuses.length).toBe(after);
+    await handleContribute(post(say('looks-right'), mia), ENV, s.deps);
+    expect(s.world.statuses.length).toBe(after + 1);
   });
 
   it('nothing before the build is ready', async () => {
