@@ -296,7 +296,7 @@ export async function captureOne(browser, url, { crawl = true } = {}) {
   }
 }
 
-async function launch() {
+export async function launch() {
   const pw = await deps().playwright();
   const chromium = pw.chromium ?? pw.default?.chromium;
   const channel = process.env.BRIDGE_CHROME_CHANNEL || undefined;

@@ -1,0 +1,51 @@
+name: Private shots
+
+# Screenshots of the explorations of private design copies, for every team Bridge watches: Bridge says which ones need a
+# capture, this workflow captures each preview and sends it back; Bridge keeps it and shows it only to the team's
+# readers (apps/docs-site/api/_lib/private-shots.ts, scripts/private-shots.mjs). Public products keep their own
+# preview-shots workflow. Identity: this workflow's GitHub OIDC token (audience bridge-shots), checked by Bridge
+# against this repository and its default branch: no stored secret.
+
+on:
+  schedule:
+    - cron: '22,52 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: private-shots
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # the OIDC token Bridge checks
+
+jobs:
+  shots:
+    name: Capture private explorations
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/preview-shots.mjs
+            scripts/private-shots.mjs
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install the capture dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/deps"
+          cd "$RUNNER_TEMP/deps"
+          echo '{"private":true}' > package.json
+          npm install --no-audit --no-fund --silent @bridge-ds/core@latest playwright-core@1.63.0
+
+      - name: Capture
+        env:
+          BRIDGE_DEPS: ${{ runner.temp }}/deps
+          BRIDGE_CHROME_CHANNEL: chrome
+        run: node scripts/private-shots.mjs | tee -a "$GITHUB_STEP_SUMMARY"
