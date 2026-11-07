@@ -114,6 +114,14 @@
   margin-top: var(--space-3);
 }
 
+/* Who looks after the design system (ReviewModeSection): its own region under the members, one width with them. */
+.mem-review {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 70ch;
+  margin-top: var(--space-8);
+}
+
 .mem-loading {
   display: grid;
   gap: var(--space-3);

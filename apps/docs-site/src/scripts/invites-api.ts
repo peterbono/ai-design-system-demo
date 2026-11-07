@@ -88,11 +88,12 @@ export function invitesAvailable(): Promise<boolean> {
  * Pending invites of a team (people with write access may read them), whether the repository is a person's, and the
  * team's email contributors (`members`, rows with `via: 'email'`; lib/invites emailMembers reads them).
  */
-export function listInvites(repo: string): Promise<{ invites: PendingInvite[]; personal: boolean; members: unknown[] }> {
-  return call<{ invites?: PendingInvite[]; personal?: boolean; members?: unknown[] }>('GET', `?repo=${encodeURIComponent(repo)}`).then((r) => ({
+export function listInvites(repo: string): Promise<{ invites: PendingInvite[]; personal: boolean; members: unknown[]; reviewMode: ReviewMode }> {
+  return call<{ invites?: PendingInvite[]; personal?: boolean; members?: unknown[]; reviewMode?: unknown }>('GET', `?repo=${encodeURIComponent(repo)}`).then((r) => ({
     invites: Array.isArray(r.invites) ? r.invites : [],
     personal: r.personal === true,
     members: Array.isArray(r.members) ? r.members : [],
+    reviewMode: r.reviewMode === 'shared' || r.reviewMode === 'shared-none' ? r.reviewMode : 'one',
   }));
 }
 
@@ -147,6 +148,12 @@ export async function leadExplorationKeeper(repo: string, to: { email?: string; 
 }
 
 /** An email member made a design lead, or no longer one. */
+/** Who looks after the design system (Settings > Members): one person, shared with review, shared with no review. */
+/** Who looks after the design system: one person, shared with review, shared with no review. */
+export type ReviewMode = 'one' | 'shared' | 'shared-none';
+
+export const setReviewMode = (repo: string, mode: ReviewMode) => call<{ ok: boolean; mode: string }>('POST', '', { action: 'set-review-mode', repo, mode });
+
 export const setEmailMemberLead = (repo: string, email: string, lead: boolean) => call<{ ok: boolean; lead: boolean }>('POST', '', { action: 'set-lead', repo, email, lead });
 
 export const explorationKeeper = (repo: string, to: { email?: string; login?: string; branch: string; number: number; copy?: string }) =>

@@ -85,6 +85,7 @@ import { canonicalEmail, emailSpellings, sameEmail } from '../_lib/canonical-ema
 import { onBridge, teamDisplayName } from '../../src/lib/demo.js';
 import { isTeamKey } from '../../src/lib/team-path.js';
 import { explorationKeeper } from '../_lib/exploration-keeper.js';
+import { isReviewMode, reviewModeOf, setReviewMode } from '../_lib/review-mode.js';
 
 export { appJwt } from '../_lib/github-app.js';
 export { resendSender, sameOrigin };
@@ -1197,6 +1198,14 @@ async function setEmailLead(ctx: Ctx, full: string, body: Record<string, unknown
   return json(200, { ok: true, lead: body.lead === true });
 }
 
+/** Who looks after the design system (api/_lib/review-mode.ts): an admin's setting, kept server side. */
+async function setTeamReviewMode(ctx: Ctx, full: string, body: Record<string, unknown>): Promise<Response> {
+  if (!isReviewMode(body.mode)) throw new HttpError(400, 'bad_request', 'Pick how your team reviews explorations.');
+  if (!ctx.svc.redis) throw new HttpError(503, 'not_configured', NOT_CONFIGURED);
+  await setReviewMode(ctx.svc.redis, full, body.mode);
+  return json(200, { ok: true, mode: body.mode });
+}
+
 /** What an email admin does on POST: invites, and the roles of email members. GitHub people stay with GitHub admins. */
 async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: Record<string, unknown>): Promise<Response> {
   if (req.headers.get('x-bridge-account') !== '1') throw new HttpError(403, 'origin', 'Manage your team from Studio on this site.');
@@ -1217,6 +1226,8 @@ async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: R
       return resendOne(ctx, req, env, ad.full, body.id, me, counter);
     case 'set-lead':
       return setEmailLead(ctx, ad.full, body);
+    case 'set-review-mode':
+      return setTeamReviewMode(ctx, ad.full, body);
     case 'invite-role': {
       const inv = await findInvite(ctx, ad.full, body.id);
       const { role, reviewAs } = parseRole(body.role, body.reviewAs);
@@ -1258,7 +1269,7 @@ async function withLocalAdmins(ctx: Ctx, full: string, members: EmailMember[]): 
   return members.map((m) => (m.role !== 'admin' && admins.has(canonicalEmail(m.email)) ? { ...m, role: 'admin' } : m));
 }
 
-const EMAIL_ADMIN_ACTIONS = new Set(['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'set-lead', 'remove']);
+const EMAIL_ADMIN_ACTIONS = new Set(['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'set-lead', 'set-review-mode', 'remove']);
 
 async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<Response> {
   const svc = services(env, deps);
@@ -1270,12 +1281,12 @@ async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<
     const ad = await emailAdmin(ctx, req, repoArg);
     const list = await pending(ctx, ad.full);
     const members = await withLocalAdmins(ctx, ad.full, await ctx.svc.members!.list(ad.full));
-    return json(200, { invites: list.map(publicInvite), personal: false, members: members.map(publicMember) }, { 'Cache-Control': 'private, no-store' });
+    return json(200, { invites: list.map(publicInvite), personal: false, members: members.map(publicMember), reviewMode: ctx.svc.redis ? await reviewModeOf(ctx.svc.redis, ad.full) : 'one' }, { 'Cache-Control': 'private, no-store' });
   }
   const { facts } = await authorize(ctx, req, repoArg, 'push');
   const list = await pending(ctx, facts.full);
   const members = ctx.svc.members ? await withLocalAdmins(ctx, facts.full, await ctx.svc.members.list(facts.full)) : [];
-  return json(200, { invites: list.map(publicInvite), personal: facts.personal, members: members.map(publicMember) });
+  return json(200, { invites: list.map(publicInvite), personal: facts.personal, members: members.map(publicMember), reviewMode: ctx.svc.redis ? await reviewModeOf(ctx.svc.redis, facts.full) : 'one' });
 }
 
 async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<Response> {
@@ -1327,6 +1338,11 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
     case 'set-lead': {
       const { facts } = await authorize(ctx, req, body.repo, 'admin');
       return setEmailLead(ctx, facts.full, body);
+    }
+
+    case 'set-review-mode': {
+      const { facts } = await authorize(ctx, req, body.repo, 'admin');
+      return setTeamReviewMode(ctx, facts.full, body);
     }
 
     case 'set-role': {

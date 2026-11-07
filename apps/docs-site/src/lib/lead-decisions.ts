@@ -97,7 +97,7 @@ export interface LeadHomeRow {
  * lead asked (by name, once someone else was asked), or the designer with the lead's words on their side. The lead who
  * spoke sees it, quietly, in Waiting on others, until the answer moves it up. Everyone else: nothing.
  */
-export function leadHomeRow(body: string | null | undefined, v: { viewer: string | null; lead: boolean; own: boolean; names?: Record<string, string> }): LeadHomeRow | null {
+export function leadHomeRow(body: string | null | undefined, v: { viewer: string | null; lead: boolean; own: boolean; names?: Record<string, string>; viewerName?: string | null }): LeadHomeRow | null {
   const e = parseExplorationBody(body);
   if (!e) return null;
   const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
@@ -110,6 +110,8 @@ export function leadHomeRow(body: string | null | undefined, v: { viewer: string
     if (!v.lead || v.own) return null;
     // Who was asked by name are GitHub logins: a lead signed in by email has none, and answers all the same.
     if (v.viewer && e.leadAskedTo?.length && !e.leadAskedTo.some((l) => same(l, v.viewer))) return null;
+    // "I'll look": another reviewer took it, it leaves this one's Home.
+    if (e.leadTakenAt && !(same(e.leadTakenBy, v.viewer) || (!e.leadTakenBy && same(e.leadTakenByName, v.viewerName)))) return null;
     const answered = last?.kind === 'answer';
     const before = answered ? [...all].reverse().find((d) => d.kind === 'question' || d.kind === 'changes' || d.kind === 'take-back') : null;
     const line = answered ? `${shown} answered your ${before?.kind === 'question' ? 'question' : 'changes'}` : last?.kind === 'asked-someone' ? `${sayerName(last, v.names)} asks you to look` : `${shown} is done exploring`;

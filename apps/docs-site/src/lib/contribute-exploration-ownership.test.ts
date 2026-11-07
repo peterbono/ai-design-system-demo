@@ -386,6 +386,26 @@ describe('a design lead signed in by email (the member record says so, never the
     await s.members.put(TEAM, { ...m, lead: true });
     expect((await post({})).status).toBe(200);
   });
+  it("a lead never decides on their own exploration", async () => {
+    const s = setup();
+    const l = await lead(s);
+    const n = await start(s, l, 'orders');
+    const body = s.w.pulls[n]!.body.replace(/"slug":"orders"/, `"slug":"orders","decisions":${JSON.stringify([{ ...yes, kind: 'looks-right' }])}`);
+    const r = await l.call('PATCH', `${C}/pulls/${n}`, { body });
+    expect(r.status).toBe(403);
+    expect(((await r.json()) as { error: string }).error).toBe('lead-only');
+  });
+  it('with review shared, any designer answers on another\'s exploration, never on their own', async () => {
+    const s = setup();
+    await s.redis.cmd('SET', `bridge:review-mode:${TEAM.toLowerCase()}`, 'shared');
+    const ann = await emailDesigner(s, 'ann@acme.com', 'Ann');
+    const ben = await emailDesigner(s, 'ben@acme.com', 'Ben');
+    const n = await start(s, ann, 'orders');
+    const said = (who: string) => s.w.pulls[n]!.body.replace(/"slug":"orders"/, `"slug":"orders","decisions":${JSON.stringify([{ ...yes, byName: who }])}`);
+    expect((await ann.call('PATCH', `${C}/pulls/${n}`, { body: said('Ann') })).status).toBe(403);
+    expect((await ben.call('PATCH', `${C}/pulls/${n}`, { body: said('Ben') })).status).toBe(200);
+    expect(blockOf(s.w.pulls[n]!.body)).toMatchObject({ memberName: 'Ann', decisions: [{ kind: 'changes', byName: 'Ben' }] });
+  });
   it('what is left of a lead is gone with the record', async () => {
     const s = setup();
     const n = await start(s, await emailDesigner(s, 'ann@acme.com', 'Ann'), 'orders');

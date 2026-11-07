@@ -52,6 +52,8 @@ export interface WebhookDeps {
    * links and PUBLIC_SITE_URL for links. Absent: deliveries only move the read cache.
    */
   notify?: Pick<NotifyDeps, 'sender' | 'secret' | 'warn' | 'members' | 'random' | 'profileName' | 'loginId'> & { publicUrl?: string | undefined };
+  /** The lead guard (api/_lib/lead-guard.ts): a lead's words written on GitHub by someone who may not decide go back. */
+  guard?: (event: string, payload: unknown) => Promise<boolean>;
 }
 
 /** Whether `signature` (the X-Hub-Signature-256 header, "sha256=<hex>") is GitHub's for `body` with `secret`. */
@@ -162,6 +164,8 @@ export async function handleGithubWebhook(req: Request, d: WebhookDeps): Promise
   first.push(...effect.repos.map((r) => ['GET', knownKey(r)]));
   const r = await d.redis.pipe(first);
   if (r[0] === null) return done({ ok: true, duplicate: true });
+  // Never in the way of the rest: a guard that fails leaves the description as it is.
+  const guarded = d.guard ? await d.guard(event, payload).catch(() => false) : false;
   let notified: number | null = null;
   // What became of each notice (kind, status, reason): words only, never an address, so GitHub's Recent Deliveries
   // tell why a designer got nothing.
@@ -180,7 +184,7 @@ export async function handleGithubWebhook(req: Request, d: WebhookDeps): Promise
       console.warn('notifications: a delivery could not be turned into notifications');
     }
   }
-  const extra = { ...(notified !== null ? { notices: notified } : {}), ...(outcomes.length ? { outcomes } : {}) };
+  const extra = { ...(notified !== null ? { notices: notified } : {}), ...(outcomes.length ? { outcomes } : {}), ...(guarded ? { guarded: true } : {}) };
   const known = effect.repos.filter((_, i) => r[at + i] !== null && r[at + i] !== undefined);
   if (!known.length || !effect.topics.length) return done({ ok: true, ignored: true, ...extra });
 

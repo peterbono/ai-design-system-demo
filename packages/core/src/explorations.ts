@@ -133,6 +133,13 @@ export interface Exploration {
    */
   leadAskedTo?: string[] | undefined;
   leadAskedSha?: string | undefined;
+  /**
+   * "I'll look": the reviewer who took it (a GitHub login, or a member's display name) and when. It leaves the other
+   * reviewers' Home; any of them may still answer on the page. Gone with the ask.
+   */
+  leadTakenAt?: string | undefined;
+  leadTakenBy?: string | undefined;
+  leadTakenByName?: string | undefined;
   /** Before decisions (read only, never written): the lead's last "Needs changes". decisionsOf turns it into a round. */
   leadNote?: string | undefined;
   leadNoteBy?: string | undefined;
@@ -437,6 +444,9 @@ function explorationBlock(e: Exploration): string {
     ...(e.leadPieces?.length ? { leadPieces: e.leadPieces } : {}),
     ...(e.leadAskedAt && e.leadAskedTo?.length ? { leadAskedTo: e.leadAskedTo.map(githubLoginOf).filter(Boolean) } : {}),
     ...(e.leadAskedAt && e.leadAskedSha ? { leadAskedSha: e.leadAskedSha } : {}),
+    ...(e.leadAskedAt && e.leadTakenAt ? { leadTakenAt: e.leadTakenAt } : {}),
+    ...(e.leadAskedAt && e.leadTakenAt && githubLoginOf(e.leadTakenBy) ? { leadTakenBy: githubLoginOf(e.leadTakenBy) } : {}),
+    ...(e.leadAskedAt && e.leadTakenAt && e.leadTakenByName && !e.leadTakenByName.includes('@') ? { leadTakenByName: e.leadTakenByName.trim().slice(0, 80) } : {}),
     ...(e.decisions?.length ? { decisions: e.decisions.slice(-DECISIONS_MAX).map(cleanDecision) } : {}),
     ...(githubLoginOf(e.leadOkBy) ? { leadOkBy: githubLoginOf(e.leadOkBy) } : {}),
   };
@@ -764,7 +774,7 @@ export function withDecision(body: string | null | undefined, d: Omit<Decision, 
 
 /** The designer asked the design lead: the exploration keeps running (label, note, preview), nothing reaches developers. */
 export function withLeadAsked(body: string | null | undefined, ask: { at: string; by?: string | null | undefined; byName?: string | null | undefined; pieces?: readonly string[] | undefined; sha?: string | null | undefined }): string {
-  return withBlock(body, ({ leadNote: _note, leadNoteBy: _by, leadAskedTo: _to, ...e }) => ({ ...e, decisions: decisionsOf({ ...e, leadNote: _note, leadNoteBy: _by }), leadAskedAt: ask.at, leadAskedBy: ask.by ?? undefined, leadAskedByName: ask.byName ?? undefined, leadPieces: [...(ask.pieces ?? e.leadPieces ?? [])], leadAskedSha: ask.sha ?? undefined }));
+  return withBlock(body, ({ leadNote: _note, leadNoteBy: _by, leadAskedTo: _to, leadTakenAt: _ta, leadTakenBy: _tb, leadTakenByName: _tn, ...e }) => ({ ...e, decisions: decisionsOf({ ...e, leadNote: _note, leadNoteBy: _by }), leadAskedAt: ask.at, leadAskedBy: ask.by ?? undefined, leadAskedByName: ask.byName ?? undefined, leadPieces: [...(ask.pieces ?? e.leadPieces ?? [])], leadAskedSha: ask.sha ?? undefined }));
 }
 
 /**
@@ -772,12 +782,17 @@ export function withLeadAsked(body: string | null | undefined, ask: { at: string
  * (withDecision), the caller's to write.
  */
 export function withoutLeadAsked(body: string | null | undefined): string {
-  return withBlock(body, ({ leadAskedAt: _at, leadAskedBy: _by, leadAskedByName: _name, leadAskedTo: _to, leadAskedSha: _sha, ...e }) => e);
+  return withBlock(body, ({ leadAskedAt: _at, leadAskedBy: _by, leadAskedByName: _name, leadAskedTo: _to, leadAskedSha: _sha, leadTakenAt: _ta, leadTakenBy: _tb, leadTakenByName: _tn, ...e }) => e);
 }
 
 /** "Ask someone else to review": these leads are now the ones it waits on. */
 export function withLeadAskedTo(body: string | null | undefined, to: readonly string[]): string {
-  return withBlock(body, (e) => ({ ...e, leadAskedTo: [...to] }));
+  return withBlock(body, ({ leadTakenAt: _ta, leadTakenBy: _tb, leadTakenByName: _tn, ...e }) => ({ ...e, leadAskedTo: [...to] }));
+}
+
+/** "I'll look": one reviewer takes it, the others no longer see it waiting on them. */
+export function withLeadTaken(body: string | null | undefined, take: { at: string; by?: string | null | undefined; byName?: string | null | undefined }): string {
+  return withBlock(body, (e) => ({ ...e, leadTakenAt: take.at, leadTakenBy: take.by ?? undefined, leadTakenByName: take.byName ?? undefined }));
 }
 
 /**

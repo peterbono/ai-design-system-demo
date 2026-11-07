@@ -39,6 +39,7 @@ export function setContributeFetch(f: Fetch | null) {
   fetchImpl = f ?? ((input, init) => fetch(input, init));
   infos.clear();
   mines.clear();
+  reviews.clear();
   publicReads.clear();
   profiles.clear();
   askProfiles = new Map();
@@ -122,6 +123,7 @@ export function forgetContributors() {
   }
   infos.clear();
   mines.clear();
+  reviews.clear();
   forgetRecent(null);
 }
 
@@ -192,9 +194,43 @@ export interface TeamPeople {
   collaborators: TeamCollaborator[];
   /** Email members by name and role; `you` marks the signed-in one. Never another member's email. */
   /** 'admin' only in `npm run dev:full`, for a member seeded as admin (api/_lib/local-admin.ts). */
-  members: { name: string; role: 'view' | 'edit' | 'admin'; ref?: string; you?: boolean }[];
+  /** `ref`: their member reference (blocks name them by it); `lead`: asked to review explorations. */
+  members: { name: string; role: 'view' | 'edit' | 'admin'; ref?: string; you?: boolean; lead?: boolean }[];
   /** Each product's product manager (Settings > Products): a GitHub person by login, an email member by reference. */
   pms: Record<string, TeamPm>;
+  /** Who looks after the design system (api/_lib/review-mode.ts). */
+  reviewMode?: ReviewMode;
+}
+
+/** Who looks after the design system: one person, shared with review, shared with no review. */
+export type ReviewMode = 'one' | 'shared' | 'shared-none';
+const REVIEW_MODES: readonly ReviewMode[] = ['one', 'shared', 'shared-none'];
+export const asReviewMode = (v: unknown): ReviewMode => (REVIEW_MODES.includes(v as ReviewMode) ? (v as ReviewMode) : 'one');
+
+/** The team's review facts for Done exploring: its mode, and the member references asked to review (email members). */
+export interface TeamReview {
+  mode: ReviewMode;
+  asked: { ref: string; name: string }[];
+  /** Each product's product manager (Settings > Products), by product key. */
+  pms?: Record<string, TeamPm>;
+}
+const reviews = new Map<string, Promise<TeamReview>>();
+
+/**
+ * The review facts of `repo`, read once per page (GET ?members=1). Anything that fails reads as before this setting:
+ * one person, no email lead known, so the design owners decide as they always did.
+ */
+export function teamReview(repo: string, githubToken: string | null = null): Promise<TeamReview> {
+  const k = key(repo);
+  let p = reviews.get(k);
+  if (!p) {
+    p = contributeTeam(repo, githubToken).then(
+      (t) => ({ mode: asReviewMode(t.reviewMode), asked: t.members.filter((m) => m.lead && m.ref).map((m) => ({ ref: m.ref!, name: m.name })), pms: t.pms }),
+      () => ({ mode: 'one' as const, asked: [] }),
+    );
+    reviews.set(k, p);
+  }
+  return p;
 }
 
 /** A product manager as Studio reads them: never an email. */
@@ -220,9 +256,17 @@ export async function contributeTeam(repo: string, githubToken: string | null = 
   const r = await call<Partial<TeamPeople>>('GET', `?repo=${encodeURIComponent(repo)}&members=1`, undefined, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
   const collaborators = Array.isArray(r.collaborators) ? r.collaborators.filter((c): c is TeamCollaborator => Boolean(c && typeof c.login === 'string')) : [];
   const members = Array.isArray(r.members)
-    ? r.members.filter((m) => m && typeof m.name === 'string').map((m) => ({ name: m.name.trim() || 'Contributor', role: localDevHost() && m.role === 'admin' ? ('admin' as const) : m.role === 'view' ? ('view' as const) : ('edit' as const), ...(typeof m.ref === 'string' ? { ref: m.ref } : {}), ...(m.you ? { you: true } : {}) }))
+    ? r.members
+        .filter((m) => m && typeof m.name === 'string')
+        .map((m) => ({
+          name: m.name.trim() || 'Contributor',
+          role: localDevHost() && m.role === 'admin' ? ('admin' as const) : m.role === 'view' ? ('view' as const) : ('edit' as const),
+          ...(m.you ? { you: true } : {}),
+          ...(typeof m.ref === 'string' && /^[0-9a-f]{16}$/.test(m.ref) ? { ref: m.ref } : {}),
+          ...(m.lead === true ? { lead: true } : {}),
+        }))
     : [];
-  return { collaborators, members, pms: parsePms((r as { pms?: unknown }).pms) };
+  return { collaborators, members, pms: parsePms((r as { pms?: unknown }).pms), reviewMode: asReviewMode(r.reviewMode) };
 }
 
 /** Who is the product manager of `product`, or nobody: a lead or an admin of the team (checked by the server). */

@@ -26,6 +26,7 @@ import {
   withKeeper,
   withLeadAsked,
   withLeadAskedTo,
+  withLeadTaken,
   withoutDoneExploring,
   withoutLeadAsked,
   type Decision,
@@ -339,6 +340,17 @@ export async function askOtherLeadOnGitHub(gh: GitHubClient, ref: string | numbe
   await gh.updatePullRequest(p.number, { body: withDecision(withLeadAskedTo(p.body, input.to), { kind: 'asked-someone', ...sayer({ by: input.lead, byName: input.leadName, date: input.date }), to: [...input.to] }) });
   await gh.createIssueComment(p.number, `${input.to.map((l) => `@${l}`).join(' ')} ready for your validation in Bridge.`).catch(() => undefined);
 }
+
+/** "I'll look": the reviewer takes it. Someone took it first: GitHub's body says who, and nothing changes. */
+export async function takeLeadOnGitHub(gh: GitHubClient, ref: string | number, input: { lead?: string | undefined; leadName?: string | undefined; date?: Date | undefined }): Promise<void> {
+  const p = await findExplorationOnGitHub(gh, ref);
+  if (!isWaitingForLead(p.body)) throw new GitHubError(422, ALREADY_ANSWERED);
+  if (parseExplorationBody(p.body)?.leadTakenAt) throw new GitHubError(409, ALREADY_TAKEN);
+  await gh.updatePullRequest(p.number, { body: withLeadTaken(p.body, { at: (input.date ?? new Date()).toISOString(), by: input.lead, byName: input.leadName }) });
+}
+
+/** Someone else said "I'll look" first. */
+export const ALREADY_TAKEN = 'Someone else is already looking at it.';
 
 /**
  * "Not doing this": the exploration ends, the reason stays with it. Archived, not closed: its preview and notes stay.

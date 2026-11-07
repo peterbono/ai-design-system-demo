@@ -234,7 +234,7 @@ describe('session cookie and CSRF', () => {
     expect(cookieName(REPO)).toBe(`bridge_contrib_${createHash('sha256').update(REPO).digest('hex').slice(0, 16)}`);
     for (const part of ['Path=/api/contribute', 'HttpOnly', 'Secure', 'SameSite=Lax', `Max-Age=${SESSION_TTL_MS / 1000}`]) expect(set).toContain(part);
     const cookie = await join(s);
-    expect(await (await handleContribute(status(cookie), ENV, s.deps)).json()).toEqual({ available: true, member: { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit', ref: memberRef('mia@acme.design') } });
+    expect(await (await handleContribute(status(cookie), ENV, s.deps)).json()).toEqual({ available: true, member: { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit', ref: memberRef('mia@acme.design') }, reviewMode: 'one' });
   });
 
   it('needs the X-Bridge-Contribute header, JSON, and a page of this site when there is an Origin', async () => {
@@ -855,6 +855,7 @@ describe('GET ?members=1: the team for anyone on it', () => {
     expect(body.members).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Mia Chen', role: 'edit', you: true }), expect.objectContaining({ name: 'Leo Park', role: 'edit' })]));
     // Each with a reference to pick them as a product manager: a hash, never their email.
     for (const m of body.members) expect(m.ref).toMatch(/^[0-9a-f]{16}$/);
+    expect(body.reviewMode).toBe('one');
     expect(JSON.stringify(body)).not.toContain('@acme.design');
   });
 

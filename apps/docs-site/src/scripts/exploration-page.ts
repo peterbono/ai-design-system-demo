@@ -9,7 +9,7 @@
 // reviews once the developers started), and the library part. A product exploration never checked against the
 // library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
 // viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { ALREADY_ANSWERED, pmOpinionOf, answerLeadOnGitHub, archiveExplorationOnGitHub, askOtherLeadOnGitHub, branchPreviewUrl, cancelLeadAskOnGitHub, decisionsOf, handOverOnGitHub, isWaitingForLead, leadTurnOf, leadApproveOnGitHub, leadChangesOnGitHub, leadQuestionOnGitHub, notDoingOnGitHub, openDecisionOf, startExplorationOnGitHub, takeBackOnGitHub, tellDevelopersOnGitHub, EXPLORATION_PREFIX, figmaLines, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { ALREADY_ANSWERED, pmOpinionOf, answerLeadOnGitHub, archiveExplorationOnGitHub, askOtherLeadOnGitHub, branchPreviewUrl, cancelLeadAskOnGitHub, decisionsOf, handOverOnGitHub, isWaitingForLead, leadTurnOf, leadApproveOnGitHub, leadChangesOnGitHub, leadQuestionOnGitHub, notDoingOnGitHub, takeLeadOnGitHub, openDecisionOf, startExplorationOnGitHub, takeBackOnGitHub, tellDevelopersOnGitHub, EXPLORATION_PREFIX, figmaLines, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
   canPutInFigma,
@@ -226,7 +226,9 @@ function leadViewOf(
   const viewer = currentViewer()?.email ? null : (currentViewer()?.login ?? null);
   // A lead signed in by email: the member record says it, and the server checks it again on every write. Never the person who asked.
   const emailLead = currentContributor();
-  const isLead = Boolean(emailLead ? emailLead.lead && !startedByEmailMember(body, emailLead) : viewer && connected() && leads.some((l) => l.toLowerCase() === viewer.toLowerCase()));
+  // An admin of the repository decides too (never asked): super power, never on their own exploration.
+  const repoAdmin = Boolean(viewer && connected() && currentAccess()?.admin && !sameLogin(viewer, asker) && !sameLogin(viewer, r.author));
+  const isLead = Boolean(emailLead ? emailLead.decides && !startedByEmailMember(body, emailLead) : repoAdmin || (viewer && connected() && leads.some((l) => l.toLowerCase() === viewer.toLowerCase())));
   if (isLead) {
     const who = block?.leadAskedByName ?? block?.leadAskedBy ?? 'The designer';
     const leadName = viewer ? (knownNamesOf([viewer])[viewer] ?? undefined) : emailLead?.name;
@@ -244,8 +246,13 @@ function leadViewOf(
       return line;
     };
     const others = leads.filter((l) => l.toLowerCase() !== viewer?.toLowerCase());
+    // "I'll look": one reviewer takes it, the others no longer see it on their Home. Any of them can still answer.
+    const takenName = block?.leadTakenAt ? (block.leadTakenByName ?? (block.leadTakenBy ? (knownNamesOf([block.leadTakenBy])[block.leadTakenBy] ?? block.leadTakenBy) : 'Someone')) : null;
+    const takenByMe = Boolean(block?.leadTakenAt && (viewer ? sameLogin(block.leadTakenBy, viewer) : !block.leadTakenBy && block.leadTakenByName === emailLead?.name));
+    const take: LeadView['take'] = open ? null : takenName ? { line: takenByMe ? TAKEN_BY_YOU_LINE : `${takenName} is looking at it.` } : { onTake: () => answered(() => takeLeadOnGitHub(o.gh, r.number, me), TAKEN_LINE) };
     return {
       ...(open ? { heading: `With ${who}` } : {}),
+      take,
       line: open ? leadWaitLine(open, viewer ?? '', who, knownNamesOf([open.by ?? ''])) : `${who} is done exploring. Look at the preview, then answer. Nothing reaches the developers before you do.`,
       bar: {
         onLooksRight: (note) =>
@@ -379,6 +386,9 @@ function leadTalkOf(
 
 const sameLogin = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
 
+const TAKEN_LINE = "You're looking at it. The other reviewers no longer see it waiting.";
+const TAKEN_BY_YOU_LINE = 'You said you would look at it.';
+
 function repaint(d: HTMLElement, key: string, patch: Partial<ExplorationPageProps>) {
   if (!current || current.key !== key || !mod) return;
   current.props = { ...current.props, ...patch };
@@ -428,7 +438,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const emailKeeper = Boolean(inCopy && member && startedByEmailMember(pull.body, member));
   const designerKeeper = Boolean(designer && startedByDesigner(pull.body, viewer));
   // A lead signed in by email on someone else's work: the member record says so, the server checks it on each write.
-  const emailLeadOther = Boolean(member?.lead && !emailKeeper && !sampleVisitor());
+  const emailLeadOther = Boolean(member?.decides && !emailKeeper && !sampleVisitor());
   const keeper = emailKeeper || designerKeeper || emailLeadOther || canKeepExploration({ viewer, author: r.author, reviewer: viewerRole() === 'reviewer', write: own ? null : (currentAccess()?.write ?? null) });
   const emailOnProduct = Boolean(own && member && !inCopy);
   const direct = changesModeOnPage() === 'direct';
@@ -446,7 +456,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     productNote: emailOnProduct ? productKeeperLine(product.name) : null,
   });
   // A design lead on someone else's work: what they do to it says why, and they can pass it on.
-  const leadOther = emailLeadOther || Boolean(viewer && !currentViewer()?.email && connected() && !sampleVisitor() && !sameLogin(viewer, r.author) && !designerKeeper && reviewersAsked({ approvers: siteApprovers().design, builders: [] }).some((l) => sameLogin(l, viewer)));
+  const leadOther = emailLeadOther || Boolean(viewer && !currentViewer()?.email && connected() && !sampleVisitor() && !sameLogin(viewer, r.author) && !designerKeeper && (currentAccess()?.admin || reviewersAsked({ approvers: siteApprovers().design, builders: [] }).some((l) => sameLogin(l, viewer))));
   // The person it belongs to: the lead's words wait on them.
   const answersLead = connected() || emailKeeper ? (emailKeeper || designerKeeper || sameLogin(viewer, r.author)) && !emailOnProduct : false;
   const isLibrary = !own && product.default === true;

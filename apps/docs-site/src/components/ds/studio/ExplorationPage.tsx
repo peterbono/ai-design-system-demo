@@ -85,6 +85,8 @@ export interface LeadView {
   heading?: string;
   /** The review bar, for a lead (LeadDecisions.tsx). */
   bar?: LeadBarView | null;
+  /** "I'll look", for a reviewer while nobody took it; once taken, who is looking at it. */
+  take?: { onTake?: () => Promise<string | void>; line?: string } | null;
   onCancel?: (() => Promise<string | void>) | null;
 }
 
@@ -298,6 +300,24 @@ function LeadCard({ lead, say }: { lead: LeadView; say: (s: string) => void }) {
         {lead.heading ?? (lead.bar ? 'Ready for the developers?' : 'With your lead')}
       </h2>
       <p>{lead.line}</p>
+      {lead.take?.line && <p className="xp-muted">{lead.take.line}</p>}
+      {lead.take?.onTake && (
+        <Button
+          variant="inverse"
+          size="md"
+          className="xp-done-btn"
+          loading={busy}
+          onClick={() => {
+            setBusy(true);
+            lead.take!.onTake!()
+              .then((r) => r && say(r))
+              .catch((err: Error) => say(err.message))
+              .finally(() => setBusy(false));
+          }}
+        >
+          I'll look
+        </Button>
+      )}
       {lead.onCancel && (
         <Button
           variant="inverse"
