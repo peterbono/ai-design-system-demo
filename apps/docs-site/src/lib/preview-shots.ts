@@ -30,6 +30,8 @@ export interface PreviewShot {
   capturedAt: string;
   sha: string;
   screen: string | null;
+  /** The page the capture shows on its preview ("/plans", "/#/orders"), when known: Open the preview lands there. */
+  route?: string | null;
 }
 
 const SEG = /^[a-z0-9][a-z0-9._-]*$/;
@@ -83,7 +85,7 @@ export function parseShotsIndex(raw: unknown): ShotsIndex | null {
 export function shotFor(index: ShotsIndex | null | undefined, ds: { owner: string; repo: string }, repo: string, pr: number): PreviewShot | null {
   const e = index?.shots[shotKey(repo, pr)];
   if (!e) return null;
-  return { src: `${shotsFileUrl(ds.owner, ds.repo, e.image)}?v=${e.sha.slice(0, 7)}`, capturedAt: e.capturedAt, sha: e.sha, screen: e.screen ?? null };
+  return { src: `${shotsFileUrl(ds.owner, ds.repo, e.image)}?v=${e.sha.slice(0, 7)}`, capturedAt: e.capturedAt, sha: e.sha, screen: e.screen ?? null, route: e.route ?? null };
 }
 
 /** "Captured 2 h ago": under a capture, where it fits. */

@@ -55,7 +55,7 @@ export function bridgeShotOf(team: string, repo: string, pr: number): Promise<Pr
     .then(async (token) => {
       const auth: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       const r = await fetch(`/api/contribute?${q}&meta=1`, { credentials: 'same-origin', headers: { Accept: 'application/json', ...auth } });
-      const d = r.ok ? ((await r.json()) as { shot?: { sha?: string; capturedAt?: string } | null }) : null;
+      const d = r.ok ? ((await r.json()) as { shot?: { sha?: string; capturedAt?: string; route?: string | null; screen?: string | null } | null }) : null;
       if (!d?.shot?.sha || !d.shot.capturedAt) return null;
       const url = `/api/contribute?${q}&v=${d.shot.sha.slice(0, 7)}`;
       let src = url;
@@ -64,7 +64,7 @@ export function bridgeShotOf(team: string, repo: string, pr: number): Promise<Pr
         if (!img.ok) return null;
         src = URL.createObjectURL(await img.blob());
       }
-      return { src, capturedAt: d.shot.capturedAt, sha: d.shot.sha, screen: null };
+      return { src, capturedAt: d.shot.capturedAt, sha: d.shot.sha, screen: d.shot.screen ?? null, route: d.shot.route ?? null };
     })
     .catch(() => null);
   bridgeShots.set(k, p);

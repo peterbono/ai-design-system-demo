@@ -145,15 +145,18 @@ async function gh(ctx: ShotsCtx, token: string, path: string, accept = 'applicat
   }
 }
 
-/** The design copies Bridge watches (api/_lib/notify.ts), each with its team. */
-async function watchedCopies(redis: Redis): Promise<{ repo: string; team: string }[]> {
+/**
+ * The product repositories Bridge watches (api/_lib/notify.ts), each with its team: the design copies (the explorations)
+ * and the developers' repositories (their builds, shown beside the approved version in Check the build).
+ */
+async function watchedCopies(redis: Redis): Promise<{ repo: string; team: string; kind: 'copy' | 'code' }[]> {
   const repos = ((await redis.cmd('SMEMBERS', NOTIFY_TEAMS_KEY)) as string[] | null) ?? [];
   const metas = repos.length ? ((await redis.pipe(repos.map((r) => ['GET', repoMetaKey(r)]))) as (string | null)[]) : [];
-  const out: { repo: string; team: string }[] = [];
+  const out: { repo: string; team: string; kind: 'copy' | 'code' }[] = [];
   repos.forEach((repo, i) => {
     try {
       const m = metas[i] ? JSON.parse(metas[i]!) : null;
-      if (m?.kind === 'copy' && typeof m.team === 'string' && REPO.test(repo)) out.push({ repo: repo.toLowerCase(), team: m.team.toLowerCase() });
+      if ((m?.kind === 'copy' || m?.kind === 'code') && typeof m.team === 'string' && REPO.test(repo)) out.push({ repo: repo.toLowerCase(), team: m.team.toLowerCase(), kind: m.kind });
     } catch {
       /* a broken entry: skipped */
     }
@@ -161,8 +164,11 @@ async function watchedCopies(redis: Redis): Promise<{ repo: string; team: string
   return out;
 }
 
-/** The copy's preview template from its team's bridge.config.json (products[].design.preview), or null. */
-async function copyTemplate(ctx: ShotsCtx, team: string, copy: string): Promise<string | null> {
+/**
+ * The preview template of a product repository from its team's bridge.config.json: a copy's products[].design.preview,
+ * the developers' repository's products[].preview; null when the config names none.
+ */
+async function copyTemplate(ctx: ShotsCtx, team: string, copy: string, kind: 'copy' | 'code' = 'copy'): Promise<string | null> {
   const [o, r] = team.split('/') as [string, string];
   if (!REPO.test(team)) return null;
   const token = await ctx.token(o, r);
@@ -170,9 +176,10 @@ async function copyTemplate(ctx: ShotsCtx, team: string, copy: string): Promise<
   const res = await gh(ctx, token, `/repos/${o}/${r}/contents/bridge.config.json`, 'application/vnd.github.raw');
   if (!res || res.status !== 200) return null;
   try {
-    const config = JSON.parse(await res.text()) as { products?: { design?: { repo?: unknown; preview?: unknown } }[] };
-    const p = (config.products ?? []).find((x) => typeof x?.design?.repo === 'string' && x.design.repo.toLowerCase() === copy);
-    return typeof p?.design?.preview === 'string' && /^https:\/\//.test(p.design.preview) ? p.design.preview : null;
+    const config = JSON.parse(await res.text()) as { products?: { repo?: unknown; preview?: unknown; design?: { repo?: unknown; preview?: unknown } }[] };
+    const p = (config.products ?? []).find((x) => (kind === 'code' ? typeof x?.repo === 'string' && x.repo.toLowerCase() === copy : typeof x?.design?.repo === 'string' && x.design.repo.toLowerCase() === copy));
+    const t = kind === 'code' ? p?.preview : p?.design?.preview;
+    return typeof t === 'string' && /^https:\/\//.test(t) ? t : null;
   } catch {
     return null;
   }
@@ -181,9 +188,9 @@ async function copyTemplate(ctx: ShotsCtx, team: string, copy: string): Promise<
 /** The open explorations of the watched copies whose head has no capture yet (every one with `force`), at most TODO_MAX. */
 export async function shotsTodo(ctx: ShotsCtx, force = false): Promise<ShotJob[]> {
   const jobs: ShotJob[] = [];
-  for (const { repo, team } of await watchedCopies(ctx.redis)) {
+  for (const { repo, team, kind } of await watchedCopies(ctx.redis)) {
     if (jobs.length >= TODO_MAX) break;
-    const template = await copyTemplate(ctx, team, repo);
+    const template = await copyTemplate(ctx, team, repo, kind);
     if (!template) continue;
     const [o, r] = repo.split('/') as [string, string];
     const token = await ctx.token(o, r);
@@ -196,6 +203,8 @@ export async function shotsTodo(ctx: ShotsCtx, force = false): Promise<ShotJob[]
       const sha = typeof p.head?.sha === 'string' ? p.head.sha : '';
       const branch = typeof p.head?.ref === 'string' ? p.head.ref : '';
       if (!Number.isSafeInteger(p.number) || !SHA.test(sha) || !branch || jobs.length >= TODO_MAX) return;
+      // A developers' draft is not a build to check yet.
+      if (kind === 'code' && p.draft === true) return;
       let have: string | null = null;
       try {
         have = kept[i] ? (JSON.parse(kept[i]!).sha as string) : null;
@@ -224,6 +233,9 @@ export async function putShot(ctx: ShotsCtx, body: Record<string, unknown>): Pro
   const sha = typeof body.sha === 'string' ? body.sha : '';
   const image = typeof body.image === 'string' ? body.image : '';
   const url = typeof body.url === 'string' && /^https:\/\//.test(body.url) ? body.url.slice(0, 500) : null;
+  // The page the capture shows (path, query and hash route), so Open the preview lands there too; its change's label.
+  const route = typeof body.route === 'string' && /^\/[^\s<>"'\\]*$/.test(body.route) && body.route.length <= 300 ? body.route : null;
+  const screen = typeof body.screen === 'string' && body.screen.trim() ? body.screen.trim().slice(0, 80) : null;
   if (!REPO.test(repo) || !Number.isSafeInteger(pr) || pr < 1 || !SHA.test(sha)) return json(400, { error: 'bad_request', message: 'Say which exploration: repo, pr and sha.' });
   if (!image || image.length > MAX_IMAGE_CHARS || !/^[A-Za-z0-9+/]+={0,2}$/.test(image) || !Buffer.from(image.slice(0, 32), 'base64').subarray(8, 12).equals(Buffer.from('WEBP'))) {
     return json(400, { error: 'bad_image', message: 'Send a webp image, base64, under 300 KB.' });
@@ -235,19 +247,19 @@ export async function putShot(ctx: ShotsCtx, body: Record<string, unknown>): Pro
   } catch {
     kind = null;
   }
-  if (kind !== 'copy') return json(403, { error: 'not-allowed', message: 'Bridge does not watch this repository.' });
-  await ctx.redis.cmd('SET', shotKeyOf(repo, pr), JSON.stringify({ sha, capturedAt: new Date(ctx.now()).toISOString(), ...(url ? { url } : {}), image }), 'EX', KEEP_S);
+  if (kind !== 'copy' && kind !== 'code') return json(403, { error: 'not-allowed', message: 'Bridge does not watch this repository.' });
+  await ctx.redis.cmd('SET', shotKeyOf(repo, pr), JSON.stringify({ sha, capturedAt: new Date(ctx.now()).toISOString(), ...(url ? { url } : {}), ...(route ? { route } : {}), ...(screen ? { screen } : {}), image }), 'EX', KEEP_S);
   return json(200, { ok: true });
 }
 
 // --- Studio's reads ----------------------------------------------------------------------------------------------------
 
 /** When one capture was taken and of which commit, or null (none yet). */
-export async function shotMeta(redis: Redis, repo: string, pr: number): Promise<{ sha: string; capturedAt: string } | null> {
+export async function shotMeta(redis: Redis, repo: string, pr: number): Promise<{ sha: string; capturedAt: string; route: string | null; screen: string | null } | null> {
   const raw = await redis.cmd('GET', shotKeyOf(repo, pr));
   try {
     const v = typeof raw === 'string' ? JSON.parse(raw) : null;
-    return v?.sha && v?.capturedAt ? { sha: v.sha, capturedAt: v.capturedAt } : null;
+    return v?.sha && v?.capturedAt ? { sha: v.sha, capturedAt: v.capturedAt, route: typeof v.route === 'string' ? v.route : null, screen: typeof v.screen === 'string' ? v.screen : null } : null;
   } catch {
     return null;
   }

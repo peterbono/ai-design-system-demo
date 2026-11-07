@@ -79,7 +79,7 @@ async function main() {
         const put = await fetch(`${o.base}/api/contribute?shots=put`, {
           method: 'POST',
           headers: { ...auth, 'content-type': 'application/json' },
-          body: JSON.stringify({ repo: j.repo, pr: j.pr, sha: j.sha, url, image: Buffer.from(shot.webp).toString('base64') }),
+          body: JSON.stringify({ repo: j.repo, pr: j.pr, sha: j.sha, url, route: shot.route, screen: shot.screen, image: Buffer.from(shot.webp).toString('base64') }),
         });
         console.log(`- ${j.repo}#${j.pr}: ${put.ok ? 'kept' : `refused (${put.status})`} ${url}`);
         if (put.ok) kept++;

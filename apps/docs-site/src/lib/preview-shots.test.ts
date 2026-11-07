@@ -36,6 +36,7 @@ describe('preview shots: the index', () => {
       capturedAt: entry.capturedAt,
       sha: entry.sha,
       screen: 'Orders waiting to ship alert',
+      route: '/',
     });
     expect(shotFor(idx, DS, 'the-bridge-company/ai-design-system-demo', 2)).toBeNull();
     expect(shotFor(null, DS, 'the-bridge-company/art-print-shop', 2)).toBeNull();

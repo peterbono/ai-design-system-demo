@@ -4,7 +4,7 @@ import { generateKeyPairSync, createSign } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { memoryRedis } from '../../api/_lib/redis';
 import { watchWrites } from '../../api/_lib/notify';
-import { clearJwks, fileHints, putShot, shotKeyOf, shotsTodo, workflowClaims, AUDIENCE, ISSUER, SHOTS_REPOSITORY, type ShotsCtx } from '../../api/_lib/private-shots';
+import { clearJwks, fileHints, putShot, shotKeyOf, shotMeta, shotsTodo, workflowClaims, AUDIENCE, ISSUER, SHOTS_REPOSITORY, type ShotsCtx } from '../../api/_lib/private-shots';
 import { handleContribute, type ContribDeps } from '../../api/contribute/index';
 import { clearReadMemory } from '../../api/_lib/team-read';
 
@@ -21,7 +21,8 @@ function jwt(claims: Record<string, unknown>, kid = 'k1') {
 const WEBP = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 '), Buffer.alloc(40)]).toString('base64');
 const TEAM = 'acme-design-demo/bridge-demo-ds';
 const COPY = 'acme-design-demo/acme-account-design';
-const CONFIG = JSON.stringify({ products: [{ key: 'account', name: 'Account', repo: 'acme-design-demo/acme-account', design: { repo: COPY, preview: 'https://{branch}.acme-account-design.pages.dev' } }] });
+const CODE = 'acme-design-demo/acme-account';
+const CONFIG = JSON.stringify({ products: [{ key: 'account', name: 'Account', repo: CODE, preview: 'https://{branch}.acme-account.pages.dev', design: { repo: COPY, preview: 'https://{branch}.acme-account-design.pages.dev' } }] });
 const SHA = 'a'.repeat(40);
 
 function world() {
@@ -31,6 +32,7 @@ function world() {
     if (u.href === `${ISSUER}/.well-known/jwks`) return Response.json({ keys: [jwk] });
     if (u.pathname === `/repos/${TEAM}/contents/bridge.config.json`) return new Response(CONFIG, { status: 200 });
     if (u.pathname === `/repos/${COPY}/pulls`) return Response.json([{ number: 1, head: { sha: SHA, ref: 'explore/team' } }, { number: 2, head: { sha: 'b'.repeat(40), ref: 'explore/profile' } }]);
+    if (u.pathname === `/repos/${CODE}/pulls`) return Response.json([{ number: 3, head: { sha: 'c'.repeat(40), ref: 'build/invoice' } }, { number: 4, draft: true, head: { sha: 'd'.repeat(40), ref: 'build/wip' } }]);
     if (u.pathname === `/repos/${TEAM}`) return Response.json({ private: false });
     return Response.json({ message: 'Not Found' }, { status: 404 });
   };
@@ -71,6 +73,18 @@ describe('private shots: what to capture and what is kept', () => {
     expect((await putShot(ctx, { repo: 'someone/else', pr: 1, sha: SHA, image: WEBP })).status).toBe(403);
     expect((await putShot(ctx, { repo: COPY, pr: 1, sha: SHA, image: Buffer.from('<svg/>').toString('base64') })).status).toBe(400);
     expect(JSON.parse(String(await redis.cmd('GET', shotKeyOf(COPY, 1))))).toMatchObject({ sha: SHA });
+  });
+
+  it("captures the developers' ready builds on the product's previews, and keeps the page each capture shows", async () => {
+    const { redis, ctx } = world();
+    await redis.pipe(watchWrites([{ repo: CODE, meta: { team: TEAM, kind: 'code', product: 'account' } }]));
+    // A draft is not a build to check yet.
+    expect((await shotsTodo(ctx)).map((j) => [j.repo, j.pr, j.template])).toEqual([[CODE, 3, 'https://{branch}.acme-account.pages.dev']]);
+    expect((await putShot(ctx, { repo: CODE, pr: 3, sha: 'c'.repeat(40), image: WEBP, route: '/billing', screen: 'Invoice badges' })).status).toBe(200);
+    expect(await shotMeta(redis, CODE, 3)).toMatchObject({ route: '/billing', screen: 'Invoice badges' });
+    // Only a path on the preview is kept as its page.
+    await putShot(ctx, { repo: CODE, pr: 3, sha: 'c'.repeat(40), image: WEBP, route: 'https://evil.example/' });
+    expect(await shotMeta(redis, CODE, 3)).toMatchObject({ route: null });
   });
 });
 
