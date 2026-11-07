@@ -60,3 +60,18 @@ export function pmHomeRow(body: string | null | undefined, x: { buildReady: bool
   if (pmOpinionOf(body)) return null;
   return { line: (designer) => `${designer} would like your opinion`, action: 'Look', since: e.leadAskedAt ?? null };
 }
+
+/** A PM word as Bridge keeps it on the exploration (core's Decision). */
+export type PmSaidHere = PmSaid & { at?: string };
+const PM_SAID_TTL = 5 * 60_000;
+
+/**
+ * The PM word the page shows: the one read from the exploration, or the one just said from this page when it is
+ * newer (the page reads the exploration again after an answer and that read can come from a cache older than the
+ * answer). A word said here is trusted for five minutes only.
+ */
+export function newerPmSaid<T extends PmSaidHere>(fromBody: T | null, local: T | undefined, now = Date.now()): T | null {
+  if (!local?.at || now - Date.parse(local.at) > PM_SAID_TTL) return fromBody;
+  if (!fromBody?.at) return local;
+  return Date.parse(fromBody.at) >= Date.parse(local.at) ? fromBody : local;
+}

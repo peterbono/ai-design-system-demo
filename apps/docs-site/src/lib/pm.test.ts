@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { openDecisionOf, pmOpinionOf, withDecision, withLeadAsked, withoutLeadAsked } from '@bridge-ds/core';
 import { addsPmWords, isPm, pmsOf, publicPm, setPm, withPmWord } from '../../api/_lib/product-pm';
 import { memberRef } from '../../api/_lib/exploration-member';
-import { isViewerPm, pmRequired, pmStatusLine } from './pm-view';
+import { isViewerPm, newerPmSaid, pmRequired, pmStatusLine } from './pm-view';
 import { decisionRows, leadHomeRow } from './lead-decisions';
 import { memoryRedis } from '../../api/_lib/redis';
 
@@ -73,5 +73,25 @@ describe('what the PM says', () => {
     expect(pmRequired({ designers: 1 })).toBe(true);
     expect(pmRequired({ review: 'one', designers: 4 })).toBe(false);
     expect(pmRequired({})).toBe(false);
+  });
+});
+
+describe('newerPmSaid', () => {
+  const now = Date.parse('2026-11-07T18:30:00Z');
+  type Said = { kind: 'pm-ok' | 'pm-changes'; at: string; text?: string };
+  const body: Said = { kind: 'pm-changes', at: '2026-11-07T18:20:00Z', text: 'Days first' };
+  const here: Said = { kind: 'pm-ok', at: '2026-11-07T18:29:00Z' };
+  it('keeps the word just said when the read is older', () => {
+    expect(newerPmSaid(body, here, now)).toBe(here);
+  });
+  it('takes the read once it has caught up', () => {
+    const read: Said = { kind: 'pm-ok', at: '2026-11-07T18:29:30Z' };
+    expect(newerPmSaid(read, here, now)).toBe(read);
+  });
+  it('shows the word just said when the read has none', () => {
+    expect(newerPmSaid(null, here, now)).toBe(here);
+  });
+  it('forgets a word said here more than five minutes ago', () => {
+    expect(newerPmSaid<Said>(body, { kind: 'pm-ok', at: '2026-11-07T18:20:30Z' }, now + 10 * 60_000)).toBe(body);
   });
 });

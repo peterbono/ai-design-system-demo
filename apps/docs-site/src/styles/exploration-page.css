@@ -235,6 +235,36 @@
   inline-size: 100%;
 }
 
+/* A narrow preview card (the main column next to the state zone on a laptop): the three places would cut the main
+   action's words, so Send to Figma moves under the row, still tertiary, and a main action on its own takes the whole
+   row. Narrower still, one action per row. The card is the container (.xp-preview), so this follows the card's width,
+   not the window's. */
+@container (max-width: 37.5rem) {
+  .xp-preview-acts {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .xp-preview-acts:not(:has(> .is-second)) > .is-main {
+    grid-column: 1 / -1;
+  }
+
+  .xp-act.is-third {
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+}
+
+@container (max-width: 26rem) {
+  .xp-preview-acts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xp-act.is-main,
+  .xp-act.is-second {
+    grid-column: 1;
+  }
+}
+
 .xp-continue .xp-claude {
   flex: none;
   margin-inline-end: var(--space-1-5);
