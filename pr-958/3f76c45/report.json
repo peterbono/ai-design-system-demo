@@ -1,0 +1,95 @@
+{
+  "pr": 958,
+  "sha": "3f76c45d7150681dc20406a13930686e3874738d",
+  "baseSha": "3e8ec82519c021eca2877a059d307818324447c7",
+  "failed": false,
+  "failures": [],
+  "warnings": 0,
+  "screens": [
+    "building"
+  ],
+  "variants": [
+    {
+      "screen": "building",
+      "viewport": "desktop",
+      "theme": "light",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "status": 200,
+      "height": 1008,
+      "fullHeight": 1008,
+      "png": "building-desktop-light.png",
+      "axe": [],
+      "ms": 5697,
+      "webp": "building-desktop-light.webp",
+      "diff": {
+        "ratio": 0,
+        "pixels": 0,
+        "box": null,
+        "sizeChanged": false
+      }
+    },
+    {
+      "screen": "building",
+      "viewport": "desktop",
+      "theme": "dark",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "status": 200,
+      "height": 1008,
+      "fullHeight": 1008,
+      "png": "building-desktop-dark.png",
+      "axe": [],
+      "ms": 8507,
+      "webp": "building-desktop-dark.webp",
+      "diff": {
+        "ratio": 0,
+        "pixels": 0,
+        "box": null,
+        "sizeChanged": false
+      }
+    },
+    {
+      "screen": "building",
+      "viewport": "mobile",
+      "theme": "light",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "status": 200,
+      "overflow": null,
+      "height": 1210,
+      "fullHeight": 1210,
+      "png": "building-mobile-light.png",
+      "axe": [],
+      "ms": 4668,
+      "webp": "building-mobile-light.webp",
+      "diff": {
+        "ratio": 0,
+        "pixels": 0,
+        "box": null,
+        "sizeChanged": false
+      }
+    },
+    {
+      "screen": "building",
+      "viewport": "mobile",
+      "theme": "dark",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "status": 200,
+      "overflow": null,
+      "height": 1210,
+      "fullHeight": 1210,
+      "png": "building-mobile-dark.png",
+      "axe": [],
+      "ms": 3321,
+      "webp": "building-mobile-dark.webp",
+      "diff": {
+        "ratio": 0,
+        "pixels": 0,
+        "box": null,
+        "sizeChanged": false
+      }
+    }
+  ]
+}
