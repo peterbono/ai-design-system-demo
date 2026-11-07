@@ -197,13 +197,14 @@ async function expectOwnerWorks(d: Designer, s: World0, b: string, n: number) {
   expect(s.w.branches[b]).toBe(NEXT);
   expect((await d.call('PUT', `${C}/contents/src/Orders.tsx`, { message: 'x', content: 'eA==', branch: b })).status).toBe(200);
   expect((await d.call('POST', `${C}/merges`, { base: b, head: 'main' })).status).toBe(201);
-  const done = s.w.pulls[n]!.body.replace(/"name":/, '"doneAt":"2026-11-02T10:00:00Z","name":');
+  // This team has a design lead: Done exploring asks them, the hand-off is the lead's yes (api/_lib/lead-gate.ts).
+  const done = s.w.pulls[n]!.body.replace(/"name":/, '"leadAskedAt":"2026-11-02T10:00:00Z","name":');
   expect((await d.call('PATCH', `${C}/pulls/${n}`, { body: done })).status).toBe(200);
-  expect((await d.call('POST', `${C}/issues/${n}/labels`, { labels: ['ready-for-devs'] })).status).toBe(201);
+  expect((await d.call('POST', `${C}/issues/${n}/labels`, { labels: ['archived'] })).status).toBe(201);
   expect((await d.call('POST', `${C}/issues/${n}/comments`, { body: 'Ready' })).status).toBe(201);
   expect((await d.call('PATCH', `${C}/pulls/${n}`, { title: 'Exploration: renamed', body: s.w.pulls[n]!.body })).status).toBe(200);
   expect(s.w.pulls[n]!.title).toBe('Exploration: renamed');
-  expect((await d.call('POST', `${D}/issues`, { title: 'Design: renamed', body: task(n), labels: ['from-design'] })).status).toBe(201);
+  expect((await d.call('POST', `${D}/issues`, { title: 'Design: renamed', body: task(n), labels: ['from-design'] })).status).toBe(403);
   expect((await d.call('PATCH', `${C}/git/refs/heads/${b}`, { sha: NEXT, force: true })).status).toBe(403);
   expect((await d.call('DELETE', `${C}/git/refs/heads/${b}`)).status).toBe(403);
   expect((await d.call('PATCH', `${C}/pulls/${n}`, { state: 'closed' })).status).toBe(200);
@@ -328,5 +329,68 @@ describe('a copy made again (its pull requests re-opened by the lead, numbers st
     const { s, dino } = await remade();
     await s.redis.cmd('SET', `bridge:contrib:branch:${COPY}:explore/add-a-toast-alert`, 'ana@studio.test');
     await expectRefused(dino, s, 'explore/add-a-toast-alert', 4);
+  });
+});
+
+describe('a design lead signed in by email (the member record says so, never the browser)', () => {
+  async function lead(s: World0): Promise<Designer> {
+    const d = await emailDesigner(s, 'lea@acme.com', 'Lea');
+    await s.members.put(TEAM, { ...(await s.members.get(TEAM, 'lea@acme.com'))!, lead: true });
+    return d;
+  }
+  const words = (e: Record<string, unknown>) => block({ v: 1, name: 'orders', slug: 'orders', ...e });
+  const yes = { kind: 'changes', at: '2026-11-02T11:00:00Z', round: 1, byName: 'Lea', text: 'Tighter' };
+
+  it("answers on someone else's exploration, and it stays theirs", async () => {
+    const s = setup();
+    const ann = await emailDesigner(s, 'ann@acme.com', 'Ann');
+    const n = await start(s, ann, 'orders');
+    const l = await lead(s);
+    const body = `${s.w.pulls[n]!.body}\n\n${''}`.replace(/"slug":"orders"/, `"slug":"orders","decisions":${JSON.stringify([yes])}`);
+    expect((await l.call('PATCH', `${C}/pulls/${n}`, { body })).status).toBe(200);
+    expect(blockOf(s.w.pulls[n]!.body)).toMatchObject({ memberName: 'Ann', decisions: [{ kind: 'changes', byName: 'Lea' }] });
+    expect(await s.redis.cmd('GET', `bridge:contrib:branch:${COPY}:explore/orders`)).toBe('ann@acme.com');
+    expect((await l.call('POST', `${C}/issues/${n}/labels`, { labels: ['ready-for-devs'] })).status).toBe(201);
+  });
+  it('never pushes to it', async () => {
+    const s = setup();
+    const n = await start(s, await emailDesigner(s, 'ann@acme.com', 'Ann'), 'orders');
+    const l = await lead(s);
+    expect((await l.call('PATCH', `${C}/git/refs/heads/explore/orders`, { sha: NEXT })).status).toBe(403);
+    expect(n).toBeGreaterThan(0);
+  });
+  it('the designer cannot write a lead\'s word in their own exploration', async () => {
+    const s = setup();
+    const ann = await emailDesigner(s, 'ann@acme.com', 'Ann');
+    const n = await start(s, ann, 'orders');
+    for (const body of [words({ decisions: [{ ...yes, kind: 'looks-right' }] }), words({ leadOkBy: 'lena' }), words({ doneAt: '2026-11-02T11:00:00Z' })]) {
+      const r = await ann.call('PATCH', `${C}/pulls/${n}`, { body });
+      expect(r.status).toBe(403);
+      expect(((await r.json()) as { error: string }).error).toBe('lead-only');
+    }
+    expect((await ann.call('POST', `${C}/issues/${n}/labels`, { labels: ['ready-for-devs'] })).status).toBe(403);
+  });
+  it('the designer still asks and answers', async () => {
+    const s = setup();
+    const ann = await emailDesigner(s, 'ann@acme.com', 'Ann');
+    const n = await start(s, ann, 'orders');
+    expect((await ann.call('PATCH', `${C}/pulls/${n}`, { body: words({ leadAskedAt: '2026-11-02T11:00:00Z', leadAskedTo: ['lena'] }) })).status).toBe(200);
+  });
+  it('the keeper action refuses anyone but a lead, whatever they send', async () => {
+    const s = setup();
+    await emailDesigner(s, 'ann@acme.com', 'Ann');
+    const m = (await s.members.get(TEAM, 'ann@acme.com'))!;
+    const cookie = issueSession(m, TEAM, SECRET, T0).split(';')[0]!;
+    const post = (over: Record<string, unknown>) => handleContribute(new Request(`${ORIGIN}/api/contribute`, { method: 'POST', headers: { ...H, cookie }, body: JSON.stringify({ action: 'exploration-keeper', repo: TEAM, branch: 'explore/orders', number: 1, login: 'x', ...over }) }), ENV, s.deps);
+    expect((await post({ lead: true })).status).toBe(403);
+    await s.members.put(TEAM, { ...m, lead: true });
+    expect((await post({})).status).toBe(200);
+  });
+  it('what is left of a lead is gone with the record', async () => {
+    const s = setup();
+    const n = await start(s, await emailDesigner(s, 'ann@acme.com', 'Ann'), 'orders');
+    const l = await lead(s);
+    await s.members.put(TEAM, { ...(await s.members.get(TEAM, 'lea@acme.com'))!, lead: false });
+    expect((await l.call('PATCH', `${C}/pulls/${n}`, { body: words({}) })).status).toBe(403);
   });
 });

@@ -84,9 +84,7 @@ import { EMAIL_ROLES, type EmailRole } from '../_lib/members.js';
 import { canonicalEmail, emailSpellings, sameEmail } from '../_lib/canonical-email.js';
 import { onBridge, teamDisplayName } from '../../src/lib/demo.js';
 import { isTeamKey } from '../../src/lib/team-path.js';
-import { branchKey, issueKey } from '../_lib/former-member.js';
-import { memberRef } from '../_lib/exploration-member.js';
-import { repoMetaKey } from '../_lib/notify.js';
+import { explorationKeeper } from '../_lib/exploration-keeper.js';
 
 export { appJwt } from '../_lib/github-app.js';
 export { resendSender, sameOrigin };
@@ -799,11 +797,12 @@ export interface PublicEmailMember {
   name: string;
   email: string;
   role: EmailRole;
+  lead?: boolean;
   addedBy: string;
   at: string;
 }
 
-const publicMember = (m: EmailMember): PublicEmailMember => ({ via: 'email', name: m.name, email: m.email, role: m.role, addedBy: m.addedBy, at: m.at });
+const publicMember = (m: EmailMember): PublicEmailMember => ({ via: 'email', name: m.name, email: m.email, role: m.role, ...(m.lead ? { lead: true } : {}), addedBy: m.addedBy, at: m.at });
 
 export const GITHUB_REQUIRED = 'Reviewers approve changes on GitHub, so they need a GitHub account. Invite them again with this role: they join with GitHub.';
 export const GITHUB_PEOPLE = 'This person works with GitHub: change their role while signed in with GitHub as an admin of the repository.';
@@ -1184,6 +1183,16 @@ async function setEmailRole(ctx: Ctx, full: string, body: Record<string, unknown
   return json(200, { ok: true, role: next });
 }
 
+/** An email member made a design lead, or no longer one. A member who only views stays out: leads change things. */
+async function setEmailLead(ctx: Ctx, full: string, body: Record<string, unknown>): Promise<Response> {
+  const email = await emailMemberOf(ctx, full, body.email);
+  const m = (await ctx.svc.members!.get(full, email))!;
+  if (body.lead === true && m.role === 'view') throw new HttpError(409, 'view-only', 'Give them Can edit first: a design lead changes things.');
+  const { lead: _was, ...rest } = m;
+  await ctx.svc.members!.put(full, body.lead === true ? { ...rest, lead: true } : rest);
+  return json(200, { ok: true, lead: body.lead === true });
+}
+
 /** What an email admin does on POST: invites, and the roles of email members. GitHub people stay with GitHub admins. */
 async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: Record<string, unknown>): Promise<Response> {
   if (req.headers.get('x-bridge-account') !== '1') throw new HttpError(403, 'origin', 'Manage your team from Studio on this site.');
@@ -1202,6 +1211,8 @@ async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: R
     }
     case 'resend':
       return resendOne(ctx, req, env, ad.full, body.id, me, counter);
+    case 'set-lead':
+      return setEmailLead(ctx, ad.full, body);
     case 'invite-role': {
       const inv = await findInvite(ctx, ad.full, body.id);
       const { role, reviewAs } = parseRole(body.role, body.reviewAs);
@@ -1234,31 +1245,6 @@ async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: R
 }
 
 /**
- * The new keeper of an exploration: in the design team's copy, Bridge's own record of who owns its branch goes (the
- * exploration's block says it from now on, api/contribute pullClaimedBy) and notices follow the new owner. An email
- * member must be on the team: the answer gives their reference, the browser never computes one.
- */
-async function explorationKeeper(ctx: Ctx, team: string, body: Record<string, unknown>) {
-  const redis = ctx.svc.redis;
-  const copy = typeof body.copy === 'string' ? body.copy.toLowerCase() : null;
-  const branch = typeof body.branch === 'string' && body.branch.startsWith('explore/') ? body.branch : null;
-  const n = Number(body.number);
-  if (!branch || !Number.isSafeInteger(n) || n < 1) return fail(400, 'bad_request', 'Which exploration?');
-  let member: { ref: string; name: string; owner: string } | null = null;
-  if (typeof body.email === 'string') {
-    const m = await ctx.svc.members?.get(team, body.email);
-    if (!m) throw new HttpError(404, 'not_found', 'They are not on this team.');
-    member = { ref: memberRef(m.email), name: m.name, owner: m.email.toLowerCase() };
-  }
-  if (copy && redis) {
-    const meta = await redis.cmd('GET', repoMetaKey(copy));
-    if (typeof meta !== 'string' || (JSON.parse(meta) as { team?: string }).team?.toLowerCase() !== team.toLowerCase()) throw new HttpError(403, 'not-allowed', 'That copy is not this team\'s.');
-    await redis.pipe([['DEL', branchKey(copy, branch)], member ? ['SET', issueKey(copy, n), member.owner] : typeof body.login === 'string' ? ['SET', issueKey(copy, n), `gh:${body.login.toLowerCase()}`] : ['DEL', issueKey(copy, n)]]);
-  }
-  return json(200, { ok: true, ...(member ? { ref: member.ref, name: member.name } : {}) });
-}
-
-/**
  * Local mode only (api/_lib/local-admin.ts): a seeded local admin is also listed as an email member, whose own role says
  * Can edit. Members shows them as what they are, Admin. Production never passes local admins.
  */
@@ -1268,7 +1254,7 @@ async function withLocalAdmins(ctx: Ctx, full: string, members: EmailMember[]): 
   return members.map((m) => (m.role !== 'admin' && admins.has(canonicalEmail(m.email)) ? { ...m, role: 'admin' } : m));
 }
 
-const EMAIL_ADMIN_ACTIONS = new Set(['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'remove']);
+const EMAIL_ADMIN_ACTIONS = new Set(['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'set-lead', 'remove']);
 
 async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<Response> {
   const svc = services(env, deps);
@@ -1308,7 +1294,7 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
     case 'exploration-keeper': {
       // A lead gives an exploration to someone: who pushes to it follows. Only in a repository of this team.
       const { facts } = await authorize(ctx, req, body.repo, 'push');
-      return explorationKeeper(ctx, facts.full, body);
+      return explorationKeeper(ctx.svc, facts.full, body);
     }
 
     case 'resend': {
@@ -1332,6 +1318,11 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       const inv = await findInvite(ctx, facts.full, body.id);
       await ctx.svc.store.remove(inv);
       return json(200, { ok: true });
+    }
+
+    case 'set-lead': {
+      const { facts } = await authorize(ctx, req, body.repo, 'admin');
+      return setEmailLead(ctx, facts.full, body);
     }
 
     case 'set-role': {

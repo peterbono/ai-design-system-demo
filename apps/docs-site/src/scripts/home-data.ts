@@ -495,7 +495,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), paintHome:
       const block = parseExplorationBody(p.body);
       if (!block || (block.leadAskedAt === undefined && !block.decisions?.length && !block.leadNote)) continue;
       const asker = block.leadAskedBy ?? p.user.login;
-      const row = leadHomeRow(p.body, { viewer, lead: reviewersAsked({ approvers: siteApprovers().design, builders: [asker] }).some((l) => same(l, viewer)), own: isOwnExploration(p, viewer, viewerRef) });
+      const row = leadHomeRow(p.body, { viewer, lead: Boolean(currentContributor()?.lead) || reviewersAsked({ approvers: siteApprovers().design, builders: [asker] }).some((l) => same(l, viewer)), own: isOwnExploration(p, viewer, viewerRef) });
       if (!row) continue;
       const href = studioHref(`changes/${explorationHref({ number: p.number, product: p.product })}`);
       if (row.where === 'waiting') {

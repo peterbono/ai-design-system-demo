@@ -335,6 +335,19 @@ function perPerson(notices: readonly Notice[]): Notice[] {
   return notices.flatMap((n) => (n.to ? n.to.filter((l) => l.toLowerCase() !== n.actor.login.toLowerCase()).map((l) => ({ ...n, to: [l] })) : [n]));
 }
 
+/** What waits on a lead also reaches the leads who signed in by email (the member record says so): by address, not login. */
+const LEAD_WAITS: ReadonlySet<string> = new Set(['lead-ask', 'lead-answer', 'lead-reminder']);
+async function withEmailLeads(notices: Notice[], d: NotifyDeps, members: MemberStore): Promise<Notice[]> {
+  const waits = notices.find((n) => LEAD_WAITS.has(n.kind));
+  if (!waits) return notices;
+  const repoMeta = parse<RepoMeta>(await d.redis.cmd('GET', repoMetaKey(waits.repo)));
+  if (!repoMeta || typeof repoMeta.team !== 'string') return notices;
+  const leads = (await members.list(repoMeta.team)).filter((m) => m.lead);
+  const first = new Set<string>();
+  const extra = notices.filter((n) => LEAD_WAITS.has(n.kind) && !first.has(n.kind) && first.add(n.kind)).flatMap((n) => leads.filter((m) => m.name !== n.actorName).map((m) => ({ ...n, to: [`email:${m.email}`] })));
+  return [...notices, ...extra];
+}
+
 async function keep(d: NotifyDeps, email: string, item: NotifyItem, tz: string): Promise<void> {
   const now = d.now();
   await d.redis.pipe([
@@ -364,7 +377,7 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
       ]);
     }
   }
-  for (const [idx, n] of perPerson(notices).entries()) {
+  for (const [idx, n] of (await withEmailLeads(perPerson(notices), d, members)).entries()) {
     const skip = (reason: Extract<Outcome, { status: 'skipped' }>['reason']) => out.push({ kind: n.kind, status: 'skipped', reason });
     const repoMeta = parse<RepoMeta>(await d.redis.cmd('GET', repoMetaKey(n.repo)));
     if (!repoMeta || typeof repoMeta.team !== 'string') {
@@ -377,7 +390,7 @@ export async function deliverNotices(notices: readonly Notice[], d: NotifyDeps, 
     }
     const talk = n.kind.startsWith('lead-');
     // The leads have no Bridge record on the task: their login, through their Bridge account.
-    const found = n.to?.length ? { owner: `gh:${n.to[0]}`, item: n.items[0]!, meta: null } : await ownerOf(d, n);
+    const found = n.to?.length ? { owner: n.to[0]!.startsWith('email:') ? n.to[0]!.slice(6) : `gh:${n.to[0]}`, item: n.items[0]!, meta: null } : await ownerOf(d, n);
     if (!found) {
       skip('no-owner');
       continue;

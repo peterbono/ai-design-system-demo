@@ -153,7 +153,8 @@ export function memberLine(m: { role: MemberRole; reviews: ReviewAs[] }): string
  * The role as plain text, for a reader who cannot change it (board I4), in the one set of role names: "Admin",
  * "Reviewer: design", "Reviewer: code", "Reviewer: design and code", "Can edit", "Can view".
  */
-export function roleText(m: { role: MemberRole; reviews: ReviewAs[] }): string {
+export function roleText(m: { role: MemberRole; reviews: ReviewAs[]; lead?: boolean }): string {
+  if (m.lead) return `${roleLabel(choiceOf(m))}, design lead`;
   if (m.role === 'reviewer' && m.reviews.includes('design') && m.reviews.includes('tech')) return `${ROLE_WORDS.reviewer.label}: design and code`;
   return roleLabel(choiceOf(m));
 }
@@ -172,6 +173,8 @@ export interface Member {
   avatar?: string;
   /** Work email, when known (the sample team, an email contributor). */
   email?: string;
+  /** An email member who is a design lead (they answer on explorations, never on GitHub reviews). */
+  lead?: boolean;
   /**
    * 'email': an email member (lib/contribute.ts), no GitHub account. Can edit or Admin: Reviewers approve on GitHub.
    * Their `login` is their email.
@@ -191,6 +194,7 @@ export interface EmailMemberRow {
   email: string;
   name?: string;
   role?: MemberRole;
+  lead?: boolean;
   via: 'email';
 }
 
@@ -202,7 +206,7 @@ export function emailMembers(rows: readonly unknown[], viewerEmail: string | nul
     if (!r || r.via !== 'email' || typeof r.email !== 'string' || !isEmail(r.email)) continue;
     const email = r.email.toLowerCase();
     const you = Boolean(viewerEmail && viewerEmail.toLowerCase() === email);
-    out.push({ login: email, name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : email, role: r.role === 'admin' ? 'admin' : r.role === 'view' ? 'view' : 'edit', reviews: [], email, via: 'email', ...(you ? { you: true } : {}) });
+    out.push({ login: email, name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : email, role: r.role === 'admin' ? 'admin' : r.role === 'view' ? 'view' : 'edit', reviews: [], email, via: 'email', ...(r.lead === true ? { lead: true } : {}), ...(you ? { you: true } : {}) });
   }
   return out;
 }
@@ -379,6 +383,8 @@ export const MEMBERS_WORDS = {
   resend: 'Resend',
   resent: 'Sent again.',
   makeAdmin: 'Make admin',
+  makeLead: 'Make design lead',
+  removeLead: 'Remove design lead',
   /** Why Make admin is off for a GitHub member of a personal account's repository. */
   personalAdmin: 'One person owns this design system on GitHub, so only they are admin there.',
   remove: 'Remove from team',

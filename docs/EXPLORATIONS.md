@@ -411,6 +411,8 @@ developer starts; then a word still reaches the developers on their task.
 Everything said is kept in the exploration's block, by round (core `decisionsOf`), and shows as Decisions. A body from
 before keeps working: its `leadNote` reads as one decision of the first round, and moves on the next write.
 
+**A lead signed in by email:** an admin makes an email member a design lead in Settings, Members. They do all of this on an exploration, through Bridge's own write path; the last review on the developers' code stays on GitHub. On a team with design owners, nobody else writing through Bridge can add a lead's decision, their yes, Done exploring or the developers' task (403 `lead-only`). Someone with write access on GitHub can still edit the pull request body there: that history is a record, not a lock.
+
 **A push after the lead was asked** does not cancel the ask: the preview always shows the latest version, the bar says it
 changed, and each decision records the commit it was said on. **Library pieces** sent at Looks right stay with the DS
 lead on Take it back: they are their own requests, and Done exploring again does not send them twice.

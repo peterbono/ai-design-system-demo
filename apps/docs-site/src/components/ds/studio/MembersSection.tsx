@@ -61,7 +61,9 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
     setConfirming(false);
     if (n) onNotice(n);
   };
-  const menu = can.makeAdmin || can.remove;
+  // An email member a lead on explorations: an admin's to give, and someone who only views changes nothing.
+  const leadItem = email && can.changeRole && m.role !== 'view';
+  const menu = can.makeAdmin || can.remove || leadItem;
   return (
     <>
       <TableRow>
@@ -88,6 +90,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
                     ) : (
                       <MenuItem onClick={() => void run(() => act.changeRole(m, { role: 'admin' }))}>{MEMBERS_WORDS.makeAdmin}</MenuItem>
                     ))}
+                  {leadItem && <MenuItem onClick={() => void run(() => act.setLead(m, !m.lead))}>{m.lead ? MEMBERS_WORDS.removeLead : MEMBERS_WORDS.makeLead}</MenuItem>}
                   {can.remove && (
                     <MenuItem tone="danger" onClick={() => setConfirming(true)}>
                       {MEMBERS_WORDS.remove}
