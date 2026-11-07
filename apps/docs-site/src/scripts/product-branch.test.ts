@@ -21,7 +21,7 @@ vi.mock('./product-repos', async (importOriginal) => {
   return { ...real, productRepoByKey: (key: string | null | undefined) => repos.find((x) => x.product.key === key) ?? null };
 });
 
-const { productPreviewOf, tryUrlOf, withToolbar } = await import('./product-branch');
+const { atRoute, productPreviewOf, tryUrlOf, withToolbar } = await import('./product-branch');
 
 const r = { number: 9, branch: 'explore/x', headSha: 'abc' } as ExplorationRow;
 
@@ -77,5 +77,14 @@ describe("an exploration in the design team's copy opens with the copy named (br
     expect(withToolbar({ ...r, number: 1, product: 'admin-app' } as ExplorationRow)(preview)).toBe(`${preview}?bridge=1`);
     repos = [];
     expect(withToolbar(r)(preview)).toBe(`${preview}?bridge=9`);
+  });
+
+  it('lands on the page the capture found the change on, a path or a hash route, keeping the toolbar parameters', () => {
+    repos = [];
+    expect(withToolbar(r, '/plans')(preview)).toBe(`${preview}plans?bridge=9`);
+    expect(withToolbar(r, '/?tenant=northwind#/orders')(preview)).toBe(`${preview}?bridge=9&tenant=northwind#/orders`);
+    // Never another origin, never a Bridge parameter from the capture.
+    expect(atRoute(`${preview}?bridge=9`, '//evil.example/x')).toBe(`${preview}?bridge=9`);
+    expect(atRoute(`${preview}?bridge=9`, '/?bridge=1')).toBe(`${preview}?bridge=9`);
   });
 });

@@ -384,7 +384,17 @@ async function paintEarlyBuild(
     note: read.role ? BUILD_WORDS.pushNote : null,
   };
   const h = current.props.handoff ?? EARLY_HANDOFF;
-  repaint(d, key, { stage: 'handed-off', tag: { label: BUILD_WORDS.tag, tone: 'info' }, handoff: { ...h, check, build: { url: h.build?.url ?? buildUrl, builder: h.build?.builder ?? builder } } });
+  repaint(d, key, { stage: 'handed-off', tag: { label: BUILD_WORDS.tag, tone: 'info' }, handoff: { ...h, check, build: { ...h.build, url: h.build?.url ?? buildUrl, builder: h.build?.builder ?? builder } } });
+  if (code?.repo) void paintBuildShot(d, key, code.repo, read.pull.number);
+}
+
+/** The developers' build as Bridge captured it (its preview), beside the approved version, once it is there. */
+async function paintBuildShot(d: HTMLElement, key: string, code: string, pr: number): Promise<void> {
+  const { bridgeShotOf } = await import('./preview-shots');
+  const shot = await bridgeShotOf(`${CFG.owner}/${CFG.repo}`, code, pr).catch(() => null);
+  const h = current?.props.handoff;
+  if (!shot || current?.key !== key || !h?.build) return;
+  repaint(d, key, { handoff: { ...h, build: { ...h.build, shot: { src: shot.src, capturedAt: shot.capturedAt } } } });
 }
 /** The build check's two reads, started as soon as the page knows the developers' version is ready (paintBuildCheck uses them). */
 function startBuildState(product: string, copy: string, number: number, viewerRef: string | null): Promise<[BuildRead | null, TeamRead | null]> {
@@ -397,7 +407,7 @@ function startBuildState(product: string, copy: string, number: number, viewerRe
 type BuildRead = Awaited<ReturnType<(typeof import('./contribute-session'))['buildState']>>;
 type TeamRead = Awaited<ReturnType<(typeof import('./contribute-session'))['contributeTeam']>>;
 
-async function paintBuildCheck(d: HTMLElement, key: string, o: { r: ExplorationRow; product: string; copy: string; builder: string; designer: string; devUrl: string | null; viewerRef: string | null; reopen: (line: string) => void; early?: Promise<[BuildRead | null, TeamRead | null]> | null }): Promise<void> {
+async function paintBuildCheck(d: HTMLElement, key: string, o: { r: ExplorationRow; product: string; copy: string; code: string | null; builder: string; designer: string; devUrl: string | null; viewerRef: string | null; reopen: (line: string) => void; early?: Promise<[BuildRead | null, TeamRead | null]> | null }): Promise<void> {
   const team = `${CFG.owner}/${CFG.repo}`;
   const { buildState, contributeTeam, sayBuild } = await import('./contribute-session');
   const { getToken } = await import('./github-session');
@@ -421,7 +431,8 @@ async function paintBuildCheck(d: HTMLElement, key: string, o: { r: ExplorationR
       : null,
     note: read.role ? BUILD_WORDS.pushNote : null,
   };
-  repaint(d, key, { tag: { label: BUILD_WORDS.tag, tone: 'info' }, handoff: { ...current.props.handoff, check, build: { url: o.devUrl, builder: o.builder } } });
+  repaint(d, key, { tag: { label: BUILD_WORDS.tag, tone: 'info' }, handoff: { ...current.props.handoff, check, build: { ...current.props.handoff.build, url: o.devUrl, builder: o.builder } } });
+  if (o.code && !current.props.handoff.build?.shot) void paintBuildShot(d, key, o.code, read.pull.number);
 }
 
 /**
@@ -520,7 +531,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // the Claude app with Bridge is theirs as well, Claude Code would need that access.
   const designer = Boolean(inCopy && !member && designerRoute());
   const codeUrl = (previewUrl: string | null) =>
-    inCopy && !member && !designer ? claudeCodeUrl({ copy: inCopy.copy, branch: r.branch, name: r.name, purpose: r.purpose, product: product.name, previewUrl }) : null;
+    inCopy && !member && !designer && !sampleVisitor() ? claudeCodeUrl({ copy: inCopy.copy, branch: r.branch, name: r.name, purpose: r.purpose, product: product.name, previewUrl }) : null;
   // Who may say Done exploring or archive it: the person who started it or a reviewer, with GitHub, in direct mode; in
   // the design team's copy, also the email member Bridge started it for (the proxy checks it again on each write).
   const emailKeeper = Boolean(inCopy && member && startedByEmailMember(pull.body, member));
@@ -720,7 +731,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // whose production Bridge knows (Live product, the Before side); never for the library's apps.
   const v = tryInProductView(preview, { tryUrl: (u) => safeUrl(u) || null, todayUrl, files });
   const previewUrl = v.state === 'branch' ? v.url : v.state === 'today' ? todayUrl : null;
-  const tryUrl = v.state === 'branch' && v.url && !isLibrary && productProduction(product, own ? null : CFG.production) ? withToolbar(r)(v.url) : null;
+  const tryUrl = v.state === 'branch' && v.url && !isLibrary && productProduction(product, own ? null : CFG.production) ? withToolbar(r, shot?.route)(v.url) : null;
   const previewBuilding = v.state === 'building';
   const talkNow = leadTalkOf(r, pull, { gh, designer: answersLead, names, reopen: (line) => reopen(line), onReopenNew });
   const previewNote = v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
@@ -743,6 +754,8 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     previewNote,
     previewBuilding,
     ...(inCopy ? { claudeCodeUrl: codeUrl(v.state === 'branch' ? v.url : null) } : {}),
+    // A signed-out visitor of the demo team: nothing to continue in, the preview only (the write gate, demo-gate.ts).
+    visitor: sampleVisitor(),
   });
   // The product manager of its product (boards R1, R3): read once, painted when known. Never on the sample team.
   if (!handedOff && own && !r.archived && !sample)
@@ -971,7 +984,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   if (inCopy && own && devRead && !review.draft && status === 'building' && !declined) {
     const builder = builders.length ? faceOf(builders[0]!, false, allNames).name : 'the developer';
     const designerName = block?.memberName ?? doneBy.name;
-    void paintBuildCheck(d, key, { r, product: own.product.key, copy: own.repo, builder, designer: designerName, devUrl: review.dev?.url ?? null, viewerRef: member?.ref ?? null, reopen: (line) => reopen(line), early: earlyBuild });
+    void paintBuildCheck(d, key, { r, product: own.product.key, copy: own.repo, code: own.product.repo ?? null, builder, designer: designerName, devUrl: review.dev?.url ?? null, viewerRef: member?.ref ?? null, reopen: (line) => reopen(line), early: earlyBuild });
   }
   if (!shot) {
     const thumb = await capturedImage(r, files);

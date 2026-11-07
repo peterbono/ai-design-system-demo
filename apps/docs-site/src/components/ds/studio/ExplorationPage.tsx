@@ -112,7 +112,7 @@ export interface HandoffView {
   /** Check the build (board R4): who checks the developers' version and their answers, read through Bridge's server. */
   check?: BuildCheckView | null;
   /** The developers' version, next to the approved one while it is checked. */
-  build?: { url: string | null; builder: string } | null;
+  build?: { url: string | null; builder: string; shot?: { src: string; capturedAt: string | null } | null } | null;
   /**
    * Someone asked the designer something on the task: their words (plain text; null when only a label asks),
    * who and when, whether the designer answered since, and the reply when this viewer can write it.
@@ -238,6 +238,8 @@ export interface ExplorationPageProps {
   claudeLink?: 'yes' | 'no' | 'unknown';
   /** A designer (joined with their email, or with GitHub but working in the copy through Bridge): the Claude app with Bridge is their one tool. */
   emailMember?: boolean;
+  /** A signed-out visitor of the demo team: the preview only, no AI tool to continue in (the write gate, demo-gate.ts). */
+  visitor?: boolean;
   /** The connector address the steps show (<origin>/mcp). */
   connectorAddress?: string;
   /** "I've connected it, continue": the page forgets the answer and reads it again next time. */
@@ -422,6 +424,18 @@ function ShotFrame({ p }: { p: ExplorationPageProps }) {
     <div className="xp-frame is-shot">
       <img src={p.thumb} alt="The latest captured screen of this exploration" loading="lazy" onError={() => setFailed(p.thumb)} />
       {p.thumbCapturedAt && <span className="xp-captured">{capturedLine(p.thumbCapturedAt, Date.now())}</span>}
+    </div>
+  );
+}
+
+/** The developers' build as Bridge captured it (its preview), else the empty frame that names who builds it. */
+function BuildShot({ shot, label }: { shot: { src: string; capturedAt: string | null }; label: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <EmptyFrame label={label} />;
+  return (
+    <div className="xp-frame is-shot">
+      <img src={shot.src} alt="The developers' build, as captured" loading="lazy" onError={() => setFailed(true)} />
+      {shot.capturedAt && <span className="xp-captured">{capturedLine(shot.capturedAt, Date.now())}</span>}
     </div>
   );
 }
@@ -1034,7 +1048,7 @@ function ExplorationBody(p: ExplorationPageProps) {
                   <figcaption className="xp-muted">{BUILD_WORDS.approved}</figcaption>
                 </figure>
                 <figure className="xp-compare-side">
-                  <EmptyFrame label={BUILD_WORDS.builtBy(handoff.build.builder)} />
+                  {handoff.build.shot ? <BuildShot shot={handoff.build.shot} label={BUILD_WORDS.builtBy(handoff.build.builder)} /> : <EmptyFrame label={BUILD_WORDS.builtBy(handoff.build.builder)} />}
                   <figcaption className="xp-muted">{BUILD_WORDS.builtBy(handoff.build.builder)}</figcaption>
                 </figure>
               </div>
@@ -1055,13 +1069,13 @@ function ExplorationBody(p: ExplorationPageProps) {
                 <div className="xp-act is-second">{previewButton}</div>
               ) : (
                 /* Archived: the preview still opens, nothing offers to keep working on it (Unarchive first). */
-                !handoff && !p.archived && !answers && !answersBelow && !p.pm?.mine && (
+                !handoff && !p.archived && !p.visitor && !answers && !answersBelow && !p.pm?.mine && (
                   <div className="xp-act is-second">
                     <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />
                   </div>
                 )
               )}
-              {!p.archived && !answers && (p.notes?.notes?.figmaPage || p.figma) && (
+              {!p.archived && !p.visitor && !answers && (p.notes?.notes?.figmaPage || p.figma) && (
                 <div className="xp-act is-third">
                   <FigmaAction p={p} tool={tab} say={setSaid} />
                 </div>

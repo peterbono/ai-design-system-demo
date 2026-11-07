@@ -145,7 +145,31 @@ export function productPreviewOf(r: ExplorationRow, sources: BranchPreviewSource
  * The preview opened with the Bridge toolbar. The URL comes from a comment or a status: React 18 renders a javascript:
  * href as is. An exploration in the design team's copy names the copy (`bridge-repo`): its number is the copy's.
  */
-export const withToolbar = (r: ExplorationRow) => (url: string) => safeUrl(tryInProductUrl(url, r.number, null, copyRepoOf(r))) || null;
+export const withToolbar =
+  (r: ExplorationRow, route?: string | null) =>
+  (url: string): string | null =>
+    safeUrl(atRoute(tryInProductUrl(url, r.number, null, copyRepoOf(r)), route)) || null;
+
+/**
+ * The toolbar link on the page a capture found the change on (`route`: "/plans", "/#/orders", "/?tenant=a#/orders"),
+ * keeping the Bridge parameters. Anything that is not a path on the same preview leaves the link as it is.
+ */
+export function atRoute(link: string, route: string | null | undefined): string {
+  if (!link || !route || !route.startsWith('/') || route.startsWith('//')) return link;
+  try {
+    const u = new URL(link);
+    const t = new URL(route, u.origin);
+    if (t.origin !== u.origin) return link;
+    u.pathname = t.pathname;
+    t.searchParams.forEach((v, k) => {
+      if (!k.startsWith('bridge')) u.searchParams.set(k, v);
+    });
+    u.hash = t.hash;
+    return u.href;
+  } catch {
+    return link;
+  }
+}
 
 /** The design team's copy an exploration lives in, else null (the design system's or the developers' own repository). */
 function copyRepoOf(r: Pick<ExplorationRow, 'product'>): string | null {

@@ -322,7 +322,7 @@ export async function captureOne(browser, url, { crawl = true, hints = [] } = {}
     const final = new URL(page.url());
     const png = await page.screenshot({ type: 'png' });
     const webp = await toWebp(context, png, SHOT_WIDTH);
-    return { webp, route: final.pathname + final.search, screen: marker?.label ?? null, width: SHOT_WIDTH, height: Math.round((VIEWPORT.height * SHOT_WIDTH) / VIEWPORT.width) };
+    return { webp, route: final.pathname + final.search + final.hash, screen: marker?.label ?? null, width: SHOT_WIDTH, height: Math.round((VIEWPORT.height * SHOT_WIDTH) / VIEWPORT.width) };
   } finally {
     await context.close();
   }
