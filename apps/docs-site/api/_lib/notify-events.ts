@@ -20,6 +20,7 @@
 //   lead-took-back, lead-not-doing,
 //   lead-handed                             a lead's word to the designer                                needs them
 //   lead-ok                                 it went to the developers                                    news
+//   lead-taken                              "I'll look": never sent; its reminders go to whoever took it, then to everyone
 // Anything Bridge itself did for a member (the Bridge app's bot, a "(via Bridge)" comment) and anything another bot
 // did is never news: the designer did it, or nobody did.
 
@@ -27,6 +28,7 @@ import { canonicalRepo } from '../../src/lib/team-path.js';
 import { explorationBlockOf } from './exploration-member.js';
 
 export type NotifyKind =
+  | 'lead-taken'
   | 'question'
   | 'look'
   | 'changes'
@@ -78,6 +80,14 @@ export interface Notice {
   /** It starts waiting on a lead (a reminder in 2 days), or it stops. */
   waits?: boolean;
   stops?: boolean;
+  /**
+   * "I'll look" (lead-taken, never sent itself): who took it, by login or by the name the block gives a member without
+   * GitHub, and when it was asked (ms). Its reminders go to them only, then back to every reviewer once (notify.ts).
+   */
+  taker?: { login?: string; name?: string };
+  askedAt?: number;
+  /** A reminder for the one who took it only: no other reviewer gets it. */
+  takerOnly?: boolean;
 }
 
 /** The context the mapper does not read from the payload. */
@@ -222,6 +232,23 @@ export function leadNoticesOf(before: unknown, after: unknown, base: { repo: str
     } else if (leadKinds[d.kind]) {
       out.push({ ...common, kind: leadKinds[d.kind]!, actor: actor(d), ...named(d), ...quoted(d), stops: true });
     }
+  }
+  // "I'll look": nobody hears about it; the reminders move to the one who took it (notify.ts). Who waits stays the designer.
+  if (typeof now.leadTakenAt === 'string' && typeof was?.leadTakenAt !== 'string' && typeof now.leadAskedAt === 'string') {
+    const login = typeof now.leadTakenBy === 'string' ? now.leadTakenBy : '';
+    const name = typeof now.leadTakenByName === 'string' ? now.leadTakenByName : '';
+    const by = typeof now.leadAskedBy === 'string' ? now.leadAskedBy : '';
+    const byName = typeof now.leadAskedByName === 'string' ? now.leadAskedByName : typeof now.memberName === 'string' ? now.memberName : '';
+    const askedAt = Date.parse(now.leadAskedAt);
+    out.push({
+      ...common,
+      kind: 'lead-taken',
+      actor: { login: by, id: null },
+      ...(byName ? { actorName: byName } : {}),
+      to: asked,
+      taker: { ...(login ? { login } : {}), ...(!login && name ? { name } : {}) },
+      ...(Number.isFinite(askedAt) ? { askedAt } : {}),
+    });
   }
   // Asked now and it was not before, with nothing else said: Done exploring, or sent back without a word.
   if (typeof now.leadAskedAt === 'string' && typeof was?.leadAskedAt !== 'string' && !fresh.some((d) => d.kind === 'answer')) {
