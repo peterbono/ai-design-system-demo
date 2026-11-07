@@ -649,8 +649,22 @@ export function loadConfig(source: string | unknown): BridgeConfig {
       }
     }
   }
-  if (problems.length) throw new ConfigError(problems);
+  // A field this version does not know is said, never fatal: a team's config written for a newer Bridge (a product's
+  // design copy, a new setting) still loads in an older CLI or workflow, which simply leaves that field alone.
+  const unknown = problems.filter(isUnknownField);
+  const fatal = problems.filter((p) => !isUnknownField(p));
+  if (unknown.length) configWarn(`${CONFIG_FILE}: left alone, this version of Bridge does not know ${unknown.map((p) => p.replace(/ is not a known (key|field).*$/, '')).join(', ')}.`);
+  if (fatal.length) throw new ConfigError(fatal);
   return defineConfig(d as unknown as BridgeConfigInput);
+}
+
+/** A problem that only says a field is unknown (newer than this version), never what is wrong with a known one. */
+export const isUnknownField = (problem: string): boolean => /" is not a known (key|field)\b/.test(problem);
+
+/** Where config warnings go: stderr in the CLI and workflows (console.warn), replaceable in tests. */
+let configWarn: (message: string) => void = (m) => console.warn(m);
+export function setConfigWarn(fn: ((message: string) => void) | null): void {
+  configWarn = fn ?? ((m) => console.warn(m));
 }
 
 /** Path of a file under the tokens root, relative to the repository root. */

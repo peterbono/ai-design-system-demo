@@ -80,7 +80,7 @@ import { sampleVisitor } from './demo-gate';
 import { copyText } from './explorer/util';
 import { loadVisualImpact } from './reviews/visual-impact';
 import { previewShotOf } from './preview-shots';
-import { isSampleExploration, isSampleTeam, sampleExplorationPreview, samplePreviewPage } from '../lib/demo';
+import { isSampleExploration, isSampleTeam } from '../lib/demo';
 import { knownNames } from './people';
 import { isEmailAddress, loginKey } from '../lib/people';
 import { explorationAuthorFor, isNameAuthor } from '../lib/author';
@@ -630,12 +630,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
 
   // The preview capture (one raw file for every exploration, no API call) arrives with the reads it waits beside, so
   // the frame paints once: the capture, or the plate.
-  // The sample team reads like any team: its real capture and preview first; its static screen only while it has none
-  // (lib/demo.ts SAMPLE_STATIC_FALLBACK).
-  const sampleShot = sample ? sampleExplorationPreview(r.branch) : null;
-  const samplePage = sample ? samplePreviewPage(r.branch) : null;
-  const [files, readCommits, sources, realShot] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r), previewShotOf(r).catch(() => null)]);
-  const shot = realShot ?? (sampleShot ? { src: sampleShot, screen: null, capturedAt: null } : null);
+  const [files, readCommits, sources, shot] = await Promise.all([changedFiles(r), branchCommits(r), previewSources(r), previewShotOf(r).catch(() => null)]);
   const commits = samplePerson ? commitsAs(readCommits, r.author) : readCommits;
   reported = sources;
   if (current?.key !== key) return;
@@ -660,11 +655,11 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // The branch's own build. Open the preview opens it with the Bridge toolbar (tryUrl) for a product
   // whose production Bridge knows (Live product, the Before side); never for the library's apps.
   const v = tryInProductView(preview, { tryUrl: (u) => safeUrl(u) || null, todayUrl, files });
-  const previewUrl = (v.state === 'branch' ? v.url : null) ?? samplePage ?? (v.state === 'today' ? todayUrl : null);
+  const previewUrl = v.state === 'branch' ? v.url : v.state === 'today' ? todayUrl : null;
   const tryUrl = v.state === 'branch' && v.url && !isLibrary && productProduction(product, own ? null : CFG.production) ? withToolbar(r)(v.url) : null;
   const previewBuilding = v.state === 'building';
   const talkNow = leadTalkOf(r, pull, { gh, designer: answersLead, names, reopen: (line) => reopen(line), onReopenNew });
-  const previewNote = samplePage ? null : v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
+  const previewNote = v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
   const lead = leadViewOf(r, pull, { gh, products, library: own ? () => dsClient() : null, previewUrl, keeper, reopen: (line) => reopen(line), onCopy: copyText });
   repaint(d, key, {
     // Handed off, the page waits for the hand-off read below, never painted as running in between.
@@ -903,7 +898,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   });
   // Check the build (board R4): the developers' version is ready in the design team's copy. Read through Bridge's server,
   // who checks it and where each stands; the designer, the PM and the leads answer there (email members and PMs too).
-  if (inCopy && own && devRead && !review.draft && status === 'building' && !declined && !sample) {
+  if (inCopy && own && devRead && !review.draft && status === 'building' && !declined) {
     const builder = builders.length ? faceOf(builders[0]!, false, allNames).name : 'the developer';
     const designerName = block?.memberName ?? doneBy.name;
     void paintBuildCheck(d, key, { r, product: own.product.key, copy: own.repo, builder, designer: designerName, devUrl: review.dev?.url ?? null, viewerRef: member?.ref ?? null, reopen: (line) => reopen(line) });

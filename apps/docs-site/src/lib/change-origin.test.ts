@@ -7,7 +7,7 @@ import { changeOrigin, neededByOfChange } from './product-branch';
 import { changeNeed, person } from './home-model';
 import { leadQueue, type DemoPull } from './demo-home';
 import { suggestionNeed } from './suggestions-view';
-import { SAMPLE_CHANGE_EFFECTS, SAMPLE_CHANGE_ORIGINS, SAMPLE_EFFECTS_BASE, SAMPLE_EXPLORATION_PREVIEWS, SAMPLE_PREVIEW_PAGES, sampleChangeOrigin, samplePreviewPage } from './demo';
+import { SAMPLE_CHANGE_EFFECTS, SAMPLE_CHANGE_ORIGINS, SAMPLE_EFFECTS_BASE, isSampleExploration, sampleChangeOrigin } from './demo';
 
 const needed: NeededBy = { pr: 12, title: 'Billing screen', branch: 'explore/billing', url: 'u', product: 'admin', productName: 'Admin demo', piece: 'p', pieceTitle: 'P' };
 const NOW = Date.parse('2026-11-06T12:00:00Z');
@@ -103,11 +103,8 @@ describe('on the demo', () => {
   it('the seeds name a sample exploration, and every file they name ships with the site', () => {
     const file = (p: string) => new URL(`../../public${p}`, import.meta.url);
     for (const o of Object.values(SAMPLE_CHANGE_ORIGINS)) {
-      expect(SAMPLE_EXPLORATION_PREVIEWS[o.branch]).toBeTruthy();
-      expect(samplePreviewPage(o.branch)).toBeTruthy();
+      expect(isSampleExploration(o.branch)).toBe(true);
     }
-    expect(Object.keys(SAMPLE_PREVIEW_PAGES).sort()).toEqual(Object.keys(SAMPLE_EXPLORATION_PREVIEWS).sort());
-    for (const p of Object.values(SAMPLE_PREVIEW_PAGES)) expect(existsSync(file(p))).toBe(true);
     for (const e of Object.values(SAMPLE_CHANGE_EFFECTS)) {
       if (e === 'none') continue;
       expect(existsSync(file(`${SAMPLE_EFFECTS_BASE}/${e.before}`))).toBe(true);

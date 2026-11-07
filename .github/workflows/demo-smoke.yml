@@ -1,0 +1,58 @@
+name: Demo smoke test
+
+# The demo team (acme-design-demo/bridge-demo-ds) read as a signed-out visitor after each production deploy of the
+# docs site, every morning and by hand: home, Changes, the Account app page and one exploration per state. Fails when
+# an exploration is missing, a card does not say its state, or a page logs an error of its own
+# (scripts/demo-smoke.mjs). Screenshots of every page are kept as an artifact.
+
+on:
+  # Vercel reports each deploy as a commit status (no GitHub deployment): the docs site's, on main, is production.
+  status:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: demo-smoke
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Read the demo as a visitor
+    if: github.event_name != 'status' || (github.event.state == 'success' && github.event.context == 'Vercel – bridge-docs' && contains(github.event.branches.*.name, 'main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/demo-smoke.mjs
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install the browser driver
+        # playwright-core drives the runner's Chrome: no browser download, no install of this repository.
+        run: |
+          mkdir -p "$RUNNER_TEMP/deps"
+          cd "$RUNNER_TEMP/deps"
+          echo '{"private":true}' > package.json
+          npm install --no-audit --no-fund --silent playwright-core@1.63.0
+
+      - name: Read the demo
+        env:
+          BRIDGE_DEPS: ${{ runner.temp }}/deps
+          BRIDGE_CHROME_CHANNEL: chrome
+        run: node scripts/demo-smoke.mjs --shots "$RUNNER_TEMP/demo-smoke" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-smoke
+          path: ${{ runner.temp }}/demo-smoke
+          retention-days: 7
