@@ -57,16 +57,6 @@ export default function TeamProducts() {
         onAccess((a) => {
           last = a;
           paint();
-          if (!a || !live) return;
-          void Promise.all([import('../../../scripts/github-session'), import('../../../scripts/contribute-session'), import('../../../scripts/repo-context')]).then(([{ getToken }, { contributeTeam }, { repoContext }]) => {
-            const r = repoContext();
-            const t = a.contributor ? null : getToken();
-            setToken(t);
-            contributeTeam(`${r.owner}/${r.repo}`, t).then(
-              (x) => live && setPeople(x),
-              () => undefined,
-            );
-          });
         });
         document.addEventListener('bridge:team-model', paint);
         unhook = () => document.removeEventListener('bridge:team-model', paint);
@@ -78,6 +68,31 @@ export default function TeamProducts() {
       document.removeEventListener('bridge:team-model', read);
     };
   }, []);
+
+  // Who can be a product manager, read once the viewer is known to lead or administer the team (their sign-in is
+  // settled by then): through Bridge's server, with their GitHub sign-in or their Bridge session.
+  useEffect(() => {
+    if (!lead || !facts || facts.sample) return;
+    let live = true;
+    void Promise.all([import('../../../scripts/github-session'), import('../../../scripts/contribute-session')]).then(async ([{ currentAccess, getToken }, { contributeTeam }]) => {
+      const t = currentAccess()?.contributor ? null : getToken();
+      for (let tries = 0; tries < 2 && live; tries++) {
+        try {
+          const x = await contributeTeam(facts.repo, t);
+          if (live) {
+            setToken(t);
+            setPeople(x);
+          }
+          return;
+        } catch {
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [lead, facts?.repo, facts?.sample]);
 
   if (!facts || !lead || facts.sample) return null;
   return (
