@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'vitest';
-import { changesMode, ConfigError, defineConfig, libraryIsPublic, loadConfig, storybookUrl, TEAM_NAME_MAX, toConfigJson } from '../src/config';
+import { changesMode, ConfigError, defineConfig, libraryIsPublic, loadConfig, setConfigWarn, storybookUrl, TEAM_NAME_MAX, toConfigJson } from '../src/config';
 import { buildTokenSet, detectLayout, layoutOptions } from '../src/token-set';
 import { realConfig, realFiles } from './helpers';
 
@@ -34,7 +34,8 @@ test('defineConfig fills defaults; loadConfig lists every problem', () => {
     const problems = (err as ConfigError).problems.join('\n');
     assert.match(problems, /repo\.owner/);
     assert.match(problems, /repo\.name/);
-    assert.match(problems, /tokens\.rooot" is not a known key/);
+    // An unknown key is warned about, never a reason to fail (configs written for a newer Bridge).
+    assert.doesNotMatch(problems, /tokens\.rooot/);
     assert.match(problems, /modes\.defaults\.theme" \("dark"\) is not in "modes\.themes"/);
   }
 });
@@ -97,7 +98,6 @@ test('storybook.url: explicit, else the production Storybook from previews; http
     [{ url: 'http://sb.acme.dev' }, /must start with https/],
     [{ url: '' }, /"storybook" must be \{ "url" \}/],
     ['https://sb.acme.dev', /"storybook" must be \{ "url" \}/],
-    [{ url: 'https://sb.acme.dev', token: 'x' }, /"storybook\.token" is not a known key/],
   ];
   for (const [value, msg] of bad) {
     assert.throws(
@@ -116,7 +116,6 @@ test('demo: a persona, kept as written, refused when malformed', () => {
   for (const [d, msg] of [
     [{ role: 'DS lead' }, /"demo" must be \{ "viewer" \}/],
     [{ viewer: 'Dana', role: 3 }, /"demo\.role" must be a string/],
-    [{ viewer: 'Dana', avatar: 'x' }, /"demo\.avatar" is not a known key/],
   ] as [unknown, RegExp][]) {
     assert.throws(
       () => loadConfig({ repo: 'acme/ds', demo: d }),
@@ -136,7 +135,6 @@ test('library.public: off by default, true only when the file says so', () => {
   for (const [library, msg] of [
     [{ public: 'yes' }, /"library\.public" must be true or false/],
     [true, /"library" must be an object/],
-    [{ public: true, robots: 'all' }, /"library\.robots" is not a known key/],
   ] as [unknown, RegExp][]) {
     assert.throws(
       () => loadConfig({ repo: 'acme/ds', library }),
@@ -168,4 +166,25 @@ test('name: the team display name, trimmed, 1 to 60 characters, kept by siteRepo
   const schema = JSON.parse(readFileSync(new URL('../bridge.config.schema.json', import.meta.url), 'utf8'));
   assert.equal(schema.properties.name.maxLength, TEAM_NAME_MAX);
   assert.equal(schema.properties.name.minLength, 1);
+});
+
+test('a field this version does not know is warned about and left alone, never fatal', () => {
+  const warned: string[] = [];
+  setConfigWarn((m) => warned.push(m));
+  try {
+    const c = loadConfig({
+      repo: 'acme/ds',
+      storybook: { url: 'https://sb.acme.dev', token: 'x' },
+      products: [{ key: 'library', name: 'Library', default: true }, { key: 'shop', name: 'Shop', repo: 'acme/shop', design: { repo: 'acme/shop-design', branch: 'x' }, later: 1 }],
+    });
+    assert.equal(c.products?.[1]?.key, 'shop');
+    assert.equal(warned.length, 1);
+    assert.match(warned[0]!, /storybook\.token/);
+    assert.match(warned[0]!, /products\[1\]\.later/);
+    assert.match(warned[0]!, /design\.branch/);
+    // A known field with a wrong value still fails.
+    assert.throws(() => loadConfig({ repo: 'acme/ds', storybook: { url: 'http://x' }, extra: 1 }), ConfigError);
+  } finally {
+    setConfigWarn(null);
+  }
 });

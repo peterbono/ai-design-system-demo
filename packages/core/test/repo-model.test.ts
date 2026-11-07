@@ -237,7 +237,8 @@ test('tokens.usage is an optional config key, written back by toConfigJson', () 
   assert.equal((toConfigJson(config).tokens as { usage?: string }).usage, 'notes.json');
   assert.equal(loadConfig({}).tokens.usage, undefined);
   assert.throws(() => loadConfig({ tokens: { usage: '' } }), ConfigError);
-  assert.throws(() => loadConfig({ tokens: { usages: 'x' } }), /not a known key/);
+  // An unknown key is warned about and left alone (lib config isUnknownField).
+  assert.equal(loadConfig({ tokens: { usages: 'x' } }).tokens.usage, undefined);
 });
 
 test('this repo: the model is the same through the local, memory and GitHub sources', async () => {
