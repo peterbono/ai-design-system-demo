@@ -799,6 +799,16 @@ async function onPmWord(req: Request, ctx: Ctx, body: Record<string, unknown>): 
   return json(200, { ok: true, word });
 }
 
+/** What a build check's read keeps a minute (onBuild): the exploration's block, its task, the developers' pull and head. */
+interface BuildFacts {
+  block: Record<string, unknown>;
+  task: { repo: string; number: number };
+  dev: { number: number; url: string; draft?: boolean };
+  head: string;
+}
+const BUILD_FACTS_S = 60;
+export const buildFactsKey = (copy: string, n: number) => `bridge:build:facts:${copy.toLowerCase()}#${n}`;
+
 /** A signed-out visitor of a demo team reading a build check: no email, no login, never a role that answers. */
 const DEMO_VISITOR: { email?: string; login?: string; name: string; lead: boolean } = { name: 'Visitor', lead: false };
 
@@ -830,23 +840,52 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   const pair = facts.pairs.find((p) => p.key?.toLowerCase() === product && p.copy === copy);
   if (!pair) return fail(404, 'no_product', PM_WORDS.noProduct);
   const [co, cn] = copy.split('/') as [string, string];
-  const copyToken = await ctx.svc.app.installationToken(co, cn);
-  if (!copyToken) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
-  const ex = await ghApp(ctx, copyToken, 'GET', `/repos/${co}/${cn}/pulls/${n}`);
-  const block = ex.status === 200 ? explorationBlockOf(ex.data?.body) : null;
-  if (!block) return fail(404, 'not_found', PM_WORDS.noExploration);
-  const task = taskOfUrl(block.task);
-  // Only the task of that product, in its developers' repository.
-  if (!task || task.repo !== canonicalRepo(pair.code).toLowerCase()) return fail(409, 'not_ready', BUILD_WORDS.notReady);
   const [ro, rn] = pair.code.split('/') as [string, string];
-  const token = await ctx.svc.app.installationToken(ro, rn);
-  if (!token) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
-  const tl = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/issues/${task.number}/timeline?per_page=100`);
-  const dev = tl.status === 200 ? devPullOfEvents(tl.data, pair.code) : null;
-  if (!dev || dev.draft) return fail(409, 'not_ready', BUILD_WORDS.notReady);
-  const pr = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/pulls/${dev.number}`);
-  const head = typeof pr.data?.head?.sha === 'string' ? (pr.data.head.sha as string) : null;
-  if (pr.status !== 200 || !head || pr.data?.draft === true || pr.data?.state !== 'open') return fail(409, 'not_ready', BUILD_WORDS.notReady);
+  // A read reuses what GitHub said a minute ago (the exploration, its task, the developers' pull request and head):
+  // the page opens in a second. An answer reads everything again, and so does a push (the webhook forgets it).
+  const factsKey = buildFactsKey(copy, n);
+  let kept: BuildFacts | null = null;
+  if (!write) {
+    try {
+      const raw = await ctx.svc.redis.cmd('GET', factsKey);
+      kept = typeof raw === 'string' ? (JSON.parse(raw) as BuildFacts) : null;
+    } catch {
+      kept = null;
+    }
+  }
+  let copyToken = '';
+  let token = '';
+  let exBody = '';
+  let block: Record<string, unknown>;
+  let task: { repo: string; number: number };
+  let dev: { number: number; url: string; draft?: boolean };
+  let head: string;
+  if (kept) {
+    ({ block, task, dev, head } = kept);
+  } else {
+    copyToken = (await ctx.svc.app.installationToken(co, cn)) ?? '';
+    if (!copyToken) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
+    const ex = await ghApp(ctx, copyToken, 'GET', `/repos/${co}/${cn}/pulls/${n}`);
+    const b = ex.status === 200 ? explorationBlockOf(ex.data?.body) : null;
+    if (!b) return fail(404, 'not_found', PM_WORDS.noExploration);
+    block = b as Record<string, unknown>;
+    exBody = String(ex.data?.body ?? '');
+    const tk = taskOfUrl(block.task);
+    // Only the task of that product, in its developers' repository.
+    if (!tk || tk.repo !== canonicalRepo(pair.code).toLowerCase()) return fail(409, 'not_ready', BUILD_WORDS.notReady);
+    task = tk;
+    token = (await ctx.svc.app.installationToken(ro, rn)) ?? '';
+    if (!token) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
+    const tl = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/issues/${task.number}/timeline?per_page=100`);
+    const d = tl.status === 200 ? devPullOfEvents(tl.data, pair.code) : null;
+    if (!d || d.draft) return fail(409, 'not_ready', BUILD_WORDS.notReady);
+    dev = d;
+    const pr = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/pulls/${dev.number}`);
+    const h = typeof pr.data?.head?.sha === 'string' ? (pr.data.head.sha as string) : null;
+    if (pr.status !== 200 || !h || pr.data?.draft === true || pr.data?.state !== 'open') return fail(409, 'not_ready', BUILD_WORDS.notReady);
+    head = h;
+    await ctx.svc.redis.cmd('SET', factsKey, JSON.stringify({ block, task, dev, head } satisfies BuildFacts), 'EX', BUILD_FACTS_S).catch(() => undefined);
+  }
   const pm = await pmOf(ctx.svc.redis, t.full, product);
   // The design lead checks again only when the exploration sent pieces to the library: those change since approval.
   const designerName = typeof block.memberName === 'string' ? block.memberName : typeof block.author === 'string' ? block.author : typeof block.doneBy === 'string' ? block.doneBy : undefined;
@@ -867,7 +906,7 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
     // The design must change: the exploration runs again for its designer (Back to exploring, a new round, then the
     // lead again), and the developers' task leaves their list with the word that says so.
     if (kind === 'changes' && word.why === 'design') {
-      const reopened = reopenedBody(String(ex.data.body), { at: word.at, ...(who.login ? { by: who.login } : {}), byName: who.name, text });
+      const reopened = reopenedBody(exBody, { at: word.at, ...(who.login ? { by: who.login } : {}), byName: who.name, text });
       if (reopened) await ghAppSend(ctx, copyToken, 'PATCH', `/repos/${co}/${cn}/pulls/${n}`, { body: reopened });
       await ghAppSend(ctx, copyToken, 'POST', `/repos/${co}/${cn}/issues/${n}/labels`, { labels: [EXPLORATION_LABEL_SERVER] }).catch(() => undefined);
       await ghAppSend(ctx, copyToken, 'DELETE', `/repos/${co}/${cn}/issues/${n}/labels/${encodeURIComponent(EXPLORATION_READY_LABEL)}`, {}).catch(() => undefined);
@@ -2481,7 +2520,7 @@ export function designCheckFor(ctx: Ctx): (event: string, payload: unknown) => P
     if (!statusToken) return 'skipped';
     // What Studio's reads last wrote is forgotten: the next read writes its state again over this one.
     const write = (x: { state: string; description: string }) =>
-      Promise.all([ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...x, context: DESIGN_CHECK }).catch(() => undefined), ctx.svc.redis.cmd('DEL', `bridge:build:status:${repo}#${pr!.number}`).catch(() => undefined)]);
+      Promise.all([ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...x, context: DESIGN_CHECK }).catch(() => undefined), ctx.svc.redis.cmd('DEL', `bridge:build:status:${repo}#${pr!.number}`, ...(linked ? [buildFactsKey(linked.copy.repo, linked.copy.number)] : [])).catch(() => undefined)]);
     if (!linked) {
       await write(NO_DESIGN);
       return 'none';
