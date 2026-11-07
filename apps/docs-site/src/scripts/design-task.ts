@@ -24,7 +24,7 @@ export function taskRef(url: string): { repo: string; number: number } | null {
  * when they closed it. `shipped`: once it shipped, the merged pull request's design review too (one read, kept for
  * the session, so who said it looks right stays on the Reviewed step).
  */
-export async function readDesignTask(url: string, opts: { doneAt?: string | null; shipped?: boolean; comments?: boolean } = {}): Promise<DesignTaskRead | null> {
+export async function readDesignTask(url: string, opts: { doneAt?: string | null; shipped?: boolean; comments?: boolean; check?: boolean } = {}): Promise<DesignTaskRead | null> {
   const ref = taskRef(url);
   if (!ref) return null;
   try {
@@ -35,7 +35,9 @@ export async function readDesignTask(url: string, opts: { doneAt?: string | null
     const i = issue.data;
     const found = i.state === 'open' && timeline ? devPullOfTimeline(timeline.data ?? [], ref.repo) : null;
     // Their pull request's comments: the designer's last answer, for the lists' Review line. One more read, only then.
-    const devPull = found ? { ...found, answer: await lastAnswerOn(ref.repo, found.number), ...(found.draft ? {} : { check: await buildCheckOf(ref.repo, found.number) }) } : null;
+    // Both reads at once; the exploration page reads the whole check itself (opts.check false), the lists its summary.
+    const [answer, check] = found ? await Promise.all([lastAnswerOn(ref.repo, found.number), found.draft || opts.check === false ? Promise.resolve(undefined) : buildCheckOf(ref.repo, found.number)]) : [null, undefined];
+    const devPull = found ? { ...found, answer, ...(check !== undefined ? { check } : {}) } : null;
     const comments = opts.comments !== false && (i.comments ?? 0) > 0 ? await taskComments(ref.repo, ref.number, opts.doneAt ?? null) : null;
     const merged = opts.shipped && i.state === 'closed' && i.state_reason === 'completed' && timeline ? devPullOfTimeline(timeline.data ?? [], ref.repo, { merged: true }) : null;
     const shippedAnswer = merged ? await shippedAnswerOn(ref.repo, merged.number) : null;

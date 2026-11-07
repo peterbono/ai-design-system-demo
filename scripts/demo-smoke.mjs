@@ -20,9 +20,13 @@ export const EXPECTED = [
   { n: 1, title: 'Team seats and roles', state: /Exploring/ },
   { n: 2, title: 'Profile page', state: /Waiting for lead/ },
   { n: 3, title: 'Notification channels', state: /Exploring/ },
-  { n: 4, title: 'Invoice status as badges', state: /In review|Check the build/ },
+  { n: 4, title: 'Invoice status as badges', state: /In review|Check the build/, check: true },
   { n: 5, title: 'Yearly prices on plans', state: /Shipped/ },
 ];
+
+/** The heading of Check the build (components/ds/studio BuildCheck), and how long a visitor may wait for it. */
+export const CHECK_HEADING = 'Ready to ship?';
+export const CHECK_MS = 8000;
 
 /**
  * Console errors that are not the page's own: a signed-out visitor's expected refusals (a sign-in probe answers 401,
@@ -71,9 +75,17 @@ async function main() {
     const errors = [];
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     page.on('pageerror', (e) => errors.push(`uncaught: ${e.message}`));
+    const started = Date.now();
     const res = await page.goto(url, { waitUntil: 'load', timeout: 60000 }).catch((e) => ({ status: () => `failed (${e.message})` }));
     if (res?.status?.() !== 200) problems.push(`${name}: ${url} answered ${res?.status?.()}`);
-    await page.waitForTimeout(12000);
+    // The handed-off exploration with a ready build: Check the build itself, within CHECK_MS of the page loading.
+    const checked = EXPECTED.find((x) => `exploration-${x.n}` === name && x.check);
+    if (checked) {
+      const shown = await page.getByText(CHECK_HEADING).first().waitFor({ timeout: CHECK_MS }).then(() => true, () => false);
+      if (!shown) problems.push(`${name}: Check the build ("${CHECK_HEADING}") did not show within ${CHECK_MS / 1000} s`);
+      else console.log(`${name}: Check the build showed after ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    }
+    await page.waitForTimeout(8000);
     if (name === 'product') {
       const cards = await page.$$eval('main a[href*="exploration="]', (as) => as.map((a) => ({ href: a.getAttribute('href') ?? '', text: (a.closest('article, li, div')?.textContent ?? a.textContent ?? '').replace(/\s+/g, ' ').trim() })));
       problems.push(...cardProblems(cards).map((p) => `product: ${p}`));

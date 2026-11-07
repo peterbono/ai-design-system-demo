@@ -2,7 +2,7 @@
 // Private shots: captures of the explorations of private design copies, kept by Bridge (apps/docs-site/api/_lib/
 // private-shots.ts) instead of a public branch. Run by .github/workflows/private-shots.yml in Bridge's own repository:
 //
-//   node scripts/private-shots.mjs [--base https://bridge.floriangouloubi.com] [--dry-run]
+//   node scripts/private-shots.mjs [--base https://bridge.floriangouloubi.com] [--dry-run] [--force]
 //
 // Asks Bridge which explorations need a capture (GET /api/contribute?shots=todo), fills each preview template with
 // @bridge-ds/core previewUrl (the branch, as the host names it), captures it with scripts/preview-shots.mjs captureOne
@@ -37,10 +37,11 @@ export function looksLikeAWall(finalUrl) {
 }
 
 function args(argv) {
-  const o = { base: 'https://bridge.floriangouloubi.com', dryRun: false };
+  const o = { base: 'https://bridge.floriangouloubi.com', dryRun: false, force: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--base') o.base = argv[++i].replace(/\/$/, '');
     else if (argv[i] === '--dry-run') o.dryRun = true;
+    else if (argv[i] === '--force') o.force = true;
   }
   return o;
 }
@@ -51,7 +52,7 @@ async function main() {
   const core = await import(pathToFileURL(require.resolve('@bridge-ds/core')).href);
   const token = await oidcToken();
   const auth = { authorization: `Bearer ${token}` };
-  const todo = await fetch(`${o.base}/api/contribute?shots=todo`, { headers: { ...auth, accept: 'application/json' } });
+  const todo = await fetch(`${o.base}/api/contribute?shots=todo${o.force ? '&force=1' : ''}`, { headers: { ...auth, accept: 'application/json' } });
   if (!todo.ok) throw new Error(`Bridge answered ${todo.status} to the todo list: ${await todo.text()}`);
   const { jobs = [] } = await todo.json();
   console.log(`${jobs.length} exploration(s) to capture.`);
@@ -66,7 +67,7 @@ async function main() {
         continue;
       }
       try {
-        const shot = await captureOne(browser, url);
+        const shot = await captureOne(browser, url, { hints: j.hints ?? [] });
         if (looksLikeAWall(new URL(shot.route, url).href)) {
           console.log(`- ${j.repo}#${j.pr}: ${url} asks to sign in, skipped`);
           continue;

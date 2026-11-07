@@ -265,13 +265,43 @@ async function toWebp(context, png, width) {
  * One capture: the preview root, or the first page that carries a change marker (data-bridge-change) among the root's
  * same-origin links, scrolled so the marked area is in view. No ?bridge parameter: the Bridge toolbar stays closed.
  */
-export async function captureOne(browser, url, { crawl = true } = {}) {
+/**
+ * The link to open when no page carries a change marker: the first same-origin page whose address or text names one of
+ * `hints` (the changed files' names, such as "billing" for src/pages/Billing.tsx), else null.
+ */
+export function hintedTarget(links, origin, hints) {
+  const h = (hints ?? []).map((x) => String(x).toLowerCase()).filter((x) => x.length >= 3);
+  if (!h.length) return null;
+  for (const { href, text } of links) {
+    let u;
+    try {
+      u = new URL(href, origin);
+    } catch {
+      continue;
+    }
+    if (u.origin !== origin || (u.pathname === '/' && !u.hash)) continue;
+    const words = `${u.pathname} ${u.hash} ${text ?? ''}`.toLowerCase();
+    if (h.some((x) => words.includes(x))) return u.href;
+  }
+  return null;
+}
+
+export async function captureOne(browser, url, { crawl = true, hints = [] } = {}) {
   const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1, colorScheme: 'light', reducedMotion: 'reduce', serviceWorkers: 'block' });
   try {
     const page = await context.newPage();
     const root = new URL(url);
     await settle(page, root.href);
     let marker = await markerOf(page);
+    if (!marker && hints.length) {
+      // No marker on the root: the page the changed files name, when the root links to it.
+      const links = await page.$$eval('a[href]', (as) => as.map((a) => ({ href: a.getAttribute('href') || '', text: a.textContent || '' })));
+      const target = hintedTarget(links, root.origin, hints);
+      if (target) {
+        await settle(page, target).catch(() => undefined);
+        marker = (await markerOf(page).catch(() => null)) ?? { label: null, top: 0, bottom: 0, hinted: true };
+      }
+    }
     if (!marker && crawl) {
       const hrefs = await page.$$eval('a[href]', (as) => as.map((a) => a.getAttribute('href') || ''));
       for (const target of crawlTargets(hrefs, root.origin)) {

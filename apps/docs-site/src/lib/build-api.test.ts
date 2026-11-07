@@ -151,6 +151,18 @@ describe('check the build', () => {
     expect((await handleContribute(post(say('looks-right'), ''), ENV, s.deps)).status).toBe(401);
   });
 
+  it('a read that changes nothing writes no new Design check (once per head and state)', async () => {
+    const s = setup();
+    const mia = await as(s, 'mia@acme.design', 'Mia', 'edit');
+    await handleContribute(post({ action: 'build-state', ...at }, mia), ENV, s.deps);
+    const after = s.world.statuses.length;
+    expect(after).toBeGreaterThan(0);
+    await handleContribute(post({ action: 'build-state', ...at }, mia), ENV, s.deps);
+    expect(s.world.statuses.length).toBe(after);
+    await handleContribute(post(say('looks-right'), mia), ENV, s.deps);
+    expect(s.world.statuses.length).toBe(after + 1);
+  });
+
   it('nothing before the build is ready', async () => {
     const s = setup({ draft: true });
     const mia = await as(s, 'mia@acme.design', 'Mia', 'edit');

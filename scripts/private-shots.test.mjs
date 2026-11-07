@@ -16,3 +16,15 @@ describe('private shots runner', () => {
     await expect(oidcToken({}, f)).rejects.toThrow(/id-token: write/);
   });
 });
+
+import { hintedTarget } from './preview-shots.mjs';
+
+describe('the page a capture opens', () => {
+  it('opens the link the changed files name, never the root or another origin', () => {
+    const links = [{ href: '/', text: 'Home' }, { href: 'https://elsewhere.dev/billing', text: 'Billing' }, { href: '/team', text: 'Team' }, { href: '/billing', text: 'Billing' }];
+    expect(hintedTarget(links, 'https://x.pages.dev', ['billing'])).toBe('https://x.pages.dev/billing');
+    expect(hintedTarget([{ href: '#/orders', text: 'Orders' }], 'https://x.pages.dev', ['orders'])).toBe('https://x.pages.dev/#/orders');
+    expect(hintedTarget(links, 'https://x.pages.dev', ['plans'])).toBeNull();
+    expect(hintedTarget(links, 'https://x.pages.dev', [])).toBeNull();
+  });
+});

@@ -889,9 +889,14 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   // The status needs the app's Commit statuses write permission: without it the comment still says it, and Studio too.
   const named = designCheckStatus(st, need.names, { designChanging: write && body.why === 'design' && body.kind === 'changes' });
   // The app's token for the proxy carries no status write: a token of its own, narrowed to it.
-  const statusToken = await ctx.svc.statusApp.installationToken(ro, rn).catch(() => null);
+  // Written once per head and state: a read that changes nothing leaves GitHub alone (a page opens in a second, not three).
+  const statusKey = `bridge:build:status:${canonicalRepo(pair.code).toLowerCase()}#${dev.number}`;
+  const statusNow = `${head}|${named.state}|${named.description}`;
+  const already = (await ctx.svc.redis.cmd('GET', statusKey).catch(() => null)) === statusNow;
+  const statusToken = already ? null : await ctx.svc.statusApp.installationToken(ro, rn).catch(() => null);
   const status = statusToken ? await ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...named, context: DESIGN_CHECK, target_url: target }).catch(() => ({ status: 0, data: null })) : { status: 0, data: null };
-  return json(200, { ...st, head, pull: { number: dev.number, url: dev.url }, role, statusWritten: status.status === 201 });
+  if (status.status === 201) await ctx.svc.redis.cmd('SET', statusKey, statusNow, 'EX', 30 * 24 * 3600).catch(() => undefined);
+  return json(200, { ...st, head, pull: { number: dev.number, url: dev.url }, role, statusWritten: already || status.status === 201 });
 }
 
 const EXPLORATION_LABEL_SERVER = 'exploration';
@@ -2474,7 +2479,9 @@ export function designCheckFor(ctx: Ctx): (event: string, payload: unknown) => P
     }
     const statusToken = await ctx.svc.statusApp.installationToken(ro, rn).catch(() => null);
     if (!statusToken) return 'skipped';
-    const write = (x: { state: string; description: string }) => ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...x, context: DESIGN_CHECK }).catch(() => undefined);
+    // What Studio's reads last wrote is forgotten: the next read writes its state again over this one.
+    const write = (x: { state: string; description: string }) =>
+      Promise.all([ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...x, context: DESIGN_CHECK }).catch(() => undefined), ctx.svc.redis.cmd('DEL', `bridge:build:status:${repo}#${pr!.number}`).catch(() => undefined)]);
     if (!linked) {
       await write(NO_DESIGN);
       return 'none';
@@ -2589,7 +2596,7 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
       if (!svc0) return fail(503, 'not_configured', NOT_CONFIGURED);
       const sctx = shotsCtxOf({ f: deps.fetch, now: deps.now ?? Date.now, svc: svc0 });
       if (!(await workflowClaims(sctx, req.headers.get('authorization')))) return fail(401, 'signin', 'Only Bridge\'s capture workflow sends screenshots.');
-      if (shotsAction === 'todo' && method === 'GET') return json(200, { jobs: await shotsTodo(sctx) });
+      if (shotsAction === 'todo' && method === 'GET') return json(200, { jobs: await shotsTodo(sctx, params.get('force') === '1') });
       if (shotsAction === 'put' && method === 'POST') return await putShot(sctx, await readBody(req, 600_000));
       return fail(405, 'method', 'GET the todo list, POST a capture.');
     }
