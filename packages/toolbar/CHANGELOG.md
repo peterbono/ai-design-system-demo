@@ -1,5 +1,39 @@
 # @bridge-ds/toolbar
 
+## 0.8.2
+
+### Patch Changes
+
+- 3ce0cd9: Bridge's repository moved to the the-bridge-company organization: package repository, homepage, issues, docs and schema links point at the-bridge-company/ai-design-system-demo.
+- 1432db6: A page on the design copy's preview host reads the copy's changes even when neither the host nor the link named the
+  repository (Cloudflare Pages sets no repository variable): `?bridge=1` there is exploration #1 of the copy, never the
+  design system's or the developers' change #1.
+- 9324fa4: "Open the preview" of a private product's exploration reads the change again. Studio now waits a moment for the member's read pass when the preview is opened before it arrived (it used to open without it, so the toolbar could not read the change), and asks again after a refusal instead of keeping it for the life of the page. A preview built with a toolbar older than 0.8.0, which would leave the pass in the address and show an empty page, opens without it and says to bring in the latest product. The toolbar tells the product's hash router when it takes the pass out of the address, so a router that read it first shows the real screen, never an empty page.
+- b252ddf: When a change cannot be read, the Live product and This change tooltip says what helps: open it from Studio when this
+  page may not read it (or GitHub limits reads from the page), and reload only when the read failed on the way.
+- Updated dependencies [441e1d7]
+- Updated dependencies [0a716b8]
+- Updated dependencies [9dfb5e9]
+- Updated dependencies [84d0c83]
+- Updated dependencies [deeb410]
+- Updated dependencies [f0a5dfa]
+- Updated dependencies [641406a]
+- Updated dependencies [e1bc4b6]
+- Updated dependencies [2d03cb5]
+- Updated dependencies [704396f]
+- Updated dependencies [af390e9]
+- Updated dependencies [da2f8ae]
+- Updated dependencies [014e784]
+- Updated dependencies [0cf2d87]
+- Updated dependencies [caf7cdf]
+- Updated dependencies [686834c]
+- Updated dependencies [2cda80a]
+- Updated dependencies [9f95e1a]
+- Updated dependencies [3ce0cd9]
+- Updated dependencies [c33cbfd]
+  - @bridge-ds/core@0.29.0
+  - @bridge-ds/react@1.8.5
+
 ## 0.8.1
 
 ### Patch Changes

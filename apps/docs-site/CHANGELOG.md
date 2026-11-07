@@ -1,5 +1,202 @@
 # @bridge-ds/docs-site
 
+## 0.28.0
+
+### Minor Changes
+
+- 566c350: Add a product, v3: one dialog, and the product is in the team at once. The dialog lists the products Bridge found on GitHub that the team does not have yet, one row each with Add, with "Not in the list? Find it on GitHub", "Give designers their own copy", Cancel and "Start a new product". When Bridge finds none it opens straight on the name and Create product, with "Its code is already on GitHub? Find it there". Add and Create product no longer wait for an approval nobody could give: Bridge checks on its server that the person is an admin or a lead of the team, validates the one new product, and writes it straight to the team's settings (`POST /api/ship` with `action: "add-product"`, the only code path that uses the Bridge app's bypass of the library's main ruleset, one file only). The dialog then closes and opens the product's page, already in the side nav, without waiting for a new build or a cache to turn. Anyone else reads why on the product's row. On a library where Bridge may not write directly (an older setup), it goes to review as before and the dialog says so plainly. Bridge's own designers' copies are never offered as products: the copies Bridge makes are now marked (a GitHub topic and their description), and copies listed in the team's settings or named after a product next to it are left out. The "Show its previews" step left the dialog; the product's page holds the way to its previews.
+- 441e1d7: Add a product starts from one question, "Where does it start from?", with three equal cards: "Its code is on GitHub" (recommended), "Only its address" and "It's a new product". Details come only after a choice, and every next step has Back. Its code on GitHub keeps today's list with Add, and when Bridge sees nothing new it says so with Find it on GitHub as the one primary. Only its address is for a product whose code the design team cannot reach: its name and its address (a bare domain or an https link), then Bridge starts the design team's own code for it from the product starter with the library and keeps the address in the new optional `products[].address` (an https origin, checked by `productProblems`, the JSON schema and, strictly, by the server that adds products). Such a product never gets a designers' copy: its only code is already the design team's own, so the dialog does not offer one and the settings check and the server refuse `design` beside `address`. Start an exploration offers an optional "Start from a page" for such a product, limited to pages of its own site: the page is kept on the exploration (`startPage`) and the line handed to Claude says to open it in the browser, rebuild it with only the library's components and tokens, never the site's own styles or files, then explore the change. `bridge_continue_exploration` returns `startFrom` with the same brief. Done exploring on such a product sends the developers a task with the preview, the page as it is today and what changes, never code to take.
+- c8192d0: A product added from its address keeps its developers' task in the design team's own code, where Being built follows it, but those developers usually work elsewhere. Once it is done exploring, team members get a quiet "Copy for your developers": on the exploration page right under the "Developers build it" step, which now says "Their developers work elsewhere: send them the message.", and on the same row in Being built. It copies one plain, self-contained message (what changes, the page today, the preview, the screenshot when Bridge kept one) with no tech words, then says "Message copied. Paste it where your developers work." Signed-out and sample visitors never see it, nor does a change that shipped, was declined or archived.
+- 3993118: Leads approve Claude's fixes from the Figma plugin. In "Claude's fixes", a lead (a repository admin, a design approver who can write, or an email Admin through Studio) sees "Approve all N" and "Approve" on each ready row; one click approves and runs Check for updates, so the fixes come into the file. Everyone else reads "Waiting for approval". The Bridge site checks each fix again with its GitHub App (figma-fixes.json only, `bridge fixes check`, nothing changed underneath, no failing check) and lands them in one push: one merge for one fix, one merge commit holding their union for several, so GitHub marks each pull request merged. A fix Bridge refuses says why on its row.
+- 117a39d: The designers' copy of a product is a one-time team setup, decided once in Add a product ("Give designers their own copy"). Nobody sees "Make my copy" any more. Right after Add or Create product with the copy ticked, the product's page makes the copy in the background with the sign-in of the admin or lead who added it: one quiet line, "Getting a copy ready for your designers…", then nothing. If it could not be made, that person reads a calm line with Try again; designers never see it. When only a tick on GitHub lets Bridge open the new copy, an admin gets the one more step under the way to start, before the previews step. For a product added before this, "Start an exploration" makes the copy first, in the same action, with one short wait line, then starts. "Get the latest" is unchanged. Settings, onboarding and the MCP server now say Bridge makes the copy, never to look for "Make my copy".
+- 0d732f6: Being built gets the two filters of Changes: All products and Everyone (with You) on the line under the tabs, then the
+  count, in the same ?product= and ?people= addresses. The tab counts follow them, a row is filtered by its product and by
+  the people it shows, and a row with nobody on it stays under Everyone. Changes and Being built share the same filter
+  code. On the sample team, a sample exploration's page names its sample person, not the repository's account, and a
+  change without a before and after no longer talks about visual checks.
+- 0535107: Design check on every pull request of a product's developers, from the GitHub webhook: "No design to check" when it names no explored design, else who is still waiting. The design must change moves the exploration back to its designer. Lists read the whole check, and the validating design lead hears it shipped.
+- c29fa71: A change in review says where it comes from. The top of the review reads "From the exploration Profile page, Account
+  app" with a link to it, for a library branch opened for an exploration and for a pull request that closes a request or
+  a suggestion Done exploring filed; a suggestion's review says the same. Home and queue rows read "from Profile page ·
+  Ann asks for your review". No origin known, no line. "Why it exists" now shows only when it asks the reviewer something
+  the line does not say. One screen in "Where it shows" fills the width, with Before and After named. On the sample team,
+  changes link to the exploration they serve and show their before and after on its screen, and the exploration page
+  shows its capture and Open the preview opens the screen running.
+- 6b22a44: Check the build: once the developers show their version of an exploration, its designer and the product manager of its product (the design lead when library pieces changed) compare it with what was approved and say Looks right or Needs changes (the build is off, or the design must change). Bridge keeps who approved which version and the Design check on it. The PM hears when a build is ready and when it shipped, and their Home lists what waits for their opinion.
+- e0bd3e1: The Bridge Library in Claude Design, kept in sync. Each docs-site deploy serves the Library as a Claude Design System
+  for its version (`/claude-design-system/manifest.json` and `/claude-design-system/<version>/project/...`, static files
+  built by `scripts/claude-design-system/release.mjs` in `docs:build`). New MCP tools: `bridge_get_claude_design_system`
+  gives the team's Claude the version, the manifest (path, size, sha256, url) and the steps (create the Design System
+  artifact once, then republish only the changed files to the same artifact and re-run the install in the canvases), and
+  `bridge_set_claude_design_system_url` remembers the team's artifact (admins and leads only, checked on the server).
+  Settings > Your AI tools shows admins one quiet line, "Claude Design: Bridge Library 1.8.4 · Update available", with
+  "Copy the request for Claude".
+- 84d0c83: The component map: `bridge.components.json` at the design system repo root links each Library component to its Figma
+  component (file, component or set key, node, property and value mapping) and its code import, reviewed like any change
+  (docs/COMPONENT-MAP.md). Core adds the typed, versioned schema with a validator in plain words, the proposer (by name,
+  then by variant properties; ties are reported, never guessed) and `figma.file` in `bridge.config.json` for the team's
+  Figma file; the repo model reads the map. `bridge_list_components` and `bridge_get_component` add `figma` (the Figma
+  component and link, or "not linked to Figma yet"); the new `bridge_propose_component_map` opens proposed links for
+  review (a suggestion, or a draft pull request in direct mode), refused through the hosted connector to members who
+  joined with their email. `bridge check` reports which components are linked; an invalid file fails it. Studio: Settings
+  gets "Figma file" (leads and admins send it for review), and a component page shows "In Figma: <name>" with the link,
+  or "Not linked to Figma yet" with the next step for leads and admins only.
+- 71c3a7d: The sample team's static screens are gone: its explorations show their real capture or the plate, and open their real
+  preview, like any team. A signed-out visitor of a demo team reads where Check the build stands (who is still waiting),
+  as a member who views it does; only members answer.
+- 1432db6: The sample team reads like any team. Acme Design moved to its own organization (acme-design-demo/bridge-demo-ds; the old
+  address redirects), visitors read it through Bridge even though its repositories are private, and its explorations show
+  their product's real preview and capture first, the static screens only while one has none (SAMPLE_STATIC_FALLBACK).
+  One server gate refuses every write on a demo team by someone not on it, with the demo dialog's words; Studio opens the
+  demo dialog on that refusal.
+- 4a6d4ba: A design lead can sign in by email. An admin makes an email member a design lead in Settings, Members. They answer on explorations like any lead: Comment, Needs changes, Looks right, Not doing this, Take it back, and hand-over. The last review on the developers' code stays on GitHub. Through Bridge, only a lead can now write a lead's decision, their yes, Done exploring or the developers' task, on a team with design owners.
+- 641406a: Put an exploration in Figma. Say so to Claude, or use Put in Figma on the exploration page (for people who can edit, when the team has a Figma file): the new `bridge_exploration_to_figma` tool gives Claude the team's file, the changed screens, the Library components with their Figma links, what has no link, the preview and the recipe, and Claude builds a new page with real instances through its own Figma connector. Bridge never writes to Figma. `bridge_save_exploration` keeps the page link (`notes.figmaPage`) so Studio links to it, and `bridge_propose_component_map` now asks for component keys.
+- 2d03cb5: The decisions stay with the exploration. In a design copy Done exploring keeps the notes on the branch, the page keeps showing them after the hand-off, and Back to exploring brings back notes an earlier Done exploring removed, so the developers' task never loses its spec.
+- 302df78: A design lead or an admin approves an exploration, and nobody else. Design lead is a role in the list, between Can edit and Admin, and an email member no longer sees Reviewer or the note about GitHub.
+- af390e9: A design lead answers an exploration with the review bar at the bottom of its page: a comment, Comment (a question, no
+  verdict), Needs changes, Looks right (its words go to the developers), Ask someone else to review, Not doing this and
+  Copy link. After Looks right, Take it back asks for a reason; once a developer started, a word reaches them on their task.
+  The designer reads the lead's words in the page's zone, answers and sends it back, and their Claude gets the words too.
+  Everything said is kept by round and shows as Decisions, replacing the single last note. A lead can take an exploration
+  over or hand it to someone, and says why when they archive someone else's. Not doing this ends it with its reason, and
+  Reopen as a new exploration starts a new one from its work. Home: Needs you holds what is yours to answer now, and a
+  quiet Waiting on others lists what you asked. Eleven new emails follow all of it, with one reminder to a lead after 3 days.
+- da2f8ae: The design lead validates before the developers: where a team names a design lead, Done exploring now reads Waiting for
+  lead and nothing reaches the developers until the lead says Looks right. Needs changes sends it back with their words.
+  A lead saying it on someone else's exploration, or a team with nobody else to ask, goes straight to the developers.
+- ea25a6e: Changes and Being built can be read as cards. At the end of the filters row, a switch between the rows and the Home's
+  card: one card per change, its screen on top, its one status tag, who it belongs to. Changes offers it on every tab but
+  Waiting on me, which is reviewed row by row and needs its checkboxes and Review all; switching to the cards lets go of
+  what was picked for a shared preview. The suggestions listed under a team's changes follow the same choice, although
+  they are painted on their own. The choice is remembered for each person, per page, in their browser.
+- a3faca0: The Studio side nav has two groups. Products lists the team's products, the ones you explore in or opened lately first, five at most, then All products with the total when the team has more; the product you are on always shows. Design system holds Components, Tokens, Quality and Explorations (the library's own page, now titled "Library explorations"). Settings sits at the foot, and the phone menu shows the same groups. A team's /products/ address now opens All products: every product, yours first with a quiet "You explore here", the same status line as on Home, a "Find a product" filter and Show more for long lists, and Add a product for admins and leads. Local dev adds scenario S24, a team with fifteen products.
+- a6a67c4: One GitHub App, for good: Bridge Direct signs everyone in on every page, and the `BRIDGE_ONE_APP` switch, the older second app (`bridge-ds`, `GITHUB_APP_SUGGEST_*`), its "Allow Bridge to save your changes" second OK and its install links are gone. Someone still holding an old `bridge-ds` sign-in sees "Bridge changed how it connects to GitHub. Sign in again once to keep working." once, in the browser; the token function now accepts Bridge Direct's client ID only. Coming back from GitHub no longer loses what you were doing: after Sign in again, or Add a product's Install on GitHub, the dialog reopens at the same step with what you typed, the primary button focused and one line such as "Back from GitHub. Create Atlas now?". Nothing is sent before you click. A save stopped by an expired sign-in now says to sign in again instead of "Ask an owner" or a generic refusal.
+- 2e3a8b8: Screenshots for private products: Bridge's own workflow captures the explorations of the design copies Bridge watches,
+  Bridge keeps them, and shows them only to the team's readers (members, and visitors of a demo team) on the cards and
+  the exploration page. Public products keep their preview-shots workflow.
+- 9f95e1a: "I'll look": a reviewer takes an exploration waiting for review (`takeLeadOnGitHub`, `withLeadTaken`, block fields `leadTakenAt`, `leadTakenBy`, `leadTakenByName`). The take goes with the ask: asked again, asked someone else, or answered, it is gone.
+- f374378: The sign-in screen composes the whole viewport. The step sits on white paper, beside one Harbor zone where a bridge closes: a piece that does not fit passes by, the one that fits is laid in and kept, and every step of the entry flow (code, name, Welcome back, invites, teams by work domain, the team picker) keeps that page. "Open the demo" is now a secondary button under "Just looking?", on its own under a hairline, instead of a small link at the bottom; Send code stays the one primary action. The first step says what Bridge is, and that sentence leaves once the person has given their email. On a phone the step comes first and the zone closes the page, so Send code and the demo stay on the first screen. Sign-in logic is unchanged.
+- c33cbfd: "Where it stands": handover notes for every exploration, so another designer or AI tool carries on. The note file keeps
+  Context, Decisions, Edge cases (per component, covered or open), Open questions and Next step as readable text;
+  `@bridge-ds/core` parses and merges them section by section without losing hand-written lines
+  (`parseExplorationNotes`, `mergeExplorationNotes`, `notesSpec`). `bridge_save_exploration` takes `notes` in the same
+  save, `bridge_continue_exploration` returns them and starts from the next step, and Done exploring hands the decisions
+  and edge cases to developers as the design spec. Studio's exploration page shows them above the activity and lets
+  whoever can edit change them in place.
+
+### Patch Changes
+
+- 5137d0d: Add a product: the GitHub step never opens GitHub's "Where do you want to install?" while the team's account is known. When Bridge finds no installation for the team, or GitHub did not answer, Find it on GitHub opens the app's install page for the team's account (its GitHub id, read from the library and kept in this browser), so the admin lands on that account's product list and Save. The team's installation is also found under an old name of its account or library (lib/team-path renames), and by the account's id. A failed read no longer sticks for the rest of the page: the empty step says Bridge could not get the products from GitHub, with Try again, and reopening the dialog reads again. An empty list says why (Bridge sees none yet, or every product it sees is already in the team). The owners' line now arrives with the step instead of a moment later. "It's a new product" says a missing name on the name field itself and puts the focus there.
+- 94731a5: Add a product: someone who does not own the product's account on GitHub reads, before GitHub opens, that only its owners can give Bridge access and that GitHub sends them the request, with "Copy a message for the owners". Once GitHub closes with nothing new, the dialog says the request was sent and that Bridge adds the product as soon as they approve; this browser remembers it per team, so reopening the dialog says it again, and picks the product once it arrives.
+- acd552f: Add a product opens on one question, "Which product does your team design for?", with two choice cards and their Field Guide drawings: "It's already built" (pick your product, or "Find it on GitHub" when Bridge sees none, with "Ask a developer" copying a ready message) and "It's a new product" (Bridge sets it up with your library). Back returns to the choice from every step. The GitHub window, the wait, the owners' request and the previews step keep working as before, in the new words.
+- 0a716b8: Audit minors. A team's /products/ address now opens its Home, where the product folders are, instead of a missing page. On a phone, addresses wrap at their slashes and dots instead of mid-word, every Copy button of Settings fills its row, the Studio Tokens table keeps its border to the last token, and a row of tabs or type chips that scrolls fades its cut edge (DS Tabs does it for every tab list). Quality says how many components its adoption headline counts. Every "yesterday" and "N days ago" counts calendar days, so one moment reads the same on every screen, and each status keeps one tag color everywhere. An exploration keeps the name its designer typed on every screen, and its picture names the same screen on Home and its product page. Settings puts Add a product on the Products title line. A visitor who cannot open a private product sees one line asking to sign in.
+- 2335f7a: Being built opened straight from its address on a team now reads the team's settings itself, so the explorations handed to a product's developers show without visiting another Studio page first. All products now counts with the same status as Home and the exploration cards: an exploration whose developers closed their task as done reads Shipped, not "waiting to be picked up". Its summary says the rows count the whole team's explorations ("1 product, with the whole team's explorations."), where Home's sentence counts only yours.
+- 3f6d803: Check the build names the designer who said Done exploring when the exploration names nobody else, and says "the developer" in lower case mid-sentence.
+- 4dc5310: Check the build finds the task and the developers' version when their repository was renamed.
+- 75ba102: Members: Can edit reads "Explores and changes the library", the same words as the role picker.
+- 8ddfe2d: A linked exploration of a product asks for its build check as the page starts; Bridge keeps a build check's GitHub facts ten minutes and forgets them on a push or when the developers close their pull request.
+- e857581: Check the build shows in a few seconds: the exploration page starts its read with the rest of the page, the task's
+  reads run at once, and Bridge writes the Design check only when it changes. Private captures open the page the
+  changed files name when no change marker shows one, and can be taken again by hand (force).
+- e1edaf3: Check the build paints from its own read as soon as the page opens: its frame at once, then who checks it, the approved
+  version and the developers' build (build-state returns their branch and who opened it), while the rest of the page
+  reads. The server mints both tokens at once.
+- fa74800: Check the build keeps the names Bridge knows when the rest of the page arrives, never "the developer" in their place.
+- 7662f45: Claude's fixes say where each one really stands. In the Figma plugin the section opens with one sentence ("3 fixes in this file, 2 need drawing in Figma, 1 waiting.") and each row has one status: an approved fix brought in by Check for updates reads "Claude's fix is in this file", a closed one "Claude's fix was not kept", both folded under "N finished"; a component Claude cannot fix says why ("The indicator is missing in Figma: draw it in the component, then compare with code again."), one Bridge never measured says so instead of waiting, and "Claude went quiet" is only for an ask nothing came back from. The Bridge connector records a gap case it cannot read for want of a measure, and a read of parts missing in Figma followed by silence, as that reason; the gap case tells Claude to end such a component with a status fix.
+- 9f9bd4b: Figma fixes the team closed leave Being built on the first read of the page too.
+- 8dc86ec: Make my copy: when Bridge sees only the ticked products on the copy's account, GitHub does not tick the new copy, so Bridge could not open it. The product page and Start an exploration now go straight into one more step ("One more step: let Bridge open your copy. Tick <copy> on GitHub, then Save."), wait for it with the guided access window of Add a product, then carry on. Accounts where Bridge sees every product show nothing extra.
+- 9b72a86: Design check is written with a token of its own, narrowed to Commit statuses write: the proxy's token never carried it.
+- f0a5dfa: Claude starts product explorations for everyone who can edit. On the hosted connector, a member who joined with their
+  email (Can edit or Admin) now starts an exploration in the design team's copy of a product, where Bridge writes for them
+  on explore/ branches only, then saves prototype code there; a Reader still saves nothing. `productRepoAccess` returns
+  the default branch with `read-only`. The component tools and the server instructions tell Claude to load the Library
+  with `bridge_get_claude_design_system` in a claude.ai artifact instead of inventing token values. The team's Library in
+  Claude Design is read under the team's old names too (a connection made before the rename), and saved under the
+  current one.
+- 643847a: An exploration link opens from its own read, without waiting for the whole Changes list.
+- 5708ab7: One status for each exploration on every screen. Home cards, the Home greeting and product folders, the product page groups and summary, Changes, Being built and the exploration page now read the same status, so an exploration the developers shipped says Shipped everywhere, even while its design preview stays open. Its page also names who started it and when from what Bridge recorded, so the activity reads in the right order.
+- 36f8ffc: Under an exploration's preview, Put in Figma joins the block of actions as wide as the frame, instead of floating beside it. Someone known by name only reads as their name, never with the internal prefix. "Why it exists" shows on a library review again as on the validated board, with or without a question.
+- ba69d62: The "In Figma" line now reaches the people it is for. On Bridge's own Library, a signed-in admin (or anyone who writes
+  to the repository) reads "Not linked to Figma yet" with the next step: the page reads the role from the maintainer
+  check it already runs, instead of waiting on the Studio's GitHub session, which the Library never starts. Studio
+  Components shows the same quiet line in the component drawer: the Figma link when the component is linked, else the
+  next step for leads and admins only.
+- 9c233e3: Can view is back in the invite role picker, first as on the board: "Sees everything in Studio and the library." A Can view invitee joins the team with their email (no GitHub account), is listed in Members as Can view, and gets the read-only Studio (the team chip and account say Can view, the home asks "What do you want to look at?", write actions are not shown). Every write path refuses them on the server: the contribute proxy (branches, commits, pull requests, issues, reviews), library updates, shipping, and the connector's edit actions (team-caller `need: 'edit'`). Admins move an email member to and from Can view; the invite email names the role and says no GitHub account is needed.
+- 78b1af3: Invite collaborators, role picker (board I2): "They review as" now stacks its two cards, each one line with its drawing, name and what it reviews (Designer, How it looks and works; Developer, How it is built), in a slightly wider menu. As on the board, the cards show no radio dot (the radio stays for the keyboard and screen readers, with a focus ring on the card), the chosen card is white with the strong edge, and on a phone both cards put the help under the name. Role lines follow the board: Can edit "Also explores and changes the library.", Reviewer "Also approves changes before they ship." (the invite email uses the same words). Server role semantics are unchanged.
+- 704396f: Fixes from the first real run of the lead's decisions. A lead whose question waits on the designer reads it as theirs and keeps their answers; a handed-off exploration never paints as running while it loads; a lead's word to the developers is no longer read as a question, on the page or by email; Not doing this shows its reason on an exploration with no change yet; Bridge bringing the notes back stays out of the activity; Take it back writes once and restores the notes and labels side by side.
+- 3e8ec82: Design lead is a box under the roles in Settings, Members, where people look for it, not an item of the row's menu.
+  The cards of Changes and Being built show the screen of an exploration, as on the Home. A member who goes to Can view stops being a design lead.
+  A Figma fix the team closed without keeping it no longer shows on Being built.
+- 0400b58: The designer stays named: on the lead's Home row a member who joined by email reads by their name, not as the Bridge app, and after Looks right the exploration page names the designer, not the lead.
+- 4849ea8: An exploration waiting for the lead says so on its own page, with the lead's answer, even before its first change.
+- 0fdd826: It's a new product: the account it lives in follows the accounts Bridge reads once they arrive, and the team's products' accounts, so the form never stops on "Pick where it lives" with nothing to pick.
+- 0ffcf28: It's a new product: no Where field and no address line any more. A new product goes to the account where the team's products live, or the team's own account when it has no product yet.
+- b252ddf: Bridge keeps working under the old names of a renamed repository. One map of old names (src/lib/team-path.ts
+  canonicalRepo) is read wherever Bridge names a team or a repository: the read proxy and every API that takes a repo,
+  task links in explorations (In review, Approved and the shipped review show again, and GitHub is called by the new
+  name, without a redirect per read), webhook links, and Studio addresses (permanent redirects in vercel.json from
+  /studio/peterbono/ai-design-system-demo/ and /studio/art-print-shop-co/). The demo list keeps current names only.
+  A refusal of a toolbar read from another origin now carries its CORS headers, so the toolbar can read why.
+- ebc7d10: Open the build in Check the build lands on the page Bridge captured the developers' build on.
+- d771b77: Phones: the "..." More actions button stays at the end of the title's line instead of dropping onto a line of its own. On a product page the name wraps beside it and Start an exploration still moves under the summary; on an exploration page the title and the button share the first line and the status tag goes under the title. Desktop is unchanged.
+- 877650b: Settings > Products: an empty product manager reads "No product manager".
+- 82b2da1: Settings > Products: the product manager picker shows once the viewer is known to lead or administer the team.
+- 8d5d6c9: The product manager's zone follows their answer at once, and the preview's main action never cuts its words on a narrow card.
+- 094dd3f: Product page, new and empty: "Nothing explored here yet." with the Start an exploration card (the library's empty state, the product preselected), and for admins only, while the product has no previews, "One step before the first preview". It names the host the team's other products already use (Cloudflare or Vercel, else the library's, else Vercel), opens that host's page in a new tab, offers the other host, and disappears once the previews exist. The previews step of Add a product moves here (words in `lib/new-product.ts`). Local scenario S22 shows it.
+- 4b5e4a0: A team whose repository was renamed or moved to another owner now shows once, by its current name and with the higher role, in "Your teams" (the team menu), the "Use Bridge in Claude" and "Connect Figma" pickers, and the account's teams. Memberships, recent teams, names and roles this browser kept under the old name read as the current one, and a connection in Claude is always made for the current name; connections made before the rename keep working under it.
+- 60da5ce: The PM gate holds on the server too, and the reminder after "I'll look" goes to whoever took it, then back to every reviewer once.
+- 81ddc00: Studio right after sign-in: a team page waits for your sign-in before saying who you are, so an admin sees "Checking" and then "Admin", never "Guest", the read-only banner or a short members list. On the hosted site, /studio/ takes a member of the team it shows to the same page of their team, so the role and what waits on them match. Visitors who are not signed in no longer see the members list or "Make my copy", and their pages stop asking for things that need a sign-in.
+- 1322a8d: Send to Figma is a tertiary action on an exploration.
+- a951bc3: An exploration's button reads Send to Figma, then Send to Figma again, instead of Put in Figma.
+- d70ea98: A capture opens the page the strongest hint names (a changed page before a shared stylesheet).
+- e077d9d: Faster Studio pages: lists of pull requests read through Bridge drop the repository objects and API links no page reads
+  (bodies stay whole), so a list of 50 weighs a quarter of what it did and is kept on the server instead of asked of GitHub
+  on every page. The browser keeps them and asks again with their ETag, so an unchanged list costs a 304.
+- f5d186a: A build check read with nothing ready yet answers plainly instead of an error, and the demo smoke test times the first visit again (5 s).
+- a7acf71: Add a product: "No code yet? Start a new product". Bridge starts the product's code on GitHub from the Bridge product starter with the admin's own sign-in (no "Give Bridge access" step), links it to the library, proposes it for review with the designers' copy on, then shows the way to its previews on Vercel or Cloudflare. Refusals in plain words (name taken, no permission in the account, with the ask-an-owner message). The starter's content is in `templates/product-starter`.
+- 715bdf2: Studio tests run the same on every runner: each test waits for the work it started (a product being created, a read of GitHub, the linked GitHub role) before the next one begins, so nothing lands in another test. No change to the product.
+- 9324fa4: "Open the preview" of a private product's exploration reads the change again. Studio now waits a moment for the member's read pass when the preview is opened before it arrived (it used to open without it, so the toolbar could not read the change), and asks again after a refusal instead of keeping it for the life of the page. A preview built with a toolbar older than 0.8.0, which would leave the pass in the address and show an empty page, opens without it and says to bring in the latest product. The toolbar tells the product's hash router when it takes the pass out of the address, so a router that read it first shows the real screen, never an empty page.
+- 15a9245: Home tour: a step no longer sits on top of an open dialog (Search, Add a product, Start an exploration, Account). It waits while the dialog is open and comes back at the same step once it closes. On a phone the step stays in the page, under the dialog, as before.
+- 417a5ce: `bridge_get_claude_design_system` no longer asks someone to create a second Library artifact. When Bridge has none on
+  record for the team, an admin or lead gets `create` (with "if you already made one, update and save that one"), anyone
+  else gets `ask` (ask an admin or lead to add it; load the Library from its base URL meanwhile). The local server, which
+  keeps no team settings, answers `unknown` with `teamKnown: false` instead of `create`, and a failed read of the team
+  setting is an error, never "none". `bridge_list_products` adds `access`, one plain sentence per person: a member Bridge
+  writes for (Can edit or Admin) can start and save explorations in the design team's copy, shown `connected`, while the
+  developers' code stays read only; a Reader is told to ask an admin for Can edit.
+- a4719be: A team's product repositories are watched when a visitor reads its products too, so the demo's developers' pull
+  requests get Design check.
+- 00e24a4: Each time Bridge reads a team's products, their repositories are watched, so GitHub's webhook writes Design check on a
+  developers' pull request even on a team where nobody joined by email yet.
+- e4e50b7: Open the preview and See it in the product land on the page the capture found the change on. Check the build shows
+  the developers' build as Bridge captured it. A signed-out visitor of the demo sees the preview only.
+- 1eb7356: An exploration keeps one layout in every state: the preview, its action row in fixed places and the activity on the
+  left, the state zone and Where it stands on the right. A shipped exploration opens with the Bridge toolbar. Captures
+  find the changed page of a hash-routed product.
+- Updated dependencies [441e1d7]
+- Updated dependencies [0a716b8]
+- Updated dependencies [9dfb5e9]
+- Updated dependencies [84d0c83]
+- Updated dependencies [deeb410]
+- Updated dependencies [f0a5dfa]
+- Updated dependencies [641406a]
+- Updated dependencies [e1bc4b6]
+- Updated dependencies [2d03cb5]
+- Updated dependencies [704396f]
+- Updated dependencies [af390e9]
+- Updated dependencies [da2f8ae]
+- Updated dependencies [014e784]
+- Updated dependencies [0cf2d87]
+- Updated dependencies [caf7cdf]
+- Updated dependencies [686834c]
+- Updated dependencies [2cda80a]
+- Updated dependencies [9f95e1a]
+- Updated dependencies [3ce0cd9]
+- Updated dependencies [c33cbfd]
+  - @bridge-ds/core@0.29.0
+  - @bridge-ds/react@1.8.5
+  - @bridge-ds/tokens@1.8.5
+
 ## 0.27.2
 
 ### Patch Changes
