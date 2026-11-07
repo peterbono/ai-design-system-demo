@@ -246,7 +246,7 @@ export default function InviteDialog({ open, onOpenChange, shared, onSent }: Inv
                     size="lg"
                     autoComplete="off"
                   />
-                  <RolePicker label="Role" value={choice} onChange={setChoice} personal={data.personal} emailOnly={noRepo(data)} emailNote={noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} size="lg" />
+                  <RolePicker label="Role" value={choice} onChange={setChoice} personal={data.personal} emailOnly={noRepo(data)} size="lg" />
                 </div>
                 <p id={hintId} className="inv-hint">
                   {MEMBERS_WORDS.emailHint}

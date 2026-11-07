@@ -22,6 +22,7 @@ import { memberActions, noRepo, useMembers, type Notice } from './members-state'
 import { DiscoveryLine, JoinRequests, useEntryAdmin } from './JoinRequests';
 import { loadTeamRoles } from '../../../lib/recent-teams';
 import { isHosted, isTeamKey, teamKeyOfPage } from '../../../lib/team-path';
+import type { RoleChoice } from '../../../lib/invites';
 import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, membersContext, memberLine, memberSeed, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
 import type { JoinRequest } from '../../../lib/entry';
@@ -61,8 +62,14 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
     setConfirming(false);
     if (n) onNotice(n);
   };
-  // An email member a lead on explorations: an admin's to give, and someone who only views changes nothing.
-  const leadItem = email && can.changeRole && m.role !== 'view';
+  // An email member a lead on explorations: an admin's to give.
+  const leadItem = email && can.changeRole;
+  // Design lead sits on Can edit: they move there first, and leaving it for another role says that role too.
+  const leadTo = async (on: boolean, then?: RoleChoice) => {
+    if (on && m.role !== 'edit') await act.changeRole(m, { role: 'edit' });
+    const done = await act.setLead(m, on);
+    return then && then.role !== m.role ? act.changeRole(m, then) : done;
+  };
   const menu = can.remove;
   return (
     <>
@@ -73,7 +80,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
         <TableCell className="mem-role-cell" label="">
           <span className="mem-role">
             {can.changeRole ? (
-              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} shown={roleText(m)} personal={data.personal} emailOnly={email || noRepo(data)} emailNote={!email && noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} {...(leadItem ? { lead: { on: Boolean(m.lead), onChange: (on: boolean) => void run(() => act.setLead(m, on)) } } : {})} disabled={busy} size="sm" onChange={(c) => void run(() => act.changeRole(m, c))} />
+              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} shown={roleText(m)} personal={data.personal} emailOnly={email || noRepo(data)} {...(leadItem ? { lead: { on: Boolean(m.lead), onChange: (on: boolean, then?: RoleChoice) => void run(() => leadTo(on, then)) } } : {})} disabled={busy} size="sm" onChange={(c) => void run(() => act.changeRole(m, c))} />
             ) : (
               <span className="mem-role-text">{roleText(m)}</span>
             )}
@@ -145,7 +152,7 @@ function PendingRow({ p, data, act, onNotice }: { p: PendingInvite; data: Member
       <TableCell className="mem-role-cell" label="">
         <span className="mem-role">
           {data.canManage ? (
-            <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} emailOnly={noRepo(data)} emailNote={noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} size="sm" onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
+            <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} emailOnly={noRepo(data)} size="sm" onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
           ) : (
             <span className="mem-role-text">{roleLabel(inviteChoice(p))}</span>
           )}

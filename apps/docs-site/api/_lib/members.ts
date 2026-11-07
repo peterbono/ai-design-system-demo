@@ -177,3 +177,6 @@ export function memberStore(redis: Redis): MemberStore {
     },
   };
 }
+
+/** Who approves an exploration: a design lead or an admin, and nobody else. */
+export const approves = (m: Pick<EmailMember, 'role' | 'lead'> | null | undefined): boolean => Boolean(m && (m.lead || m.role === 'admin'));

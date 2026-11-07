@@ -118,7 +118,7 @@ describe('who may change what', () => {
     expect(memberActions({ role: 'edit' }, { canManage: true, admins: 2, emailAdmin: true })).toEqual({ changeRole: false, makeAdmin: false, remove: false });
     expect(memberActions({ role: 'edit' }, { canManage: true, admins: 2 })).toEqual({ changeRole: true, makeAdmin: true, remove: true });
     expect(MEMBERS_WORDS.githubPeople).toMatch(/signed in with GitHub as an admin of the repository/);
-    for (const t of [MEMBERS_WORDS.githubPeople, MEMBERS_WORDS.reviewerNeedsRepo]) expect(t).not.toMatch(/\u2014/);
+    for (const t of [MEMBERS_WORDS.githubPeople]) expect(t).not.toMatch(/\u2014/);
   });
 
   it('never leaves the team without an admin', () => {
