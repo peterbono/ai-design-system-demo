@@ -394,7 +394,7 @@ async function paintBuildShot(d: HTMLElement, key: string, code: string, pr: num
   const shot = await bridgeShotOf(`${CFG.owner}/${CFG.repo}`, code, pr).catch(() => null);
   const h = current?.props.handoff;
   if (!shot || current?.key !== key || !h?.build) return;
-  repaint(d, key, { handoff: { ...h, build: { ...h.build, shot: { src: shot.src, capturedAt: shot.capturedAt } } } });
+  repaint(d, key, { handoff: { ...h, build: { ...h.build, shot: { src: shot.src, capturedAt: shot.capturedAt, route: shot.route ?? null } } } });
 }
 /** The build check's two reads, started as soon as the page knows the developers' version is ready (paintBuildCheck uses them). */
 function startBuildState(product: string, copy: string, number: number, viewerRef: string | null): Promise<[BuildRead | null, TeamRead | null]> {

@@ -416,6 +416,11 @@ describe('ExplorationPage, after Done exploring (Waiting to be picked up, Being 
     expect(document.querySelector('.xp-plate')!.textContent).toContain('Orders table');
   });
 
+  it("Check the build: Open the build lands on the page Bridge captured the developers' build on", () => {
+    handed({ build: { url: 'https://build-x.acme-account.pages.dev/', builder: 'Lee', shot: { src: 'blob:x', capturedAt: null, route: '/billing' } } });
+    expect(screen.getByRole('link', { name: /Open the build/ }).getAttribute('href')).toBe('https://build-x.acme-account.pages.dev/billing');
+  });
+
   it('puts the activity under the preview, beside the hand-off zone: the same skeleton as while exploring', () => {
     handed();
     const grid = document.querySelector('.xp-board')!;
