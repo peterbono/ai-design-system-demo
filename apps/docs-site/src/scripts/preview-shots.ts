@@ -39,15 +39,33 @@ export async function previewShotOf(x: { number: number; product?: string | null
 
 const bridgeShots = new Map<string, Promise<PreviewShot | null>>();
 
-/** A capture Bridge keeps for a private product, through the team (members, and visitors of a demo team), or null. */
+/**
+ * A capture Bridge keeps for a private product, through the team, or null: an email member's cookie or a visitor of a
+ * demo team as is, someone signed in with GitHub with their token (the image is read with it too, then shown from
+ * memory: an <img> cannot carry it).
+ */
 export function bridgeShotOf(team: string, repo: string, pr: number): Promise<PreviewShot | null> {
   const k = `${team}|${repo}#${pr}`.toLowerCase();
   const held = bridgeShots.get(k);
   if (held) return held;
   const q = `repo=${encodeURIComponent(team)}&shot=${encodeURIComponent(repo)}&pr=${pr}`;
-  const p = fetch(`/api/contribute?${q}&meta=1`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-    .then((r) => (r.ok ? (r.json() as Promise<{ shot?: { sha?: string; capturedAt?: string } | null }>) : null))
-    .then((d) => (d?.shot?.sha && d.shot.capturedAt ? { src: `/api/contribute?${q}&v=${d.shot.sha.slice(0, 7)}`, capturedAt: d.shot.capturedAt, sha: d.shot.sha, screen: null } : null))
+  const p = import('./github-session')
+    .then(({ getToken }) => getToken())
+    .catch(() => null)
+    .then(async (token) => {
+      const auth: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const r = await fetch(`/api/contribute?${q}&meta=1`, { credentials: 'same-origin', headers: { Accept: 'application/json', ...auth } });
+      const d = r.ok ? ((await r.json()) as { shot?: { sha?: string; capturedAt?: string } | null }) : null;
+      if (!d?.shot?.sha || !d.shot.capturedAt) return null;
+      const url = `/api/contribute?${q}&v=${d.shot.sha.slice(0, 7)}`;
+      let src = url;
+      if (token) {
+        const img = await fetch(url, { credentials: 'same-origin', headers: auth });
+        if (!img.ok) return null;
+        src = URL.createObjectURL(await img.blob());
+      }
+      return { src, capturedAt: d.shot.capturedAt, sha: d.shot.sha, screen: null };
+    })
     .catch(() => null);
   bridgeShots.set(k, p);
   return p;
