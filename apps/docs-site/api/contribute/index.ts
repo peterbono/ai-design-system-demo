@@ -291,6 +291,11 @@ interface Services {
   app: AppTokens;
   /** The read token of api/_lib/team-read.ts: the same app, narrowed to read permissions. */
   readApp: AppTokens;
+  /**
+   * The same app narrowed to Commit statuses write only: the "Design check" Bridge sets on the developers' pull
+   * requests. Null token when the installation lacks it (the check is then said in Studio and in comments only).
+   */
+  statusApp: AppTokens;
   secret: string;
   /** Local mode only (api/_lib/local-admin.ts); always null in production. */
   localAdmins: LocalAdmins | null;
@@ -357,7 +362,8 @@ export function services(env: ContribEnv, deps: ContribDeps): Services | null {
   const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
   if (!redis || !app || secret.length < MIN_SECRET_LENGTH) return null;
   const readApp = deps.app ?? readTokens(appId!, pem!, deps.fetch, now, redis, secret);
-  return { redis, members: deps.members ?? memberStore(redis), email, app, readApp, secret, localAdmins: activeLocalAdmins(deps.localAdmins) };
+  const statusApp = deps.app ?? cachedApp(githubApp(appId!, pem!, deps.fetch, now, { permissions: { statuses: 'write' }, require: { statuses: 'write' }, userAgent: 'bridge-contribute' }), `${appId}:statuses`, now);
+  return { redis, members: deps.members ?? memberStore(redis), email, app, readApp, statusApp, secret, localAdmins: activeLocalAdmins(deps.localAdmins) };
 }
 
 interface Ctx {
@@ -813,7 +819,9 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   const target = `${teamBase(siteOrigin(req, ctx.env.PUBLIC_SITE_URL), t.full)}changes/?exploration=${n}&product=${encodeURIComponent(product)}`;
   // The status needs the app's Commit statuses write permission: without it the comment still says it, and Studio too.
   const named = designCheckStatus(st, need.names, { designChanging: write && body.why === 'design' && body.kind === 'changes' });
-  const status = await ghAppSend(ctx, token, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...named, context: DESIGN_CHECK, target_url: target }).catch(() => ({ status: 0, data: null }));
+  // The app's token for the proxy carries no status write: a token of its own, narrowed to it.
+  const statusToken = await ctx.svc.statusApp.installationToken(ro, rn).catch(() => null);
+  const status = statusToken ? await ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...named, context: DESIGN_CHECK, target_url: target }).catch(() => ({ status: 0, data: null })) : { status: 0, data: null };
   return json(200, { ...st, head, pull: { number: dev.number, url: dev.url }, role, statusWritten: status.status === 201 });
 }
 
@@ -2392,7 +2400,9 @@ export function designCheckFor(ctx: Ctx): (event: string, payload: unknown) => P
         break;
       }
     }
-    const write = (x: { state: string; description: string }) => ghAppSend(ctx, token, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...x, context: DESIGN_CHECK }).catch(() => undefined);
+    const statusToken = await ctx.svc.statusApp.installationToken(ro, rn).catch(() => null);
+    if (!statusToken) return 'skipped';
+    const write = (x: { state: string; description: string }) => ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...x, context: DESIGN_CHECK }).catch(() => undefined);
     if (!linked) {
       await write(NO_DESIGN);
       return 'none';
