@@ -67,7 +67,7 @@ import { explorationsConfig } from './exploration-start';
 import { siteConfig } from './repo-context';
 import { changedFiles, namesOf, pieceActions, pieceActor, previewSources, productPreviewOf, readView, withToolbar } from './product-branch';
 import { productClient, productRepoByKey } from './product-repos';
-import { isViewerPm, pmStatusLine, PM_WORDS } from '../lib/pm-view';
+import { newerPmSaid, isViewerPm, pmStatusLine, PM_WORDS } from '../lib/pm-view';
 import { BUILD_WORDS, buildRows, type BuildCheckView } from '../lib/build-check-view';
 import type { PmView } from '../components/ds/studio/LeadDecisions';
 import { bringLatestIntoExploration, copyRepos, explorationBehind } from './design-copy';
@@ -284,6 +284,12 @@ function leadViewOf(
 }
 
 /**
+ * The PM words said from this page, by exploration, for a few minutes: the page reads the exploration again after an
+ * answer and that read can come back from a cache older than the answer, so the newer word wins.
+ */
+const pmSaidHere = new Map<string, NonNullable<ReturnType<typeof pmOpinionOf>>>();
+
+/**
  * The product manager's part (boards R1, R3): who the PM of the product is (Settings > Products, read through Bridge's
  * server), their own zone when they are the viewer, where they stand for the designer and the leads. Nobody else sees
  * it (a fact only to who acts on it). The words go through Bridge's server: a PM may only view.
@@ -302,10 +308,14 @@ async function paintPm(
   if (!pm || current?.key !== key) return;
   const mine = isViewerPm(pm, o.viewer);
   if (!mine && !o.designer && !o.lead) return;
-  const said = pmOpinionOf(o.body);
-  const when = said?.at ? startedWhen(said.at) : '';
   const designerName = parseExplorationBody(o.body)?.memberName ?? o.names[o.r.author] ?? o.r.author;
   const word = (kind: 'pm-ok' | 'pm-changes' | 'pm-call', text?: string) => sayPmWord(team, { product: o.product, copy: o.copy, number: o.r.number, kind, ...(text ? { text } : {}) }, token);
+  // The zone is painted from what was said, and painted again at once from the viewer's own answer: the status line
+  // follows the click, not the next read.
+  const saidKey = `${o.copy}#${o.r.number}`;
+  const remember = (said: NonNullable<ReturnType<typeof pmOpinionOf>>): NonNullable<ReturnType<typeof pmOpinionOf>> => (pmSaidHere.set(saidKey, said), said);
+  const paintFrom = (said: ReturnType<typeof pmOpinionOf>): void => {
+  const when = said?.at ? startedWhen(said.at) : '';
   const view: PmView = {
     mine,
     title: PM_WORDS.title(pm.name),
@@ -315,6 +325,7 @@ async function paintPm(
     onSay: mine
       ? async (kind, text) => {
           await word(kind, text);
+          paintFrom(remember({ kind, at: new Date().toISOString(), ...(text ? { text } : {}), byName: pm.name } as NonNullable<ReturnType<typeof pmOpinionOf>>));
           const line = kind === 'pm-ok' ? PM_WORDS.sentOk : PM_WORDS.sentChanges;
           o.reopen(line);
           return line;
@@ -327,6 +338,7 @@ async function paintPm(
             label: PM_WORDS.agreedInCall(pm.name),
             onCall: async () => {
               await word('pm-call');
+              paintFrom(remember({ kind: 'pm-call', at: new Date().toISOString(), byName: designerName } as NonNullable<ReturnType<typeof pmOpinionOf>>));
               const line = PM_WORDS.sentCall(pm.name);
               o.reopen(line);
               return line;
@@ -335,6 +347,8 @@ async function paintPm(
         : null,
   };
   if (current?.key === key) repaint(d, key, { pm: view });
+  };
+  paintFrom(newerPmSaid(pmOpinionOf(o.body), pmSaidHere.get(saidKey)));
 }
 
 /** The check of the developers' build (board R4): who checks it, their answers, and the viewer's answer when theirs. */
