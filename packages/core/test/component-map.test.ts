@@ -48,7 +48,7 @@ describe('the team Figma file', () => {
     expect(toConfigJson(c).figma).toEqual(c.figma);
     expect(() => loadConfig({ ...base, figma: { file: 'nope' } })).toThrow(ConfigError);
     expect(() => loadConfig({ ...base, figma: 'x' })).toThrow(/"figma" must be \{ "file" \}/);
-    expect(() => loadConfig({ ...base, figma: { file: FILE, page: 1 } })).toThrow(/"figma.page" is not a known key/);
+    expect(loadConfig({ ...base, figma: { file: FILE, page: 1 } }).figma?.file).toBe(FILE);
   });
 });
 
