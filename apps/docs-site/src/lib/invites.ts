@@ -46,7 +46,7 @@ export const ROLE_WORDS: Record<MemberRole, { label: string; help: string }> = {
   view: { label: 'Can view', help: 'Sees everything in Studio and the library.' },
   edit: { label: 'Can edit', help: 'Also explores and changes the library.' },
   reviewer: { label: 'Reviewer', help: 'Also approves changes before they ship.' },
-  admin: { label: 'Admin', help: 'Also invites people and changes settings.' },
+  admin: { label: 'Admin', help: 'Also approves explorations, invites people and changes settings.' },
 };
 
 export const REVIEW_AS_ORDER: readonly ReviewAs[] = ['design', 'tech'];
@@ -154,7 +154,7 @@ export function memberLine(m: { role: MemberRole; reviews: ReviewAs[] }): string
  * "Reviewer: design", "Reviewer: code", "Reviewer: design and code", "Can edit", "Can view".
  */
 export function roleText(m: { role: MemberRole; reviews: ReviewAs[]; lead?: boolean }): string {
-  if (m.lead) return `${roleLabel(choiceOf(m))}, design lead`;
+  if (m.lead && m.role === 'edit') return 'Design lead';
   if (m.role === 'reviewer' && m.reviews.includes('design') && m.reviews.includes('tech')) return `${ROLE_WORDS.reviewer.label}: design and code`;
   return roleLabel(choiceOf(m));
 }
@@ -390,7 +390,6 @@ export const MEMBERS_WORDS = {
   /** An admin signed in by email reads it above GitHub members (the invites server's GITHUB_PEOPLE, in a list's words). */
   githubPeople: 'People who work with GitHub: change their role while signed in with GitHub as an admin of the repository.',
   /** A team with no repository yet: Reviewer waits (the invites server's REVIEWER_NEEDS_REPO). */
-  reviewerNeedsRepo: 'Reviewers approve changes on GitHub. Connect the repository first, then invite reviewers.',
   limitReached: "You reached today's invite limit. Try again tomorrow.",
 } as const;
 

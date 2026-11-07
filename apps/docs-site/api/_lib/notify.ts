@@ -36,7 +36,7 @@ import { brevoSender, type EmailSender } from './email.js';
 import { canonicalEmail, emailSpellings } from './canonical-email.js';
 import { issueKey } from './former-member.js';
 import type { FetchLike } from './http.js';
-import { memberStore, type MemberStore } from './members.js';
+import { approves, memberStore, type MemberStore } from './members.js';
 import { cleanTitle, NEEDS_KINDS, type Notice, type NotifyKind } from './notify-events.js';
 import { digestEmail, instantEmail, unsubToken, type NotifyItem, type UnsubKind } from './notify-mail.js';
 import type { Redis, RedisArg } from './redis.js';
@@ -342,7 +342,7 @@ async function withEmailLeads(notices: Notice[], d: NotifyDeps, members: MemberS
   if (!waits) return notices;
   const repoMeta = parse<RepoMeta>(await d.redis.cmd('GET', repoMetaKey(waits.repo)));
   if (!repoMeta || typeof repoMeta.team !== 'string') return notices;
-  const leads = (await members.list(repoMeta.team)).filter((m) => m.lead);
+  const leads = (await members.list(repoMeta.team)).filter(approves);
   const first = new Set<string>();
   const extra = notices.filter((n) => LEAD_WAITS.has(n.kind) && !first.has(n.kind) && first.add(n.kind)).flatMap((n) => leads.filter((m) => m.name !== n.actorName).map((m) => ({ ...n, to: [`email:${m.email}`] })));
   return [...notices, ...extra];

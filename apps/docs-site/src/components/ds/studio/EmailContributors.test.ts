@@ -58,9 +58,9 @@ describe('Settings > Members, an email contributor', () => {
 
     const user = userEvent.setup();
     await user.click(within(row).getByRole('button', { name: 'Role for Leo: Can edit' }));
-    expect(await screen.findByText('Reviewer needs a GitHub account: reviewers approve changes on GitHub. Admin works with the email.')).toBeInTheDocument();
+    await screen.findByRole('radio', { name: /Design lead/ });
     const off = (name: RegExp) => screen.getByRole('radio', { name }).getAttribute('aria-disabled') === 'true';
-    expect(off(/Reviewer/)).toBe(true);
+    expect(screen.queryByRole('radio', { name: /Reviewer/ })).toBeNull();
     expect(off(/Admin/)).toBe(false);
     expect(off(/Can edit/)).toBe(false);
     await user.keyboard('{Escape}');
@@ -109,21 +109,25 @@ describe('a real team, signed out', () => {
   });
 });
 
-describe('design lead, under the roles', () => {
-  it('is a box in the role picker of an email member, not an item of the menu', async () => {
+describe('design lead, among the roles', () => {
+  it('sits between Can edit and Admin for an email member, with no Reviewer', async () => {
     const lead = { on: false, onChange: vi.fn() };
     const user = userEvent.setup();
     render(createElement(RolePicker, { label: 'Role for Leo', value: { role: 'edit' }, onChange: () => undefined, emailOnly: true, lead }));
     await user.click(screen.getByRole('button', { name: /^Role for Leo/ }));
-    await user.click(await screen.findByRole('checkbox', { name: /Design lead/ }));
+    const names = (await screen.findAllByRole('radio')).map((r) => r.getAttribute('aria-label') ?? r.closest('label')?.textContent ?? '');
+    expect(screen.queryByRole('radio', { name: /Reviewer/ })).toBeNull();
+    await user.click(screen.getByRole('radio', { name: /Design lead/ }));
     expect(lead.onChange).toHaveBeenCalledWith(true);
+    expect(names).toHaveLength(4);
   });
 
-  it('is not offered to someone who only views', async () => {
+  it('leaving it for another role says which', async () => {
+    const lead = { on: true, onChange: vi.fn() };
     const user = userEvent.setup();
-    render(createElement(RolePicker, { label: 'Role for Leo', value: { role: 'view' }, onChange: () => undefined, emailOnly: true, lead: { on: false, onChange: () => undefined } }));
+    render(createElement(RolePicker, { label: 'Role for Leo', value: { role: 'edit' }, onChange: () => undefined, emailOnly: true, lead }));
     await user.click(screen.getByRole('button', { name: /^Role for Leo/ }));
-    await screen.findByRole('radio', { name: /^Can view/ });
-    expect(screen.queryByRole('checkbox', { name: /Design lead/ })).toBeNull();
+    await user.click(await screen.findByRole('radio', { name: /^Can view/ }));
+    expect(lead.onChange).toHaveBeenCalledWith(false, { role: 'view' });
   });
 });

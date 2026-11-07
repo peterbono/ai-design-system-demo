@@ -149,7 +149,6 @@ export const CONTRIBUTE_WORDS = {
   signOut: 'Sign out',
   // Members.
   newBrandOff: 'A new brand changes the team settings, so someone with GitHub access to the library creates it. You can still draft it here.',
-  emailRoleNote: 'Reviewer needs a GitHub account: reviewers approve changes on GitHub. Admin works with the email.',
 } as const;
 
 /** Where a person creates a GitHub account. */

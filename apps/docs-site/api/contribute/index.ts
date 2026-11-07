@@ -167,7 +167,7 @@ import {
   type FetchLike,
 } from '../_lib/http.js';
 import { meteredFromEnv } from '../_lib/github-quota.js';
-import { memberCanWrite, memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
+import { approves, memberCanWrite, memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import { sharedAppTokens } from '../_lib/shared-token.js';
 import { configName, putTeamName } from '../_lib/teams.js';
@@ -453,7 +453,7 @@ export async function contributorOf(req: Request, repoFull: string, env: Contrib
   return sessionMember({ f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env }, req, repoFull);
 }
 
-const publicMember = (m: EmailMember) => ({ email: m.email, name: m.name, role: m.role, ref: memberRef(m.email), ...(m.lead ? { lead: true } : {}) });
+const publicMember = (m: EmailMember) => ({ email: m.email, name: m.name, role: m.role, ref: memberRef(m.email), ...(approves(m) ? { lead: true } : {}) });
 
 // ---------------------------------------------------------------------------------------------------------------
 // Small helpers
@@ -575,7 +575,7 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
       // A lead signed in by email hands an exploration over: the member record says they lead, never the browser.
       const team = parseRepo(body.repo);
       const m = await sessionMember(ctx, req, team.full);
-      if (!m?.lead) return fail(403, 'not-allowed', LEAD_ONLY);
+      if (!approves(m)) return fail(403, 'not-allowed', LEAD_ONLY);
       return explorationKeeper(ctx.svc, team.full.toLowerCase(), body);
     }
 
@@ -906,8 +906,8 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
   const info = async () => (facts ??= await repoFacts(ctx, c));
   const def = async () => (await info()).defaultBranch;
   const isDefault = async (b: string) => b.toLowerCase() === (await def()).toLowerCase();
-  const ownsBranch = async (b: unknown) => typeof b === 'string' && validBranch(b) && !(await isDefault(b)) && (sameEmail(await ctx.svc.redis.cmd('GET', branchKey(c.full, b)), c.member.email) || Boolean(c.member.lead && b.startsWith(EXPLORATION_PREFIX)));
-  const ownsIssue = async (n: string | undefined) => n !== undefined && NUMBER.test(n) && (sameEmail(await ctx.svc.redis.cmd('GET', issueKey(c.full, n)), c.member.email) || Boolean(c.member.lead && (await explorationOfLead(ctx, c, n))));
+  const ownsBranch = async (b: unknown) => typeof b === 'string' && validBranch(b) && !(await isDefault(b)) && (sameEmail(await ctx.svc.redis.cmd('GET', branchKey(c.full, b)), c.member.email) || Boolean(approves(c.member) && b.startsWith(EXPLORATION_PREFIX)));
+  const ownsIssue = async (n: string | undefined) => n !== undefined && NUMBER.test(n) && (sameEmail(await ctx.svc.redis.cmd('GET', issueKey(c.full, n)), c.member.email) || Boolean(approves(c.member) && (await explorationOfLead(ctx, c, n))));
   const recordIssue = async (data: any) => {
     if (typeof data?.number === 'number') {
       await ctx.svc.redis.cmd('SET', issueKey(c.full, data.number), c.member.email, 'EX', OWNERSHIP_TTL_S);
@@ -1022,7 +1022,7 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
       if (at('pulls', '*')) {
         if (!onlyKeys(body, ['title', 'body', 'state', 'draft']) || !(await ownsIssue(r[1]))) throw notAllowed();
         if ('body' in body) await checkLeadWords(ctx, c, c, r[1]!, body.body);
-        return { body: 'body' in body ? { ...body, body: c.member.lead && !(await ownedByKey(ctx, c, r[1]!)) ? body.body : await requested(body.body) } : body };
+        return { body: 'body' in body ? { ...body, body: approves(c.member) && !(await ownedByKey(ctx, c, r[1]!)) ? body.body : await requested(body.body) } : body };
       }
       if (at('issues', '*')) {
         if (!onlyKeys(body, ['title', 'body', 'state', 'labels']) || !(await ownsIssue(r[1]))) throw notAllowed();
@@ -1340,14 +1340,14 @@ const ownedByKey = async (ctx: Ctx, c: Call, n: string) => sameEmail(await ctx.s
 
 /** A member who is not a lead never writes a lead's words in a block (api/_lib/lead-gate.ts), read against GitHub's body. */
 async function checkLeadWords(ctx: Ctx, c: Call, at: { owner: string; repo: string }, n: string, next: unknown): Promise<void> {
-  if (c.member.lead) return;
+  if (approves(c.member)) return;
   const p = await ghApp(ctx, c.token, 'GET', `/repos/${at.owner}/${at.repo}/pulls/${n}`);
   if (p.status === 200 && addsLeadWords(p.data?.body, next, { hasLeads: (await teamFactsOf(ctx, c)).designOwners > 0 })) throw leadOnly();
 }
 
 /** The label that hands it to the developers goes with Done exploring: the same rule. */
 async function checkReadyLabel(ctx: Ctx, c: Call, labels: unknown): Promise<void> {
-  if (!c.member.lead && handsOff(labels, EXPLORATION_READY_LABEL) && (await teamFactsOf(ctx, c)).designOwners > 0) throw leadOnly();
+  if (!approves(c.member) && handsOff(labels, EXPLORATION_READY_LABEL) && (await teamFactsOf(ctx, c)).designOwners > 0) throw leadOnly();
 }
 
 const COPY_LABELS = new Set([EXPLORATION_LABEL, EXPLORATION_READY_LABEL, EXPLORATION_ARCHIVED_LABEL]);
@@ -1433,7 +1433,7 @@ async function ownedCopyPull(ctx: Ctx, m: ProxyMember, copy: RepoAt, token: stri
     head.repo.full_name.toLowerCase() === copy.full &&
     (await ownsExploration(ctx, m, copy, token, isDefault, head.ref, p.data));
   // A lead acts on it without owning it: nothing Bridge keeps about who it belongs to moves.
-  if (!mine && m.lead && p.status === 200 && explorationBlockOf(p.data?.body)) return p.data;
+  if (!mine && approves(m) && p.status === 200 && explorationBlockOf(p.data?.body)) return p.data;
   const kept = await ctx.svc.redis.cmd('GET', key);
   if (mine) {
     if (!sameEmail(kept, m.email)) {
@@ -1561,9 +1561,9 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
           if (!pull) throw notAllowed();
           // Who started it stays named in its block: the one it names already, else them.
           const was = explorationBlockOf(pull.body);
-          if ('body' in body && !c.member.lead && addsLeadWords(pull.body, body.body, { hasLeads: (await teamFactsOf(ctx, c)).designOwners > 0 })) throw leadOnly();
+          if ('body' in body && !approves(c.member) && addsLeadWords(pull.body, body.body, { hasLeads: (await teamFactsOf(ctx, c)).designOwners > 0 })) throw leadOnly();
           // A lead answering on someone else's: their words are in the block by name, the attribution stays the designer's.
-          if ('body' in body && c.member.lead && typeof was?.member === 'string' && was.member !== me.ref) return { body };
+          if ('body' in body && approves(c.member) && typeof was?.member === 'string' && was.member !== me.ref) return { body };
           const owner = typeof was?.member === 'string' ? { ref: was.member, name: typeof was.memberName === 'string' ? was.memberName : c.member.name } : me;
           return { body: 'body' in body ? { ...body, body: await h.requested(body.body, owner) } : body };
         }
@@ -1632,7 +1632,7 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
         if (typeof body.title !== 'string' || !body.title.startsWith('Design: ') || !Array.isArray(labels) || labels.length !== 1 || labels[0] !== FROM_DESIGN_LABEL) throw notAllowed();
         if (!(await linksOwnedExploration(body.body))) throw notAllowed();
         // The developers' task is what the lead's yes sends: a designer never files it past them.
-        if (!c.member.lead && (await teamFactsOf(ctx, c)).designOwners > 0) throw leadOnly();
+        if (!approves(c.member) && (await teamFactsOf(ctx, c)).designOwners > 0) throw leadOnly();
         return { body: { title: body.title, labels, body: await h.requested(body.body) }, after: h.recordIssue };
       }
       if (at('issues', '*', 'comments')) {
@@ -2075,7 +2075,7 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
       // Local mode only: a member seeded as admin reads as admin, so Studio shows them the admin screens (the server
       // checks again on every admin action).
       const admin = Boolean(m && svc.localAdmins && (await svc.localAdmins.isAdmin(full, m.email)));
-      return json(200, { available: true, member: m ? { ...publicMember(m), ...(admin ? { role: 'admin' } : {}) } : null });
+      return json(200, { available: true, member: m ? { ...publicMember(m), ...(admin ? { role: 'admin', lead: true } : {}) } : null });
     }
 
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
