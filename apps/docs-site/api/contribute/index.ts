@@ -809,7 +809,9 @@ interface BuildFacts {
   ref?: string;
   builder?: string;
 }
-const BUILD_FACTS_S = 60;
+// Ten minutes: a push or a closed pull request reaches the webhook, which forgets them (designCheckFor); an answer
+// reads everything again. A cold visit after a deploy then still answers from them.
+const BUILD_FACTS_S = 600;
 export const buildFactsKey = (copy: string, n: number) => `bridge:build:facts:${copy.toLowerCase()}#${n}`;
 
 /** A signed-out visitor of a demo team reading a build check: no email, no login, never a role that answers. */
@@ -2491,7 +2493,7 @@ async function membersOf(ctx: Ctx, req: Request, full: string, m: EmailMember | 
  * The lead guard of the webhook (api/_lib/lead-guard.ts), as the Bridge app: GitHub calls with the app's token on the
  * repository, the design owners of the team it belongs to (the notifications keep which team that is).
  */
-const DESIGN_CHECK_ACTIONS = new Set(['opened', 'reopened', 'synchronize', 'ready_for_review', 'edited']);
+const DESIGN_CHECK_ACTIONS = new Set(['opened', 'reopened', 'synchronize', 'ready_for_review', 'edited', 'closed']);
 
 /**
  * The "Design check" on every pull request of a product's developers' repository Bridge watches, from the GitHub
@@ -2507,7 +2509,8 @@ export function designCheckFor(ctx: Ctx): (event: string, payload: unknown) => P
     const repo = typeof p.repository?.full_name === 'string' ? canonicalRepo(p.repository.full_name).toLowerCase() : '';
     const pr = p.pull_request;
     const head = typeof pr?.head?.sha === 'string' ? pr.head.sha : null;
-    if (!repo || !head || !Number.isSafeInteger(pr?.number) || pr?.state === 'closed') return 'skipped';
+    if (!repo || !head || !Number.isSafeInteger(pr?.number)) return 'skipped';
+    const closed = pr?.state === 'closed' || p.action === 'closed';
     // Only the developers' repository of a product Bridge watches.
     const metaRaw = await ctx.svc.redis.cmd('GET', `bridge:notify:repo:${repo}`);
     let meta: { team?: string; kind?: string; product?: string } | null = null;
@@ -2535,6 +2538,11 @@ export function designCheckFor(ctx: Ctx): (event: string, payload: unknown) => P
     // What Studio's reads last wrote is forgotten: the next read writes its state again over this one.
     const write = (x: { state: string; description: string }) =>
       Promise.all([ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...x, context: DESIGN_CHECK }).catch(() => undefined), ctx.svc.redis.cmd('DEL', `bridge:build:status:${repo}#${pr!.number}`, ...(linked ? [buildFactsKey(linked.copy.repo, linked.copy.number)] : [])).catch(() => undefined)]);
+    // Closed (merged or not): nothing to write on it; what Studio kept of its check goes.
+    if (closed) {
+      if (linked) await ctx.svc.redis.cmd('DEL', buildFactsKey(linked.copy.repo, linked.copy.number), `bridge:build:status:${repo}#${pr!.number}`).catch(() => undefined);
+      return 'skipped';
+    }
     if (!linked) {
       await write(NO_DESIGN);
       return 'none';

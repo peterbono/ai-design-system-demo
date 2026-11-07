@@ -605,6 +605,8 @@ export async function openExploration(n: number, push = true, product: string | 
   d.hidden = false;
   d.innerHTML = `${crumbs(n, product)}<p class="rv-loading">Loading exploration #${n}</p>`;
   window.scrollTo({ top: 0 });
+  // A product's exploration: its build check is asked for now, beside the exploration's own read.
+  if (product && !after.fresh) void import('./exploration-page').then((xp) => xp.prestartBuildState(product, n)).catch(() => undefined);
   const r = await rowFor(n, product, after.fresh === true);
   // Taken now: a list read finishing later replaces what the rows were read from.
   const pull = r ? pullOf(r) : undefined;
