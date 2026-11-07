@@ -399,6 +399,29 @@ async function paintBuildShot(d: HTMLElement, key: string, code: string, pr: num
 /** The build check's two reads, started as soon as the page knows the developers' version is ready (paintBuildCheck uses them). */
 function startBuildState(product: string, copy: string, number: number, viewerRef: string | null): Promise<[BuildRead | null, TeamRead | null]> {
   const team = `${CFG.owner}/${CFG.repo}`;
+  const k = `${team}|${copy}#${number}`.toLowerCase();
+  const held = startedBuilds.get(k);
+  if (held && Date.now() - held.at < 30_000) return held.read;
+  const read = startBuildRead(team, product, copy, number, viewerRef);
+  startedBuilds.set(k, { at: Date.now(), read });
+  return read;
+}
+
+/** Build checks already asked for on this page load (prestartBuildState), reused when the page gets there. */
+const startedBuilds = new Map<string, { at: number; read: Promise<[BuildRead | null, TeamRead | null]> }>();
+
+/**
+ * An exploration link in a product with a design copy: its build check is asked for as the page starts, before the
+ * exploration itself is read (a few hundred milliseconds on a cold visit). Answers "not ready" when it is not handed off.
+ */
+export function prestartBuildState(product: string, number: number): void {
+  const at = productRepoByKey(product);
+  const pair = at ? copyRepos(at.product) : null;
+  if (!at || !pair || pair.copy.toLowerCase() !== at.repo.toLowerCase()) return;
+  void startBuildState(at.product.key, at.repo, number, currentContributor()?.ref ?? null);
+}
+
+function startBuildRead(team: string, product: string, copy: string, number: number, viewerRef: string | null): Promise<[BuildRead | null, TeamRead | null]> {
   return Promise.all([import('./contribute-session'), import('./github-session')]).then(([{ buildState, contributeTeam }, { getToken }]) => {
     const token = viewerRef ? null : getToken();
     return Promise.all([buildState(team, { product, copy, number }, token).catch(() => null), contributeTeam(team, token).catch(() => null)]);
