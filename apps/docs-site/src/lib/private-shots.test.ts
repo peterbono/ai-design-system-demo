@@ -117,5 +117,7 @@ describe('private shots: the page to open', () => {
     expect(fileHints(['src/pages/Billing.tsx', 'src/App.tsx', 'src/main.tsx', 'src/components/InvoiceBadge.tsx', '.bridge/explorations/x.md'])).toEqual(['billing', 'invoicebadge', 'invoice', 'badge']);
     // A react-admin resource: the folder names the page, the generic word of the file name does not.
     expect(fileHints(['src/resources/orders/OrderList.tsx'])).toEqual(['orderlist', 'orders', 'order']);
+    // A page before a shared stylesheet, whole names before words.
+    expect(fileHints(['src/account.module.css', 'src/pages/Billing.tsx'])).toEqual(['billing', 'account']);
   });
 });
