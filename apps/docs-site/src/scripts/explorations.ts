@@ -570,16 +570,15 @@ async function rowFor(n: number, product: string | null, fresh = false): Promise
     const one = await readOne(n, product).catch(() => null);
     if (one) return one;
   }
-  const list = await loadExplorations();
+  // The exploration itself first (one read): the page opens without waiting for the whole list (its tasks and their
+  // checks), which the Changes page reads beside it. A list already read answers at once; a failed read falls back to it.
   const key = explorationKey({ number: n, product });
-  const hit = list.find((x) => explorationKey(x) === key);
-  if (hit) return hit;
-  // A closed or promoted exploration is not in the open list: read it once.
-  try {
-    return await readOne(n, product);
-  } catch {
-    return null;
-  }
+  const known = rows.find((x) => explorationKey(x) === key);
+  if (known) return known;
+  const one = await readOne(n, product).catch(() => null);
+  if (one) return one;
+  const list = await loadExplorations();
+  return list.find((x) => explorationKey(x) === key) ?? null;
 }
 
 /** Unmounts the exploration page and the product branch page when either is open (their modules are loaded then). */
