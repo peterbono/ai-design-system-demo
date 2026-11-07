@@ -27,6 +27,8 @@ export const EXPECTED = [
 /** The heading of Check the build (components/ds/studio BuildCheck), and how long a visitor may wait for it. */
 export const CHECK_HEADING = 'Ready to ship?';
 export const CHECK_MS = 4000;
+/** The first visit, which may also wake Bridge's server functions after a deploy. */
+export const COLD_MS = 5000;
 /** A row of who checks the build: the section read, not only its frame. */
 export const CHECK_ROW = '.xp-build-row';
 
@@ -78,9 +80,15 @@ async function main() {
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     page.on('pageerror', (e) => errors.push(`uncaught: ${e.message}`));
     const checked0 = EXPECTED.find((x) => `exploration-${x.n}` === name && x.check);
-    // Check the build is timed on a warm visit: the first visit after a deploy also wakes Bridge's server functions,
-    // which is not what a visitor sees after that. One visit first, then the timed one.
-    if (checked0) await page.goto(url, { waitUntil: 'load', timeout: 60000 }).then(() => page.locator(CHECK_ROW).first().waitFor({ timeout: 30000 })).catch(() => undefined);
+    // Check the build is timed twice: the first visit (it also wakes Bridge's server functions after a deploy) within
+    // COLD_MS, then a warm one within CHECK_MS.
+    if (checked0) {
+      const t = Date.now();
+      const first = await page.goto(url, { waitUntil: 'load', timeout: 60000 }).then(() => page.locator(CHECK_ROW).first().waitFor({ timeout: COLD_MS })).then(() => true, () => false);
+      if (!first) problems.push(`${name}: on the first visit, Check the build did not show within ${COLD_MS / 1000} s`);
+      else console.log(`${name}: first visit, Check the build showed after ${((Date.now() - t) / 1000).toFixed(1)} s`);
+      await page.locator(CHECK_ROW).first().waitFor({ timeout: 30000 }).catch(() => undefined);
+    }
     const started = Date.now();
     const res = await page.goto(url, { waitUntil: 'load', timeout: 60000 }).catch((e) => ({ status: () => `failed (${e.message})` }));
     if (res?.status?.() !== 200) problems.push(`${name}: ${url} answered ${res?.status?.()}`);

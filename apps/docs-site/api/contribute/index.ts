@@ -844,6 +844,9 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   const facts = await teamFacts(ctx, t);
   const pair = facts.pairs.find((p) => p.key?.toLowerCase() === product && p.copy === copy);
   if (!pair) return fail(404, 'no_product', PM_WORDS.noProduct);
+  // Nothing to check yet: a read says so plainly (200, ready false), so a page that asks early logs no error; an answer
+  // is refused (409).
+  const notReady = () => (write ? fail(409, 'not_ready', BUILD_WORDS.notReady) : json(200, { ready: false, message: BUILD_WORDS.notReady }));
   const [co, cn] = copy.split('/') as [string, string];
   const [ro, rn] = pair.code.split('/') as [string, string];
   // A read reuses what GitHub said a minute ago (the exploration, its task, the developers' pull request and head):
@@ -883,17 +886,17 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
     exBody = String(ex.data?.body ?? '');
     const tk = taskOfUrl(block.task);
     // Only the task of that product, in its developers' repository.
-    if (!tk || tk.repo !== canonicalRepo(pair.code).toLowerCase()) return fail(409, 'not_ready', BUILD_WORDS.notReady);
+    if (!tk || tk.repo !== canonicalRepo(pair.code).toLowerCase()) return notReady();
     task = tk;
     token = dt ?? '';
     if (!token) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
     const tl = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/issues/${task.number}/timeline?per_page=100`);
     const d = tl.status === 200 ? devPullOfEvents(tl.data, pair.code) : null;
-    if (!d || d.draft) return fail(409, 'not_ready', BUILD_WORDS.notReady);
+    if (!d || d.draft) return notReady();
     dev = d;
     const pr = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/pulls/${dev.number}`);
     const h = typeof pr.data?.head?.sha === 'string' ? (pr.data.head.sha as string) : null;
-    if (pr.status !== 200 || !h || pr.data?.draft === true || pr.data?.state !== 'open') return fail(409, 'not_ready', BUILD_WORDS.notReady);
+    if (pr.status !== 200 || !h || pr.data?.draft === true || pr.data?.state !== 'open') return notReady();
     head = h;
     ref = typeof pr.data?.head?.ref === 'string' ? pr.data.head.ref : null;
     builder = typeof pr.data?.user?.login === 'string' ? pr.data.user.login : null;

@@ -167,7 +167,10 @@ describe('check the build', () => {
   it('nothing before the build is ready', async () => {
     const s = setup({ draft: true });
     const mia = await as(s, 'mia@acme.design', 'Mia', 'edit');
-    expect((await handleContribute(post({ action: 'build-state', ...at }, mia), ENV, s.deps)).status).toBe(409);
+    const read = await handleContribute(post({ action: 'build-state', ...at }, mia), ENV, s.deps);
+    expect(read.status).toBe(200);
+    expect(await read.json()).toMatchObject({ ready: false });
+    expect((await handleContribute(post(say('looks-right'), mia), ENV, s.deps)).status).toBe(409);
     expect(s.world.statuses).toEqual([]);
   });
 });
