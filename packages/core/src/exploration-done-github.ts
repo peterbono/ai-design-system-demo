@@ -28,6 +28,7 @@ import {
   withLeadAskedTo,
   withoutDoneExploring,
   withoutLeadAsked,
+  type Decision,
   type DoneExploringPlan,
   type ExplorationChecks,
   type ExplorationStatus,
@@ -40,6 +41,7 @@ import { liveAddressOf, productCodeRepoOf, productOfDesignCopy, type ProductConf
 import { addressTaskBody, designTaskBody, designTaskTitle, githubLoginOf, FROM_DESIGN_LABEL, FROM_DESIGN_LABEL_COLOR, FROM_DESIGN_LABEL_DESCRIPTION } from './design-copy-github';
 import type { RequestSource } from './requests';
 import { notesSpec, parseExplorationNotes } from './exploration-notes';
+import { NOTES_BACK_COMMIT_MESSAGE } from './exploration-resume';
 
 const DONE_COMMIT_MESSAGE = 'chore(explore): done exploring, remove the exploration note';
 
@@ -213,7 +215,7 @@ export interface BackToExploring {
  * then the `exploration` label comes back and `ready-for-devs` goes. A refused label write is a warning, never a
  * failure. Pieces already sent to the library stay sent.
  */
-export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { date?: Date | undefined; by?: string | null | undefined; reason?: string | undefined } = {}): Promise<BackToExploring> {
+export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | number, opts: { date?: Date | undefined; by?: string | null | undefined; reason?: string | undefined; decision?: Omit<Decision, 'round' | 'sha'> | undefined } = {}): Promise<BackToExploring> {
   if (!gh.canWrite) throw new GitHubError(401, 'Going back to exploring needs a GitHub token (pull requests: write).');
   const p = await findExplorationOnGitHub(gh, ref);
   const status = explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body, headSha: p.headSha, draft: p.draft });
@@ -233,13 +235,18 @@ export async function reopenExplorationOnGitHub(gh: GitHubClient, ref: string | 
       out.warnings.push(`The developers' task stays open (${(e as Error).message}). Close ${task.url} on GitHub.`);
     }
   }
-  await gh.updatePullRequest(p.number, { body: withoutDoneExploring(p.body, (opts.date ?? new Date()).toISOString(), githubLoginOf(opts.by)) });
+  const running = withoutDoneExploring(p.body, (opts.date ?? new Date()).toISOString(), githubLoginOf(opts.by));
+  await gh.updatePullRequest(p.number, { body: opts.decision ? withDecision(running, { ...opts.decision, sha: p.headSha }) : running });
   const x = gh.withBranchPrefix(EXPLORATION_PREFIX);
-  await restoreNotes(gh, x, p).catch((e: Error) => out.warnings.push(`The exploration notes did not come back (${e.message}).`));
-  if (!(await x.addLabels(p.number, [EXPLORATION_LABEL]))) out.warnings.push(`The ${EXPLORATION_LABEL} label could not be added back.`);
-  await x.removeLabel(p.number, EXPLORATION_READY_LABEL).catch((e: Error) => {
-    if (!(e instanceof GitHubError && e.status === 404)) out.warnings.push(`The ${EXPLORATION_READY_LABEL} label is still on (${e.message}).`);
-  });
+  // The body already says it runs: the notes and the labels follow side by side, the label added before the other leaves.
+  const notes = restoreNotes(gh, x, p).catch((e: Error) => out.warnings.push(`The exploration notes did not come back (${e.message}).`));
+  const labels = (async () => {
+    if (!(await x.addLabels(p.number, [EXPLORATION_LABEL]))) out.warnings.push(`The ${EXPLORATION_LABEL} label could not be added back.`);
+    await x.removeLabel(p.number, EXPLORATION_READY_LABEL).catch((e: Error) => {
+      if (!(e instanceof GitHubError && e.status === 404)) out.warnings.push(`The ${EXPLORATION_READY_LABEL} label is still on (${e.message}).`);
+    });
+  })();
+  await Promise.all([notes, labels]);
   return out;
 }
 
@@ -350,10 +357,7 @@ export async function notDoingOnGitHub(gh: GitHubClient, ref: string | number, i
 
 /** "Take it back": a lead takes the exploration back from the developers' list, with the reason for its designer. */
 export async function takeBackOnGitHub(gh: GitHubClient, ref: string | number, input: { reason: string; lead?: string | undefined; leadName?: string | undefined; date?: Date | undefined }): Promise<BackToExploring> {
-  const back = await reopenExplorationOnGitHub(gh, ref, { by: input.lead, date: input.date, reason: input.reason });
-  const p = await findExplorationOnGitHub(gh, back.number);
-  await gh.updatePullRequest(p.number, { body: withDecision(p.body, { kind: 'take-back', ...sayer({ by: input.lead, byName: input.leadName, date: input.date }), text: input.reason, sha: p.headSha }) });
-  return back;
+  return reopenExplorationOnGitHub(gh, ref, { by: input.lead, date: input.date, reason: input.reason, decision: { kind: 'take-back', ...sayer({ by: input.lead, byName: input.leadName, date: input.date }), text: input.reason } });
 }
 
 /** A word to the developers who already started: on their task, else on the exploration itself. */
@@ -389,7 +393,7 @@ async function restoreNotes(gh: GitHubClient, x: GitHubClient, p: { number: numb
   const at = commits.map((c) => c.commit.message).lastIndexOf(DONE_COMMIT_MESSAGE);
   if (at < 1) return;
   const content = await gh.getFileText(path, commits[at - 1]!.sha).catch(() => undefined);
-  if (content) await x.commitToBranch({ branch: p.headRef, message: 'chore(explore): bring the exploration notes back', files: [{ path, content }] });
+  if (content) await x.commitToBranch({ branch: p.headRef, message: NOTES_BACK_COMMIT_MESSAGE, files: [{ path, content }] });
 }
 
 /** The design spec from the exploration's note files on the branch (exploration-notes.ts), or null when they hold none. */

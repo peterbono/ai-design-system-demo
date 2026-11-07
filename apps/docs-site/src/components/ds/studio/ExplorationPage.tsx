@@ -81,6 +81,8 @@ export type ExplorationStage = 'loading' | 'not-started' | 'exploring' | 'handed
 /** Waiting for the design lead: one line, their answer when the viewer is a lead, Keep exploring for who asked. */
 export interface LeadView {
   line: string;
+  /** The zone's title, when it is not the question of the bar (a lead whose question waits on the designer). */
+  heading?: string;
   /** The review bar, for a lead (LeadDecisions.tsx). */
   bar?: LeadBarView | null;
   onCancel?: (() => Promise<string | void>) | null;
@@ -291,7 +293,7 @@ function LeadCard({ lead, say }: { lead: LeadView; say: (s: string) => void }) {
   return (
     <section className="xp-done zone" aria-labelledby="xp-lead-h">
       <h2 className="xp-h2" id="xp-lead-h">
-        {lead.bar ? 'Ready for the developers?' : 'With your lead'}
+        {lead.heading ?? (lead.bar ? 'Ready for the developers?' : 'With your lead')}
       </h2>
       <p>{lead.line}</p>
       {lead.onCancel && (

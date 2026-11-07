@@ -273,11 +273,14 @@ export const NEEDS_DESIGN_LABEL = 'needs-design';
 /** A reply Bridge posted for someone without GitHub (api/contribute prefixes it with their name). */
 const VIA_BRIDGE = /^\*\*[^*\n]{1,120}\*\* \(via Bridge\):/;
 
-/** Bridge's own words on the task (an app or bot account, a design review, a member's reply, taking it back). */
+/** A design lead's words to the developers, sent from Bridge (core tellDevelopersOnGitHub): never a question for the lead. */
+const LEAD_NOTE = /^\*\*[^*\n]{1,120}\*\* \(design lead\):/;
+
+/** Bridge's own words on the task (an app or bot account, a design review, a member's reply, a lead's note, taking it back, with its reason). */
 const fromBridge = (c: TaskCommentLike) => {
   const login = c.user?.login ?? '';
   const body = (c.body ?? '').trim();
-  return isBot(login) || c.user?.type === 'Bot' || body.startsWith(DESIGN_REVIEW_PREFIX) || VIA_BRIDGE.test(body) || body === DESIGN_TASK_BACK_COMMENT;
+  return isBot(login) || c.user?.type === 'Bot' || body.startsWith(DESIGN_REVIEW_PREFIX) || VIA_BRIDGE.test(body) || LEAD_NOTE.test(body) || body.startsWith(DESIGN_TASK_BACK_COMMENT);
 };
 
 /** What the developers asked the designer on their task, and whether the designer answered since. */
