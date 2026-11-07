@@ -9,7 +9,7 @@
 // reviews once the developers started), and the library part. A product exploration never checked against the
 // library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
 // viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { ALREADY_ANSWERED, answerLeadOnGitHub, archiveExplorationOnGitHub, askOtherLeadOnGitHub, branchPreviewUrl, cancelLeadAskOnGitHub, decisionsOf, handOverOnGitHub, isWaitingForLead, leadTurnOf, leadApproveOnGitHub, leadChangesOnGitHub, leadQuestionOnGitHub, notDoingOnGitHub, openDecisionOf, startExplorationOnGitHub, takeBackOnGitHub, tellDevelopersOnGitHub, EXPLORATION_PREFIX, figmaLines, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { ALREADY_ANSWERED, pmOpinionOf, answerLeadOnGitHub, archiveExplorationOnGitHub, askOtherLeadOnGitHub, branchPreviewUrl, cancelLeadAskOnGitHub, decisionsOf, handOverOnGitHub, isWaitingForLead, leadTurnOf, leadApproveOnGitHub, leadChangesOnGitHub, leadQuestionOnGitHub, notDoingOnGitHub, openDecisionOf, startExplorationOnGitHub, takeBackOnGitHub, tellDevelopersOnGitHub, EXPLORATION_PREFIX, figmaLines, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
   canPutInFigma,
@@ -67,6 +67,8 @@ import { explorationsConfig } from './exploration-start';
 import { siteConfig } from './repo-context';
 import { changedFiles, namesOf, pieceActions, pieceActor, previewSources, productPreviewOf, readView, withToolbar } from './product-branch';
 import { productClient, productRepoByKey } from './product-repos';
+import { isViewerPm, pmStatusLine, PM_WORDS } from '../lib/pm-view';
+import type { PmView } from '../components/ds/studio/LeadDecisions';
 import { bringLatestIntoExploration, copyRepos, explorationBehind } from './design-copy';
 import { claudeCodeUrl, COPY_WORDS } from '../lib/design-copy';
 import { currentAccess, currentContributor, currentViewer, designerRoute, ghGet, hasWorkingToken, studioClient } from './github-session';
@@ -271,6 +273,60 @@ function leadViewOf(
         }
       : null,
   };
+}
+
+/**
+ * The product manager's part (boards R1, R3): who the PM of the product is (Settings > Products, read through Bridge's
+ * server), their own zone when they are the viewer, where they stand for the designer and the leads. Nobody else sees
+ * it (a fact only to who acts on it). The words go through Bridge's server: a PM may only view.
+ */
+async function paintPm(
+  d: HTMLElement,
+  key: string,
+  o: { r: ExplorationRow; body: string | null | undefined; product: string; copy: string; viewer: { ref: string | null; login: string | null }; designer: boolean; lead: boolean; names: Record<string, string>; reopen: (line: string) => void },
+): Promise<void> {
+  const team = `${CFG.owner}/${CFG.repo}`;
+  const { contributeTeam, sayPmWord } = await import('./contribute-session');
+  const { getToken } = await import('./github-session');
+  const token = o.viewer.ref ? null : getToken();
+  const people = await contributeTeam(team, token).catch(() => null);
+  const pm = people?.pms[o.product.toLowerCase()];
+  if (!pm || current?.key !== key) return;
+  const mine = isViewerPm(pm, o.viewer);
+  if (!mine && !o.designer && !o.lead) return;
+  const said = pmOpinionOf(o.body);
+  const when = said?.at ? startedWhen(said.at) : '';
+  const designerName = parseExplorationBody(o.body)?.memberName ?? o.names[o.r.author] ?? o.r.author;
+  const word = (kind: 'pm-ok' | 'pm-changes' | 'pm-call', text?: string) => sayPmWord(team, { product: o.product, copy: o.copy, number: o.r.number, kind, ...(text ? { text } : {}) }, token);
+  const view: PmView = {
+    mine,
+    title: PM_WORDS.title(pm.name),
+    intro: PM_WORDS.intro(designerName),
+    line: pmStatusLine(said, { pm: pm.name, when, mine }),
+    quote: said?.kind === 'pm-changes' && said.text && !mine ? { who: faceOf(said.by ?? nameAuthor(said.byName ?? pm.name), false, o.names), when, text: said.text } : null,
+    onSay: mine
+      ? async (kind, text) => {
+          await word(kind, text);
+          const line = kind === 'pm-ok' ? PM_WORDS.sentOk : PM_WORDS.sentChanges;
+          o.reopen(line);
+          return line;
+        }
+      : null,
+    // The designer, while the PM has not said it looks good: they agreed in a call. The PM hears it and can correct it.
+    call:
+      o.designer && !mine && said?.kind !== 'pm-ok' && said?.kind !== 'pm-call'
+        ? {
+            label: PM_WORDS.agreedInCall(pm.name),
+            onCall: async () => {
+              await word('pm-call');
+              const line = PM_WORDS.sentCall(pm.name);
+              o.reopen(line);
+              return line;
+            },
+          }
+        : null,
+  };
+  if (current?.key === key) repaint(d, key, { pm: view });
 }
 
 /**
@@ -589,6 +645,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     previewBuilding,
     ...(inCopy ? { claudeCodeUrl: codeUrl(v.state === 'branch' ? v.url : null) } : {}),
   });
+  // The product manager of its product (boards R1, R3): read once, painted when known. Never on the sample team.
+  if (!handedOff && own && !r.archived && !sample)
+    void paintPm(d, key, { r, body: pull.body, product: own.product.key, copy: own.repo, viewer: { ref: member?.ref ?? null, login: member ? null : viewer }, designer: emailKeeper || designerKeeper || (!member && sameLogin(viewer, r.author)), lead: leadOther || Boolean(lead?.bar), names, reopen: (line) => reopen(line) });
   // A branch started before its product moved to a toolbar that takes the read pass: that toolbar would leave the
   // pass in the address, and the product's hash router would show an empty page. The link opens without it, and says
   // how to get the change's details (Bring it in). One read of package.json at the branch, kept by Bridge's cache.

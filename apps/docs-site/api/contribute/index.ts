@@ -175,6 +175,9 @@ import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/sessi
 import { teamInSet } from '../_lib/members.js';
 import { addsLeadWords, handsOff, LEAD_ONLY } from '../_lib/lead-gate.js';
 import { explorationKeeper } from '../_lib/exploration-keeper.js';
+import { addsPmWords, isPm, PM_ONLY, PRODUCT_KEY, pmOf, pmsOf, publicPm, setPm, withPmWord, type PmWord, type ProductPm } from '../_lib/product-pm.js';
+import { deliverNotices, type NotifyDeps } from '../_lib/notify.js';
+import type { Notice } from '../_lib/notify-events.js';
 import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-update.js';
 import { validPackageName } from '../../src/lib/library-update.js';
 import { canonicalRepo } from '../../src/lib/team-path.js';
@@ -571,6 +574,12 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
     case 'library-update':
       return await onLibraryUpdate(req, ctx, body);
 
+    case 'set-pm':
+      return await onSetPm(req, ctx, body);
+
+    case 'pm-word':
+      return await onPmWord(req, ctx, body);
+
     case 'exploration-keeper': {
       // A lead signed in by email hands an exploration over: the member record says they lead, never the browser.
       const team = parseRepo(body.repo);
@@ -582,6 +591,130 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
     default:
       return fail(400, 'bad_request', 'Unknown action.');
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The product manager of a product (api/_lib/product-pm.ts, boards R2 and R3)
+
+export const PM_WORDS = {
+  notLead: 'Leads and admins choose the product manager.',
+  noProduct: 'This team lists no such product.',
+  notMember: 'They are not on this team.',
+  noPm: 'This product has no product manager yet. A lead or an admin picks one in Settings.',
+  notYours: 'Only the designer of this exploration can say this.',
+  note: 'Say what to change.',
+  gone: 'It already went to the developers.',
+  noExploration: 'Bridge cannot find this exploration.',
+};
+
+/** Who is asking: an email member of the team (any role), or a GitHub account that reads the team's repository. */
+async function callerOn(ctx: Ctx, req: Request, team: { owner: string; repo: string; full: string }): Promise<{ email?: string; login?: string; name: string; lead: boolean } | null> {
+  const m = await sessionMember(ctx, req, team.full);
+  if (m) {
+    const admin = m.role === 'admin' || Boolean(ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(team.full, m.email)));
+    return { email: m.email, name: m.name, lead: admin || approves(m) };
+  }
+  if (!req.headers.get('authorization')) return null;
+  const a = await githubAccountOn(ctx, req, team);
+  if (a?.kind === 'expired') throw new HttpError(401, 'signin', GITHUB_EXPIRED);
+  if (a?.kind !== 'account' || !githubReadsTeam(a.perms, a.private)) return null;
+  return { login: a.login, name: a.name, lead: githubRoleOf(a.perms, a.login, (await teamFacts(ctx, team)).leads) === 'lead' };
+}
+
+/**
+ * POST { action: 'set-pm', repo, product, pm: { ref } | { login, name? } | null }: a lead or an admin of the team picks the
+ * product manager of a product (any member, Can view is enough), or none. An email member is named by their reference,
+ * never their email.
+ */
+async function onSetPm(req: Request, ctx: Ctx, body: Record<string, unknown>): Promise<Response> {
+  const team = parseRepo(body.repo);
+  const t = { ...team, full: team.full.toLowerCase() };
+  const who = await callerOn(ctx, req, t);
+  if (!who) return fail(401, 'signin', SIGNIN);
+  if (!who.lead) return fail(403, 'not-allowed', PM_WORDS.notLead);
+  const product = typeof body.product === 'string' ? body.product.trim().toLowerCase() : '';
+  if (!PRODUCT_KEY.test(product)) return fail(400, 'bad_request', PM_WORDS.noProduct);
+  const pm = body.pm as { ref?: unknown; login?: unknown; name?: unknown } | null | undefined;
+  let next: ProductPm | null = null;
+  if (pm && typeof pm.ref === 'string') {
+    const m = (await ctx.svc.members.list(t.full)).find((x) => memberRef(x.email) === pm.ref);
+    if (!m) return fail(404, 'not_found', PM_WORDS.notMember);
+    next = { email: m.email, name: m.name };
+  } else if (pm && typeof pm.login === 'string' && /^[A-Za-z0-9-]{1,39}$/.test(pm.login)) {
+    next = { login: pm.login, name: typeof pm.name === 'string' && pm.name.trim() ? pm.name.trim().slice(0, 80) : pm.login };
+  } else if (pm !== null) return fail(400, 'bad_request', PM_WORDS.notMember);
+  await setPm(ctx.svc.redis, t.full, product, next);
+  return json(200, { ok: true, pm: next ? publicPm(next) : null });
+}
+
+/**
+ * POST { action: 'pm-word', repo, product, copy, number, kind, text? }: the product manager says it looks good or needs
+ * changes (with their note) on an exploration of their product, or its designer says the PM agreed in a call. Bridge
+ * writes it in the exploration's block with its app (a PM may only view), and tells the other one.
+ */
+async function onPmWord(req: Request, ctx: Ctx, body: Record<string, unknown>): Promise<Response> {
+  const team = parseRepo(body.repo);
+  const t = { ...team, full: team.full.toLowerCase() };
+  const who = await callerOn(ctx, req, t);
+  if (!who) return fail(401, 'signin', SIGNIN);
+  const kind = body.kind;
+  if (kind !== 'pm-ok' && kind !== 'pm-changes' && kind !== 'pm-call') return fail(400, 'bad_request', 'Unknown word.');
+  const text = typeof body.text === 'string' ? body.text.trim().slice(0, 2000) : '';
+  if (kind === 'pm-changes' && !text) return fail(400, 'bad_request', PM_WORDS.note);
+  const product = typeof body.product === 'string' ? body.product.trim().toLowerCase() : '';
+  const n = Number(body.number);
+  const copy = typeof body.copy === 'string' ? body.copy.toLowerCase() : '';
+  if (!PRODUCT_KEY.test(product) || !Number.isSafeInteger(n) || n < 1) return fail(400, 'bad_request', PM_WORDS.noExploration);
+  const facts = await teamFacts(ctx, t);
+  // Only a repository of that product: its design copy or its developers' repository.
+  const pair = facts.pairs.find((p) => p.key?.toLowerCase() === product && (p.copy === copy || p.code === copy));
+  if (!pair) return fail(404, 'no_product', PM_WORDS.noProduct);
+  const pm = await pmOf(ctx.svc.redis, t.full, product);
+  if (!pm) return fail(409, 'no_pm', PM_WORDS.noPm);
+  const [owner, name] = copy.split('/') as [string, string];
+  const token = await ctx.svc.app.installationToken(owner, name);
+  if (!token) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
+  const p = await ghApp(ctx, token, 'GET', `/repos/${owner}/${name}/pulls/${n}`);
+  const block = p.status === 200 ? explorationBlockOf(p.data?.body) : null;
+  if (!block) return fail(404, 'not_found', PM_WORDS.noExploration);
+  if (typeof block.doneAt === 'string') return fail(409, 'gone', PM_WORDS.gone);
+  const designer = (typeof block.member === 'string' && who.email && block.member === memberRef(who.email)) || (who.login && typeof block.author === 'string' && block.author.toLowerCase() === who.login.toLowerCase());
+  if (kind === 'pm-call' ? !designer : !isPm(pm, who)) return fail(403, 'not-allowed', kind === 'pm-call' ? PM_WORDS.notYours : PM_ONLY);
+  const word: PmWord = { kind, at: new Date(ctx.now()).toISOString(), ...(who.login ? { by: who.login } : {}), byName: who.name, ...(kind === 'pm-changes' || (kind === 'pm-ok' && text) ? { text } : {}), ...(kind === 'pm-call' ? { to: [pm.name] } : {}) };
+  const next = withPmWord(String(p.data.body), word);
+  if (!next) return fail(404, 'not_found', PM_WORDS.noExploration);
+  const w = await ghAppSend(ctx, token, 'PATCH', `/repos/${owner}/${name}/pulls/${n}`, { body: next });
+  if (w.status !== 200) return fail(502, 'unreachable', GITHUB_DOWN);
+  await noteWrite(ctx.svc.redis, t.full, ctx.now()).catch(() => undefined);
+  // The other one hears it: the designer the PM's word, the PM the designer's word of their call.
+  const title = cleanTitle(block.name);
+  const notice: Notice = {
+    kind: kind === 'pm-ok' ? 'lead-pm-ok' : kind === 'pm-changes' ? 'lead-pm-changes' : 'lead-pm-call',
+    repo: copy,
+    items: [n],
+    title,
+    actor: { login: who.login ?? '', id: null },
+    actorName: who.name,
+    copy: null,
+    scope: 'any',
+    ...(kind === 'pm-changes' ? { quote: text.slice(0, 280) } : {}),
+    ...(kind === 'pm-call' ? { to: [pm.email ? `email:${pm.email}` : pm.login!] } : {}),
+  };
+  const nd: NotifyDeps = { redis: ctx.svc.redis, sender: notifySenderFromEnv(ctx.env, ctx.f), secret: ctx.svc.secret, origin: siteOrigin(req, ctx.env.PUBLIC_SITE_URL), now: ctx.now, members: ctx.svc.members, loginId: publicLoginId(ctx.f) };
+  await deliverNotices([notice], nd, `pm:${copy}:${n}:${word.at}`).catch(() => undefined);
+  return json(200, { ok: true, word });
+}
+
+/** A write with the app's token and a JSON body (ghApp reads only). */
+async function ghAppSend(ctx: Ctx, token: string, method: string, path: string, body: unknown): Promise<{ status: number; data: any }> {
+  let res: Response;
+  try {
+    res = await ctx.f(`${API}${path}`, { method, headers: { Accept: 'application/vnd.github+json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'User-Agent': 'bridge-contribute', 'X-GitHub-Api-Version': '2022-11-28' }, body: JSON.stringify(body) });
+  } catch {
+    throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  }
+  if (res.status >= 500) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  return { status: res.status, data: await res.json().catch(() => null) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1340,8 +1473,10 @@ const ownedByKey = async (ctx: Ctx, c: Call, n: string) => sameEmail(await ctx.s
 
 /** A member who is not a lead never writes a lead's words in a block (api/_lib/lead-gate.ts), read against GitHub's body. */
 async function checkLeadWords(ctx: Ctx, c: Call, at: { owner: string; repo: string }, n: string, next: unknown): Promise<void> {
-  if (approves(c.member)) return;
   const p = await ghApp(ctx, c.token, 'GET', `/repos/${at.owner}/${at.repo}/pulls/${n}`);
+  // The PM's words are Bridge's to write for them (action pm-word), never through the proxy, a lead's neither.
+  if (p.status === 200 && addsPmWords(p.data?.body, next)) throw new HttpError(403, 'pm-only', PM_ONLY);
+  if (approves(c.member)) return;
   if (p.status === 200 && addsLeadWords(p.data?.body, next, { hasLeads: (await teamFactsOf(ctx, c)).designOwners > 0 })) throw leadOnly();
 }
 
@@ -1561,6 +1696,7 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
           if (!pull) throw notAllowed();
           // Who started it stays named in its block: the one it names already, else them.
           const was = explorationBlockOf(pull.body);
+          if ('body' in body && addsPmWords(pull.body, body.body)) throw new HttpError(403, 'pm-only', PM_ONLY);
           if ('body' in body && !approves(c.member) && addsLeadWords(pull.body, body.body, { hasLeads: (await teamFactsOf(ctx, c)).designOwners > 0 })) throw leadOnly();
           // A lead answering on someone else's: their words are in the block by name, the attribution stays the designer's.
           if ('body' in body && approves(c.member) && typeof was?.member === 'string' && was.member !== me.ref) return { body };
@@ -1982,8 +2118,10 @@ async function membersOf(ctx: Ctx, req: Request, full: string, m: EmailMember | 
   const people = await ctx.svc.members.list(full);
   // Local mode only: members seeded as admin (api/_lib/local-admin.ts) say so.
   const admins = ctx.svc.localAdmins ? await ctx.svc.localAdmins.adminsOf(full) : [];
-  const members = people.map((p) => ({ name: p.name, role: admins.some((e) => sameEmail(e, p.email)) ? 'admin' : p.role, ...(m && sameEmail(p.email, m.email) ? { you: true } : {}) }));
-  return json(200, { collaborators, members }, { 'Cache-Control': 'private, no-store' });
+  // Each with their reference (a hash, never the email): Settings picks a product manager by it.
+  const members = people.map((p) => ({ name: p.name, role: admins.some((e) => sameEmail(e, p.email)) ? 'admin' : p.role, ref: memberRef(p.email), ...(m && sameEmail(p.email, m.email) ? { you: true } : {}) }));
+  const pms = Object.fromEntries(Object.entries(await pmsOf(ctx.svc.redis, full).catch(() => ({}) as Record<string, ProductPm>)).map(([k, v]) => [k, publicPm(v)]));
+  return json(200, { collaborators, members, pms }, { 'Cache-Control': 'private, no-store' });
 }
 
 // ---------------------------------------------------------------------------------------------------------------

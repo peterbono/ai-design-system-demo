@@ -384,6 +384,9 @@ export const PRODUCTS_WORDS = {
   rename: 'Rename',
   renameLabel: (name: string) => `Rename ${name}`,
   setIn: 'bridge.config.json, products',
+  pm: 'Product manager',
+  pmHint: 'Sees its explorations first and says what they think. Can view is enough.',
+  noPm: 'No product manager',
 } as const;
 
 /** Where a product's explorations happen, in one sentence a designer reads. */

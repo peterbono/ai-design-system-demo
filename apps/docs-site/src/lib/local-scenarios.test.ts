@@ -192,7 +192,7 @@ describe('what each scenario is for', () => {
     const conf = await get(`?repo=acme/acme-product&gh=${encodeURIComponent('/repos/acme/acme-product/contents/bridge.config.json')}`);
     expect(JSON.parse(Buffer.from(conf.content, 'base64').toString('utf8'))).toMatchObject({ name: 'Acme Product', repo: { owner: 'acme', name: 'acme-product' } });
     const people = await get('?repo=acme/acme-product&members=1');
-    expect(people.members).toEqual(expect.arrayContaining([{ name: 'Sam Rivera', role: 'admin', you: true }, { name: 'Priya Shah', role: 'edit' }]));
+    expect(people.members).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Sam Rivera', role: 'admin', you: true }), expect.objectContaining({ name: 'Priya Shah', role: 'edit' })]));
   });
 
   it('S13: the own request can be cancelled, and the short one lapses after 3 minutes', async () => {

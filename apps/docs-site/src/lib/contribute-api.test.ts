@@ -852,7 +852,9 @@ describe('GET ?members=1: the team for anyone on it', () => {
     expect(r.status).toBe(200);
     const body = await r.json();
     expect(body.collaborators).toEqual([{ login: 'peterbono', avatar_url: 'https://avatars.githubusercontent.com/u/1', role_name: 'admin', permissions: { admin: true, push: true, pull: true } }]);
-    expect(body.members).toEqual(expect.arrayContaining([{ name: 'Mia Chen', role: 'edit', you: true }, { name: 'Leo Park', role: 'edit' }]));
+    expect(body.members).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Mia Chen', role: 'edit', you: true }), expect.objectContaining({ name: 'Leo Park', role: 'edit' })]));
+    // Each with a reference to pick them as a product manager: a hash, never their email.
+    for (const m of body.members) expect(m.ref).toMatch(/^[0-9a-f]{16}$/);
     expect(JSON.stringify(body)).not.toContain('@acme.design');
   });
 
@@ -861,7 +863,7 @@ describe('GET ?members=1: the team for anyone on it', () => {
     await join(s);
     const reader = await handleContribute(list({ authorization: 'Bearer gho_readerreaderreader01' }), ENV, withPeople(s));
     expect(reader.status).toBe(200);
-    expect((await reader.json()).members).toEqual([{ name: 'Mia Chen', role: 'edit' }]);
+    expect((await reader.json()).members).toEqual([expect.objectContaining({ name: 'Mia Chen', role: 'edit' })]);
     expect((await handleContribute(list({ authorization: 'Bearer gho_strangerstranger001' }), ENV, withPeople(s))).status).toBe(401);
     expect((await handleContribute(list({}), ENV, withPeople(s))).status).toBe(401);
   });
