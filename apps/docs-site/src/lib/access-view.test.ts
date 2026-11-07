@@ -127,17 +127,17 @@ describe('the team chip', () => {
     expect(chipIdentity('the-bridge-company/ai-design-system-demo', { demo: true, state: 'admin', signedIn: true }).badge.label).toBe('Admin');
     expect(chipIdentity('acme/ds', { demo: false, state: 'anonymous-public', signedIn: false })).toMatchObject({ kind: 'team', name: 'Ds', title: 'Ds, acme/ds', badge: { label: 'Guest' } });
     expect(chipIdentity('acme/ds', { demo: false, state: 'writer', signedIn: true, name: 'Acme Studio' })).toMatchObject({ name: 'Acme Studio', title: 'Acme Studio, acme/ds' });
-    expect(chipIdentity('peterbono/bridge-demo-ds', { demo: true, state: null, signedIn: false, name: 'Other' }).name).toBe('Acme Design');
+    expect(chipIdentity('acme-design-demo/bridge-demo-ds', { demo: true, state: null, signedIn: false, name: 'Other' }).name).toBe('Acme Design');
     expect(chipIdentity('acme/ds', { demo: false, state: 'writer', signedIn: true }).badge.label).toBe('Can edit');
     expect(isDemoTeam('The-Bridge-Company/AI-design-system-demo', false)).toBe(true);
     expect(isDemoTeam('the-bridge-company/ai-design-system-demo', true)).toBe(true);
-    expect(isDemoTeam('peterbono/bridge-demo-ds', true)).toBe(true);
+    expect(isDemoTeam('acme-design-demo/bridge-demo-ds', true)).toBe(true);
     expect(isDemoTeam('acme/ds', false)).toBe(false);
   });
 
   it('shows the sample team as Acme Design with a Demo tag, whatever the access', () => {
     for (const f of [{ state: null, signedIn: false }, { state: 'admin' as const, signedIn: true }]) {
-      const chip = chipIdentity('peterbono/bridge-demo-ds', { demo: true, ...f });
+      const chip = chipIdentity('acme-design-demo/bridge-demo-ds', { demo: true, ...f });
       expect(chip).toMatchObject({ kind: 'demo', sample: true, name: 'Acme Design', badge: { label: 'Demo', tone: 'info' } });
       expect(chip.title).toBe('Acme Design, a sample team');
     }
@@ -196,9 +196,9 @@ describe('who can do what', () => {
 
 describe('accessSummary on the demo', () => {
   it('tells a signed-out visitor they explore sample data, not to sign in to see what they can do', () => {
-    expect(accessSummary(null, { login: null, repo: 'peterbono/bridge-demo-ds', demo: true })).toBe("You're exploring the demo with sample data. Nothing you do here is saved.");
+    expect(accessSummary(null, { login: null, repo: 'acme-design-demo/bridge-demo-ds', demo: true })).toBe("You're exploring the demo with sample data. Nothing you do here is saved.");
     expect(accessSummary(null, { login: null, repo: 'acme/ds' })).toMatch(/^Sign in with GitHub/);
-    expect(accessSummary(null, { login: 'ann', repo: 'peterbono/bridge-demo-ds', demo: true })).toMatch(/^Checking/);
+    expect(accessSummary(null, { login: 'ann', repo: 'acme-design-demo/bridge-demo-ds', demo: true })).toMatch(/^Checking/);
   });
 });
 
@@ -218,7 +218,7 @@ describe('the names of the recent teams', () => {
   it('names a recent team by the name its page read, else like everywhere else', () => {
     expect(recentTeamName('Acme/DS', { 'acme/ds': 'Acme' })).toBe('Acme');
     expect(recentTeamName('globex/design-tokens', {})).toBe('Design tokens');
-    expect(recentTeamName('peterbono/bridge-demo-ds', {})).toBe('Acme Design');
+    expect(recentTeamName('acme-design-demo/bridge-demo-ds', {})).toBe('Acme Design');
   });
 });
 

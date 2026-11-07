@@ -1,6 +1,6 @@
 // Who is in the team of this page, for Settings > Members and the Invite collaborators dialog (lib/invites.ts has the
 // rules). Three contexts, never mixed (lib/invites membersContext):
-//   sample  Acme Design (peterbono/bridge-demo-ds): its fixed sample people, no GitHub call at all, so a guest spends
+//   sample  Acme Design (acme-design-demo/bridge-demo-ds): its fixed sample people, no GitHub call at all, so a guest spends
 //           none of the 60 reads an hour GitHub gives them. Every change opens the demo dialog instead.
 //   real    any other team, Bridge's own included: the repository's people on GitHub (signed in with write access,
 //           GitHub lists them; any other member, an email contributor or a GitHub reader, reads the same list from

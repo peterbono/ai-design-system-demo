@@ -104,7 +104,7 @@ describe('what a Library page shows', () => {
   });
 
   it('tells the sample team, a real team and no repository apart', () => {
-    expect(accessContext('peterbono/bridge-demo-ds', false)).toBe('sample');
+    expect(accessContext('acme-design-demo/bridge-demo-ds', false)).toBe('sample');
     expect(accessContext('the-bridge-company/ai-design-system-demo', false)).toBe('real');
     expect(accessContext('acme/ds', true)).toBe('none');
   });

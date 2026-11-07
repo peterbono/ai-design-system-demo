@@ -22,7 +22,7 @@ export const WORKSPACE_HOME = `${STUDIO_ROOT}workspace/`;
 export const WORKSPACE_SETTINGS = `${WORKSPACE_HOME}settings/`;
 
 /** The demo team on the hosted site (lib/demo.ts DEMO_REPOS), for browser code that cannot read lib/nav.ts. */
-export const DEMO_HOME = `${STUDIO_ROOT}peterbono/bridge-demo-ds/`;
+export const DEMO_HOME = `${STUDIO_ROOT}acme-design-demo/bridge-demo-ds/`;
 
 /** What this browser remembers of the start (localStorage, a per-viewer convenience). */
 export const START_KEY = 'bridge.start';

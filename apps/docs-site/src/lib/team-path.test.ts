@@ -172,7 +172,8 @@ describe('renamed repositories (old names that live on in links, bookmarks and o
     expect(canonicalRepo(' PeterBono/AI-Design-System-Demo ')).toBe('the-bridge-company/ai-design-system-demo');
     expect(canonicalRepo('art-print-shop-co/art-print-shop')).toBe('the-bridge-company/art-print-shop');
     expect(canonicalRepo('Art-Print-Shop-Co/Shop')).toBe('the-bridge-company/Shop');
-    expect(canonicalRepo('peterbono/bridge-demo-ds')).toBe('peterbono/bridge-demo-ds');
+    expect(canonicalRepo('peterbono/bridge-demo-ds')).toBe('acme-design-demo/bridge-demo-ds');
+    expect(canonicalRepo('peterbono/other-repo')).toBe('peterbono/other-repo');
     expect(canonicalRepo('Acme/DS')).toBe('Acme/DS');
     expect(canonicalRepo('_team/0123456789abcdef')).toBe('_team/0123456789abcdef');
     expect(canonicalOwner('art-print-shop-co')).toBe('the-bridge-company');

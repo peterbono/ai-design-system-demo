@@ -43,7 +43,7 @@ const real = (over: Partial<AccessData> = {}): AccessData => ({
   ...over,
 });
 
-const sample = (): AccessData => ({ ...real(), context: 'sample', repo: 'peterbono/bridge-demo-ds', team: 'Acme Design', setting: { mode: 'email', domains: ['acme.design'] }, stored: true, isPrivate: null });
+const sample = (): AccessData => ({ ...real(), context: 'sample', repo: 'acme-design-demo/bridge-demo-ds', team: 'Acme Design', setting: { mode: 'email', domains: ['acme.design'] }, stored: true, isPrivate: null });
 
 beforeEach(() => {
   vi.clearAllMocks();

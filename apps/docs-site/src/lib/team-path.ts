@@ -57,6 +57,8 @@ export function teamKeyOfPage(): string | null {
 // Keys are lower case. A repository rename goes in RENAMED_REPOS, an organization rename in RENAMED_OWNERS.
 export const RENAMED_REPOS: Readonly<Record<string, string>> = {
   'peterbono/ai-design-system-demo': 'the-bridge-company/ai-design-system-demo',
+  // The sample team moved to its own organization (2026-11-07).
+  'peterbono/bridge-demo-ds': 'acme-design-demo/bridge-demo-ds',
 };
 export const RENAMED_OWNERS: Readonly<Record<string, string>> = {
   'art-print-shop-co': 'the-bridge-company',

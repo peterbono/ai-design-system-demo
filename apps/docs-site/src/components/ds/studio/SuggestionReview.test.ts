@@ -9,7 +9,7 @@ import { SuggestionReview, type SuggestionReviewProps } from './SuggestionReview
 
 const props = (over: Partial<SuggestionReviewProps> = {}): SuggestionReviewProps => ({
   n: 12,
-  url: 'https://github.com/peterbono/bridge-demo-ds/issues/12',
+  url: 'https://github.com/acme-design-demo/bridge-demo-ds/issues/12',
   title: 'Deeper primary blue',
   kind: 'Token change',
   summary: 'Buttons read washed out on grey.',

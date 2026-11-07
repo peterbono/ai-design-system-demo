@@ -18,7 +18,7 @@ import { canonicalRepo, isTeamKey } from './team-path.js';
  */
 // Current names only: an old one (peterbono/ai-design-system-demo) is read as its new name by isDemoRepo
 // (team-path.ts canonicalRepo, the one map of renamed repositories).
-export const DEMO_REPOS: readonly string[] = ['the-bridge-company/ai-design-system-demo', 'peterbono/bridge-demo-ds'];
+export const DEMO_REPOS: readonly string[] = ['the-bridge-company/ai-design-system-demo', 'acme-design-demo/bridge-demo-ds'];
 
 /** True for a demo design system ("owner/repo", any case, old name or new). */
 export const isDemoRepo = (repo: string | null | undefined): boolean => DEMO_REPOS.includes(canonicalRepo(repo ?? '').toLowerCase());
@@ -28,13 +28,13 @@ export const isDemoRepo = (repo: string | null | undefined): boolean => DEMO_REP
  *   - peterbono/bridge-demo-ds is a simulated team with sample data: "Acme Design" (Dana leads its design system).
  *   - the-bridge-company/ai-design-system-demo is Bridge's own design system, the real one behind this site: "Bridge DS".
  */
-export const SAMPLE_REPO = 'peterbono/bridge-demo-ds';
+export const SAMPLE_REPO = 'acme-design-demo/bridge-demo-ds';
 export const SAMPLE_TEAM = 'Acme Design';
 /** Matches `name` in the root bridge.config.json (demo.test.ts checks), for pages that name it before its settings are read. */
 export const OWN_TEAM = 'Bridge DS';
 
 /** True for the simulated team with sample data ("owner/repo", any case). */
-export const isSampleTeam = (repo: string | null | undefined): boolean => (repo ?? '').trim().toLowerCase() === SAMPLE_REPO;
+export const isSampleTeam = (repo: string | null | undefined): boolean => canonicalRepo((repo ?? '').trim()).toLowerCase() === SAMPLE_REPO;
 
 /**
  * The explored screens of the sample team's explorations, by branch: a capture of each branch's own screen code
@@ -50,8 +50,16 @@ export const SAMPLE_EXPLORATION_PREVIEWS: Readonly<Record<string, string>> = {
   'explore/plan-comparison': '/sample/explorations/plan-comparison.png',
 };
 
-/** The capture of a sample exploration's screen, by its branch, or null. */
-export const sampleExplorationPreview = (branch: string | null | undefined): string | null => (branch ? (SAMPLE_EXPLORATION_PREVIEWS[branch] ?? null) : null);
+/**
+ * The sample team reads like any team: its explorations show their product's real preview and capture, the same code
+ * path a member who views a team takes. Its static screens (SAMPLE_EXPLORATION_PREVIEWS, SAMPLE_PREVIEW_PAGES,
+ * public/sample/explorations and public/sample/previews) are only a fallback while an exploration has no preview of
+ * its own yet; turning this off removes them everywhere at once. The cleanup deletes them with this flag.
+ */
+export const SAMPLE_STATIC_FALLBACK = true;
+
+/** The capture of a sample exploration's screen, by its branch, or null: a fallback only (SAMPLE_STATIC_FALLBACK). */
+export const sampleExplorationPreview = (branch: string | null | undefined): string | null => (SAMPLE_STATIC_FALLBACK && branch ? (SAMPLE_EXPLORATION_PREVIEWS[branch] ?? null) : null);
 
 /**
  * The running screen of a sample exploration, by branch: the same screen as its capture, built from the branch's own
@@ -66,8 +74,8 @@ export const SAMPLE_PREVIEW_PAGES: Readonly<Record<string, string>> = {
   'explore/plan-comparison': '/sample/previews/plan-comparison.html',
 };
 
-/** The running screen of a sample exploration, by its branch, or null. */
-export const samplePreviewPage = (branch: string | null | undefined): string | null => (branch ? (SAMPLE_PREVIEW_PAGES[branch] ?? null) : null);
+/** The running screen of a sample exploration, by its branch, or null: a fallback only (SAMPLE_STATIC_FALLBACK). */
+export const samplePreviewPage = (branch: string | null | undefined): string | null => (SAMPLE_STATIC_FALLBACK && branch ? (SAMPLE_PREVIEW_PAGES[branch] ?? null) : null);
 
 /**
  * True for the branch of a sample exploration. The repository behind the sample team has one account, which opened

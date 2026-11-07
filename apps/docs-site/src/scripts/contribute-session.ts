@@ -127,6 +127,10 @@ export function forgetContributors() {
   forgetRecent(null);
 }
 
+/** The server's one refusal of a write on a demo team (api/contribute demoWriteRefusal): the demo dialog says why. */
+export const DEMO_REFUSAL = 'demo';
+const openDemoDialog = () => void import('./demo-gate').then(({ openMakeItYours }) => openMakeItYours()).catch(() => undefined);
+
 async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, extra: Record<string, string> = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json', ...extra };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -144,6 +148,7 @@ async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, ex
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (res.status === 503) throw new ContributeUnavailable();
   if (!res.ok) {
+    if (data.error === DEMO_REFUSAL) openDemoDialog();
     const message = typeof data.message === 'string' && data.message ? data.message : 'Something went wrong. Try again in a minute.';
     throw new ContributeError(message, typeof data.error === 'string' ? data.error : 'failed', res.status);
   }
@@ -743,6 +748,7 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
     // Bridge busy: when it is back (retryAfter), so the page says the time and reads again then (lib/github-busy).
     const wait = body?.error === 'busy' ? (typeof body.retryAfter === 'number' ? body.retryAfter : Number(res.headers.get('retry-after'))) : NaN;
     const busy = Number.isFinite(wait) && wait > 0 ? { resetsAt: new Date(Date.now() + wait * 1000) } : {};
+    if (body?.error === DEMO_REFUSAL) openDemoDialog();
     if (body && typeof body.error === 'string' && typeof body.message === 'string' && body.message) throw new GitHubError(res.status, body.message, `${CONTRIB_REFUSAL}${body.error}`, busy);
   }
   return res;

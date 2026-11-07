@@ -277,7 +277,7 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
 
   it('on the demo, offers the workspace the visitor came from and not the demo again', async () => {
     page.team = { owner: 'peterbono', repo: 'bridge-demo-ds' };
-    localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['peterbono/bridge-demo-ds', 'globex/tokens']));
+    localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['acme-design-demo/bridge-demo-ds', 'globex/tokens']));
     const user = userEvent.setup();
     render(createElement(TeamChip, { launcher: true }));
     await user.click(await screen.findByRole('button', { name: /Acme Design/ }));

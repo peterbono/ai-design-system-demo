@@ -139,6 +139,7 @@
 
 import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
+import { demoDialog } from '../../src/lib/demo.js';
 import { escHtml, mailButton, mailP, mailPage, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { explorationBlockOf, memberRef, withMemberInBlock } from '../_lib/exploration-member.js';
 import { branchKey, issueKey, mineItems, mineKey } from '../_lib/former-member.js';
@@ -185,7 +186,7 @@ import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-upd
 import { validPackageName } from '../../src/lib/library-update.js';
 import { canonicalRepo } from '../../src/lib/team-path.js';
 import { mintReadPass, passOpens, verifyReadPass, type ReadPass } from '../_lib/read-pass.js';
-import { corsHeaders, isPublicRepo, memberBudgetId, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, profileNameOf, parseChangeList, parseUserList, isPublicTeam, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
+import { corsHeaders, isPublicRepo, memberBudgetId, originAllowed, productReadAllowed, teamReadConfigOf, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, profileNameOf, parseChangeList, parseUserList, isPublicTeam, openToVisitors, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
 
@@ -614,6 +615,46 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
     default:
       return fail(400, 'bad_request', 'Unknown action.');
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The demo's one write gate
+
+/** Actions anyone may send on a demo team: signing in and out, and reads sent as POST. */
+const DEMO_OPEN_ACTIONS: ReadonlySet<string> = new Set(['sign-in', 'verify', 'sign-out', 'build-state', 'build-checks']);
+
+/** The refusal code of a write on a demo team by someone who is not on it; Studio opens its demo dialog on it. */
+export const DEMO_REFUSAL = 'demo';
+
+/**
+ * The one place a demo team (src/lib/demo.ts DEMO_REPOS: the sample team, Bridge's own design system) refuses writes:
+ * any POST, PUT, PATCH or DELETE through Bridge, by someone who is not on the team (an email member, a GitHub account
+ * that can push or triage, a Bridge account of the team), answers 403 `demo` in the demo dialog's words. Visitors read
+ * the demo exactly as a member who views it does; only this gate differs. Null: not a demo team, or someone on it.
+ */
+export async function demoWriteRefusal(ctx: Ctx, req: Request, params: URLSearchParams): Promise<Response | null> {
+  let repoArg = params.get('repo');
+  if (params.get('gh') === null) {
+    const body = (await req
+      .clone()
+      .json()
+      .catch(() => null)) as { action?: unknown; repo?: unknown } | null;
+    if (typeof body?.action === 'string' && DEMO_OPEN_ACTIONS.has(body.action)) return null;
+    if (typeof body?.repo === 'string') repoArg = body.repo;
+  }
+  if (!repoArg) return null;
+  let team: { owner: string; repo: string; full: string };
+  try {
+    team = parseRepo(repoArg);
+  } catch {
+    return null;
+  }
+  if (!isPublicTeam(team.full)) return null;
+  if (await sessionMember(ctx, req, team.full)) return null;
+  if (req.headers.get('authorization') && (await githubTeamReaderOf(ctx, req, { ...team, full: team.full.toLowerCase() }))) return null;
+  const a = await sessionAccount(req, ctx.svc.redis, ctx.svc.secret, ctx.now());
+  if (a && ((await teamInSet(ctx.svc.redis, a.email, team.full)) || (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(team.full, a.email))))) return null;
+  return fail(403, DEMO_REFUSAL, demoDialog(team.full).lead);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -2159,7 +2200,7 @@ async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx, pas
   // read only, that product only, the visitor's allow-list, the member's budget. Cookies still ignored.
   if (ctx.cross && pass) return { kind: 'member', pass: { budget: pass.m, repos: pass.r } };
   // A page of another origin reads as a visitor of a public demo team, whatever cookie the browser sent.
-  if (ctx.cross) return isPublicTeam(full) && (await isPublicRepo(rctx, ...(full.split('/') as [string, string]))) ? { kind: 'guest' } : null;
+  if (ctx.cross) return isPublicTeam(full) && (openToVisitors(full) || (await isPublicRepo(rctx, ...(full.split('/') as [string, string])))) ? { kind: 'guest' } : null;
   // A member reads on their own budget (api/_lib/team-read.ts budgetOf), not their address's.
   const m = await sessionMember(ctx, req, full);
   if (m) return { kind: 'member', email: m.email };
@@ -2177,7 +2218,7 @@ async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx, pas
   }
   if (isPublicTeam(full)) {
     const { owner, repo } = parseRepo(full);
-    if (await isPublicRepo(rctx, owner, repo)) return { kind: 'guest' };
+    if (openToVisitors(full) || (await isPublicRepo(rctx, owner, repo))) return { kind: 'guest' };
   }
   return null;
 }
@@ -2546,6 +2587,10 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
 
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
     const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env, ...(cross ? { cross } : {}) };
+    if (method !== 'GET') {
+      const refused = await demoWriteRefusal(ctx, req, params);
+      if (refused) return refused;
+    }
     if (gh !== null || ((blobs !== null || users !== null || changes !== null) && method === 'GET')) return await onProxy(req, ctx, params);
     if (method !== 'POST') return fail(400, 'bad_request', 'Say which GitHub call, with gh.');
     return await onAction(req, ctx);

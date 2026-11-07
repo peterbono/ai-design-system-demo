@@ -280,9 +280,9 @@ describe('fixture GitHub (dev/local-github.ts)', () => {
 
   it('passes every other call to the real fetch, and gives the app token for fixtures only', async () => {
     const { get, passed, redis } = await setup();
-    await get('/repos/peterbono/bridge-demo-ds');
+    await get('/repos/acme-design-demo/bridge-demo-ds');
     await get('/user');
-    expect(passed).toEqual(['https://api.github.com/repos/peterbono/bridge-demo-ds', 'https://api.github.com/user']);
+    expect(passed).toEqual(['https://api.github.com/repos/acme-design-demo/bridge-demo-ds', 'https://api.github.com/user']);
     const app = fixtureApp(redis);
     expect(await app.installationToken('acme', 'acme-product')).toBe(FIXTURE_TOKEN);
     expect(await app.installationToken('peterbono', 'bridge-demo-ds')).toBeNull();
@@ -403,8 +403,8 @@ describe('writable fixture GitHub (dev/local-repo.ts)', () => {
     await putFixture(redis, { repo: 'acme/acme-product', name: 'Acme Product' });
     const ro = await f('https://api.github.com/repos/acme/acme-product/git/refs', { method: 'POST', headers: { Authorization: `Bearer ${personaToken('dana')}` }, body: '{}' });
     expect(ro.status).toBe(403);
-    await f('https://api.github.com/repos/peterbono/bridge-demo-ds', { method: 'GET', headers: {} });
-    expect(passed).toEqual(['https://api.github.com/repos/peterbono/bridge-demo-ds']);
+    await f('https://api.github.com/repos/acme-design-demo/bridge-demo-ds', { method: 'GET', headers: {} });
+    expect(passed).toEqual(['https://api.github.com/repos/acme-design-demo/bridge-demo-ds']);
     expect(withoutPersona({ Authorization: `Bearer ${personaToken('dana')}`, Accept: 'x' })).toEqual({ Accept: 'x' });
     vi.stubEnv('BRIDGE_LOCAL', '');
     expect((await call('dana', 'POST', '/git/blobs', { content: 'x' })).status).toBe(403);
