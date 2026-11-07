@@ -1058,3 +1058,24 @@
     order: 2;
   }
 }
+
+/* The product manager's word, for the designer and the leads (board R3): a plain section, never a second Harbor zone. */
+.xp-pm {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.xp-pm p {
+  margin: 0;
+}
+
+.xp-pm .xp-lead-quote {
+  background-color: var(--color-bg-subtle);
+}
+
+/* The PM's two answers fill the zone's width, one under the other (Fitts: full words, full-width targets). */
+.xp-pm-acts {
+  display: grid;
+  gap: var(--space-3);
+}

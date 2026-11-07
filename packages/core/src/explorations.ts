@@ -143,7 +143,17 @@ export interface Exploration {
 }
 
 /** What was said about an exploration between its designer and its lead. */
-export type DecisionKind = 'looks-right' | 'changes' | 'question' | 'answer' | 'not-doing' | 'take-back' | 'asked-someone' | 'handed' | 'archived';
+export type DecisionKind = 'looks-right' | 'changes' | 'question' | 'answer' | 'not-doing' | 'take-back' | 'asked-someone' | 'handed' | 'archived' | PmKind;
+
+/**
+ * What the product manager of the exploration's product said about it (board R3): it looks good, it needs changes (with
+ * their note), or the designer's word that the PM agreed in a call (`to`: the PM's name), which the PM can correct. Only
+ * Bridge's server writes them, for the PM (or the designer, for the call). They never take a turn in the talk with the
+ * lead: the lead reads them, nothing waits on them.
+ */
+export type PmKind = 'pm-ok' | 'pm-changes' | 'pm-call';
+export const PM_KINDS: readonly PmKind[] = ['pm-ok', 'pm-changes', 'pm-call'];
+export const isPmKind = (k: unknown): k is PmKind => PM_KINDS.includes(k as PmKind);
 
 export interface Decision {
   kind: DecisionKind;
@@ -784,11 +794,18 @@ export function withKeeper(body: string | null | undefined, to: { login: string 
 export function openDecisionOf(body: string | null | undefined): Decision | null {
   const e = parseExplorationBody(body);
   if (!e || e.doneAt) return null;
-  const all = decisionsOf(e);
+  // The PM's words never take a turn: the talk is the designer's and the lead's.
+  const all = decisionsOf(e).filter((d) => !isPmKind(d.kind));
   const last = all[all.length - 1];
   if (!last) return null;
   if (isWaitingForLead(body)) return last.kind === 'question' ? last : null;
   return last.kind === 'changes' || last.kind === 'take-back' || last.kind === 'not-doing' ? last : null;
+}
+
+/** The PM's last word on the exploration (their own, or the designer's word of their call), or null. */
+export function pmOpinionOf(body: string | null | undefined): Decision | null {
+  const e = parseExplorationBody(body);
+  return [...decisionsOf(e)].reverse().find((d) => isPmKind(d.kind)) ?? null;
 }
 
 /** Whose turn it is on a running exploration the lead is part of: the lead's, the designer's, or nobody's (null). */

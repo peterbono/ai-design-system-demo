@@ -2,7 +2,7 @@
 // Decisions list, and who the next word is for. Pure: no DOM, no fetch. The record itself is core's (explorations.ts
 // decisionsOf, openDecisionOf). Bridge voice: a designer reads it.
 import { isNameAuthor, nameOfAuthor } from './author';
-import { decisionsOf, isWaitingForLead, leadTurnOf, openDecisionOf, parseExplorationBody, type Decision, type DecisionKind } from '@bridge-ds/core';
+import { decisionsOf, isPmKind, isWaitingForLead, leadTurnOf, openDecisionOf, parseExplorationBody, type Decision, type DecisionKind } from '@bridge-ds/core';
 
 export interface DecisionRowView {
   key: string;
@@ -28,6 +28,9 @@ const VERB: Record<DecisionKind, string> = {
   'asked-someone': 'asked someone else to review',
   handed: 'handed it over',
   archived: 'archived it',
+  'pm-ok': 'said it looks good',
+  'pm-changes': 'asked for changes',
+  'pm-call': 'agreed in a call',
 };
 
 /** The name of who said it: their display name, the page's name for their login, the login last. */
@@ -42,6 +45,8 @@ export function decisionRows(all: readonly Decision[], names: Record<string, str
   return all
     .map((d, i) => {
       const to = d.to?.length ? ` to ${d.to.map((t) => names[t] ?? t).join(', ')}` : '';
+      // The designer's word for the PM's call: "Dana said Dino agreed in a call".
+      if (d.kind === 'pm-call') return { key: `${i}`, name: sayerName(d, names), login: d.by ?? `name:${d.byName ?? 'Someone'}`, verb: `said ${d.to?.[0] ?? 'the PM'} agreed in a call`, why: null, round: d.round, at: d.at };
       const verb = d.kind === 'asked-someone' ? `asked ${d.to?.map((t) => names[t] ?? t).join(', ') || 'someone else'} to review` : `${VERB[d.kind]}${d.kind === 'handed' ? to : ''}`;
       return { key: `${i}`, name: sayerName(d, names), login: d.by ?? `name:${d.byName ?? 'Someone'}`, verb, why: d.text ?? null, round: d.round, at: d.at };
     })
@@ -97,7 +102,7 @@ export function leadHomeRow(body: string | null | undefined, v: { viewer: string
   if (!e) return null;
   const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
   const turn = leadTurnOf(body);
-  const all = decisionsOf(e);
+  const all = decisionsOf(e).filter((d) => !isPmKind(d.kind));
   const last = all[all.length - 1];
   const designer = { login: e.leadAskedBy ?? e.author ?? null, name: e.leadAskedByName ?? e.memberName ?? e.leadAskedBy ?? e.author ?? 'The designer' };
   const shown = v.names?.[designer.login ?? ''] ?? designer.name;

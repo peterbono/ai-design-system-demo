@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { DecisionKind } from '@bridge-ds/core';
+import { PM_KINDS, type DecisionKind } from '@bridge-ds/core';
 import { addsLeadWords, handsOff, LEAD_KINDS } from '../../api/_lib/lead-gate';
+import { PM_KINDS as SERVER_PM_KINDS } from '../../api/_lib/product-pm';
 
 const body = (e: Record<string, unknown>) => `Text\n\n<!-- bridge-exploration ${JSON.stringify({ name: 'Orders', ...e })} -->`;
 const yes = { kind: 'looks-right', at: '2026-11-07T00:00:00Z', round: 1, by: 'flo' };
@@ -39,8 +40,9 @@ describe('what only a lead writes in a block', () => {
 });
 
 describe('the kinds', () => {
-  it('match core: every decision but the designer\'s answer', () => {
-    const kinds: DecisionKind[] = ['looks-right', 'changes', 'question', 'not-doing', 'take-back', 'asked-someone', 'handed', 'archived', 'answer'];
-    expect(kinds.filter((k) => !LEAD_KINDS.has(k))).toEqual(['answer']);
+  it('match core: every decision but the designer\'s answer and the PM\'s words', () => {
+    const kinds: DecisionKind[] = ['looks-right', 'changes', 'question', 'not-doing', 'take-back', 'asked-someone', 'handed', 'archived', 'answer', ...PM_KINDS];
+    expect(kinds.filter((k) => !LEAD_KINDS.has(k))).toEqual(['answer', 'pm-ok', 'pm-changes', 'pm-call']);
+    expect([...SERVER_PM_KINDS]).toEqual([...PM_KINDS]);
   });
 });

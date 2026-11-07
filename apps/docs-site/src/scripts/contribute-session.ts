@@ -192,8 +192,25 @@ export interface TeamPeople {
   collaborators: TeamCollaborator[];
   /** Email members by name and role; `you` marks the signed-in one. Never another member's email. */
   /** 'admin' only in `npm run dev:full`, for a member seeded as admin (api/_lib/local-admin.ts). */
-  members: { name: string; role: 'view' | 'edit' | 'admin'; you?: boolean }[];
+  members: { name: string; role: 'view' | 'edit' | 'admin'; ref?: string; you?: boolean }[];
+  /** Each product's product manager (Settings > Products): a GitHub person by login, an email member by reference. */
+  pms: Record<string, TeamPm>;
 }
+
+/** A product manager as Studio reads them: never an email. */
+export type TeamPm = { name: string; login: string } | { name: string; ref: string };
+
+const parsePms = (v: unknown): Record<string, TeamPm> => {
+  const out: Record<string, TeamPm> = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    const p = x as { name?: unknown; login?: unknown; ref?: unknown };
+    if (typeof p?.name !== 'string') continue;
+    if (typeof p.login === 'string') out[k] = { name: p.name, login: p.login };
+    else if (typeof p.ref === 'string') out[k] = { name: p.name, ref: p.ref };
+  }
+  return out;
+};
 
 /**
  * The team's people for a member who cannot list them on GitHub: an email contributor (their session cookie) or a
@@ -203,9 +220,20 @@ export async function contributeTeam(repo: string, githubToken: string | null = 
   const r = await call<Partial<TeamPeople>>('GET', `?repo=${encodeURIComponent(repo)}&members=1`, undefined, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
   const collaborators = Array.isArray(r.collaborators) ? r.collaborators.filter((c): c is TeamCollaborator => Boolean(c && typeof c.login === 'string')) : [];
   const members = Array.isArray(r.members)
-    ? r.members.filter((m) => m && typeof m.name === 'string').map((m) => ({ name: m.name.trim() || 'Contributor', role: localDevHost() && m.role === 'admin' ? ('admin' as const) : m.role === 'view' ? ('view' as const) : ('edit' as const), ...(m.you ? { you: true } : {}) }))
+    ? r.members.filter((m) => m && typeof m.name === 'string').map((m) => ({ name: m.name.trim() || 'Contributor', role: localDevHost() && m.role === 'admin' ? ('admin' as const) : m.role === 'view' ? ('view' as const) : ('edit' as const), ...(typeof m.ref === 'string' ? { ref: m.ref } : {}), ...(m.you ? { you: true } : {}) }))
     : [];
-  return { collaborators, members };
+  return { collaborators, members, pms: parsePms((r as { pms?: unknown }).pms) };
+}
+
+/** Who is the product manager of `product`, or nobody: a lead or an admin of the team (checked by the server). */
+export async function setProductPm(repo: string, product: string, pm: { ref: string } | { login: string; name?: string } | null, githubToken: string | null = null): Promise<TeamPm | null> {
+  const r = await call<{ pm?: unknown }>('POST', '', { action: 'set-pm', repo, product, pm }, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
+  return parsePms({ x: r.pm }).x ?? null;
+}
+
+/** The PM's word on an exploration of their product, or its designer's word that the PM agreed in a call. */
+export async function sayPmWord(repo: string, x: { product: string; copy: string; number: number; kind: 'pm-ok' | 'pm-changes' | 'pm-call'; text?: string }, githubToken: string | null = null): Promise<void> {
+  await call('POST', '', { action: 'pm-word', repo, ...x }, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
 }
 
 /** Asks for a sign-in link. The server answers the same whether or not the email is on the team. */

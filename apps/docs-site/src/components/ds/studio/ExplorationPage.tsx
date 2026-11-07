@@ -71,7 +71,7 @@ import { DEV_MESSAGE_WORDS } from '../../../lib/developers-message';
 import { useCopy } from './TeamLink';
 import { ClaudeGlyph, claudeNewUrl, ConnectClaudeButton, ConnectFirst, ToolAction, ToolPanel, useAiTools, useClaudeRecheck, type ToolLines, type ToolSetup } from './AiToolPanel';
 import { WhereItStands, type WhereItStandsView } from './WhereItStands';
-import { Decisions, DesignerZone, HandOverDialog, LeadBar, NotDoingZone, TellDevelopers, WhyDialog, type DesignerZoneView, type HandOverPerson, type LeadBarView, type NotDoingView } from './LeadDecisions';
+import { Decisions, DesignerZone, HandOverDialog, LeadBar, NotDoingZone, PmStatus, PmZone, TellDevelopers, WhyDialog, type DesignerZoneView, type HandOverPerson, type LeadBarView, type NotDoingView, type PmView } from './LeadDecisions';
 import type { DecisionRowView } from '../../../lib/lead-decisions';
 
 export { claudeNewUrl };
@@ -177,6 +177,8 @@ export interface ExplorationPageProps {
   lead?: LeadView | null;
   /** The lead's last open word, for the designer to answer (boards L3, L4). */
   designerZone?: DesignerZoneView | null;
+  /** The product manager of its product (boards R1, R3): their own zone for them, where they stand for the others. */
+  pm?: PmView | null;
   /** Ended by a lead, with the reason (board L5). */
   notDoing?: NotDoingView | null;
   /** The tag while the talk decides what it is ("Needs changes"), over the lifecycle's own. */
@@ -999,7 +1001,7 @@ function ExplorationBody(p: ExplorationPageProps) {
                 </Button>
               )}
               {/* Archived: the preview still opens, nothing offers to keep working on it (Unarchive first). */}
-              {!handoff && !p.archived && !answers && !answersBelow && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
+              {!handoff && !p.archived && !answers && !answersBelow && !p.pm?.mine && <ContinueButton p={p} tool={tab} line={line} say={setSaid} variant="secondary" />}
               {!p.archived && !answers && <FigmaAction p={p} tool={tab} say={setSaid} />}
             </div>
             {p.previewNote && !(p.previewBuilding && !p.previewUrl) && (
@@ -1010,7 +1012,8 @@ function ExplorationBody(p: ExplorationPageProps) {
             {!handoff && !p.archived && p.latest && <LatestLine latest={p.latest} say={setSaid} />}
           </section>
           <div className="xp-side">
-            {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} onTakeBack={p.onTakeBack ? () => setAsk('take-back') : null} /> : <DoneCard p={p} tool={tab} line={line} say={setSaid} />}
+            {handoff ? <HandoffCard h={handoff} p={p} say={setSaid} onBack={p.onReopen ? () => setAsk('reopen') : null} onTakeBack={p.onTakeBack ? () => setAsk('take-back') : null} /> : p.pm?.mine && !p.archived ? <PmZone v={p.pm} say={setSaid} /> : <DoneCard p={p} tool={tab} line={line} say={setSaid} />}
+            {!handoff && p.pm && !p.pm.mine && !p.archived && <PmStatus v={p.pm} say={setSaid} />}
             {p.decisions && <Decisions rows={p.decisions} when={startedWhen} />}
             {p.notes && (!handoff || p.notes.notes) && <WhereItStands view={p.notes} say={setSaid} />}
             {!handoff && <ActivityList rows={p.activity} />}

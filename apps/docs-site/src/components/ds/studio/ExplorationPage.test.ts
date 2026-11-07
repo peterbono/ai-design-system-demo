@@ -752,3 +752,33 @@ describe('the talk with a lead on the page', () => {
     expect(screen.queryByText('Nothing built yet')).toBeNull();
   });
 });
+
+describe('the product manager (boards R1, R3)', () => {
+  const dino = { login: 'name:Dino', name: 'Dino', agent: false, avatar: null };
+  it('the PM gives their opinion in place of the Harbor card: a note is needed for Needs changes', async () => {
+    const onSay = vi.fn(async () => 'Sent to the designer, with your note.');
+    paint({ stage: 'exploring', pm: { mine: true, title: 'What do you think, Dino?', intro: 'Mia shares this with you before it goes to the design lead.', line: 'You have not said what you think yet.', onSay } });
+    expect(screen.getByRole('heading', { name: 'What do you think, Dino?' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Happy with it?' })).toBeNull();
+    const changes = screen.getByRole('button', { name: 'Needs changes' }) as HTMLButtonElement;
+    expect(changes.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText(/Your note/), { target: { value: 'Show how many days late' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Needs changes' }));
+    });
+    expect(onSay).toHaveBeenCalledWith('pm-changes', 'Show how many days late');
+    await expectNoAxeViolations(document.body);
+  });
+
+  it('the designer reads where the PM stands, and can say they agreed in a call', async () => {
+    const onCall = vi.fn(async () => 'Noted.');
+    paint({ stage: 'exploring', pm: { mine: false, title: '', intro: '', line: 'Dino asked for changes, today.', quote: { who: dino, when: 'today', text: 'Show how many days late' }, call: { label: 'Dino agreed in a call', onCall } } });
+    expect(screen.getByRole('heading', { name: 'Product manager' })).toBeTruthy();
+    expect(screen.getByText('Show how many days late')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Happy with it?' })).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Dino agreed in a call' }));
+    });
+    expect(onCall).toHaveBeenCalled();
+  });
+});
