@@ -416,22 +416,25 @@ async function paintBuildCheck(d: HTMLElement, key: string, o: { r: ExplorationR
   const [read, people] = await (o.early ?? Promise.all([buildState(team, target, token).catch(() => null), contributeTeam(team, token).catch(() => null)]));
   if (!read || current?.key !== key || !current.props.handoff) return;
   const pm = people?.pms[o.product.toLowerCase()]?.name ?? null;
+  // The names Bridge's server knows (their GitHub profile) win over what the page could tell ("the developer").
+  const builder = read.pull.builderName ?? (o.builder === 'the developer' ? (read.pull.builder ?? o.builder) : o.builder);
+  const designer = read.designerName ?? o.designer;
   const check: BuildCheckView = {
-    line: BUILD_WORDS.line(o.builder),
-    builder: o.builder,
-    designer: o.designer,
-    rows: buildRows(read.rows, { designer: o.designer, pm, lead: null }),
+    line: BUILD_WORDS.line(builder),
+    builder,
+    designer,
+    rows: buildRows(read.rows, { designer, pm, lead: null }),
     onSay: read.role
       ? async (a) => {
           await sayBuild(team, { ...target, ...a }, token);
-          const line = a.kind === 'looks-right' ? BUILD_WORDS.sentOk : a.why === 'design' ? BUILD_WORDS.sentDesign(o.designer) : BUILD_WORDS.sentBuild(o.builder);
+          const line = a.kind === 'looks-right' ? BUILD_WORDS.sentOk : a.why === 'design' ? BUILD_WORDS.sentDesign(designer) : BUILD_WORDS.sentBuild(builder);
           o.reopen(line);
           return line;
         }
       : null,
     note: read.role ? BUILD_WORDS.pushNote : null,
   };
-  repaint(d, key, { tag: { label: BUILD_WORDS.tag, tone: 'info' }, handoff: { ...current.props.handoff, check, build: { ...current.props.handoff.build, url: o.devUrl, builder: o.builder } } });
+  repaint(d, key, { tag: { label: BUILD_WORDS.tag, tone: 'info' }, handoff: { ...current.props.handoff, check, build: { ...current.props.handoff.build, url: o.devUrl ?? current.props.handoff.build?.url ?? null, builder } } });
   if (o.code && !current.props.handoff.build?.shot) void paintBuildShot(d, key, o.code, read.pull.number);
 }
 
