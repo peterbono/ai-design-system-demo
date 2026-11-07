@@ -36,6 +36,8 @@ export interface BuildCheckView {
 export const BUILD_WORDS = {
   tag: 'Check the build',
   title: 'Ready to ship?',
+  /** While Bridge reads who checks the build: the section's place, never a blank zone. */
+  reading: 'Reading who checks the build…',
   line: (builder: string) => `${builder.charAt(0).toUpperCase()}${builder.slice(1)} finished the build. Compare it with what was approved.`,
   looksRight: 'Looks right',
   needsChanges: 'Needs changes',

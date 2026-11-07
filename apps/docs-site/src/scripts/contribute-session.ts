@@ -861,7 +861,10 @@ export interface BuildStateRead {
   state: 'pending' | 'success' | 'failure';
   rows: { role: 'designer' | 'pm' | 'lead'; required: boolean; state: 'looks-right' | 'changes' | 'waiting'; byName?: string; text?: string; why?: 'build' | 'design' }[];
   role: 'designer' | 'pm' | 'lead' | null;
-  pull: { number: number; url: string };
+  /** The developers' pull request, its branch and who opened it (the build's preview and its builder). */
+  pull: { number: number; url: string; ref?: string; builder?: string; builderName?: string };
+  /** The designer by the name they go by. */
+  designerName?: string;
 }
 
 type BuildTarget = { product: string; copy: string; number: number };

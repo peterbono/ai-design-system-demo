@@ -338,6 +338,54 @@ async function paintPm(
 }
 
 /** The check of the developers' build (board R4): who checks it, their answers, and the viewer's answer when theirs. */
+/** A hand-off zone before the page has read the rest: what Check the build needs to show, nothing else yet. */
+const EARLY_HANDOFF: NonNullable<ExplorationPageProps['handoff']> = { status: 'building', stage: null, doneBy: null, doneWhen: '', steps: [], pieces: { state: 'loading' } };
+
+/** Check the build painted from build-state alone: a frame at once, then who checks it and the two versions. */
+async function paintEarlyBuild(
+  d: HTMLElement,
+  key: string,
+  early: Promise<[BuildRead | null, TeamRead | null]>,
+  o: { r: ExplorationRow; pull: ExplorationPullLike; product: string; products: readonly ProductConfig[]; viewerRef: string | null; reopen: (line: string) => void },
+): Promise<void> {
+  const block = parseExplorationBody(o.pull.body);
+  const designer = (typeof block?.memberName === 'string' && block.memberName) || o.r.author;
+  // The frame: the section's place, its title and a calm line while it reads (never a blank zone).
+  if (current?.key === key && current.props.stage === 'loading') {
+    repaint(d, key, { stage: 'handed-off', handoff: { ...EARLY_HANDOFF, check: { line: BUILD_WORDS.reading, builder: 'the developer', designer, rows: [], onSay: null, note: null } } });
+  }
+  const [read, people] = await early;
+  if (current?.key !== key) return;
+  if (!read) {
+    // Nothing ready on the developers' side: the frame goes, the page's own read paints the hand-off.
+    if (current.props.handoff?.check?.rows.length === 0) repaint(d, key, { handoff: current.props.handoff === null ? null : { ...current.props.handoff, check: null } });
+    return;
+  }
+  const team = `${CFG.owner}/${CFG.repo}`;
+  const builder = read.pull.builderName ?? read.pull.builder ?? 'the developer';
+  const designerName = read.designerName ?? designer;
+  const pm = people?.pms[o.product.toLowerCase()]?.name ?? null;
+  const code = o.products.find((p) => p.key === o.product);
+  const buildUrl = read.pull.ref ? branchPreviewUrl(code?.preview, read.pull.ref) : null;
+  const check: BuildCheckView = {
+    line: BUILD_WORDS.line(builder),
+    builder,
+    designer: designerName,
+    rows: buildRows(read.rows, { designer: designerName, pm, lead: null }),
+    onSay: read.role
+      ? async (a) => {
+          const [{ sayBuild }, { getToken }] = await Promise.all([import('./contribute-session'), import('./github-session')]);
+          await sayBuild(team, { product: o.product, copy: productRepoByKey(o.product)?.repo ?? '', number: o.r.number, ...a }, o.viewerRef ? null : getToken());
+          const line = a.kind === 'looks-right' ? BUILD_WORDS.sentOk : a.why === 'design' ? BUILD_WORDS.sentDesign(designerName) : BUILD_WORDS.sentBuild(builder);
+          o.reopen(line);
+          return line;
+        }
+      : null,
+    note: read.role ? BUILD_WORDS.pushNote : null,
+  };
+  const h = current.props.handoff ?? EARLY_HANDOFF;
+  repaint(d, key, { stage: 'handed-off', tag: { label: BUILD_WORDS.tag, tone: 'info' }, handoff: { ...h, check, build: { url: h.build?.url ?? buildUrl, builder: h.build?.builder ?? builder } } });
+}
 /** The build check's two reads, started as soon as the page knows the developers' version is ready (paintBuildCheck uses them). */
 function startBuildState(product: string, copy: string, number: number, viewerRef: string | null): Promise<[BuildRead | null, TeamRead | null]> {
   const team = `${CFG.owner}/${CFG.repo}`;
@@ -630,6 +678,11 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     },
   };
   mod.paintExplorationPage(d, current.props);
+  // Check the build (board R4) of a design copy exploration handed to the developers: its own read through Bridge's
+  // server starts now and paints the section from that read alone (who checks, the approved and built versions), while
+  // the rest of the page reads. Its frame shows at once; it goes away if the developers have nothing ready yet.
+  const earlyBuild = handedOff && r.status !== 'shipped' && inCopy && own && !r.archived ? startBuildState(own.product.key, own.repo, r.number, member?.ref ?? null) : null;
+  if (earlyBuild && own) void paintEarlyBuild(d, key, earlyBuild, { r, pull, product: own.product.key, products, viewerRef: member?.ref ?? null, reopen: (line) => reopen(line) });
   if (leadOther)
     void listInvites(`${CFG.owner}/${CFG.repo}`)
       .then(({ members }) => {
@@ -744,8 +797,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // Its comments since Done exploring too, only when it has any (a question, or their word when they closed it), and
   // once shipped who said it looks right on their version.
   const task = inCopy && block?.task ? await readDesignTask(block.task, { doneAt: block.doneAt ?? null, shipped: true, check: false }) : null;
-  // Check the build is read through Bridge's server now, while the rest of the page reads, not after it (a few seconds).
-  const earlyBuild = inCopy && own && task?.devPull && !task.devPull.draft ? startBuildState(own.product.key, own.repo, r.number, member?.ref ?? null) : null;
+
   // The developers' own pull request on that task (their version), with its branch and the designer's last answer.
   const devRepo = task?.devPull && block?.task ? (taskRef(block.task)?.repo ?? null) : null;
   const devRead = devRepo && task?.devPull ? await readDevPull(devRepo, task.devPull) : null;
@@ -869,6 +921,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     // Shipped: the product itself, where it lives now.
     ...(status === 'shipped' ? { previewUrl: todayUrl, tryUrl: null, previewNote: null, previewBuilding: false } : {}),
     handoff: {
+      // What Check the build painted already (paintEarlyBuild) stays while the rest of the hand-off arrives.
+      ...(current?.props.handoff?.check ? { check: current.props.handoff.check } : {}),
+      ...(current?.props.handoff?.build ? { build: current.props.handoff.build } : {}),
       status,
       stage: lifecycle,
       doneBy,

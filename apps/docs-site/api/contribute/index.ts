@@ -805,6 +805,9 @@ interface BuildFacts {
   task: { repo: string; number: number };
   dev: { number: number; url: string; draft?: boolean };
   head: string;
+  /** The developers' branch and who opened it: the page fills the build's preview and names the builder from them. */
+  ref?: string;
+  builder?: string;
 }
 const BUILD_FACTS_S = 60;
 export const buildFactsKey = (copy: string, n: number) => `bridge:build:facts:${copy.toLowerCase()}#${n}`;
@@ -860,10 +863,16 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   let task: { repo: string; number: number };
   let dev: { number: number; url: string; draft?: boolean };
   let head: string;
+  let ref: string | null = null;
+  let builder: string | null = null;
   if (kept) {
     ({ block, task, dev, head } = kept);
+    ref = kept.ref ?? null;
+    builder = kept.builder ?? null;
   } else {
-    copyToken = (await ctx.svc.app.installationToken(co, cn)) ?? '';
+    // Both tokens at once: the developers' one is needed two reads later.
+    const [ct, dt] = await Promise.all([ctx.svc.app.installationToken(co, cn), ctx.svc.app.installationToken(ro, rn)]);
+    copyToken = ct ?? '';
     if (!copyToken) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
     const ex = await ghApp(ctx, copyToken, 'GET', `/repos/${co}/${cn}/pulls/${n}`);
     const b = ex.status === 200 ? explorationBlockOf(ex.data?.body) : null;
@@ -874,7 +883,7 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
     // Only the task of that product, in its developers' repository.
     if (!tk || tk.repo !== canonicalRepo(pair.code).toLowerCase()) return fail(409, 'not_ready', BUILD_WORDS.notReady);
     task = tk;
-    token = (await ctx.svc.app.installationToken(ro, rn)) ?? '';
+    token = dt ?? '';
     if (!token) return fail(409, 'product_missing', PRODUCT_APP_MISSING);
     const tl = await ghApp(ctx, token, 'GET', `/repos/${ro}/${rn}/issues/${task.number}/timeline?per_page=100`);
     const d = tl.status === 200 ? devPullOfEvents(tl.data, pair.code) : null;
@@ -884,7 +893,9 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
     const h = typeof pr.data?.head?.sha === 'string' ? (pr.data.head.sha as string) : null;
     if (pr.status !== 200 || !h || pr.data?.draft === true || pr.data?.state !== 'open') return fail(409, 'not_ready', BUILD_WORDS.notReady);
     head = h;
-    await ctx.svc.redis.cmd('SET', factsKey, JSON.stringify({ block, task, dev, head } satisfies BuildFacts), 'EX', BUILD_FACTS_S).catch(() => undefined);
+    ref = typeof pr.data?.head?.ref === 'string' ? pr.data.head.ref : null;
+    builder = typeof pr.data?.user?.login === 'string' ? pr.data.user.login : null;
+    await ctx.svc.redis.cmd('SET', factsKey, JSON.stringify({ block, task, dev, head, ...(ref ? { ref } : {}), ...(builder ? { builder } : {}) } satisfies BuildFacts), 'EX', BUILD_FACTS_S).catch(() => undefined);
   }
   const pm = await pmOf(ctx.svc.redis, t.full, product);
   // The design lead checks again only when the exploration sent pieces to the library: those change since approval.
@@ -935,7 +946,10 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   const statusToken = already ? null : await ctx.svc.statusApp.installationToken(ro, rn).catch(() => null);
   const status = statusToken ? await ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...named, context: DESIGN_CHECK, target_url: target }).catch(() => ({ status: 0, data: null })) : { status: 0, data: null };
   if (status.status === 201) await ctx.svc.redis.cmd('SET', statusKey, statusNow, 'EX', 30 * 24 * 3600).catch(() => undefined);
-  return json(200, { ...st, head, pull: { number: dev.number, url: dev.url }, role, statusWritten: already || status.status === 201 });
+  // The people by the names they go by (their GitHub profile, kept by Bridge), never a login, for the page's first paint.
+  const nameOf = async (login: string | null | undefined) => (login && /^[A-Za-z0-9-]{1,39}$/.test(login) ? ((await profileNameOf(readCtxOf(ctx), ro, rn, login).catch(() => null)) ?? login) : (login ?? null));
+  const [builderName, designerShown] = await Promise.all([nameOf(builder), typeof block.memberName === 'string' ? Promise.resolve(block.memberName) : nameOf(typeof block.author === 'string' ? block.author : typeof block.doneBy === 'string' ? block.doneBy : null)]);
+  return json(200, { ...st, head, pull: { number: dev.number, url: dev.url, ...(ref ? { ref } : {}), ...(builder ? { builder } : {}), ...(builderName ? { builderName } : {}) }, ...(designerShown ? { designerName: designerShown } : {}), role, statusWritten: already || status.status === 201 });
 }
 
 const EXPLORATION_LABEL_SERVER = 'exploration';
