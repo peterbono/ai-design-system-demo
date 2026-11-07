@@ -892,6 +892,11 @@ the cron's run shows under the project's **Cron Jobs**.
 
 ## Notifications
 
+The talk between a designer and their design lead has its own emails, read from the exploration's block when a pull
+request body changes (`leadNoticesOf`), so a write Bridge's app made for an email member counts. The leads are the
+GitHub logins the block names: each gets the email only if a Bridge account is linked to that login, else GitHub tells
+them. One reminder goes to a lead after 3 days without an answer, at the next daily round.
+
 Designers who joined by email have no GitHub account, so GitHub tells them nothing: what they file goes to GitHub as
 the Bridge app. Bridge emails them about their own work instead (phase 1). Designers signed in with GitHub get
 nothing from Bridge yet: GitHub notifies them (a follow-up may add the daily summary for them). Developers stay in

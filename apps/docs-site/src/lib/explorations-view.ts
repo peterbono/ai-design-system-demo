@@ -450,6 +450,11 @@ export function doneExploringCopy(x: { checked: boolean; pieces: number; sent: n
 
 export const LEAD_OK_LINE = 'Sent to the developers.';
 export const LEAD_CHANGES_LINE = 'Sent back to the designer.';
+export const LEAD_QUESTION_LINE = 'Sent to the designer. It waits for their answer.';
+export const NOT_DOING_LINE = 'Ended, with your reason.';
+export const TOOK_BACK_LINE = 'Back with the designer, with your reason.';
+export const TOLD_DEVELOPERS_LINE = 'Sent to the developers.';
+export const askedOtherLine = (others: readonly string[], names: Record<string, string>) => `Asked ${others.map((l) => names[l] ?? l).join(', ')}.`;
 
 /** The line after Done exploring when the design lead validates first. */
 export function leadAskedLine(pieces: number): string {

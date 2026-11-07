@@ -10,6 +10,7 @@ import {
   archiveExplorationOnGitHub,
   baseBranchOf,
   askLeadOnGitHub,
+  leadWordsForClaude,
   doneExploringOnGitHub,
   needsLeadValidation,
   parsePiecesRecord,
@@ -507,6 +508,8 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
   const ref = explorationRefLabel({ number: p.number, product: at.product?.key, repo: at.repo });
   const checkout = a.checkout === false ? { status: 'not-switched' as const, note: `Not switched. \`git fetch origin ${p.headRef} && git switch ${p.headRef}\`.` } : await switchTo(ctx, repo, p.headRef);
   const record = parsePiecesRecord(p.body);
+  // What the design lead said that waits on the designer: Claude starts from it.
+  const leadWords = leadWordsForClaude(p.body);
   // Where to see it: the product's preview Vercel reported in its repository, else the library's apps.
   const previews = at.product
     ? [await productPreviewOnGitHub(gh, at.product, { number: p.number, branch: p.headRef, sha: p.headSha }).catch(() => null)].filter((x) => x !== null)
@@ -527,6 +530,7 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
     archived,
     stage,
     whereItStands: whereItStands({ name, stage, statusLabel: EXPLORATION_STATUS_LABEL[status], events, files }),
+    ...(leadWords ? { leadWords } : {}),
     notes: notesOut(notes),
     activity: events.map((x) => ({ who: actorName(x), what: x.text, when: shortAgo(x.at) })),
     changedFiles: files,
@@ -537,6 +541,7 @@ export async function continueExploration(ctx: BridgeContext, a: { ref: string; 
     // Started from a page of a product added from its address: Claude rebuilds that page with the library first.
     ...(startPage && stage !== 'handed' ? { startFrom: startPage } : {}),
     next: [
+      ...(leadWords ? [`Tell the designer first what their lead said, in their words (leadWords), then work on it.`] : []),
       ...(startPage && stage === 'not-started' ? [startPageBrief(startPage, product.name, e?.purpose || name)] : []),
       notesEmpty(notes)
         ? 'Start by telling the designer where it stands, in one or two sentences from whereItStands and activity, without technical words, then ask what they want to do next.'

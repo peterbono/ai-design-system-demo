@@ -6,7 +6,7 @@ import { putAccount, type Account } from '../../api/_lib/account';
 import { brevoSender, parseSender, type EmailMessage, type EmailSender } from '../../api/_lib/email';
 import { issueKey } from '../../api/_lib/former-member';
 import { memberStore } from '../../api/_lib/members';
-import { cleanTitle, closedIssues, DESIGN_REVIEW_PREFIX, linkedCopy, NEEDS_DESIGN_LABEL, notifyEventsOf, QUOTE_MAX, quoteOf, TASK_BACK_PREFIX, type Notice } from '../../api/_lib/notify-events';
+import { cleanTitle, closedIssues, DESIGN_REVIEW_PREFIX, leadNoticesOf, linkedCopy, NEEDS_DESIGN_LABEL, notifyEventsOf, QUOTE_MAX, quoteOf, TASK_BACK_PREFIX, type Notice } from '../../api/_lib/notify-events';
 import { DESIGN_TASK_BACK_COMMENT } from '@bridge-ds/core';
 import { DESIGN_REVIEW_PREFIX as STUDIO_REVIEW_PREFIX, NEEDS_DESIGN_LABEL as STUDIO_NEEDS_DESIGN } from './review-state';
 import { digestEmail, digestSubject, instantEmail, linesOf, readUnsubToken, unsubToken, type NotifyItem } from '../../api/_lib/notify-mail';
@@ -22,8 +22,11 @@ import {
   parsePrefs,
   prefsOf,
   resetNotifyWarning,
+  REMIND_KEY,
   sendDueDigests,
+  sendReminders,
   validTimeZone,
+  waitingKey,
   watchWrites,
 } from '../../api/_lib/notify';
 import { memoryRedis } from '../../api/_lib/redis';
@@ -452,5 +455,123 @@ describe('the Brevo sender', () => {
     expect(parseSender('Bridge <notifications@floriangouloubi.com>')).toEqual({ name: 'Bridge', email: 'notifications@floriangouloubi.com' });
     expect(parseSender('notifications@floriangouloubi.com')).toEqual({ name: 'Bridge', email: 'notifications@floriangouloubi.com' });
     expect(parseSender('nobody')).toBeNull();
+  });
+});
+
+describe('the talk with a design lead', () => {
+  const block = (e: Record<string, unknown>) => `body\n<!-- bridge-exploration ${JSON.stringify({ name: 'Late tag', purpose: '', slug: 'late-tag', ...e })} -->`;
+  const base = { repo: COPY, number: 7 };
+  const said = (kind: string, more: Record<string, unknown> = {}) => ({ kind, at: 't', round: 1, by: 'flo', byName: 'Florian', ...more });
+  const none = block({});
+
+  it('Done exploring tells the leads asked, and a reminder starts', () => {
+    const n = leadNoticesOf(none, block({ leadAskedAt: 't', leadAskedByName: 'Mia', leadAskedTo: ['flo', 'dana'] }), base);
+    expect(n).toMatchObject([{ kind: 'lead-ask', to: ['flo', 'dana'], actorName: 'Mia', title: 'Late tag', items: [7], waits: true }]);
+  });
+  it.each([
+    ['question', 'lead-question', 'Which tab?'],
+    ['changes', 'lead-changes', 'Tighter'],
+    ['take-back', 'lead-took-back', 'The date hides'],
+    ['not-doing', 'lead-not-doing', 'Billing covers it'],
+    ['looks-right', 'lead-ok', 'Mind the tag'],
+    ['handed', 'lead-handed', 'On leave'],
+  ])('%s: for the keeper, quoting them, and the wait ends', (kind, notice, text) => {
+    const n = leadNoticesOf(none, block({ decisions: [said(kind, { text })] }), base);
+    expect(n).toMatchObject([{ kind: notice, actorName: 'Florian', quote: text, stops: true }]);
+    expect(n[0]!.to).toBeUndefined();
+  });
+  it('the answer goes to the lead who asked; asking someone else to them', () => {
+    const a = leadNoticesOf(block({ decisions: [said('question', { text: 'Which?' })] }), block({ decisions: [said('question', { text: 'Which?' }), { kind: 'answer', at: 't', round: 1, byName: 'Mia', text: 'Orders' }] }), base);
+    expect(a).toMatchObject([{ kind: 'lead-answer', to: ['flo'], quote: 'Orders', waits: true }]);
+    expect(leadNoticesOf(none, block({ leadAskedAt: 't', decisions: [said('asked-someone', { to: ['dana'] })] }), base).map((x) => [x.kind, x.to])).toContainEqual(['lead-delegated', ['dana']]);
+  });
+  it('sent back with an answer is one mail, not two; an edit that says nothing new, none', () => {
+    const before = block({ decisions: [said('changes')] });
+    const after = block({ leadAskedAt: 't', leadAskedTo: ['flo'], decisions: [said('changes'), { kind: 'answer', at: 't', round: 2, byName: 'Mia' }] });
+    expect(leadNoticesOf(before, after, base).map((x) => x.kind)).toEqual(['lead-answer']);
+    expect(leadNoticesOf(after, after, base)).toEqual([]);
+  });
+  it('reads it from an edited pull request, whoever wrote it', () => {
+    const n = notifyEventsOf('pull_request', { action: 'edited', repository: { full_name: COPY }, sender: bot, changes: { body: { from: none } }, pull_request: { number: 7, body: block({ decisions: [said('changes', { text: 'x' })] }) } });
+    expect(n.map((x) => x.kind)).toEqual(['lead-changes']);
+    expect(notifyEventsOf('pull_request', { action: 'edited', repository: { full_name: COPY }, sender: bot, changes: { title: { from: 'x' } }, pull_request: { number: 7, body: none } })).toEqual([]);
+  });
+
+  it.each([
+    ['lead-ask', 'Mia is done with Late tag', 'Look at it'],
+    ['lead-answer', 'Mia answered about Late tag', 'Read it'],
+    ['lead-delegated', 'Mia asks you to look at Late tag', 'Look at it'],
+    ['lead-reminder', 'Late tag waits for you since 3 days', 'Look at it'],
+    ['lead-question', 'Mia has a question about Late tag', 'Answer'],
+    ['lead-changes', 'Mia asked for changes on Late tag', 'Read the note'],
+    ['lead-took-back', 'Mia took Late tag back', 'Read why'],
+    ['lead-not-doing', 'Late tag will not be done', 'Read why'],
+    ['lead-handed', 'Mia handed Late tag to you', 'Open it'],
+    ['lead-ok', 'Late tag went to the developers', 'See it'],
+  ] as const)('%s reads for a designer', (kind, subject, button) => {
+    const l = linesOf({ kind, title: 'Late tag', actor: 'Mia' });
+    expect(l.subject).toBe(subject);
+    expect(l.button).toBe(button);
+    expect(`${l.subject} ${l.sentence}`).not.toMatch(/\u2014|pull request|issue|merge|repository/);
+  });
+
+  const setup = async () => {
+    const redis = memoryRedis();
+    const sent: EmailMessage[] = [];
+    let now = T0;
+    const d: NotifyDeps = { redis, sender: { send: async (m: EmailMessage) => void sent.push(m) } as EmailSender, secret: SECRET, origin: 'https://bridge.test', now: () => now, loginId: async (l: string) => (l === 'flo' ? 7 : null) };
+    await redis.pipe(watchWrites([{ repo: COPY, meta: { team: TEAM, kind: 'copy', product: 'shop' } }]));
+    await redis.cmd('SET', 'bridge:account:gh:7', 'florian@acme.design');
+    await redis.cmd('SET', issueKey(COPY, 7), MIA);
+    await memberStore(redis).put(TEAM, { email: MIA, name: 'Mia', role: 'edit', version: 1, addedBy: 'x', at: 't' });
+    return { d, redis, sent, later: (ms: number) => (now += ms) };
+  };
+
+  it('a lead with a Bridge account gets it by email, on the exploration page; without one GitHub tells them', async () => {
+    const { d, sent } = await setup();
+    const out = await deliverNotices(leadNoticesOf(none, block({ leadAskedAt: 't', leadAskedByName: 'Mia', leadAskedTo: ['flo', 'dana'] }), base), d, 'e1');
+    expect(out.map((o) => o.status)).toEqual(['sent', 'skipped']);
+    expect(sent[0]!.to).toBe('florian@acme.design');
+    expect(sent[0]!.text).toContain('changes/?exploration=7&product=shop');
+  });
+  it('the designer gets the lead\'s words; nobody hears about their own act', async () => {
+    const { d, sent } = await setup();
+    await deliverNotices(leadNoticesOf(none, block({ decisions: [said('changes', { text: 'Tighter' })] }), base), d, 'e2');
+    expect(sent[0]!.to).toBe(MIA);
+    expect(sent[0]!.text).toContain('Tighter');
+    const own = await deliverNotices([{ kind: 'lead-ok', repo: COPY, items: [7], title: 'Late tag', actor: { login: '', id: null }, actorName: 'Mia', copy: null, scope: 'any' }], d, 'e3');
+    expect(own).toEqual([{ kind: 'lead-ok', status: 'skipped', reason: 'own' }]);
+    const self = await deliverNotices(leadNoticesOf(none, block({ leadAskedAt: 't', leadAskedBy: 'flo', leadAskedTo: ['flo'] }), base), d, 'e4');
+    expect(self).toEqual([]);
+  });
+  it('went to the developers: in the daily summary', async () => {
+    const { d, redis, sent } = await setup();
+    const out = await deliverNotices(leadNoticesOf(none, block({ decisions: [said('looks-right')] }), base), d, 'e5');
+    expect(out[0]!.status).toBe('kept');
+    expect(sent).toEqual([]);
+    expect(Number(await redis.cmd('ZCARD', digestKey(MIA)))).toBe(1);
+  });
+  it('reminds a lead once after 3 days, and not if someone answered', async () => {
+    const { d, redis, sent, later } = await setup();
+    const ask = leadNoticesOf(none, block({ leadAskedAt: 't', leadAskedByName: 'Mia', leadAskedTo: ['flo'] }), base);
+    await deliverNotices(ask, d, 'e6');
+    expect(sent).toHaveLength(1);
+    later(2 * 24 * 60 * 60 * 1000);
+    await sendReminders(d);
+    expect(sent).toHaveLength(1);
+    later(24 * 60 * 60 * 1000 + 1000);
+    await redis.cmd('DEL', `bridge:notify:soon:florian@acme.design:${COPY}#7`);
+    expect(await sendReminders(d)).toBe(1);
+    expect(sent[1]!.subject).toBe('Late tag waits for you since 3 days');
+    later(4 * 24 * 60 * 60 * 1000);
+    expect(await sendReminders(d)).toBe(0);
+    expect(sent).toHaveLength(2);
+
+    await deliverNotices(ask, d, 'e7');
+    await deliverNotices(leadNoticesOf(none, block({ decisions: [said('changes')] }), base), d, 'e8');
+    expect(await redis.cmd('GET', waitingKey(COPY, 7))).toBeNull();
+    later(4 * 24 * 60 * 60 * 1000);
+    expect(await sendReminders(d)).toBe(0);
+    expect(Number(await redis.cmd('ZCARD', REMIND_KEY))).toBe(0);
   });
 });

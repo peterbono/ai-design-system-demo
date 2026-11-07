@@ -398,3 +398,19 @@ name. The plate also shows while no capture exists yet, or when an image does no
   are refused by the same guard as every other Bridge write.
 - **Same review once developers mark it ready.** It gets its tier from the files it changes: a token edit is
   Tier 3 (design and tech owner approval), a component change Tier 2, docs Tier 1 ([GOVERNANCE.md](GOVERNANCE.md)).
+
+## The talk with the design lead
+
+Done exploring goes to a design lead first, unless the lead said it or nobody else can answer. While it waits, the lead
+answers with the bar at the bottom of the page: Comment asks a question without a verdict, Needs changes needs their
+words, Looks right sends it to the developers with any words they wrote, and "..." holds Ask someone else to review and
+Not doing this. The designer answers in the page's zone, and their Claude reads the same words
+(`bridge_continue_exploration` returns `leadWords`). After Looks right a lead can Take it back with a reason until a
+developer starts; then a word still reaches the developers on their task.
+
+Everything said is kept in the exploration's block, by round (core `decisionsOf`), and shows as Decisions. A body from
+before keeps working: its `leadNote` reads as one decision of the first round, and moves on the next write.
+
+**A push after the lead was asked** does not cancel the ask: the preview always shows the latest version, the bar says it
+changed, and each decision records the commit it was said on. **Library pieces** sent at Looks right stay with the DS
+lead on Take it back: they are their own requests, and Done exploring again does not send them twice.

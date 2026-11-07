@@ -140,7 +140,7 @@ import { canonicalEmail, sameEmail } from '../_lib/canonical-email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { handleGithubWebhook } from '../_lib/github-webhook.js';
 import { cleanTitle, linkedCopy } from '../_lib/notify-events.js';
-import { itemWrite, notifySenderFromEnv, watchWrites, type RepoMeta } from '../_lib/notify.js';
+import { itemWrite, notifySenderFromEnv, publicLoginId, watchWrites, type RepoMeta } from '../_lib/notify.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import {
   b64url,
@@ -1965,6 +1965,7 @@ async function contribute(req: Request, env: ContribEnv, deps: ContribDeps, cros
               publicUrl: env.PUBLIC_SITE_URL,
               ...(deps.members ? { members: deps.members } : {}),
               ...(profileName ? { profileName } : {}),
+              loginId: publicLoginId(deps.fetch),
             }
           : undefined;
       return await handleGithubWebhook(req, { redis, secret: env.GITHUB_WEBHOOK_SECRET, now: deps.now ?? Date.now, ...(notify ? { notify } : {}) });

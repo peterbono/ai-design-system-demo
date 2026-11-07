@@ -9,7 +9,7 @@
 // reviews once the developers started), and the library part. A product exploration never checked against the
 // library is checked here, once, by the server (api/mcp ?view=pieces runs the adoption audit with the
 // viewer's GitHub sign-in and records it); without a way to run it, one quiet "Check in Claude".
-import { archiveExplorationOnGitHub, branchPreviewUrl, cancelLeadAskOnGitHub, isWaitingForLead, leadApproveOnGitHub, leadChangesOnGitHub, EXPLORATION_PREFIX, figmaLines, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
+import { ALREADY_ANSWERED, answerLeadOnGitHub, archiveExplorationOnGitHub, askOtherLeadOnGitHub, branchPreviewUrl, cancelLeadAskOnGitHub, decisionsOf, handOverOnGitHub, isWaitingForLead, leadTurnOf, leadApproveOnGitHub, leadChangesOnGitHub, leadQuestionOnGitHub, notDoingOnGitHub, openDecisionOf, startExplorationOnGitHub, takeBackOnGitHub, tellDevelopersOnGitHub, EXPLORATION_PREFIX, figmaLines, explorationNote, explorationNotePathOf, explorationSlugFromBranch, mergeExplorationNotes, type GitHubClient, parseExplorationNotes, type ExplorationNotes, type NotesUpdate, explorationStage, liveAddressOf, startPageOf, renameExplorationOnGitHub, reopenExplorationOnGitHub, parseExplorationBody, requesterOf, startedWhen, type BranchCommitLike, type ChangesMode, type ProductConfig } from '@bridge-ds/core';
 import {
   activityRows,
   canPutInFigma,
@@ -50,11 +50,15 @@ import { pieceRows, type PieceRowView } from '../lib/product-branch';
 import { checkPieces } from './connector-api';
 import { forgetClaudeLink, knownClaudeLink, viewerClaudeLink } from './claude-link';
 import { connectorUrl, copilotSetup, terminalSetup } from '../lib/claude-connector';
-import { ARCHIVED_LINE, BACK_TO_EXPLORING_LINE, LEAD_CHANGES_LINE, LEAD_OK_LINE, UNARCHIVED_LINE, explorationKey, RENAMED_LINE, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
+import { ARCHIVED_LINE, BACK_TO_EXPLORING_LINE, LEAD_CHANGES_LINE, LEAD_OK_LINE, LEAD_QUESTION_LINE, NOT_DOING_LINE, TOLD_DEVELOPERS_LINE, TOOK_BACK_LINE, UNARCHIVED_LINE, askedOtherLine, explorationHref, explorationKey, RENAMED_LINE, takeItLines, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { developerLines, productCrumbs, productProduction, productTodayUrl, tryInProductView, TRY_BUILDING_NOTE, TRY_UNAVAILABLE_NOTE } from '../lib/product-branch';
 import { touchesVisuals } from '../lib/visual-impact';
 import { shownJiraKey } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
+import { decisionRows, decisionTag, designerZoneTitle, nextName, sayerName } from '../lib/lead-decisions';
+import { nameAuthor } from '../lib/author';
+import { explorationKeeper, listInvites } from './invites-api';
+import type { HandOverPerson } from '../components/ds/studio/LeadDecisions';
 import { canKeepExploration, keepExplorationLine, productKeeperLine, startedByDesigner, startedByEmailMember } from '../lib/write-route';
 import type { ExplorationPageProps, LeadView } from '../components/ds/studio/ExplorationPage';
 import { askDoneExploring } from './exploration-done';
@@ -77,6 +81,7 @@ import { knownNames } from './people';
 import { isEmailAddress, loginKey } from '../lib/people';
 import { explorationAuthorFor, isNameAuthor } from '../lib/author';
 import { siteApprovers } from './teams';
+import { studioHref } from '../lib/team-path';
 import { pullReviewsOf } from './review-reads';
 import { libraryScope } from './next-release';
 import { inNextRelease, libraryRelease, parseReleaseBody } from '../lib/release-view';
@@ -205,28 +210,47 @@ const sentOf = (row: PieceRowView): SentPiece => ({
  */
 function leadViewOf(
   r: ExplorationRow,
-  body: string | null | undefined,
-  o: { gh: GitHubClient; products: readonly ProductConfig[]; library: (() => GitHubClient) | null; previewUrl: string | null; keeper: boolean; reopen: (line: string) => void },
+  pull: ExplorationPullLike,
+  o: { gh: GitHubClient; products: readonly ProductConfig[]; library: (() => GitHubClient) | null; previewUrl: string | null; keeper: boolean; reopen: (line: string) => void; onCopy: (t: string) => Promise<void> },
 ): LeadView | null {
+  const body = pull.body;
   if (!isWaitingForLead(body)) return null;
   const block = parseExplorationBody(body);
+  // A question of the lead waits on the designer: the zone says it, the bar comes back with the answer.
+  if (leadTurnOf(body) === 'designer') return null;
   const asker = block?.leadAskedBy ?? r.author;
   const leads = reviewersAsked({ approvers: siteApprovers().design, builders: [asker] });
   const viewer = currentViewer()?.email ? null : (currentViewer()?.login ?? null);
   const isLead = Boolean(viewer && connected() && leads.some((l) => l.toLowerCase() === viewer.toLowerCase()));
   if (isLead) {
     const who = block?.leadAskedByName ?? block?.leadAskedBy ?? 'The designer';
+    const leadName = knownNamesOf([viewer!])[viewer!] ?? undefined;
+    const me = { lead: viewer!, ...(leadName ? { leadName } : {}) };
+    // Someone else answered first: the page shows what they said.
+    const answered = async (act: () => Promise<void>, line: string) => {
+      try {
+        await act();
+      } catch (err) {
+        if ((err as Error).message !== ALREADY_ANSWERED) throw err;
+        o.reopen(ALREADY_ANSWERED);
+        return ALREADY_ANSWERED;
+      }
+      o.reopen(line);
+      return line;
+    };
+    const others = leads.filter((l) => l.toLowerCase() !== viewer!.toLowerCase());
     return {
-      line: `${who} is done exploring. Look at the preview, then answer: nothing reaches the developers before you do.`,
-      onAnswer: async (a) => {
-        if (a.kind === 'looks-right') {
-          await leadApproveOnGitHub(o.gh, r.number, { products: o.products, previewUrl: o.previewUrl, lead: viewer!, ...(o.library ? { library: o.library() } : {}), source: 'studio' });
-          o.reopen(LEAD_OK_LINE);
-          return LEAD_OK_LINE;
-        }
-        await leadChangesOnGitHub(o.gh, r.number, { note: a.text, lead: viewer! });
-        o.reopen(LEAD_CHANGES_LINE);
-        return LEAD_CHANGES_LINE;
+      line: `${who} is done exploring. Look at the preview, then answer. Nothing reaches the developers before you do.`,
+      bar: {
+        onLooksRight: (note) =>
+          answered(() => leadApproveOnGitHub(o.gh, r.number, { products: o.products, previewUrl: o.previewUrl, ...me, ...(note ? { note } : {}), ...(o.library ? { library: o.library() } : {}), source: 'studio' }).then(() => undefined), LEAD_OK_LINE),
+        onChanges: (note) => answered(() => leadChangesOnGitHub(o.gh, r.number, { note, ...me }), LEAD_CHANGES_LINE),
+        onComment: (text) => answered(() => leadQuestionOnGitHub(o.gh, r.number, { text, ...me }), LEAD_QUESTION_LINE),
+        onNotDoing: (reason) => answered(() => notDoingOnGitHub(o.gh, r.number, { reason, ...me }), NOT_DOING_LINE).then(() => undefined),
+        onAskOther: others.length ? () => answered(() => askOtherLeadOnGitHub(o.gh, r.number, { to: others, ...me }), askedOtherLine(others, knownNamesOf(others))) : null,
+        link: location.href,
+        onCopy: o.onCopy,
+        changedSince: Boolean(block?.leadAskedSha && pull.head?.sha && block.leadAskedSha !== pull.head.sha),
       },
     };
   }
@@ -243,6 +267,56 @@ function leadViewOf(
       : null,
   };
 }
+
+/**
+ * What the talk with the lead changes on the page, in every state: the Decisions, the tag, the zone the designer
+ * answers in, the end when a lead decided against it, and the line under the title.
+ */
+function leadTalkOf(
+  r: ExplorationRow,
+  pull: ExplorationPullLike,
+  o: { gh: GitHubClient; designer: boolean; names: Record<string, string>; reopen: (line: string) => void; onReopenNew: (() => Promise<string | void>) | null },
+): Pick<ExplorationPageProps, 'decisions' | 'tag' | 'designerZone' | 'notDoing'> & { headline?: ExplorationPageProps['headline'] } {
+  const block = parseExplorationBody(pull.body);
+  const all = decisionsOf(block);
+  const open = openDecisionOf(pull.body);
+  const known = { ...knownNamesOf(all.map((d) => d.by ?? '').filter(Boolean)), ...o.names };
+  const designer = block?.leadAskedByName ?? block?.memberName ?? known[r.author] ?? r.author;
+  const out = { decisions: decisionRows(all, known), tag: decisionTag(open, designer), designerZone: null, notDoing: null } as ReturnType<typeof leadTalkOf>;
+  if (!open) return out;
+  const who = sayerName(open, known);
+  const face = faceOf(open.by ?? nameAuthor(who), false, known);
+  const when = open.at ? startedWhen(open.at) : '';
+  out.headline = { who: face, text: decisionRows([open], known)[0]!.verb, when };
+  if (open.kind === 'not-doing') {
+    out.notDoing = { title: designerZoneTitle(open.kind, who), who: face, when, text: open.text ?? '', onReopen: o.designer ? o.onReopenNew : null };
+    return out;
+  }
+  const question = open.kind === 'question';
+  out.designerZone = {
+    title: designerZoneTitle(open.kind, who),
+    who: face,
+    when,
+    text: open.text ?? '',
+    onSend: o.designer
+      ? async (text: string) => {
+          const me = currentViewer();
+          await answerLeadOnGitHub(o.gh, r.number, { ...(text.trim() ? { text } : {}), ...(me?.email ? { byName: me.name ?? designer } : me?.login ? { by: me.login } : {}), leads: siteApprovers().design });
+          const line = question ? `Sent to ${who}.` : `Sent back to ${who}.`;
+          o.reopen(line);
+          return line;
+        }
+      : null,
+    sendLabel: question ? `Answer ${who}` : `Send back to ${who}`,
+    required: question,
+    fieldLabel: question ? 'Your answer' : 'Your answer (optional)',
+    placeholder: question ? '' : 'Say what you changed, or why you kept it',
+    note: question ? `Nothing goes to the developers until ${who} answers. Keep working if you need to: the question stays here.` : null,
+  };
+  return out;
+}
+
+const sameLogin = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
 
 function repaint(d: HTMLElement, key: string, patch: Partial<ExplorationPageProps>) {
   if (!current || current.key !== key || !mod) return;
@@ -308,6 +382,10 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     keeperNote: keepExplorationLine(r.author),
     productNote: emailOnProduct ? productKeeperLine(product.name) : null,
   });
+  // A design lead on someone else's work: what they do to it says why, and they can pass it on.
+  const leadOther = Boolean(viewer && !currentViewer()?.email && connected() && !sampleVisitor() && !sameLogin(viewer, r.author) && !designerKeeper && reviewersAsked({ approvers: siteApprovers().design, builders: [] }).some((l) => sameLogin(l, viewer)));
+  // The person it belongs to: the lead's words wait on them.
+  const answersLead = connected() || emailKeeper ? (emailKeeper || designerKeeper || sameLogin(viewer, r.author)) && !emailOnProduct : false;
   const isLibrary = !own && product.default === true;
   const handedOff = handedOffHere(r);
   const lines = pageLines({ number: r.number, name: r.name, productName: product.name, product: own?.product.key, repo: own?.repo });
@@ -316,6 +394,40 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     canPutInFigma({ figmaFile: (siteConfig() as { figma?: { file?: string } }).figma?.file, demo: sampleVisitor(), archived: Boolean(r.archived), status, memberRole: member?.role, designer, reviewer: viewerRole() === 'reviewer', write: currentAccess()?.write })
       ? figmaLines({ number: r.number, name: r.name, product: own?.product.key, repo: own?.repo })
       : null;
+  // "Reopen as a new exploration": a new one from this one's work, named after it. This one stays as it ended.
+  const onReopenNew = async () => {
+    const block = parseExplorationBody(pull.body);
+    const labels = (pull.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter((l) => l && !['exploration', 'archived', 'ready-for-devs'].includes(l));
+    const started = await startExplorationOnGitHub(
+      gh,
+      { name: nextName(r.name), purpose: block?.purpose ?? r.purpose ?? '', source: 'studio', ...(viewer && !member ? { author: viewer } : {}) },
+      { base: pull.base?.ref ?? CFG.defaultBranch, packages: [], apps: {}, labels, from: r.branch, ...(own ? { inProduct: { name: product.name, library: `${CFG.owner}/${CFG.repo}`, ...(inCopy ? { copyOf: inCopy.code } : {}) } } : {}) },
+    );
+    location.assign(studioHref(`changes/${explorationHref({ number: started.pr, product: r.product })}`));
+  };
+  // Who a lead can give it to: the other leads, then the team's members who can edit once Bridge read them.
+  const handOverPeople: HandOverPerson[] = leadOther ? reviewersAsked({ approvers: siteApprovers().design, builders: [viewer!, r.author] }).map((l) => ({ value: `login:${l}`, label: knownNamesOf([l])[l] ?? l })) : [];
+  const handOverProps = (): Pick<ExplorationPageProps, 'onTakeOver' | 'handOver'> => {
+    const me = viewer!;
+    const myName = knownNamesOf([me])[me] ?? me;
+    const give = async (to: { email: string } | { login: string }, name: string, reason: string) => {
+      const kept = await explorationKeeper(`${CFG.owner}/${CFG.repo}`, { ...to, branch: r.branch, number: r.number, ...(inCopy ? { copy: inCopy.copy } : {}) });
+      await handOverOnGitHub(gh, r.number, { to: 'login' in to ? { login: to.login } : { member: kept.ref!, name: kept.name ?? name }, toName: name, reason, by: me, byName: myName });
+      const line = `Handed to ${name}.`;
+      reopen(line);
+      return line;
+    };
+    return {
+      onTakeOver: (reason) => give({ login: me }, myName, reason),
+      handOver: {
+        people: handOverPeople,
+        onConfirm: (to, reason) => {
+          const p = handOverPeople.find((x) => x.value === to);
+          return give(to.startsWith('email:') ? { email: to.slice(6) } : { login: to.slice(6) }, p?.label ?? to, reason);
+        },
+      },
+    };
+  };
   let reported: Awaited<ReturnType<typeof previewSources>> = null;
   current = {
     key,
@@ -357,7 +469,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
             return RENAMED_LINE;
           }
         : null,
-      onReopen: menu.reopen && !r.archived
+      onReopen: menu.reopen && !r.archived && !leadOther
         ? async () => {
             const back = await reopenExplorationOnGitHub(gh, r.number, { by: currentViewer()?.email ? null : (currentViewer()?.login ?? null) });
             // A token without the right to edit labels: the body says it runs again, designers never read why.
@@ -376,12 +488,14 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
             }
           : null,
       onArchive: menu.archive && !r.archived
-        ? async () => {
-            await archiveExplorationOnGitHub(gh, r.number, { archived: true });
+        ? async (reason?: string) => {
+            await archiveExplorationOnGitHub(gh, r.number, { archived: true, ...(reason ? { reason, by: viewer ?? undefined } : {}) });
             reopen(ARCHIVED_LINE);
             return ARCHIVED_LINE;
           }
         : null,
+      archiveAsksWhy: leadOther,
+      ...(leadOther && writable && !r.archived && r.status !== 'shipped' ? handOverProps() : {}),
       onCopy: (text) => copyText(text),
       developer: developerLines({ number: r.number, branch: r.branch, links: [], ...(own ? { product: own.product.key, repo: own.repo } : {}) }),
       take: takeItLines(r.branch, inCopy?.copy),
@@ -403,6 +517,13 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     },
   };
   mod.paintExplorationPage(d, current.props);
+  if (leadOther)
+    void listInvites(`${CFG.owner}/${CFG.repo}`)
+      .then(({ members }) => {
+        for (const m of members as { email?: string; name?: string; role?: string }[]) if (m.email && m.role !== 'view') handOverPeople.push({ value: `email:${m.email}`, label: m.name?.trim() || m.email });
+        if (current?.key === key && current.props.handOver) repaint(d, key, { handOver: { ...current.props.handOver, people: [...handOverPeople] } });
+      })
+      .catch(() => undefined);
   if (current.props.claudeLink === 'unknown') void viewerClaudeLink().then((v) => v !== 'unknown' && repaint(d, key, { claudeLink: v }));
 
   // The preview capture (one raw file for every exploration, no API call) arrives with the reads it waits beside, so
@@ -439,17 +560,18 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   const previewUrl = samplePage ?? (v.state === 'branch' ? v.url : v.state === 'today' ? todayUrl : null);
   const tryUrl = v.state === 'branch' && v.url && !isLibrary && productProduction(product, own ? null : CFG.production) ? withToolbar(r)(v.url) : null;
   const previewBuilding = v.state === 'building';
+  const talkNow = leadTalkOf(r, pull, { gh, designer: answersLead, names, reopen: (line) => reopen(line), onReopenNew });
   const previewNote = samplePage ? null : v.state === 'today' ? 'These changes do not show there yet: it opens the product as it is today.' : previewBuilding ? TRY_BUILDING_NOTE : v.state === 'failed' ? TRY_UNAVAILABLE_NOTE : v.state === 'unknown' ? 'Your preview appears a few minutes after each change.' : null;
   repaint(d, key, {
     // Waiting for the lead: their answer shows even on an exploration with no change yet.
     stage: stage === 'not-started' && !isWaitingForLead(pull.body) ? 'not-started' : 'exploring',
-    lead: leadViewOf(r, pull.body, { gh, products, library: own ? () => dsClient() : null, previewUrl, keeper, reopen: (line) => reopen(line) }),
-    leadNote: parseExplorationBody(pull.body)?.leadNote ?? null,
+    lead: leadViewOf(r, pull, { gh, products, library: own ? () => dsClient() : null, previewUrl, keeper, reopen: (line) => reopen(line), onCopy: copyText }),
+    ...talkNow,
     author: faceOf(r.author, false, names),
     startedTail: startedTail(product.name, startedAtOf(pull.body, pull.created_at, commits[0]?.commit.author?.date)),
     todayUrl,
     todayLabel: todayLinkLabel(isLibrary),
-    headline: headlineOf({ commits, files, author: r.author, names }),
+    headline: talkNow.headline ?? headlineOf({ commits, files, author: r.author, names }),
     activity: activityRows({ commits, author: r.author, startedAt: startedAtOf(pull.body, pull.created_at), reopened: reopenedOf(pull.body), names }),
     previewUrl,
     tryUrl,
@@ -602,8 +724,27 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     repaint(d, key, { handoff: { ...current.props.handoff, pieces } });
   };
   const act = pieceActor({ r, gh, lib, own: Boolean(own), mode, products, lastView: () => lastView?.view ?? null, refresh: () => void refreshPieces() });
+  const talk = leadTalkOf(r, pull, { gh, designer: answersLead, names: allNames, reopen: (line) => reopen(line), onReopenNew: null });
   repaint(d, key, {
     stage: 'handed-off',
+    decisions: talk.decisions,
+    onReopen: leadOther ? null : current?.props.onReopen ?? null,
+    // A lead on someone else's work takes it back with a reason, until a developer starts; then a word reaches them.
+    onTakeBack:
+      leadOther && status === 'ready' && !declined
+        ? async (reason: string) => {
+            await takeBackOnGitHub(gh, r.number, { reason, lead: viewer!, leadName: knownNamesOf([viewer!])[viewer!] ?? undefined });
+            reopen(TOOK_BACK_LINE);
+            return TOOK_BACK_LINE;
+          }
+        : null,
+    onTellDevelopers:
+      leadOther && status === 'building' && !declined
+        ? async (text: string) => {
+            await tellDevelopersOnGitHub(gh, r.number, { text, byName: knownNamesOf([viewer!])[viewer!] ?? viewer! });
+            return TOLD_DEVELOPERS_LINE;
+          }
+        : null,
     plate,
     ...shotProps,
     activity: handoffActivity({ commits, author: r.author, startedAt: startedAtOf(pull.body, pull.created_at), doneBy: doneLogin, doneAt, designAnswer: answer?.login ? answer : null, names: allNames }),
