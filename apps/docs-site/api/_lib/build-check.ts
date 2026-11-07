@@ -8,6 +8,7 @@
 //   bridge:build:<owner/repo of the developers>:<pull number>   JSON { words: BuildWord[] }, oldest first, the last 60
 // The server copy of what it needs from core and lib/review-state (the API does not import core).
 import type { Redis } from './redis.js';
+import { canonicalRepo } from '../../src/lib/team-path.js';
 
 export type BuildRole = 'designer' | 'pm' | 'lead';
 export type BuildKind = 'looks-right' | 'changes';
@@ -91,7 +92,8 @@ export function buildStateOf(words: readonly BuildWord[], head: string, need: { 
 /** The developers' task of an exploration: its issue URL, owner/name and number. */
 export function taskOfUrl(url: unknown): { repo: string; number: number } | null {
   const m = typeof url === 'string' ? /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)\/?$/.exec(url.trim()) : null;
-  return m ? { repo: m[1]!.toLowerCase(), number: Number(m[2]) } : null;
+  // Under its current name: a task link written before the organization or repository was renamed.
+  return m ? { repo: canonicalRepo(m[1]!).toLowerCase(), number: Number(m[2]) } : null;
 }
 
 /** The newest open pull request of `repo` that links the task, from the task's timeline (lib/review-state devPullOfTimeline). */
@@ -101,7 +103,7 @@ export function devPullOfEvents(events: unknown, repo: string): { number: number
     if (e?.event !== 'cross-referenced') continue;
     const i = e.source?.issue;
     if (!i?.pull_request || i.state !== 'open' || i.pull_request.merged_at) continue;
-    if (String(i.repository?.full_name ?? '').toLowerCase() !== repo.toLowerCase() || !i.number || typeof i.html_url !== 'string') continue;
+    if (canonicalRepo(String(i.repository?.full_name ?? '')).toLowerCase() !== canonicalRepo(repo).toLowerCase() || !i.number || typeof i.html_url !== 'string') continue;
     found = { number: i.number, url: i.html_url, draft: i.draft === true };
   }
   return found;
