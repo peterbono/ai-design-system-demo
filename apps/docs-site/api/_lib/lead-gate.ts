@@ -26,6 +26,8 @@ export function addsLeadWords(before: unknown, after: unknown, team: { hasLeads:
   const known = new Set(leadWords(was));
   if (leadWords(now).some((w) => !known.has(w))) return true;
   if (now.leadOkBy !== undefined && now.leadOkBy !== was?.leadOkBy) return true;
+  // "I'll look" is a reviewer's word too.
+  if (now.leadTakenAt !== undefined && now.leadTakenAt !== was?.leadTakenAt) return true;
   return team.hasLeads && Boolean(now.doneAt) && !was?.doneAt;
 }
 

@@ -15,7 +15,7 @@
 // edited, leadNoticesOf): who it is for and who did it are in the block, so a write Bridge's app made for an email
 // member counts, and nobody hears about their own act:
 //   lead-ask, lead-answer, lead-delegated   a lead is asked, answered, asked in another's place          needs them
-//   lead-reminder                           a lead did not answer in 3 days (once, notify.ts)            needs them
+//   lead-reminder                           a lead did not answer in 2 days (once, notify.ts)            needs them
 //   lead-question, lead-changes,
 //   lead-took-back, lead-not-doing,
 //   lead-handed                             a lead's word to the designer                                needs them
@@ -75,7 +75,7 @@ export interface Notice {
   to?: string[];
   /** The name the block gives who did it: a member without GitHub has no login to look up. */
   actorName?: string;
-  /** It starts waiting on a lead (a reminder in 3 days), or it stops. */
+  /** It starts waiting on a lead (a reminder in 2 days), or it stops. */
   waits?: boolean;
   stops?: boolean;
 }

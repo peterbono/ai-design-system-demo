@@ -36,7 +36,8 @@ import { brevoSender, type EmailSender } from './email.js';
 import { canonicalEmail, emailSpellings } from './canonical-email.js';
 import { issueKey } from './former-member.js';
 import type { FetchLike } from './http.js';
-import { approves, memberStore, type MemberStore } from './members.js';
+import { memberStore, type MemberStore } from './members.js';
+import { askedToReview, reviewModeOf } from './review-mode.js';
 import { cleanTitle, NEEDS_KINDS, type Notice, type NotifyKind } from './notify-events.js';
 import { digestEmail, instantEmail, unsubToken, type NotifyItem, type UnsubKind } from './notify-mail.js';
 import type { Redis, RedisArg } from './redis.js';
@@ -122,7 +123,7 @@ export const soonKey = (email: string, repo: string, n: number) => `bridge:notif
 /** Lead reminders waiting: JSON notices, by when they are due (ms). */
 export const REMIND_KEY = 'bridge:notify:remind';
 export const waitingKey = (repo: string, n: number) => `bridge:notify:waiting:${lc(repo)}:${n}`;
-export const REMIND_MS = 3 * 24 * 60 * 60 * 1000;
+export const REMIND_MS = 2 * 24 * 60 * 60 * 1000;
 export const onceKey = (kind: NotifyKind, repo: string, n: number) => `bridge:notify:once:${kind}:${lc(repo)}:${n}`;
 /** The choices of someone who unsubscribed without a Bridge account (an older email member). */
 export const optOutKey = (email: string) => `bridge:notify:off:${canonicalEmail(email)}`;
@@ -342,7 +343,10 @@ async function withEmailLeads(notices: Notice[], d: NotifyDeps, members: MemberS
   if (!waits) return notices;
   const repoMeta = parse<RepoMeta>(await d.redis.cmd('GET', repoMetaKey(waits.repo)));
   if (!repoMeta || typeof repoMeta.team !== 'string') return notices;
-  const leads = (await members.list(repoMeta.team)).filter(approves);
+  // Who is asked (api/_lib/review-mode.ts): the design leads, or every designer when review is shared. An admin decides
+  // when they want to, and is never asked.
+  const mode = await reviewModeOf(d.redis, repoMeta.team);
+  const leads = (await members.list(repoMeta.team)).filter((m) => askedToReview(m, mode));
   const first = new Set<string>();
   const extra = notices.filter((n) => LEAD_WAITS.has(n.kind) && !first.has(n.kind) && first.add(n.kind)).flatMap((n) => leads.filter((m) => m.name !== n.actorName).map((m) => ({ ...n, to: [`email:${m.email}`] })));
   return [...notices, ...extra];

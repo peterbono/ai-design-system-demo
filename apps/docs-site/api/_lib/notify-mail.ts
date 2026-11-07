@@ -53,7 +53,7 @@ export function linesOf(i: Pick<NotifyItem, 'kind' | 'title' | 'actor'>): { subj
     case 'lead-delegated':
       return { subject: `${actor} asks you to look at ${title}`, sentence: `${actor} would like you to review ${title} in their place.`, button: 'Look at it' };
     case 'lead-reminder':
-      return { subject: `${title} waits for you since 3 days`, sentence: `${actor} is waiting for your answer on ${title}. Nothing reaches the developers before you answer.`, button: 'Look at it' };
+      return { subject: `${title} waits for you since 2 days`, sentence: `${actor} is waiting for your answer on ${title}. Nothing reaches the developers before you answer.`, button: 'Look at it' };
     case 'lead-question':
       return { subject: `${actor} has a question about ${title}`, sentence: `${actor} asked something about ${title} and is waiting for your answer.`, button: 'Answer' };
     case 'lead-changes':

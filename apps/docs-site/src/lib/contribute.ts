@@ -56,8 +56,13 @@ export interface ContributeMember {
    * member seeded as admin (api/_lib/local-admin.ts).
    */
   role: 'view' | 'edit' | 'admin';
-  /** A design lead of the team, given by an admin. The server reads it on every write: this only shapes the page. */
+  /**
+   * Asked to review explorations (a design lead, or any designer when the team shares review): their emails and Needs
+   * you. The server reads it on every write: this only shapes the page.
+   */
   lead?: boolean;
+  /** May answer on someone else's exploration: whoever is asked, and an admin, who is never asked. */
+  decides?: boolean;
   /** Their stable member reference (api/_lib/exploration-member memberRef): how exploration blocks name them, never by email. */
   ref?: string;
 }
@@ -124,7 +129,7 @@ export function parseMember(v: unknown, local = localDevHost()): ContributeMembe
   if (typeof m.email !== 'string' || !m.email.includes('@')) return null;
   const name = typeof m.name === 'string' && m.name.trim() ? m.name.trim() : m.email;
   const ref = typeof m.ref === 'string' && /^[0-9a-f]{16}$/.test(m.ref) ? m.ref : null;
-  return { email: m.email, name, role: m.role === 'view' ? 'view' : local && m.role === 'admin' ? 'admin' : 'edit', ...(ref ? { ref } : {}) };
+  return { email: m.email, name, role: m.role === 'view' ? 'view' : local && m.role === 'admin' ? 'admin' : 'edit', ...(ref ? { ref } : {}), ...(m.lead === true ? { lead: true } : {}), ...(m.decides === true || m.lead === true ? { decides: true } : {}) };
 }
 
 /** Every designer-facing sentence of the email path, in one place. */

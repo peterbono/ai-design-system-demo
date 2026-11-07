@@ -501,7 +501,7 @@ describe('the talk with a design lead', () => {
     ['lead-ask', 'Mia is done with Late tag', 'Look at it'],
     ['lead-answer', 'Mia answered about Late tag', 'Read it'],
     ['lead-delegated', 'Mia asks you to look at Late tag', 'Look at it'],
-    ['lead-reminder', 'Late tag waits for you since 3 days', 'Look at it'],
+    ['lead-reminder', 'Late tag waits for you since 2 days', 'Look at it'],
     ['lead-question', 'Mia has a question about Late tag', 'Answer'],
     ['lead-changes', 'Mia asked for changes on Late tag', 'Read the note'],
     ['lead-took-back', 'Mia took Late tag back', 'Read why'],
@@ -551,18 +551,18 @@ describe('the talk with a design lead', () => {
     expect(sent).toEqual([]);
     expect(Number(await redis.cmd('ZCARD', digestKey(MIA)))).toBe(1);
   });
-  it('reminds a lead once after 3 days, and not if someone answered', async () => {
+  it('reminds a lead once after 2 days, and not if someone answered', async () => {
     const { d, redis, sent, later } = await setup();
     const ask = leadNoticesOf(none, block({ leadAskedAt: 't', leadAskedByName: 'Mia', leadAskedTo: ['flo'] }), base);
     await deliverNotices(ask, d, 'e6');
     expect(sent).toHaveLength(1);
-    later(2 * 24 * 60 * 60 * 1000);
+    later(1 * 24 * 60 * 60 * 1000);
     await sendReminders(d);
     expect(sent).toHaveLength(1);
     later(24 * 60 * 60 * 1000 + 1000);
     await redis.cmd('DEL', `bridge:notify:soon:florian@acme.design:${COPY}#7`);
     expect(await sendReminders(d)).toBe(1);
-    expect(sent[1]!.subject).toBe('Late tag waits for you since 3 days');
+    expect(sent[1]!.subject).toBe('Late tag waits for you since 2 days');
     later(4 * 24 * 60 * 60 * 1000);
     expect(await sendReminders(d)).toBe(0);
     expect(sent).toHaveLength(2);

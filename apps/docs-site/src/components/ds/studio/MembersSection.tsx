@@ -18,6 +18,7 @@ import { Alert, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, 
 import RolePicker from './RolePicker';
 import { NoticeLine, PersonCell } from './MemberParts';
 import InviteDialog from './InviteDialog';
+import ReviewModeSection from './ReviewModeSection';
 import { memberActions, noRepo, useMembers, type Notice } from './members-state';
 import { DiscoveryLine, JoinRequests, useEntryAdmin } from './JoinRequests';
 import { loadTeamRoles } from '../../../lib/recent-teams';
@@ -281,6 +282,7 @@ export default function MembersSection() {
       </Table>
       <NoticeLine notice={notice} />
       {data.canManage && data.context === 'real' && copies && <p className="mem-intro mem-note">{MEMBERS_WORDS.designersThroughBridge}</p>}
+      {data.canManage && data.context === 'real' && data.reviewMode && <ReviewModeSection repo={data.repo} mode={data.reviewMode} onSaved={(m) => update((d) => ({ ...d, reviewMode: m }))} />}
       {data.canManage && <InviteDialog open={inviting} onOpenChange={setInviting} shared={{ data, update }} />}
     </div>
   );
