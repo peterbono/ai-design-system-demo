@@ -1,5 +1,119 @@
 # @bridge-ds/mcp
 
+## 0.15.0
+
+### Minor Changes
+
+- 441e1d7: Add a product starts from one question, "Where does it start from?", with three equal cards: "Its code is on GitHub" (recommended), "Only its address" and "It's a new product". Details come only after a choice, and every next step has Back. Its code on GitHub keeps today's list with Add, and when Bridge sees nothing new it says so with Find it on GitHub as the one primary. Only its address is for a product whose code the design team cannot reach: its name and its address (a bare domain or an https link), then Bridge starts the design team's own code for it from the product starter with the library and keeps the address in the new optional `products[].address` (an https origin, checked by `productProblems`, the JSON schema and, strictly, by the server that adds products). Such a product never gets a designers' copy: its only code is already the design team's own, so the dialog does not offer one and the settings check and the server refuse `design` beside `address`. Start an exploration offers an optional "Start from a page" for such a product, limited to pages of its own site: the page is kept on the exploration (`startPage`) and the line handed to Claude says to open it in the browser, rebuild it with only the library's components and tokens, never the site's own styles or files, then explore the change. `bridge_continue_exploration` returns `startFrom` with the same brief. Done exploring on such a product sends the developers a task with the preview, the page as it is today and what changes, never code to take.
+- e0bd3e1: The Bridge Library in Claude Design, kept in sync. Each docs-site deploy serves the Library as a Claude Design System
+  for its version (`/claude-design-system/manifest.json` and `/claude-design-system/<version>/project/...`, static files
+  built by `scripts/claude-design-system/release.mjs` in `docs:build`). New MCP tools: `bridge_get_claude_design_system`
+  gives the team's Claude the version, the manifest (path, size, sha256, url) and the steps (create the Design System
+  artifact once, then republish only the changed files to the same artifact and re-run the install in the canvases), and
+  `bridge_set_claude_design_system_url` remembers the team's artifact (admins and leads only, checked on the server).
+  Settings > Your AI tools shows admins one quiet line, "Claude Design: Bridge Library 1.8.4 · Update available", with
+  "Copy the request for Claude".
+- 84d0c83: The component map: `bridge.components.json` at the design system repo root links each Library component to its Figma
+  component (file, component or set key, node, property and value mapping) and its code import, reviewed like any change
+  (docs/COMPONENT-MAP.md). Core adds the typed, versioned schema with a validator in plain words, the proposer (by name,
+  then by variant properties; ties are reported, never guessed) and `figma.file` in `bridge.config.json` for the team's
+  Figma file; the repo model reads the map. `bridge_list_components` and `bridge_get_component` add `figma` (the Figma
+  component and link, or "not linked to Figma yet"); the new `bridge_propose_component_map` opens proposed links for
+  review (a suggestion, or a draft pull request in direct mode), refused through the hosted connector to members who
+  joined with their email. `bridge check` reports which components are linked; an invalid file fails it. Studio: Settings
+  gets "Figma file" (leads and admins send it for review), and a component page shows "In Figma: <name>" with the link,
+  or "Not linked to Figma yet" with the next step for leads and admins only.
+- deeb410: A bridge.config.json field this version does not know is warned about and left alone, never fatal: a config written
+  for a newer Bridge (a product's design copy, a new setting) still loads in an older CLI, workflow or MCP server. A known
+  field with a wrong value still fails. `isUnknownField` and `setConfigWarn` are exported.
+- 641406a: Put an exploration in Figma. Say so to Claude, or use Put in Figma on the exploration page (for people who can edit, when the team has a Figma file): the new `bridge_exploration_to_figma` tool gives Claude the team's file, the changed screens, the Library components with their Figma links, what has no link, the preview and the recipe, and Claude builds a new page with real instances through its own Figma connector. Bridge never writes to Figma. `bridge_save_exploration` keeps the page link (`notes.figmaPage`) so Studio links to it, and `bridge_propose_component_map` now asks for component keys.
+- e1bc4b6: Retire `bridge_propose_figma_fixes` and `bridge_try_figma_fix` from the MCP server and the hosted connector: Claude reads the gaps and proposes no fix. Add `isFigmaFixPull`: a pull request labelled figma-fixes or on a bridge/figma-fixes-\* branch never waits in a review queue. `bridge fixes check` and `apply` read a missing default figma-fixes.json as no fixes.
+- da2f8ae: The design lead validates before the developers: where a team names a design lead, Done exploring now reads Waiting for
+  lead and nothing reaches the developers until the lead says Looks right. Needs changes sends it back with their words.
+  A lead saying it on someone else's exploration, or a team with nobody else to ask, goes straight to the developers.
+- c33cbfd: "Where it stands": handover notes for every exploration, so another designer or AI tool carries on. The note file keeps
+  Context, Decisions, Edge cases (per component, covered or open), Open questions and Next step as readable text;
+  `@bridge-ds/core` parses and merges them section by section without losing hand-written lines
+  (`parseExplorationNotes`, `mergeExplorationNotes`, `notesSpec`). `bridge_save_exploration` takes `notes` in the same
+  save, `bridge_continue_exploration` returns them and starts from the next step, and Done exploring hands the decisions
+  and edge cases to developers as the design spec. Studio's exploration page shows them above the activity and lets
+  whoever can edit change them in place.
+
+### Patch Changes
+
+- 117a39d: The designers' copy of a product is a one-time team setup, decided once in Add a product ("Give designers their own copy"). Nobody sees "Make my copy" any more. Right after Add or Create product with the copy ticked, the product's page makes the copy in the background with the sign-in of the admin or lead who added it: one quiet line, "Getting a copy ready for your designers…", then nothing. If it could not be made, that person reads a calm line with Try again; designers never see it. When only a tick on GitHub lets Bridge open the new copy, an admin gets the one more step under the way to start, before the previews step. For a product added before this, "Start an exploration" makes the copy first, in the same action, with one short wait line, then starts. "Get the latest" is unchanged. Settings, onboarding and the MCP server now say Bridge makes the copy, never to look for "Make my copy".
+- 7662f45: Claude's fixes say where each one really stands. In the Figma plugin the section opens with one sentence ("3 fixes in this file, 2 need drawing in Figma, 1 waiting.") and each row has one status: an approved fix brought in by Check for updates reads "Claude's fix is in this file", a closed one "Claude's fix was not kept", both folded under "N finished"; a component Claude cannot fix says why ("The indicator is missing in Figma: draw it in the component, then compare with code again."), one Bridge never measured says so instead of waiting, and "Claude went quiet" is only for an ask nothing came back from. The Bridge connector records a gap case it cannot read for want of a measure, and a read of parts missing in Figma followed by silence, as that reason; the gap case tells Claude to end such a component with a status fix.
+- f0a5dfa: Claude starts product explorations for everyone who can edit. On the hosted connector, a member who joined with their
+  email (Can edit or Admin) now starts an exploration in the design team's copy of a product, where Bridge writes for them
+  on explore/ branches only, then saves prototype code there; a Reader still saves nothing. `productRepoAccess` returns
+  the default branch with `read-only`. The component tools and the server instructions tell Claude to load the Library
+  with `bridge_get_claude_design_system` in a claude.ai artifact instead of inventing token values. The team's Library in
+  Claude Design is read under the team's old names too (a connection made before the rename), and saved under the
+  current one.
+- 806fc32: Putting an exploration in Figma uses the content of the preview and never invents data.
+- af390e9: A design lead answers an exploration with the review bar at the bottom of its page: a comment, Comment (a question, no
+  verdict), Needs changes, Looks right (its words go to the developers), Ask someone else to review, Not doing this and
+  Copy link. After Looks right, Take it back asks for a reason; once a developer started, a word reaches them on their task.
+  The designer reads the lead's words in the page's zone, answers and sends it back, and their Claude gets the words too.
+  Everything said is kept by round and shows as Decisions, replacing the single last note. A lead can take an exploration
+  over or hand it to someone, and says why when they archive someone else's. Not doing this ends it with its reason, and
+  Reopen as a new exploration starts a new one from its work. Home: Needs you holds what is yours to answer now, and a
+  quiet Waiting on others lists what you asked. Eleven new emails follow all of it, with one reminder to a lead after 3 days.
+- 014e784: The measure now writes the Figma sets drawn under a component's folder as their own entries, so Claude can fix them:
+  popups drawn open (Dialog/Popup, AlertDialog/Popup, Drawer/Popup, Menu/Popup, Popover/Popup, Tooltip/Popup, and
+  Select/Popup or Combobox/Popup, measured open when the stories show them closed) and sets that fix a prop
+  (Pagination/Full, Pagination/Compact, Progress/Linear). Each entry names its set (`set`), its axis props read from the
+  root's classes when the story does not pass them (a DialogContent of size sm), and `--check` gives the set its own
+  status instead of "measure it open with --open". The fix loop (bridge_get_gap_case, bridge_try_figma_fix, `bridge fix`),
+  figma-fixes.json and the plugin's overlay find them by the set's name (measuredSetName); `--only Dialog/Popup` measures
+  Dialog. Measured shots are cut to the measured box: a box on a fractional y (a 20 px badge centred in a 21 px line) no
+  longer comes out a pixel taller than the size the measure read.
+- caf7cdf: Components follow the measure by default, so the fixes Claude proposes and the team approves reach the file. The plugin's Spec source is now Automatic until a developer picks one: the sets are built from the measure (measured-specs.json, with figma-fixes.json) whenever the team has one, in the repo or on bridge-requests, else from component-specs.json. A developer's choice, Static included, is kept. A file pulled from the static spec moves onto the measure on its next Check for updates, in place: same sets and variants, layers that keep their name (or the one text of a group) carry over so instances keep their overrides, what only the static spec drew goes with its unused properties, variants the stories do not render are flagged "[orphan]", and the designer's own layers stay. The update list says it once: "Components now follow how they look in code, measured in Storybook." Compare with code records the spec source in figma-fidelity.json, and the gap case tools (bridge_figma_gaps, bridge_get_gap_case, bridge fix) say a run from a file not built from the measure needs Spec source Automatic and a Check for updates, instead of reporting parts missing or asking for fixes that cannot reach it.
+- 686834c: Exploration notes read what AI tools actually write: numbered and `*` lists, heading words in any case, singular or
+  plural, edge case lines as "Component, state: covered|not covered|yes|no. note", "- [x] Component: state, note" and
+  "Component / state (covered) note", list marks stripped from Context and Next step, and no text ever dropped.
+  `normalizeExplorationNotes` rewrites a hand-written note file in Bridge's format. `bridge_save_exploration` now
+  rewrites a note file sent in `files` in that format in the same commit (title and marker kept, `notes` merged in)
+  instead of refusing it, and its description tells Claude to pass notes only through `notes`.
+- c519769: Compare with code: "Ask Claude to fix all N" under the summary, when two or more components that differ can go to
+  Claude. One click writes the comparison once, opens the team's Claude once with one request naming them all ("Fix
+  these 31 components in Figma with Bridge: AccordionItem, AlertDialog/Popup, ..."; a list too long for Claude's address
+  opens on "Fix every component that differs in Figma with Bridge", the full request is copied either way) and every row
+  then waits for its own fix. Each row keeps its own "Ask Claude to fix it". The first time in a file, the connect
+  sentence shows once for the list. The Bridge MCP server's instructions say a request naming several components means
+  all of them, one at a time, each proposed before the next. The box that says Claude opened with the request no longer
+  leaves an empty icon slot: its text lines up with the "Waiting for Claude" box below.
+- 3ce0cd9: Bridge's repository moved to the the-bridge-company organization: package repository, homepage, issues, docs and schema links point at the-bridge-company/ai-design-system-demo.
+- 417a5ce: `bridge_get_claude_design_system` no longer asks someone to create a second Library artifact. When Bridge has none on
+  record for the team, an admin or lead gets `create` (with "if you already made one, update and save that one"), anyone
+  else gets `ask` (ask an admin or lead to add it; load the Library from its base URL meanwhile). The local server, which
+  keeps no team settings, answers `unknown` with `teamKnown: false` instead of `create`, and a failed read of the team
+  setting is an error, never "none". `bridge_list_products` adds `access`, one plain sentence per person: a member Bridge
+  writes for (Can edit or Admin) can start and save explorations in the design team's copy, shown `connected`, while the
+  developers' code stays read only; a Reader is told to ask an admin for Can edit.
+- Updated dependencies [441e1d7]
+- Updated dependencies [0a716b8]
+- Updated dependencies [9dfb5e9]
+- Updated dependencies [84d0c83]
+- Updated dependencies [deeb410]
+- Updated dependencies [f0a5dfa]
+- Updated dependencies [641406a]
+- Updated dependencies [e1bc4b6]
+- Updated dependencies [2d03cb5]
+- Updated dependencies [704396f]
+- Updated dependencies [af390e9]
+- Updated dependencies [da2f8ae]
+- Updated dependencies [014e784]
+- Updated dependencies [0cf2d87]
+- Updated dependencies [caf7cdf]
+- Updated dependencies [686834c]
+- Updated dependencies [2cda80a]
+- Updated dependencies [9f95e1a]
+- Updated dependencies [3ce0cd9]
+- Updated dependencies [c33cbfd]
+  - @bridge-ds/core@0.29.0
+  - @bridge-ds/visual@0.3.23
+
 ## 0.14.3
 
 ### Patch Changes

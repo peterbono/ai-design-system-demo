@@ -1,5 +1,11 @@
 # @bridge-ds/eslint-plugin
 
+## 0.2.2
+
+### Patch Changes
+
+- 3ce0cd9: Bridge's repository moved to the the-bridge-company organization: package repository, homepage, issues, docs and schema links point at the-bridge-company/ai-design-system-demo.
+
 ## 0.2.1
 
 ### Patch Changes

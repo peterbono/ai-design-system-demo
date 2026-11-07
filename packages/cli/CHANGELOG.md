@@ -1,5 +1,65 @@
 # @bridge-ds/cli
 
+## 0.19.0
+
+### Minor Changes
+
+- 84d0c83: The component map: `bridge.components.json` at the design system repo root links each Library component to its Figma
+  component (file, component or set key, node, property and value mapping) and its code import, reviewed like any change
+  (docs/COMPONENT-MAP.md). Core adds the typed, versioned schema with a validator in plain words, the proposer (by name,
+  then by variant properties; ties are reported, never guessed) and `figma.file` in `bridge.config.json` for the team's
+  Figma file; the repo model reads the map. `bridge_list_components` and `bridge_get_component` add `figma` (the Figma
+  component and link, or "not linked to Figma yet"); the new `bridge_propose_component_map` opens proposed links for
+  review (a suggestion, or a draft pull request in direct mode), refused through the hosted connector to members who
+  joined with their email. `bridge check` reports which components are linked; an invalid file fails it. Studio: Settings
+  gets "Figma file" (leads and admins send it for review), and a component page shows "In Figma: <name>" with the link,
+  or "Not linked to Figma yet" with the next step for leads and admins only.
+- deeb410: A bridge.config.json field this version does not know is warned about and left alone, never fatal: a config written
+  for a newer Bridge (a product's design copy, a new setting) still loads in an older CLI, workflow or MCP server. A known
+  field with a wrong value still fails. `isUnknownField` and `setConfigWarn` are exported.
+- da2f8ae: The design lead validates before the developers: where a team names a design lead, Done exploring now reads Waiting for
+  lead and nothing reaches the developers until the lead says Looks right. Needs changes sends it back with their words.
+  A lead saying it on someone else's exploration, or a team with nobody else to ask, goes straight to the developers.
+- 014e784: The measure now writes the Figma sets drawn under a component's folder as their own entries, so Claude can fix them:
+  popups drawn open (Dialog/Popup, AlertDialog/Popup, Drawer/Popup, Menu/Popup, Popover/Popup, Tooltip/Popup, and
+  Select/Popup or Combobox/Popup, measured open when the stories show them closed) and sets that fix a prop
+  (Pagination/Full, Pagination/Compact, Progress/Linear). Each entry names its set (`set`), its axis props read from the
+  root's classes when the story does not pass them (a DialogContent of size sm), and `--check` gives the set its own
+  status instead of "measure it open with --open". The fix loop (bridge_get_gap_case, bridge_try_figma_fix, `bridge fix`),
+  figma-fixes.json and the plugin's overlay find them by the set's name (measuredSetName); `--only Dialog/Popup` measures
+  Dialog. Measured shots are cut to the measured box: a box on a fractional y (a 20 px badge centred in a 21 px line) no
+  longer comes out a pixel taller than the size the measure read.
+
+### Patch Changes
+
+- 1a5b9cf: `bridge snapshot --audit`: a product repository checked out inside the design system checkout (actions/checkout `path:`) is named by its own git origin, so Studio says "Used in <product>".
+- e1bc4b6: Retire `bridge_propose_figma_fixes` and `bridge_try_figma_fix` from the MCP server and the hosted connector: Claude reads the gaps and proposes no fix. Add `isFigmaFixPull`: a pull request labelled figma-fixes or on a bridge/figma-fixes-\* branch never waits in a review queue. `bridge fixes check` and `apply` read a missing default figma-fixes.json as no fixes.
+- 0cf2d87: The measure finds a popup set by the first class of its root (Popover.module.css .popup), not every class the static
+  spec names: Popover/Popup, whose spec folds the body's class into the root, is now measured like the other popups.
+- caf7cdf: Components follow the measure by default, so the fixes Claude proposes and the team approves reach the file. The plugin's Spec source is now Automatic until a developer picks one: the sets are built from the measure (measured-specs.json, with figma-fixes.json) whenever the team has one, in the repo or on bridge-requests, else from component-specs.json. A developer's choice, Static included, is kept. A file pulled from the static spec moves onto the measure on its next Check for updates, in place: same sets and variants, layers that keep their name (or the one text of a group) carry over so instances keep their overrides, what only the static spec drew goes with its unused properties, variants the stories do not render are flagged "[orphan]", and the designer's own layers stay. The update list says it once: "Components now follow how they look in code, measured in Storybook." Compare with code records the spec source in figma-fidelity.json, and the gap case tools (bridge_figma_gaps, bridge_get_gap_case, bridge fix) say a run from a file not built from the measure needs Spec source Automatic and a Check for updates, instead of reporting parts missing or asking for fixes that cannot reach it.
+- 3ce0cd9: Bridge's repository moved to the the-bridge-company organization: package repository, homepage, issues, docs and schema links point at the-bridge-company/ai-design-system-demo.
+- Updated dependencies [441e1d7]
+- Updated dependencies [117a39d]
+- Updated dependencies [e0bd3e1]
+- Updated dependencies [7662f45]
+- Updated dependencies [84d0c83]
+- Updated dependencies [deeb410]
+- Updated dependencies [f0a5dfa]
+- Updated dependencies [641406a]
+- Updated dependencies [e1bc4b6]
+- Updated dependencies [806fc32]
+- Updated dependencies [af390e9]
+- Updated dependencies [da2f8ae]
+- Updated dependencies [014e784]
+- Updated dependencies [caf7cdf]
+- Updated dependencies [686834c]
+- Updated dependencies [c519769]
+- Updated dependencies [3ce0cd9]
+- Updated dependencies [417a5ce]
+- Updated dependencies [c33cbfd]
+  - @bridge-ds/mcp@0.15.0
+  - @bridge-ds/visual@0.3.23
+
 ## 0.18.0
 
 ### Minor Changes
