@@ -96,6 +96,23 @@ describe('Being built', () => {
     expect(screen.getByText('Button: add a lg size')).toBeTruthy();
   });
 
+  it('shows the same changes as cards when the person asks for the grid, and remembers it', async () => {
+    localStorage.clear();
+    data = sample();
+    const { container, unmount } = render(createElement(BeingBuilt));
+    await screen.findByText('Tabs: put a count after the label');
+    await userEvent.click(screen.getByRole('radio', { name: 'Grid' }));
+    expect(container.querySelectorAll('.sh-card-item')).toHaveLength(6);
+    expect(container.querySelectorAll('.sh-row-item')).toHaveLength(0);
+    await expectNoAxeViolations(container);
+    // The next visit opens on the cards: the choice is this person's, and this page's.
+    unmount();
+    const again = render(createElement(BeingBuilt));
+    await again.findByText('Tabs: put a count after the label');
+    expect(again.container.querySelectorAll('.sh-card-item')).toHaveLength(6);
+    localStorage.clear();
+  });
+
   it('teaches what a build request is when nothing was sent', async () => {
     data = { ...sample(), views: [], sample: false };
     const { container } = render(createElement(BeingBuilt));

@@ -14,6 +14,8 @@
 //     bridge.config.json products), each group a heading with its count. Rows are the home row (BranchRow), the
 //     person always by display name (lib/branches-page knownNames), the login only when no name is known.
 //   - Token branches carry a checkbox to preview them together; the floating bar (CombineChanges SelectionBar) acts.
+//   - At the end of the filters row, how the list is shown: the rows, or the Home's cards (lib/list-view, ListCard).
+//     Every tab but Waiting on me offers it, where the rows are picked, compared and reviewed one after the other.
 //   - Shipped (?state=shipped; the old ?status=merged and History addresses land there) is the history of the work:
 //     every change and exploration that shipped, newest first, grouped by month ("October 2026"), each row with its
 //     preview capture when there is one, the product, the person and "Shipped Oct 30" (lib/branches-page groupByMonth).
@@ -32,6 +34,7 @@ import { Checkbox, Link, Skeleton, Tab, Tabs, TabsList, Tooltip, VisuallyHidden 
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { ClearFilters, ListFiltersBar, NO_FILTER_MATCH } from './ListFilters';
+import { ListCard, useListView, ViewSwitch } from './ListCard';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
 import { activeFilters, ARCHIVED_NOTE, boxDisabled, changesFiltersParam, filterChoices, inFilters, listSummary, designRows, emptyTabLine, FULL_TIP, groupByMonth, groupByProduct, shippedAtOf, shippedByTask, isYours, knownNames, productOf, selectable, shippedCapLine, shippedOn, shippedRows, stateOf, visibleTabs, withChangesFilters, YOU, type ChangesFilters, type ListFilters, type StateTab } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
@@ -220,6 +223,12 @@ function tokenOnly(r: ListRow, e: Extra | undefined, tokensRoot: string): boolea
 export function BranchesList(p: BranchesListProps) {
   const [picked, setPicked] = useState<ChangesFilters>(() => changesFiltersParam(location.search, p.products ?? DEFAULT_PRODUCTS));
   const [selected, setSelected] = useState<number[]>([]);
+  const [view, setListView] = useListView('changes');
+  const pickView = (v: 'list' | 'grid') => {
+    setListView(v);
+    // The cards carry no checkbox: what was picked for a shared preview is let go with the rows.
+    if (v === 'grid') setSelected([]);
+  };
   const viewer = p.viewer ?? (p.seat ? `~${p.seat.toLowerCase()}` : null);
   const tab = picked.state;
   const archivedTab = tab === 'archived';
@@ -373,6 +382,24 @@ export function BranchesList(p: BranchesListProps) {
   // thumbnails and avatars stay in one column.
   const pickable = (x: { tokenOnly: boolean | null }) => picks && selectable(x);
   const slot = <span className="bl-pick-slot" aria-hidden="true" />;
+  // The same branch as a card, for the grid: the Home's card (ListCard). Its footer names who it belongs to and, on
+  // Shipped (grouped by month), the product its heading does not say.
+  const branchCard = ({ r, e }: (typeof rows)[number], product?: string | null) => {
+    const href = r.opens === 'pr' ? `?pr=${r.number}` : r.product ? `?exploration=${r.number}&product=${encodeURIComponent(r.product)}` : `?exploration=${r.number}`;
+    return (
+      <ListCard
+        key={rowKey(r)}
+        thumb={shots.get(`${r.product ?? ''}#${r.number}`) ?? e?.thumb ?? { kind: 'icon', icon: r.guidance ? 'guidance' : 'branch' }}
+        title={r.title}
+        href={href}
+        linkAttributes={r.opens === 'pr' ? { 'data-open-pr': r.number } : { 'data-open-exploration': r.number, ...(r.product ? { 'data-product': r.product } : {}) }}
+        person={personOf(r)}
+        product={product ?? null}
+        pill={r.pill}
+      />
+    );
+  };
+
   const branchRow = ({ r, e, tokenOnly, child }: (typeof rows)[number] & { child: boolean }, line?: string, reserve = false) => {
     const tok = picks && tokenOnly;
                 const href = r.opens === 'pr' ? `?pr=${r.number}` : r.product ? `?exploration=${r.number}&product=${encodeURIComponent(r.product)}` : `?exploration=${r.number}`;
@@ -488,7 +515,15 @@ export function BranchesList(p: BranchesListProps) {
       {/* The quieter row under the tabs: the filters, then the count. It shows once the tab holds something to narrow
           (or while a filter is picked). */}
       {!(p.loading && !p.rows.length) && !(shippedTab && p.closed === null) && (queue.length > 0 || filtered) && (
-        <ListFiltersBar active={active} choices={choices} onPick={pickFilters} summary={waitingView ? waitingLine : listSummary(kept.length, queue.length, filtered)} clear={filtered && kept.length > 0} />
+        <ListFiltersBar
+          active={active}
+          choices={choices}
+          onPick={pickFilters}
+          summary={waitingView ? waitingLine : listSummary(kept.length, queue.length, filtered)}
+          clear={filtered && kept.length > 0}
+          /* Waiting on me is reviewed row by row: it is a list, and says so by having no switch. */
+          end={waitingView ? undefined : <ViewSwitch view={view} onPick={pickView} />}
+        />
       )}
       {p.tierLabel && (
         <p className="t-ui t-muted bl-note">
@@ -520,13 +555,14 @@ export function BranchesList(p: BranchesListProps) {
               <h2 className="bl-h2" id={`bl-${g.key}`}>
                 {g.label} <span className="bl-count">{g.rows.length}</span>
               </h2>
-              <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
+              <ul className={view === 'grid' ? 'sh-cards' : 'sh-rows'} aria-labelledby={`bl-${g.key}`}>
                 {g.rows.map((x) => {
                   const product = products.find((pp) => pp.key === x.product)?.name;
                   const line = [product, nameOf(x.r), shippedOn(shippedAtOf(x.r)!)].filter(Boolean).join(SEP);
                   // Shipped says when on the line; a library change the release has not published yet keeps its tag.
                   const waits = x.r.pill?.label === LIFECYCLE_LABEL['next-release'];
-                  return branchRow({ ...x, r: { ...x.r, pill: waits ? x.r.pill : null }, child: false }, line);
+                  const one = { ...x, r: { ...x.r, pill: waits ? x.r.pill : null } };
+                  return view === 'grid' ? branchCard(one, product) : branchRow({ ...one, child: false }, line);
                 })}
               </ul>
             </section>
@@ -543,8 +579,8 @@ export function BranchesList(p: BranchesListProps) {
               </Link>{' '}
               <span className="bl-count">{g.count}</span>
             </h2>
-            <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
-              {g.rows.map((x) => branchRow(x, undefined, g.rows.some(pickable)))}
+            <ul className={view === 'grid' ? 'sh-cards' : 'sh-rows'} aria-labelledby={`bl-${g.key}`}>
+              {g.rows.map((x) => (view === 'grid' ? branchCard(x) : branchRow(x, undefined, g.rows.some(pickable))))}
             </ul>
           </section>
         ))

@@ -16,6 +16,7 @@
 //     rowProduct, rowPeople); a row with nobody on it stays under Everyone.
 //   - Explorations handed to developers (Done exploring) are rows of the same list too, with an "Exploration" tag: the
 //     product, who said Done exploring and when. Such a row opens the exploration in Studio.
+//   - At the end of that row, how the list is shown: the rows, or the Home's cards (lib/list-view, ListCard).
 //   - Nothing sent yet: what a build request is, where it comes from, who picks it up.
 //   - GitHub busy for the viewer with nothing kept: one calm notice with when Bridge is back (BusyNotice), never
 //     "Nothing sent yet"; it reads again once on its own after the reset.
@@ -49,9 +50,11 @@ import {
   BUILD_IMAGE_LABEL,
   DEFAULT_PRODUCTS,
   type BuildRequestView,
+  type ProductConfig,
 } from "@bridge-ds/core";
 import { BranchRow } from "./BranchRow";
 import { ClearFilters, ListFiltersBar, NO_FILTER_MATCH } from "./ListFilters";
+import { ListCard, useListView, ViewSwitch } from "./ListCard";
 import { useCopy } from "./TeamLink";
 import { DEV_MESSAGE_WORDS } from "../../../lib/developers-message";
 import { BusyNotice } from "./BusyNotice";
@@ -148,6 +151,53 @@ function Builders({
         <Who key={p.login} p={p} size={size} />
       ))}
     </AvatarGroup>
+  );
+}
+
+/** The one person a card names: who builds it, else who asked for it. The sample team's faces are its own. */
+function cardPerson(v: Row, data: BuildData) {
+  const login = v.builders[0] ?? v.requestedBy ?? null;
+  if (!login) return person("~bridge", "Waiting for a developer", null);
+  return data.sample ? person(`~${login}`, data.nameOf(login), null) : person(login, data.nameOf(login), avatar(login));
+}
+
+/**
+ * The same changes as cards: the Home's card (ListCard), one per change, in the Home's grid. The card names the
+ * product, which no heading says here, and carries the same one status tag as its row.
+ */
+function Cards({ views, data, products, onOpen }: { views: Row[]; data: BuildData; products: readonly ProductConfig[]; onOpen: (v: BuildRequestView) => void }) {
+  return (
+    <ul className="sh-cards bb-cards" aria-label="Build requests">
+      {views.map((v) => {
+        const common = { person: cardPerson(v, data), product: products.find((p) => p.key.toLowerCase() === rowProduct(v, products))?.name ?? null, pill: statusTag(v) };
+        if (isFix(v))
+          return <ListCard key={v.id} {...common} thumb={{ kind: "icon", icon: "component", label: v.component }} title={v.component} href={studioHref(v.fix.href)} />;
+        if (isExploration(v))
+          return (
+            <ListCard
+              key={v.id}
+              {...common}
+              thumb={{ kind: "screen", src: null, product: v.exploration.product, seed: v.id }}
+              title={v.title}
+              href={studioHref(v.exploration.href)}
+            />
+          );
+        return (
+          <ListCard
+            key={v.id}
+            {...common}
+            thumb={rowThumb(v, data.bodies.get(v.number))}
+            title={viewTitle(v)}
+            href={detailQuery(v)}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              onOpen(v);
+            }}
+          />
+        );
+      })}
+    </ul>
   );
 }
 
@@ -510,6 +560,7 @@ export default function BeingBuilt() {
   const [busy, setBusy] = useState<GitHubBusy | null>(null);
   const [run, setRun] = useState(0);
   const [filter, setFilter] = useState<BuildTab>("all");
+  const [view, pickView] = useListView("building");
   const [picked, setPicked] = useState<ListFilters>(() =>
     typeof location === "undefined"
       ? { product: null, by: null }
@@ -677,10 +728,15 @@ export default function BeingBuilt() {
           onPick={pickFilters}
           summary={listSummary(shown.length, queue.length, filtered)}
           clear={filtered && shown.length > 0}
+          end={<ViewSwitch view={view} onPick={pickView} />}
         />
       )}
       {shown.length ? (
-        <Rows views={shown} data={data} now={now} onOpen={go} />
+        view === "grid" ? (
+          <Cards views={shown} data={data} products={products} onOpen={go} />
+        ) : (
+          <Rows views={shown} data={data} now={now} onOpen={go} />
+        )
       ) : filtered && queue.length > 0 ? (
         <p className="t-body t-muted bb-none">
           {NO_FILTER_MATCH} <ClearFilters onPick={pickFilters} />
