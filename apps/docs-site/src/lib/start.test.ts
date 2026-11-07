@@ -43,7 +43,7 @@ describe('who sees the start screen', () => {
   });
 
   it('never counts the demo teams as a workspace', () => {
-    const f = facts({ recent: ['peterbono/bridge-demo-ds', 'The-Bridge-Company/AI-Design-System-Demo'] });
+    const f = facts({ recent: ['acme-design-demo/bridge-demo-ds', 'The-Bridge-Company/AI-Design-System-Demo'] });
     expect(ownTeams(f.recent)).toEqual([]);
     expect(showsStartScreen(f)).toBe(true);
   });
@@ -65,7 +65,7 @@ describe('where "Get started" goes', () => {
   });
 
   it('opens the most recent team of the visitor, skipping the demo', () => {
-    const f = facts({ recent: ['peterbono/bridge-demo-ds', 'acme/ds', 'globex/tokens'], storybook: true });
+    const f = facts({ recent: ['acme-design-demo/bridge-demo-ds', 'acme/ds', 'globex/tokens'], storybook: true });
     // No reserved list: the escape form, which always opens the team.
     expect(getStartedHref(f)).toBe('/studio/~/acme/ds/');
     expect(getStartedHref(f, NONE_RESERVED)).toBe('/studio/acme/ds/');

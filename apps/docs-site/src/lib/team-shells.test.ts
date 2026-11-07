@@ -129,7 +129,7 @@ describe('checkTeamShells', () => {
 
   it('lets pages link to a demo team on a team shell route, not elsewhere', () => {
     const files = site();
-    files['index.html'] = '<html><a href="/studio/peterbono/bridge-demo-ds/">Demo</a><a href="/studio/peterbono/bridge-demo-ds/nope/">Bad</a></html>';
-    expect(check(files)).toEqual([expect.stringContaining('links to /studio/peterbono/bridge-demo-ds/nope/, which no page serves')]);
+    files['index.html'] = '<html><a href="/studio/acme-design-demo/bridge-demo-ds/">Demo</a><a href="/studio/acme-design-demo/bridge-demo-ds/nope/">Bad</a></html>';
+    expect(check(files)).toEqual([expect.stringContaining('links to /studio/acme-design-demo/bridge-demo-ds/nope/, which no page serves')]);
   });
 });

@@ -73,7 +73,7 @@ export const DOCS_SECURITY = '/docs/security/';
 export const DOCS_CONFLUENCE = '/docs/confluence/';
 export const STUDIO_HOME = '/studio/';
 /** The read-only demo ("Open the demo" on /start/ and the team menu): the hosted Studio of the dedicated demo repo (lib/demo DEMO_REPOS). */
-export const DEMO = '/studio/peterbono/bridge-demo-ds/';
+export const DEMO = '/studio/acme-design-demo/bridge-demo-ds/';
 /** "Get started": how do you want to start, while this browser remembers no workspace (lib/start.ts). */
 export const START = START_PAGE;
 /** The browser workspace: a Studio home with nothing connected yet (lib/start.ts). */

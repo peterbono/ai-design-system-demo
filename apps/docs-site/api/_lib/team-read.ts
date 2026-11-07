@@ -103,7 +103,7 @@
 import { GITHUB_DOWN, HttpError, SECURITY_HEADERS, clientIp, envInt, json, sha256, type FetchLike } from './http.js';
 import type { Redis } from './redis.js';
 import { canonicalEmail } from './canonical-email.js';
-import { isDemoRepo } from '../../src/lib/demo.js';
+import { isDemoRepo, isSampleTeam } from '../../src/lib/demo.js';
 import { isPullList, slimPullList } from './slim-pulls.js';
 
 /**
@@ -111,6 +111,14 @@ import { isPullList, slimPullList } from './slim-pulls.js';
  * reads an old name (src/lib/team-path.ts canonicalRepo) as the team's current one.
  */
 export const isPublicTeam = (full: string): boolean => isDemoRepo(full);
+
+/**
+ * The sample team (src/lib/demo.ts SAMPLE_REPO) is open to visitors through Bridge even though its repositories are
+ * private on GitHub: its organization holds nothing else, and visitors read it with Bridge's read token, allow-listed
+ * and never written. Bridge's own design system stays open only while GitHub says it is public, and its private
+ * products only with a member's read pass.
+ */
+export const openToVisitors = (full: string): boolean => isSampleTeam(full);
 
 /** Read permissions asked for the read token; without some of them on the installation, READ_BASE. */
 export const READ_PERMISSIONS = { contents: 'read', pull_requests: 'read', issues: 'read', statuses: 'read', checks: 'read' } as const;
@@ -716,7 +724,7 @@ export async function productReadAllowed(
   if (reader.pass && !reader.pass.repos.includes(full)) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
   const token = await ctx.token(product.owner, product.repo);
   if (!token) throw new HttpError(409, PRODUCT_MISSING, READ_WORDS.productMissing);
-  if (reader.kind === 'guest' && !(await isPublicRepo(ctx, product.owner, product.repo))) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
+  if (reader.kind === 'guest' && !openToVisitors(`${team.owner}/${team.repo}`) && !(await isPublicRepo(ctx, product.owner, product.repo))) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
 }
 
 function answerKept(k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', inm: string | null, missingOk = false, revalidate = false): Response {

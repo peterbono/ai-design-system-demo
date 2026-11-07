@@ -40,7 +40,7 @@ vi.mock('../../../scripts/invites-api', () => api);
 
 const sample = (): MembersData => {
   const s = sampleTeam();
-  return { context: 'sample', repo: 'peterbono/bridge-demo-ds', team: 'Acme Design', ...s, canManage: true, personal: false, complete: true, invites: true };
+  return { context: 'sample', repo: 'acme-design-demo/bridge-demo-ds', team: 'Acme Design', ...s, canManage: true, personal: false, complete: true, invites: true };
 };
 
 const real = (over: Partial<MembersData> = {}): MembersData => ({

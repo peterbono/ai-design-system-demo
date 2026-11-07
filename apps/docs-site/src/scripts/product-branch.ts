@@ -369,9 +369,9 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
     const preview = productPreviewOf(r, s, undefined, product);
     const v = tryInProductView(preview, { tryUrl: withToolbar(r), todayUrl: today ? safeUrl(today) || null : null, files });
     devPreview = v.state === 'failed' && preview ? [failedPreviewLine(preview)] : [];
-    // The sample team publishes no preview deploys: the running screen that ships with the site (lib/demo.ts).
-    const page = sampleTeam() ? samplePreviewPage(r.branch) : null;
-    repaint(d, { tryUrl: page ?? v.url, tryNote: page ? null : v.note, ...(devPreview.length ? { developer: [...current.props.developer, ...devPreview] } : {}) });
+    // The sample team reads like any team: its branch's own preview first, its static screen only while it has none.
+    const page = !v.url && sampleTeam() ? samplePreviewPage(r.branch) : null;
+    repaint(d, { tryUrl: v.url ?? page, tryNote: page ? null : v.note, ...(devPreview.length ? { developer: [...current.props.developer, ...devPreview] } : {}) });
   });
   void paintVisual(d, r);
   if (record) void refresh();

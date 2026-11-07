@@ -19,7 +19,7 @@ import {
 import { jargonIn } from './vocabulary';
 import type { NeedRow } from './home-model';
 
-// The demo team's products (bridge.config.json of peterbono/bridge-demo-ds): the library is the default.
+// The demo team's products (bridge.config.json of acme-design-demo/bridge-demo-ds): the library is the default.
 const DEMO: ProductConfig[] = [
   { key: 'library', name: 'Library', path: 'packages', default: true },
   { key: 'account', name: 'Account app', path: 'apps/account' },

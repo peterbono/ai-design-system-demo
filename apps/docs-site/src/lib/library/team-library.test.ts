@@ -37,21 +37,21 @@ describe('home', () => {
 
 describe('header search', () => {
   it("indexes the team's places, components and tokens at the team's Library addresses", () => {
-    const index = librarySearchIndex(repoModel, 'peterbono', 'bridge-demo-ds');
+    const index = librarySearchIndex(repoModel, 'acme-design-demo', 'bridge-demo-ds');
     const pages = index.filter((x) => x.kind === 'page');
     expect(pages.map((p) => p.title)).toEqual(['Home', 'Color', 'Typography', 'Spacing', 'Radius and borders', 'Elevation', 'Accessibility', 'All tokens', 'Components', 'Install', 'Agents', 'How review works', 'Changelog']);
-    expect(pages[0]!.href).toBe('/library/peterbono/bridge-demo-ds/');
-    expect(pages.find((p) => p.title === 'Accessibility')?.href).toBe('/library/peterbono/bridge-demo-ds/foundations/accessibility/');
+    expect(pages[0]!.href).toBe('/library/acme-design-demo/bridge-demo-ds/');
+    expect(pages.find((p) => p.title === 'Accessibility')?.href).toBe('/library/acme-design-demo/bridge-demo-ds/foundations/accessibility/');
     const components = index.filter((x) => x.kind === 'component');
     expect(components.length).toBe(repoModel.components!.list.length);
-    expect(components.find((c) => c.title === 'Button')?.href).toBe('/library/peterbono/bridge-demo-ds/components/button/');
+    expect(components.find((c) => c.title === 'Button')?.href).toBe('/library/acme-design-demo/bridge-demo-ds/components/button/');
     const tokens = index.filter((x) => x.kind === 'token');
     expect(tokens.length).toBe(repoModel.tokens.rows.all.length + repoModel.tokens.rows.primitives.length);
     // Semantic first, primitives last.
     expect(tokens[0]!.meta).toMatch(/^Semantic, /);
     expect(tokens[tokens.length - 1]!.meta).toMatch(/^Primitive, /);
     const token = tokens.find((t) => t.title === 'color.text.default')!;
-    expect(token.href).toBe('/library/peterbono/bridge-demo-ds/tokens/?t=color.text.default');
+    expect(token.href).toBe('/library/acme-design-demo/bridge-demo-ds/tokens/?t=color.text.default');
     expect(token.swatch).toBeTruthy();
     expect(token.keys).toContain('--color-text-default');
   });

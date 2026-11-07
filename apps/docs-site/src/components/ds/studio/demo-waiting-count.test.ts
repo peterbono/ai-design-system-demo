@@ -113,7 +113,7 @@ function waitingTab(approved?: ReadonlySet<number>): number {
   return Number(tab.replace('Waiting on me', ''));
 }
 
-beforeEach(() => history.replaceState(null, '', '/studio/peterbono/bridge-demo-ds/changes/'));
+beforeEach(() => history.replaceState(null, '', '/studio/acme-design-demo/bridge-demo-ds/changes/'));
 
 describe("the demo lead's one count", () => {
   it('is the same on the home line, in Changes > Waiting on me and on the Changes badge', () => {

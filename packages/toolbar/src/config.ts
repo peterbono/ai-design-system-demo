@@ -3,7 +3,7 @@
 // Bridge refuses; public repositories, no account). Pure part (buildFromConfig) is tested; loadBuild adds the read and
 // the session cache.
 import { DEFAULT_PROXY, githubReads, type Reads } from './reads';
-import type { BridgeBuild } from './session';
+import { isPreviewUrl, type BridgeBuild } from './session';
 
 interface ConfigLike {
   repo?: { owner?: string; name?: string; defaultBranch?: string };
@@ -26,6 +26,13 @@ export interface BuildOverrides {
   repo?: string | null;
   /** Bridge's origin for reads (default production Bridge), null to read GitHub directly. */
   proxy?: string | null;
+  /**
+   * The page's own address (loadBuild passes location.href): a deploy whose host matches the design copy's preview
+   * template is the copy's, even when neither the host nor the link said which repository it was built from
+   * (Cloudflare Pages sets no repository variable). Without it, a change number read the developers' or the design
+   * system's change of the same number.
+   */
+  href?: string | null;
 }
 
 const REPO = /^[\w.-]+\/[\w.-]+$/;
@@ -41,7 +48,10 @@ export function buildFromConfig(raw: unknown, ds: string, product: string, overr
   if (!entry) return null;
   const own = entry.repo && REPO.test(entry.repo) ? entry.repo : null;
   // A deploy of the design team's copy: the copy's explorations and previews.
-  const copy = own && entry.design?.repo && REPO.test(entry.design.repo) && overrides.repo?.trim().toLowerCase() === entry.design.repo.toLowerCase() ? entry.design.repo : null;
+  const designRepo = own && entry.design?.repo && REPO.test(entry.design.repo) ? entry.design.repo : null;
+  const named = overrides.repo?.trim().toLowerCase() === designRepo?.toLowerCase();
+  const onCopyPreview = !overrides.repo && isPreviewUrl(overrides.href, entry.design?.preview ?? null);
+  const copy = designRepo && (named || onCopyPreview) ? designRepo : null;
   const [owner, repo] = (copy ?? own ?? ds).split('/') as [string, string];
   const pick = (v: string | null | undefined, fallback: string | null | undefined) => (v !== undefined ? v : (fallback ?? null));
   return {
@@ -84,7 +94,8 @@ export async function loadBuild(ds: string, product: string, overrides: BuildOve
       // Storage blocked: the next page reads it again.
     }
   }
-  const build = buildFromConfig(config, ds, product, overrides);
+  const href = overrides.href !== undefined ? overrides.href : typeof window === 'undefined' ? null : window.location.href;
+  const build = buildFromConfig(config, ds, product, { ...overrides, href });
   if (!build) throw new Error(`No product "${product}" in ${ds}'s bridge.config.json.`);
   return build;
 }

@@ -129,7 +129,7 @@ describe('the setup steps, in order and by keyboard', () => {
 });
 
 describe('the demo banner (boards D1, EmptyA2)', () => {
-  const SAMPLE = 'peterbono/bridge-demo-ds';
+  const SAMPLE = 'acme-design-demo/bridge-demo-ds';
 
   it('gives the sample team one banner and one action: Get started, the email sign-in, never GitHub', async () => {
     const { container } = render(createElement(DemoBanner, { repo: SAMPLE }));

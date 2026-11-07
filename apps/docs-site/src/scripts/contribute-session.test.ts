@@ -96,8 +96,8 @@ describe("Studio's GitHub calls for an email contributor", () => {
     signIn();
     expect(currentContributor()?.email).toBe('leo@acme.design');
     expect(getToken()).toBe(CONTRIB_TOKEN);
-    history.replaceState(null, '', '/studio/peterbono/bridge-demo-ds/');
-    localStorage.setItem('bridge.contribute.member:peterbono/bridge-demo-ds', JSON.stringify({ email: 'leo@acme.design', name: 'Leo' }));
+    history.replaceState(null, '', '/studio/acme-design-demo/bridge-demo-ds/');
+    localStorage.setItem('bridge.contribute.member:acme-design-demo/bridge-demo-ds', JSON.stringify({ email: 'leo@acme.design', name: 'Leo' }));
     expect(getToken()).toBeNull();
   });
 
@@ -174,7 +174,7 @@ describe("an email member on their team's Library", () => {
     expect(teamToken({ owner: 'acme', repo: 'ds' })).toBe(CONTRIB_TOKEN);
     // Another team's Library, and the sample team's, stay visitor reads.
     expect(teamToken({ owner: 'lumen', repo: 'brand' })).toBeNull();
-    localStorage.setItem('bridge.contribute.member:peterbono/bridge-demo-ds', JSON.stringify({ email: 'leo@acme.design', name: 'Leo', role: 'edit' }));
+    localStorage.setItem('bridge.contribute.member:acme-design-demo/bridge-demo-ds', JSON.stringify({ email: 'leo@acme.design', name: 'Leo', role: 'edit' }));
     expect(teamToken({ owner: 'peterbono', repo: 'bridge-demo-ds' })).toBeNull();
   });
 
@@ -210,36 +210,36 @@ describe('reads through Bridge', () => {
 
   it('a visitor reads a public demo team through Bridge; any other team, or another host, goes to GitHub', async () => {
     answer = () => json(200, [{ number: 1 }]);
-    const r = await publicTeamRead('peterbono/bridge-demo-ds', 'https://api.github.com/repos/peterbono/bridge-demo-ds/pulls?state=open', 'application/vnd.github+json');
+    const r = await publicTeamRead('acme-design-demo/bridge-demo-ds', 'https://api.github.com/repos/acme-design-demo/bridge-demo-ds/pulls?state=open', 'application/vnd.github+json');
     expect(await r!.json()).toEqual([{ number: 1 }]);
-    expect(calls[0]!.url).toBe(`/api/contribute?repo=peterbono%2Fbridge-demo-ds&gh=${encodeURIComponent('/repos/peterbono/bridge-demo-ds/pulls?state=open')}`);
+    expect(calls[0]!.url).toBe(`/api/contribute?repo=acme-design-demo%2Fbridge-demo-ds&gh=${encodeURIComponent('/repos/acme-design-demo/bridge-demo-ds/pulls?state=open')}`);
     expect(new Headers(calls[0]!.init.headers).get('authorization')).toBeNull();
     expect(await publicTeamRead('acme/ds', 'https://api.github.com/repos/acme/ds/pulls', '')).toBeNull();
-    expect(await publicTeamRead('peterbono/bridge-demo-ds', 'https://api.github.com/users/dana', '')).toBeNull();
+    expect(await publicTeamRead('acme-design-demo/bridge-demo-ds', 'https://api.github.com/users/dana', '')).toBeNull();
     expect(calls).toHaveLength(1);
   });
 
   it("says Bridge's limit in Bridge words, passes GitHub's own 404, and steps aside when Bridge cannot read", async () => {
-    const url = 'https://api.github.com/repos/peterbono/bridge-demo-ds/contents/x.json';
+    const url = 'https://api.github.com/repos/acme-design-demo/bridge-demo-ds/contents/x.json';
     answer = () => json(429, { error: 'busy', message: 'Bridge is busy, try again in 4 min.', retryAfter: 230 });
-    await expect(publicTeamRead('peterbono/bridge-demo-ds', url, '')).rejects.toMatchObject({ status: 429, message: 'Bridge is busy, try again in 4 min.' });
+    await expect(publicTeamRead('acme-design-demo/bridge-demo-ds', url, '')).rejects.toMatchObject({ status: 429, message: 'Bridge is busy, try again in 4 min.' });
     answer = () => json(404, { message: 'Not Found', documentation_url: 'https://docs.github.com' });
-    expect((await publicTeamRead('peterbono/bridge-demo-ds', url, ''))!.status).toBe(404);
+    expect((await publicTeamRead('acme-design-demo/bridge-demo-ds', url, ''))!.status).toBe(404);
     answer = () => json(409, { error: 'app_missing', message: 'x' });
-    expect(await publicTeamRead('peterbono/bridge-demo-ds', url, '')).toBeNull();
+    expect(await publicTeamRead('acme-design-demo/bridge-demo-ds', url, '')).toBeNull();
     const n = calls.length;
     // Bridge cannot read it here: GitHub directly for the rest of the page, no more calls to Bridge.
-    expect(await publicTeamRead('peterbono/bridge-demo-ds', url, '')).toBeNull();
+    expect(await publicTeamRead('acme-design-demo/bridge-demo-ds', url, '')).toBeNull();
     expect(calls.length).toBe(n);
   });
 
   it("a visitor reads a demo team's product repository through the team, and the app missing there leaves the team's reads on", async () => {
     const shop = 'https://api.github.com/repos/peterbono/bridge-demo-shop/pulls?state=open';
     answer = () => json(409, { error: 'product_missing', message: 'x' });
-    expect(await publicTeamRead('peterbono/bridge-demo-ds', shop, '', ['peterbono/bridge-demo-shop'])).toBeNull();
-    expect(calls[0]!.url).toBe(`/api/contribute?repo=peterbono%2Fbridge-demo-ds&gh=${encodeURIComponent('/repos/peterbono/bridge-demo-shop/pulls?state=open')}`);
+    expect(await publicTeamRead('acme-design-demo/bridge-demo-ds', shop, '', ['peterbono/bridge-demo-shop'])).toBeNull();
+    expect(calls[0]!.url).toBe(`/api/contribute?repo=acme-design-demo%2Fbridge-demo-ds&gh=${encodeURIComponent('/repos/peterbono/bridge-demo-shop/pulls?state=open')}`);
     answer = () => json(200, [{ number: 2 }]);
-    const r = await publicTeamRead('peterbono/bridge-demo-ds', 'https://api.github.com/repos/peterbono/bridge-demo-ds/pulls', '');
+    const r = await publicTeamRead('acme-design-demo/bridge-demo-ds', 'https://api.github.com/repos/acme-design-demo/bridge-demo-ds/pulls', '');
     expect(await r!.json()).toEqual([{ number: 2 }]);
   });
 
@@ -259,11 +259,11 @@ describe('reads through Bridge', () => {
 
   it("a guest's read of a demo team in Studio goes through Bridge, and GitHub's limit elsewhere never says to add a token", async () => {
     resetGuestActivity();
-    history.replaceState(null, '', '/studio/peterbono/bridge-demo-ds/');
-    answer = (url) => (url.startsWith('/api/contribute') ? json(200, { full_name: 'peterbono/bridge-demo-ds', default_branch: 'main', private: false }) : new Response('', { status: 404 }));
-    const info = await studioClient('peterbono/bridge-demo-ds', null).getRepo();
+    history.replaceState(null, '', '/studio/acme-design-demo/bridge-demo-ds/');
+    answer = (url) => (url.startsWith('/api/contribute') ? json(200, { full_name: 'acme-design-demo/bridge-demo-ds', default_branch: 'main', private: false }) : new Response('', { status: 404 }));
+    const info = await studioClient('acme-design-demo/bridge-demo-ds', null).getRepo();
     expect(info.defaultBranch).toBe('main');
-    expect(calls.some((c) => c.url.startsWith('/api/contribute?repo=peterbono%2Fbridge-demo-ds&gh='))).toBe(true);
+    expect(calls.some((c) => c.url.startsWith('/api/contribute?repo=acme-design-demo%2Fbridge-demo-ds&gh='))).toBe(true);
     expect(calls.some((c) => c.url.startsWith('https://api.github.com/repos/'))).toBe(false);
 
     resetGuestActivity();

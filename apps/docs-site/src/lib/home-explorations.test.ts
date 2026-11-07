@@ -42,7 +42,7 @@ const pull = (n: number, extra: Partial<ExplorationPull> = {}): ExplorationPull 
   ...extra,
 });
 
-// The sample team's open pull requests, as GitHub lists them (peterbono/bridge-demo-ds).
+// The sample team's open pull requests, as GitHub lists them (acme-design-demo/bridge-demo-ds).
 const profile = pull(36, {
   draft: true,
   title: 'Exploration: profile page',

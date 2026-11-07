@@ -9,7 +9,7 @@ import { DEMO_APPROVED_KEY, demoApprovedSet, markDemoApproved, DEMO_REPOS, demoA
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
     expect(DEMO_REPOS).toContain('the-bridge-company/ai-design-system-demo');
-    expect(DEMO_REPOS).toContain('peterbono/bridge-demo-ds');
+    expect(DEMO_REPOS).toContain('acme-design-demo/bridge-demo-ds');
     expect(isDemoRepo('Peterbono/Bridge-Demo-DS')).toBe(true);
     expect(isDemoRepo('acme/ds')).toBe(false);
     // Bridge's own repository moves to the-bridge-company: both names are the demo while it moves.
@@ -19,7 +19,7 @@ describe('the demo', () => {
   });
 
   it('lets a visitor explore, and its owner work as usual', () => {
-    const repo = 'peterbono/bridge-demo-ds';
+    const repo = 'acme-design-demo/bridge-demo-ds';
     expect(exploresDemo({ repo, signedIn: false, write: null })).toBe(true);
     expect(exploresDemo({ repo, signedIn: true, write: false })).toBe(true);
     // Signed in and not known yet: the Studio acts as usual, so the owner is never stopped.
@@ -30,10 +30,10 @@ describe('the demo', () => {
 
   it('says the sample team sends nothing, in designer words, with one call to action (board D2)', () => {
     expect(DEMO_WORDS.getStarted).toBe('Get started');
-    expect(demoBanner('peterbono/bridge-demo-ds')).toEqual({ title: 'Acme Design.', text: 'This is a sample team: your edits stay in this browser and nothing is sent.' });
-    expect(demoDialog('peterbono/bridge-demo-ds')).toEqual({ title: 'This is a sample team.', lead: 'Nothing is sent from Acme Design. Get started to do this with your own team.' });
+    expect(demoBanner('acme-design-demo/bridge-demo-ds')).toEqual({ title: 'Acme Design.', text: 'This is a sample team: your edits stay in this browser and nothing is sent.' });
+    expect(demoDialog('acme-design-demo/bridge-demo-ds')).toEqual({ title: 'This is a sample team.', lead: 'Nothing is sent from Acme Design. Get started to do this with your own team.' });
     // The sample team never sends a visitor to GitHub.
-    for (const t of [...Object.values(demoBanner('peterbono/bridge-demo-ds')), ...Object.values(demoDialog('peterbono/bridge-demo-ds')), DEMO_WORDS.sampleNote, DEMO_WORDS.tryIt]) expect(t).not.toMatch(/GitHub|repo/);
+    for (const t of [...Object.values(demoBanner('acme-design-demo/bridge-demo-ds')), ...Object.values(demoDialog('acme-design-demo/bridge-demo-ds')), DEMO_WORDS.sampleNote, DEMO_WORDS.tryIt]) expect(t).not.toMatch(/GitHub|repo/);
     for (const t of Object.values(DEMO_WORDS)) expect(t).not.toMatch(/\u2014|pull request|token/);
   });
 
@@ -137,7 +137,7 @@ describe('teamDisplayName', () => {
   it("a team's own name from bridge.config.json wins, except on the sample team", () => {
     expect(teamDisplayName('acme/design-system', { name: '  Acme   Studio ' })).toBe('Acme Studio');
     expect(teamDisplayName('the-bridge-company/ai-design-system-demo', { name: 'Bridge DS' })).toBe('Bridge DS');
-    expect(teamDisplayName('peterbono/bridge-demo-ds', { name: 'Other' })).toBe('Acme Design');
+    expect(teamDisplayName('acme-design-demo/bridge-demo-ds', { name: 'Other' })).toBe('Acme Design');
     expect(teamDisplayName('acme/ds', { name: ' ' })).toBe('Ds');
     expect(teamDisplayName('acme/ds', null)).toBe('Ds');
   });
@@ -186,8 +186,8 @@ describe('drafts on the sample team', () => {
     expect(s.getItem(DEMO_STASH_KEY)).toBe('{"edits":["real"]}');
     // Edits during the visit stay in this browser, page after page.
     s.setItem(SHARED_DRAFT_KEY, '{"edits":["sample"]}');
-    s.setItem('bridge.brand-draft:peterbono/bridge-demo-ds', 'sample brand');
-    s.setItem('bridge.draft.change.peterbono/bridge-demo-ds#12.v1', 'sample change');
+    s.setItem('bridge.brand-draft:acme-design-demo/bridge-demo-ds', 'sample brand');
+    s.setItem('bridge.draft.change.acme-design-demo/bridge-demo-ds#12.v1', 'sample change');
     expect(swapDemoDrafts(s, true)).toBe('none');
     expect(s.getItem(SHARED_DRAFT_KEY)).toBe('{"edits":["sample"]}');
     // Leaving for a real team: the sample drafts go, the real draft comes back, untouched.

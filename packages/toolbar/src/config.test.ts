@@ -52,6 +52,17 @@ describe('buildFromConfig', () => {
     expect(buildFromConfig(withCopy, 'the-bridge-company/ai-design-system-demo', 'admin-app')).toMatchObject({ repo: 'art-print-shop' });
   });
 
+  it("a page on the copy's preview host reads the copy even when no repository was named (Cloudflare Pages)", () => {
+    const acme = {
+      products: [{ key: 'account', repo: 'acme-design-demo/acme-account', preview: 'https://{branch}.acme-account.pages.dev', design: { repo: 'acme-design-demo/acme-account-design', preview: 'https://{branch}.acme-account-design.pages.dev' } }],
+    };
+    const ds = 'acme-design-demo/bridge-demo-ds';
+    expect(buildFromConfig(acme, ds, 'account', { href: 'https://explore-team.acme-account-design.pages.dev/?bridge=1' })).toMatchObject({ repo: 'acme-account-design', preview: 'https://{branch}.acme-account-design.pages.dev' });
+    // The developers' preview of the same product, and a named repository, keep their own reads.
+    expect(buildFromConfig(acme, ds, 'account', { href: 'https://feat-x.acme-account.pages.dev/?bridge=1' })).toMatchObject({ repo: 'acme-account' });
+    expect(buildFromConfig(acme, ds, 'account', { href: 'https://explore-team.acme-account-design.pages.dev/', repo: 'someone/else' })).toMatchObject({ repo: 'acme-account' });
+  });
+
   it('lets the product override the config, null included', () => {
     const b = buildFromConfig(config, 'the-bridge-company/ai-design-system-demo', 'admin-app', { production: 'https://shop.example.com', studio: null, deployEnv: 'preview' });
     expect(b).toMatchObject({ production: 'https://shop.example.com', studio: null, deployEnv: 'preview' });

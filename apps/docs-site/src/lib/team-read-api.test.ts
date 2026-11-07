@@ -15,7 +15,9 @@ const T0 = Date.parse('2026-10-23T10:00:00Z');
 const SECRET = 's'.repeat(40);
 const ENV = { LIBRARY_SESSION_SECRET: SECRET };
 const TEAM = 'acme/design';
-const DEMO = 'peterbono/bridge-demo-ds';
+// The public-only rules are Bridge's own design system's; the sample team is open even private (its own test below).
+const DEMO = 'the-bridge-company/ai-design-system-demo';
+const SAMPLE = 'acme-design-demo/bridge-demo-ds';
 const SHA = (c: string) => c.repeat(40);
 
 interface Seen {
@@ -182,6 +184,11 @@ describe('team reads: who', () => {
     expect(s.w.calls.some((c) => c.path.includes('secret'))).toBe(false);
   });
 
+  it('anyone reads the sample team, even while its repository is private on GitHub', async () => {
+    const s = setup({ private: { [SAMPLE]: true } });
+    expect((await s.read(`/repos/${SAMPLE}/pulls`, '', SAMPLE)).status).toBe(200);
+  });
+
   it('anyone reads a public demo team, only while GitHub says it is public; any other team needs a member', async () => {
     const s = setup();
     expect((await s.read(`${D}/pulls`, '', DEMO)).status).toBe(200);
@@ -235,7 +242,7 @@ describe('team reads: the allow-list', () => {
     expect(isPublicTeam('the-bridge-company/ai-design-system-demo')).toBe(true);
     expect(isPublicTeam('peterbono/ai-design-system-demo')).toBe(true);
     expect(isPublicTeam('Peterbono/AI-Design-System-Demo')).toBe(true);
-    expect(isPublicTeam('peterbono/bridge-demo-ds')).toBe(true);
+    expect(isPublicTeam('acme-design-demo/bridge-demo-ds')).toBe(true);
     expect(isPublicTeam('acme/ds')).toBe(false);
   });
 
@@ -273,7 +280,9 @@ describe('team reads: the allow-list', () => {
       const r = await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${DEMO}&gh=${encodeURIComponent(`${D}/pulls`)}`, { method, headers: { host: HOST } }), ENV, s.deps);
       expect(r.status, method).toBe(403);
       const r2 = await handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${DEMO}&gh=${encodeURIComponent(`${D}/pulls`)}`, { method, headers: { host: HOST, origin: ORIGIN, 'x-bridge-contribute': '1', 'content-type': 'application/json' }, body: '{}' }), ENV, s.deps);
-      expect(r2.status, method).toBe(401);
+      // The demo's one write gate refuses a visitor before anything reaches GitHub (api/contribute demoWriteRefusal).
+      expect(r2.status, method).toBe(403);
+      expect((await r2.json()).error, method).toBe('demo');
     }
     expect(s.w.calls.length).toBe(before);
   });
