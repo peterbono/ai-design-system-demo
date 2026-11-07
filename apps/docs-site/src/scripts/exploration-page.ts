@@ -362,20 +362,21 @@ async function paintEarlyBuild(
     return;
   }
   const team = `${CFG.owner}/${CFG.repo}`;
-  const builder = read.pull.builder ?? 'the developer';
+  const builder = read.pull.builderName ?? read.pull.builder ?? 'the developer';
+  const designerName = read.designerName ?? designer;
   const pm = people?.pms[o.product.toLowerCase()]?.name ?? null;
   const code = o.products.find((p) => p.key === o.product);
   const buildUrl = read.pull.ref ? branchPreviewUrl(code?.preview, read.pull.ref) : null;
   const check: BuildCheckView = {
     line: BUILD_WORDS.line(builder),
     builder,
-    designer,
-    rows: buildRows(read.rows, { designer, pm, lead: null }),
+    designer: designerName,
+    rows: buildRows(read.rows, { designer: designerName, pm, lead: null }),
     onSay: read.role
       ? async (a) => {
           const [{ sayBuild }, { getToken }] = await Promise.all([import('./contribute-session'), import('./github-session')]);
           await sayBuild(team, { product: o.product, copy: productRepoByKey(o.product)?.repo ?? '', number: o.r.number, ...a }, o.viewerRef ? null : getToken());
-          const line = a.kind === 'looks-right' ? BUILD_WORDS.sentOk : a.why === 'design' ? BUILD_WORDS.sentDesign(designer) : BUILD_WORDS.sentBuild(builder);
+          const line = a.kind === 'looks-right' ? BUILD_WORDS.sentOk : a.why === 'design' ? BUILD_WORDS.sentDesign(designerName) : BUILD_WORDS.sentBuild(builder);
           o.reopen(line);
           return line;
         }

@@ -946,7 +946,10 @@ async function onBuild(req: Request, ctx: Ctx, body: Record<string, unknown>, wr
   const statusToken = already ? null : await ctx.svc.statusApp.installationToken(ro, rn).catch(() => null);
   const status = statusToken ? await ghAppSend(ctx, statusToken, 'POST', `/repos/${ro}/${rn}/statuses/${head}`, { ...named, context: DESIGN_CHECK, target_url: target }).catch(() => ({ status: 0, data: null })) : { status: 0, data: null };
   if (status.status === 201) await ctx.svc.redis.cmd('SET', statusKey, statusNow, 'EX', 30 * 24 * 3600).catch(() => undefined);
-  return json(200, { ...st, head, pull: { number: dev.number, url: dev.url, ...(ref ? { ref } : {}), ...(builder ? { builder } : {}) }, role, statusWritten: already || status.status === 201 });
+  // The people by the names they go by (their GitHub profile, kept by Bridge), never a login, for the page's first paint.
+  const nameOf = async (login: string | null | undefined) => (login && /^[A-Za-z0-9-]{1,39}$/.test(login) ? ((await profileNameOf(readCtxOf(ctx), ro, rn, login).catch(() => null)) ?? login) : (login ?? null));
+  const [builderName, designerShown] = await Promise.all([nameOf(builder), typeof block.memberName === 'string' ? Promise.resolve(block.memberName) : nameOf(typeof block.author === 'string' ? block.author : typeof block.doneBy === 'string' ? block.doneBy : null)]);
+  return json(200, { ...st, head, pull: { number: dev.number, url: dev.url, ...(ref ? { ref } : {}), ...(builder ? { builder } : {}), ...(builderName ? { builderName } : {}) }, ...(designerShown ? { designerName: designerShown } : {}), role, statusWritten: already || status.status === 201 });
 }
 
 const EXPLORATION_LABEL_SERVER = 'exploration';
