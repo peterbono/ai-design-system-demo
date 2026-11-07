@@ -77,6 +77,10 @@ async function main() {
     const errors = [];
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     page.on('pageerror', (e) => errors.push(`uncaught: ${e.message}`));
+    const checked0 = EXPECTED.find((x) => `exploration-${x.n}` === name && x.check);
+    // Check the build is timed on a warm visit: the first visit after a deploy also wakes Bridge's server functions,
+    // which is not what a visitor sees after that. One visit first, then the timed one.
+    if (checked0) await page.goto(url, { waitUntil: 'load', timeout: 60000 }).then(() => page.locator(CHECK_ROW).first().waitFor({ timeout: 30000 })).catch(() => undefined);
     const started = Date.now();
     const res = await page.goto(url, { waitUntil: 'load', timeout: 60000 }).catch((e) => ({ status: () => `failed (${e.message})` }));
     if (res?.status?.() !== 200) problems.push(`${name}: ${url} answered ${res?.status?.()}`);
