@@ -58,7 +58,7 @@ import { shownJiraKey } from '../lib/vocabulary';
 import { safeUrl } from '../lib/html';
 import { decisionRows, decisionTag, designerZoneTitle, leadWaitLine, nextName, sayerName } from '../lib/lead-decisions';
 import { nameAuthor } from '../lib/author';
-import { explorationKeeper, listInvites } from './invites-api';
+import { explorationKeeper, leadExplorationKeeper, listInvites } from './invites-api';
 import type { HandOverPerson } from '../components/ds/studio/LeadDecisions';
 import { canKeepExploration, keepExplorationLine, productKeeperLine, startedByDesigner, startedByEmailMember } from '../lib/write-route';
 import type { ExplorationPageProps, LeadView } from '../components/ds/studio/ExplorationPage';
@@ -222,11 +222,13 @@ function leadViewOf(
   const asker = block?.leadAskedBy ?? r.author;
   const leads = reviewersAsked({ approvers: siteApprovers().design, builders: [asker] });
   const viewer = currentViewer()?.email ? null : (currentViewer()?.login ?? null);
-  const isLead = Boolean(viewer && connected() && leads.some((l) => l.toLowerCase() === viewer.toLowerCase()));
+  // A lead signed in by email: the member record says it, and the server checks it again on every write. Never the person who asked.
+  const emailLead = currentContributor();
+  const isLead = Boolean(emailLead ? emailLead.lead && !startedByEmailMember(body, emailLead) : viewer && connected() && leads.some((l) => l.toLowerCase() === viewer.toLowerCase()));
   if (isLead) {
     const who = block?.leadAskedByName ?? block?.leadAskedBy ?? 'The designer';
-    const leadName = knownNamesOf([viewer!])[viewer!] ?? undefined;
-    const me = { lead: viewer!, ...(leadName ? { leadName } : {}) };
+    const leadName = viewer ? (knownNamesOf([viewer])[viewer] ?? undefined) : emailLead?.name;
+    const me = { ...(viewer ? { lead: viewer } : {}), ...(leadName ? { leadName } : {}) };
     // Someone else answered first: the page shows what they said.
     const answered = async (act: () => Promise<void>, line: string) => {
       try {
@@ -239,10 +241,10 @@ function leadViewOf(
       o.reopen(line);
       return line;
     };
-    const others = leads.filter((l) => l.toLowerCase() !== viewer!.toLowerCase());
+    const others = leads.filter((l) => l.toLowerCase() !== viewer?.toLowerCase());
     return {
       ...(open ? { heading: `With ${who}` } : {}),
-      line: open ? leadWaitLine(open, viewer!, who, knownNamesOf([open.by ?? ''])) : `${who} is done exploring. Look at the preview, then answer. Nothing reaches the developers before you do.`,
+      line: open ? leadWaitLine(open, viewer ?? '', who, knownNamesOf([open.by ?? ''])) : `${who} is done exploring. Look at the preview, then answer. Nothing reaches the developers before you do.`,
       bar: {
         onLooksRight: (note) =>
           answered(() => leadApproveOnGitHub(o.gh, r.number, { products: o.products, previewUrl: o.previewUrl, ...me, ...(note ? { note } : {}), ...(o.library ? { library: o.library() } : {}), source: 'studio' }).then(() => undefined), LEAD_OK_LINE),
@@ -369,7 +371,9 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
   // the design team's copy, also the email member Bridge started it for (the proxy checks it again on each write).
   const emailKeeper = Boolean(inCopy && member && startedByEmailMember(pull.body, member));
   const designerKeeper = Boolean(designer && startedByDesigner(pull.body, viewer));
-  const keeper = emailKeeper || designerKeeper || canKeepExploration({ viewer, author: r.author, reviewer: viewerRole() === 'reviewer', write: own ? null : (currentAccess()?.write ?? null) });
+  // A lead signed in by email on someone else's work: the member record says so, the server checks it on each write.
+  const emailLeadOther = Boolean(member?.lead && !emailKeeper && !sampleVisitor());
+  const keeper = emailKeeper || designerKeeper || emailLeadOther || canKeepExploration({ viewer, author: r.author, reviewer: viewerRole() === 'reviewer', write: own ? null : (currentAccess()?.write ?? null) });
   const emailOnProduct = Boolean(own && member && !inCopy);
   const direct = changesModeOnPage() === 'direct';
   const writable = connected() && direct && keeper && !emailOnProduct;
@@ -386,7 +390,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     productNote: emailOnProduct ? productKeeperLine(product.name) : null,
   });
   // A design lead on someone else's work: what they do to it says why, and they can pass it on.
-  const leadOther = Boolean(viewer && !currentViewer()?.email && connected() && !sampleVisitor() && !sameLogin(viewer, r.author) && !designerKeeper && reviewersAsked({ approvers: siteApprovers().design, builders: [] }).some((l) => sameLogin(l, viewer)));
+  const leadOther = emailLeadOther || Boolean(viewer && !currentViewer()?.email && connected() && !sampleVisitor() && !sameLogin(viewer, r.author) && !designerKeeper && reviewersAsked({ approvers: siteApprovers().design, builders: [] }).some((l) => sameLogin(l, viewer)));
   // The person it belongs to: the lead's words wait on them.
   const answersLead = connected() || emailKeeper ? (emailKeeper || designerKeeper || sameLogin(viewer, r.author)) && !emailOnProduct : false;
   const isLibrary = !own && product.default === true;
@@ -409,19 +413,19 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     location.assign(studioHref(`changes/${explorationHref({ number: started.pr, product: r.product })}`));
   };
   // Who a lead can give it to: the other leads, then the team's members who can edit once Bridge read them.
-  const handOverPeople: HandOverPerson[] = leadOther ? reviewersAsked({ approvers: siteApprovers().design, builders: [viewer!, r.author] }).map((l) => ({ value: `login:${l}`, label: knownNamesOf([l])[l] ?? l })) : [];
+  const handOverPeople: HandOverPerson[] = leadOther ? reviewersAsked({ approvers: siteApprovers().design, builders: [viewer ?? '', r.author] }).map((l) => ({ value: `login:${l}`, label: knownNamesOf([l])[l] ?? l })) : [];
   const handOverProps = (): Pick<ExplorationPageProps, 'onTakeOver' | 'handOver'> => {
-    const me = viewer!;
-    const myName = knownNamesOf([me])[me] ?? me;
+    const me = member ? undefined : viewer!;
+    const myName = member?.name ?? knownNamesOf([me!])[me!] ?? me!;
     const give = async (to: { email: string } | { login: string }, name: string, reason: string) => {
-      const kept = await explorationKeeper(`${CFG.owner}/${CFG.repo}`, { ...to, branch: r.branch, number: r.number, ...(inCopy ? { copy: inCopy.copy } : {}) });
-      await handOverOnGitHub(gh, r.number, { to: 'login' in to ? { login: to.login } : { member: kept.ref!, name: kept.name ?? name }, toName: name, reason, by: me, byName: myName });
+      const kept = await (member ? leadExplorationKeeper : explorationKeeper)(`${CFG.owner}/${CFG.repo}`, { ...to, branch: r.branch, number: r.number, ...(inCopy ? { copy: inCopy.copy } : {}) });
+      await handOverOnGitHub(gh, r.number, { to: 'login' in to ? { login: to.login } : { member: kept.ref!, name: kept.name ?? name }, toName: name, reason, ...(me ? { by: me } : {}), byName: myName });
       const line = `Handed to ${name}.`;
       reopen(line);
       return line;
     };
     return {
-      onTakeOver: (reason) => give({ login: me }, myName, reason),
+      onTakeOver: (reason) => give(member ? { email: member.email } : { login: me! }, myName, reason),
       handOver: {
         people: handOverPeople,
         onConfirm: (to, reason) => {
@@ -492,7 +496,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
           : null,
       onArchive: menu.archive && !r.archived
         ? async (reason?: string) => {
-            await archiveExplorationOnGitHub(gh, r.number, { archived: true, ...(reason ? { reason, by: viewer ?? undefined } : {}) });
+            await archiveExplorationOnGitHub(gh, r.number, { archived: true, ...(reason ? { reason, ...(member ? { byName: member.name } : { by: viewer ?? undefined }) } : {}) });
             reopen(ARCHIVED_LINE);
             return ARCHIVED_LINE;
           }
@@ -739,7 +743,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     onTakeBack:
       leadOther && status === 'ready' && !declined
         ? async (reason: string) => {
-            await takeBackOnGitHub(gh, r.number, { reason, lead: viewer!, leadName: knownNamesOf([viewer!])[viewer!] ?? undefined });
+            await takeBackOnGitHub(gh, r.number, { reason, ...(member ? { leadName: member.name } : { lead: viewer!, leadName: knownNamesOf([viewer!])[viewer!] ?? undefined }) });
             reopen(TOOK_BACK_LINE);
             return TOOK_BACK_LINE;
           }
@@ -747,7 +751,7 @@ export async function openExplorationPage(d: HTMLElement, r: ExplorationRow, pul
     onTellDevelopers:
       leadOther && status === 'building' && !declined
         ? async (text: string) => {
-            await tellDevelopersOnGitHub(gh, r.number, { text, byName: knownNamesOf([viewer!])[viewer!] ?? viewer! });
+            await tellDevelopersOnGitHub(gh, r.number, { text, byName: member?.name ?? knownNamesOf([viewer!])[viewer!] ?? viewer! });
             return TOLD_DEVELOPERS_LINE;
           }
         : null,

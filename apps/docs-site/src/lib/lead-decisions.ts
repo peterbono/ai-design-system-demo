@@ -103,7 +103,8 @@ export function leadHomeRow(body: string | null | undefined, v: { viewer: string
   const shown = v.names?.[designer.login ?? ''] ?? designer.name;
   if (turn === 'lead' && isWaitingForLead(body)) {
     if (!v.lead || v.own) return null;
-    if (e.leadAskedTo?.length && !e.leadAskedTo.some((l) => same(l, v.viewer))) return null;
+    // Who was asked by name are GitHub logins: a lead signed in by email has none, and answers all the same.
+    if (v.viewer && e.leadAskedTo?.length && !e.leadAskedTo.some((l) => same(l, v.viewer))) return null;
     const answered = last?.kind === 'answer';
     const before = answered ? [...all].reverse().find((d) => d.kind === 'question' || d.kind === 'changes' || d.kind === 'take-back') : null;
     const line = answered ? `${shown} answered your ${before?.kind === 'question' ? 'question' : 'changes'}` : last?.kind === 'asked-someone' ? `${sayerName(last, v.names)} asks you to look` : `${shown} is done exploring`;

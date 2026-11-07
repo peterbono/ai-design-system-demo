@@ -76,6 +76,12 @@
 //   POST   issues/<n>/labels           theirs only
 // Never: merges, reviews, requested reviewers, rulesets, branch protection, collaborators, deleting a ref, hooks,
 // settings, another repository, GraphQL.
+// A design lead signed in by email (the `lead` of their member record, given by an admin: api/invites set-lead) acts on
+// any exploration of the team without owning it: its pull request's body, labels and comments, its developers' task,
+// and in the library the note Done exploring removes. Never a push to someone's exploration in a copy, and nothing
+// Bridge keeps about who it belongs to moves. For everyone else, the words only a lead says (api/_lib/lead-gate.ts:
+// their decisions, their yes, Done exploring and the developers' task on a team with design owners) answer 403
+// lead-only, read against the body on GitHub.
 // Designers signed in with GitHub (push on the team's repository, not an admin, not a lead: githubDesignerOf) go
 // through here too for the team's products, proving who they are with their own GitHub token (Authorization: Bearer,
 // read with GET /user and the team's repository, never trusted from the browser); their branches are kept as
@@ -167,6 +173,8 @@ import { sharedAppTokens } from '../_lib/shared-token.js';
 import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { teamInSet } from '../_lib/members.js';
+import { addsLeadWords, handsOff, LEAD_ONLY } from '../_lib/lead-gate.js';
+import { explorationKeeper } from '../_lib/exploration-keeper.js';
 import { npmLatest, parseNpmNames, sendLibraryUpdate } from '../_lib/library-update.js';
 import { validPackageName } from '../../src/lib/library-update.js';
 import { canonicalRepo } from '../../src/lib/team-path.js';
@@ -445,7 +453,7 @@ export async function contributorOf(req: Request, repoFull: string, env: Contrib
   return sessionMember({ f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env }, req, repoFull);
 }
 
-const publicMember = (m: EmailMember) => ({ email: m.email, name: m.name, role: m.role, ref: memberRef(m.email) });
+const publicMember = (m: EmailMember) => ({ email: m.email, name: m.name, role: m.role, ref: memberRef(m.email), ...(m.lead ? { lead: true } : {}) });
 
 // ---------------------------------------------------------------------------------------------------------------
 // Small helpers
@@ -562,6 +570,14 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
 
     case 'library-update':
       return await onLibraryUpdate(req, ctx, body);
+
+    case 'exploration-keeper': {
+      // A lead signed in by email hands an exploration over: the member record says they lead, never the browser.
+      const team = parseRepo(body.repo);
+      const m = await sessionMember(ctx, req, team.full);
+      if (!m?.lead) return fail(403, 'not-allowed', LEAD_ONLY);
+      return explorationKeeper(ctx.svc, team.full.toLowerCase(), body);
+    }
 
     default:
       return fail(400, 'bad_request', 'Unknown action.');
@@ -710,6 +726,8 @@ const pick = (body: Record<string, unknown>, keys: string[]) => Object.fromEntri
 const onlyKeys = (body: Record<string, unknown>, keys: string[]) => Object.keys(body).every((k) => keys.includes(k));
 
 interface Call {
+  /** The team asked for: the repository of bridge.config.json. */
+  team: string;
   owner: string;
   repo: string;
   full: string;
@@ -888,8 +906,8 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
   const info = async () => (facts ??= await repoFacts(ctx, c));
   const def = async () => (await info()).defaultBranch;
   const isDefault = async (b: string) => b.toLowerCase() === (await def()).toLowerCase();
-  const ownsBranch = async (b: unknown) => typeof b === 'string' && validBranch(b) && !(await isDefault(b)) && sameEmail(await ctx.svc.redis.cmd('GET', branchKey(c.full, b)), c.member.email);
-  const ownsIssue = async (n: string | undefined) => n !== undefined && NUMBER.test(n) && sameEmail(await ctx.svc.redis.cmd('GET', issueKey(c.full, n)), c.member.email);
+  const ownsBranch = async (b: unknown) => typeof b === 'string' && validBranch(b) && !(await isDefault(b)) && (sameEmail(await ctx.svc.redis.cmd('GET', branchKey(c.full, b)), c.member.email) || Boolean(c.member.lead && b.startsWith(EXPLORATION_PREFIX)));
+  const ownsIssue = async (n: string | undefined) => n !== undefined && NUMBER.test(n) && (sameEmail(await ctx.svc.redis.cmd('GET', issueKey(c.full, n)), c.member.email) || Boolean(c.member.lead && (await explorationOfLead(ctx, c, n))));
   const recordIssue = async (data: any) => {
     if (typeof data?.number === 'number') {
       await ctx.svc.redis.cmd('SET', issueKey(c.full, data.number), c.member.email, 'EX', OWNERSHIP_TTL_S);
@@ -988,6 +1006,7 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
       }
       if (at('issues', '*', 'labels')) {
         if (!(await ownsIssue(r[1]))) throw notAllowed();
+        await checkReadyLabel(ctx, c, body.labels);
         return { body: pick(body, ['labels']) };
       }
       throw notAllowed();
@@ -1002,7 +1021,8 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
       }
       if (at('pulls', '*')) {
         if (!onlyKeys(body, ['title', 'body', 'state', 'draft']) || !(await ownsIssue(r[1]))) throw notAllowed();
-        return { body: 'body' in body ? { ...body, body: await requested(body.body) } : body };
+        if ('body' in body) await checkLeadWords(ctx, c, c, r[1]!, body.body);
+        return { body: 'body' in body ? { ...body, body: c.member.lead && !(await ownedByKey(ctx, c, r[1]!)) ? body.body : await requested(body.body) } : body };
       }
       if (at('issues', '*')) {
         if (!onlyKeys(body, ['title', 'body', 'state', 'labels']) || !(await ownsIssue(r[1]))) throw notAllowed();
@@ -1123,15 +1143,22 @@ export function libraryPackagesFrom(config: unknown): string[] {
   return Array.isArray(list) ? list.filter((n): n is string => typeof n === 'string' && validPackageName(n)) : [];
 }
 
+/** How many design owners bridge.config.json names (governance.owners.design): with none, Done exploring needs nobody. */
+export function designOwnersFrom(config: unknown): number {
+  const list = (config as { governance?: { owners?: { design?: unknown } } } | null)?.governance?.owners?.design;
+  return Array.isArray(list) ? list.filter((v) => typeof v === 'string' && v.trim()).length : typeof list === 'string' && list.trim() ? 1 : 0;
+}
+
 interface TeamFacts {
   at: number;
   pairs: ProductPair[];
   leads: string[];
+  designOwners: number;
   products: CodeProduct[];
   packages: string[];
 }
 
-const NO_FACTS = (): TeamFacts => ({ at: 0, pairs: [], leads: [], products: [], packages: [] });
+const NO_FACTS = (): TeamFacts => ({ at: 0, pairs: [], leads: [], designOwners: 0, products: [], packages: [] });
 
 async function teamFacts(ctx: Ctx, team: { owner: string; repo: string; full: string }): Promise<TeamFacts> {
   const hit = pairsCache.get(team.full);
@@ -1151,19 +1178,21 @@ async function teamFacts(ctx: Ctx, team: { owner: string; repo: string; full: st
   if (res.status !== 200) return NO_FACTS();
   let pairs: ProductPair[] = [];
   let leads: string[] = [];
+  let designOwners = 0;
   let products: CodeProduct[] = [];
   let packages: string[] = [];
   try {
     const config: unknown = JSON.parse(await res.text());
     pairs = productPairsFrom(config, team.full);
     leads = teamLeadsFrom(config);
+    designOwners = designOwnersFrom(config);
     products = codeProductsFrom(config, team.full);
     packages = libraryPackagesFrom(config);
   } catch {
     pairs = [];
     leads = [];
   }
-  const facts: TeamFacts = { at: ctx.now(), pairs, leads, products, packages };
+  const facts: TeamFacts = { at: ctx.now(), pairs, leads, designOwners, products, packages };
   pairsCache.set(team.full, facts);
   return facts;
 }
@@ -1293,6 +1322,34 @@ export const EXPLORATION_ARCHIVED_LABEL = 'archived';
 export const FROM_DESIGN_LABEL = 'from-design';
 
 /** Labels an email designer puts on or takes off their own exploration in the copy. */
+const leadOnly = () => new HttpError(403, 'lead-only', LEAD_ONLY);
+
+/** The team of a proxied call, as bridge.config.json on its default branch says it. */
+const teamFactsOf = (ctx: Ctx, c: Call) => {
+  const [owner, repo] = c.team.split('/') as [string, string];
+  return teamFacts(ctx, { owner, repo, full: c.team.toLowerCase() });
+};
+
+/** Pull request `n` read on GitHub as the app, when it is an exploration: what a lead may act on, whoever started it. */
+async function explorationOfLead(ctx: Ctx, c: Call, n: string): Promise<boolean> {
+  const p = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/pulls/${n}`);
+  return p.status === 200 && Boolean(explorationBlockOf(p.data?.body));
+}
+
+const ownedByKey = async (ctx: Ctx, c: Call, n: string) => sameEmail(await ctx.svc.redis.cmd('GET', issueKey(c.full, n)), c.member.email);
+
+/** A member who is not a lead never writes a lead's words in a block (api/_lib/lead-gate.ts), read against GitHub's body. */
+async function checkLeadWords(ctx: Ctx, c: Call, at: { owner: string; repo: string }, n: string, next: unknown): Promise<void> {
+  if (c.member.lead) return;
+  const p = await ghApp(ctx, c.token, 'GET', `/repos/${at.owner}/${at.repo}/pulls/${n}`);
+  if (p.status === 200 && addsLeadWords(p.data?.body, next, { hasLeads: (await teamFactsOf(ctx, c)).designOwners > 0 })) throw leadOnly();
+}
+
+/** The label that hands it to the developers goes with Done exploring: the same rule. */
+async function checkReadyLabel(ctx: Ctx, c: Call, labels: unknown): Promise<void> {
+  if (!c.member.lead && handsOff(labels, EXPLORATION_READY_LABEL) && (await teamFactsOf(ctx, c)).designOwners > 0) throw leadOnly();
+}
+
 const COPY_LABELS = new Set([EXPLORATION_LABEL, EXPLORATION_READY_LABEL, EXPLORATION_ARCHIVED_LABEL]);
 const copyLabel = (l: unknown) => typeof l === 'string' && (COPY_LABELS.has(l) || /^product:[\w.-]{1,64}$/.test(l));
 
@@ -1375,6 +1432,8 @@ async function ownedCopyPull(ctx: Ctx, m: ProxyMember, copy: RepoAt, token: stri
     typeof head?.repo?.full_name === 'string' &&
     head.repo.full_name.toLowerCase() === copy.full &&
     (await ownsExploration(ctx, m, copy, token, isDefault, head.ref, p.data));
+  // A lead acts on it without owning it: nothing Bridge keeps about who it belongs to moves.
+  if (!mine && m.lead && p.status === 200 && explorationBlockOf(p.data?.body)) return p.data;
   const kept = await ctx.svc.redis.cmd('GET', key);
   if (mine) {
     if (!sameEmail(kept, m.email)) {
@@ -1474,6 +1533,7 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
         if (at('issues', '*', 'labels')) {
           const labels = body.labels;
           if (!Array.isArray(labels) || !labels.length || !labels.every(copyLabel) || !(await ownedPull(r[1]))) throw notAllowed();
+          await checkReadyLabel(ctx, c, labels);
           return { body: { labels } };
         }
         if (at('merge-upstream')) {
@@ -1501,6 +1561,9 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
           if (!pull) throw notAllowed();
           // Who started it stays named in its block: the one it names already, else them.
           const was = explorationBlockOf(pull.body);
+          if ('body' in body && !c.member.lead && addsLeadWords(pull.body, body.body, { hasLeads: (await teamFactsOf(ctx, c)).designOwners > 0 })) throw leadOnly();
+          // A lead answering on someone else's: their words are in the block by name, the attribution stays the designer's.
+          if ('body' in body && c.member.lead && typeof was?.member === 'string' && was.member !== me.ref) return { body };
           const owner = typeof was?.member === 'string' ? { ref: was.member, name: typeof was.memberName === 'string' ? was.memberName : c.member.name } : me;
           return { body: 'body' in body ? { ...body, body: await h.requested(body.body, owner) } : body };
         }
@@ -1568,6 +1631,8 @@ async function planProductCall(ctx: Ctx, c: Call, h: PlanHelpers): Promise<Plan>
         const labels = body.labels;
         if (typeof body.title !== 'string' || !body.title.startsWith('Design: ') || !Array.isArray(labels) || labels.length !== 1 || labels[0] !== FROM_DESIGN_LABEL) throw notAllowed();
         if (!(await linksOwnedExploration(body.body))) throw notAllowed();
+        // The developers' task is what the lead's yes sends: a designer never files it past them.
+        if (!c.member.lead && (await teamFactsOf(ctx, c)).designOwners > 0) throw leadOnly();
         return { body: { title: body.title, labels, body: await h.requested(body.body) }, after: h.recordIssue };
       }
       if (at('issues', '*', 'comments')) {
@@ -1669,7 +1734,7 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
 
   const token = await ctx.svc.app.installationToken(at.owner, at.repo);
   if (!token) return fail(409, 'app_missing', scope ? PRODUCT_APP_MISSING : APP_MISSING);
-  const plan = await planCall(ctx, { owner: at.owner, repo: at.repo, full: at.full, member, token, method, target, body, scope: scope ?? undefined });
+  const plan = await planCall(ctx, { team: full, owner: at.owner, repo: at.repo, full: at.full, member, token, method, target, body, scope: scope ?? undefined });
 
   if (method !== 'GET') {
     const day = dayOf(ctx.now());
